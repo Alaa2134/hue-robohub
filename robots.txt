@@ -1,0 +1,12 @@
+User-Agent: *
+Allow: /
+Disallow: /command
+Disallow: /login
+Disallow: /setup
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /api/
+Disallow: /uploads/
+
+Host: https://alaa2134.github.io/hue-robohub
+Sitemap: https://alaa2134.github.io/hue-robohub/sitemap.xml
