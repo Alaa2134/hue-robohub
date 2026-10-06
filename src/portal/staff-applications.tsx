@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import { DAYS, HEARD_FROM, HOURS, LEVELS, STATUSES, TEAM_ROLES, YEARS, label } from "@/content/application";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
-import { downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, List, Loading, Row, SearchBox, Section, Textarea, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
+import { downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
+import { PinResults, type PinItem } from "./staff-students";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 type Status = (typeof STATUSES)[number]["key"];
 export type Application = {
@@ -34,6 +35,7 @@ export type Application = {
   status: Status;
   staff_notes: string;
   reviewed_at: string | null;
+  student_id: string | null;
 };
 
 const TONE: Record<Status, "info" | "volt" | "ok" | "warn" | "danger" | "muted"> = {
@@ -53,7 +55,7 @@ export async function newApplicationsCount(): Promise<number> {
   return r.count ?? 0;
 }
 
-export function ApplicationsScreen() {
+export function ApplicationsScreen({ me }: { me: StaffRow }) {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("applications").select("*").order("created_at", { ascending: false }).limit(1000).then(must)) as Application[], []);
   const [status, setStatus] = useState<Status | "all">("all");
   const [track, setTrack] = useState("");
@@ -116,6 +118,7 @@ export function ApplicationsScreen() {
           </Button>
         }
       />
+      {(me.role === "owner" || me.role === "admin") && <IntakeCard />}
       {loading && !data ? (
         <Loading />
       ) : error ? (
@@ -145,6 +148,7 @@ export function ApplicationsScreen() {
               </Chip>
             ))}
           </div>
+          <Stats list={data} />
           {list.length ? (
             <List className="mt-4">
               {list.map((a) => (
@@ -189,6 +193,8 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   const { data: a, error, loading, reload, set } = useAsync(async () => (await sb().from("applications").select("*").eq("id", id).single().then(must)) as Application, [id]);
   const [notes, setNotes] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [pins, setPins] = useState<PinItem[] | null>(null);
 
   if (loading && !a) return <Loading />;
   if (error || !a) return <ErrorBox error={error ?? "الطلب مش موجود"} retry={reload} />;
@@ -241,6 +247,20 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
           نسخ الرقم
         </Button>
       </div>
+
+      {a.student_id ? (
+        <Card className="mt-4 flex items-center gap-3 border-ok/30 bg-ok/[0.06]">
+          <Icon name="check" size={20} className="shrink-0 text-ok" />
+          <p className="flex-1 text-sm text-mist">اتضاف كطالب في التطبيق.</p>
+          <Button size="sm" onClick={() => go(`/staff/students?q=${encodeURIComponent(a.full_name)}`)}>
+            الطلاب
+          </Button>
+        </Card>
+      ) : (
+        <Button variant="ok" icon="plus" className="mt-4" block onClick={() => setAccepting(true)}>
+          قبول وإضافة للتطبيق
+        </Button>
+      )}
 
       <Section title="الحالة">
         <div className="flex flex-wrap gap-2">
@@ -310,6 +330,143 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
           حذف الطلب
         </Button>
       )}
+      {accepting && (
+        <AcceptSheet
+          app={a}
+          onClose={() => setAccepting(false)}
+          onDone={(row, issued) => {
+            set(row);
+            setAccepting(false);
+            setPins(issued);
+          }}
+        />
+      )}
+      <PinResults items={pins} onClose={() => setPins(null)} />
     </>
+  );
+}
+
+/** Accept: create the student account from the application and issue an app PIN. */
+function AcceptSheet({ app, onClose, onDone }: { app: Application; onClose: () => void; onDone: (row: Application, pins: PinItem[]) => void }) {
+  const [code, setCode] = useState(app.student_number || app.ref);
+  const [group, setGroup] = useState(trackAr(app.track_first));
+  const [busy, setBusy] = useState(false);
+  const accept = async () => {
+    if (!code.trim()) return toast("اكتب كود الطالب", "error");
+    setBusy(true);
+    try {
+      const studentId = await rpc<string>("accept_application", { p_id: app.id, p_code: code.trim(), p_group: group.trim() });
+      const issued = await rpc<PinItem[]>("staff_set_pins", { p_ids: [studentId], p_only_missing: false });
+      const row = (await sb().from("applications").select("*").eq("id", app.id).single().then(must)) as Application;
+      toast("اتقبل واتضاف للتطبيق");
+      onDone(row, issued);
+    } catch (e) {
+      const msg = errorText(e);
+      toast(/code_taken|duplicate|unique|students_code_key/i.test(msg) ? "الكود ده مستخدم لطالب تاني — اختار كود تاني" : msg, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose} title={`قبول ${app.full_name}`}>
+      <div className="grid gap-4">
+        <p className="text-sm text-mist">هيتعمل له حساب طالب في التطبيق برمز دخول، وحالة الطلب هتبقى «مقبول».</p>
+        <Field label="كود الطالب" hint="الرقم الجامعي لو موجود، أو أي كود تختاره. ده اللي بيدخل بيه التطبيق.">
+          <Input value={code} dir="ltr" maxLength={40} onChange={(e) => setCode(e.target.value)} />
+        </Field>
+        <Field label="المجموعة" hint="مثلاً اسم المسار أو الدفعة">
+          <Input value={group} maxLength={60} onChange={(e) => setGroup(e.target.value)} />
+        </Field>
+        <Button variant="primary" size="lg" block loading={busy} onClick={accept}>
+          قبول وإنشاء الحساب
+        </Button>
+      </div>
+    </Sheet>
+  );
+}
+
+type Intake = { open: boolean; message_ar: string; message_en: string };
+
+/** Owners/admins open or close the intake; the website reads the same setting. */
+function IntakeCard() {
+  const { data, set } = useAsync(async () => {
+    const r = (await sb().from("site_settings").select("value").eq("key", "applications").maybeSingle().then(must)) as { value: Intake } | null;
+    return { open: true, message_ar: "", message_en: "", ...(r?.value ?? {}) } as Intake;
+  }, []);
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const save = async (next: Intake) => {
+    setBusy(true);
+    try {
+      await sb().from("site_settings").upsert({ key: "applications", value: next }).then(must);
+      set(next);
+      toast(next.open ? "التقديم مفتوح على الموقع" : "التقديم اتقفل على الموقع");
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className={`mb-4 grid gap-3 ${data.open ? "border-ok/30" : "border-warn/30"}`}>
+      <Toggle checked={data.open} disabled={busy} onChange={(v) => save({ ...data, open: v })} label={data.open ? "التقديم مفتوح" : "التقديم مقفول"} hint="بيتغيّر على الموقع على طول." />
+      {!data.open && (
+        <>
+          <Field label="رسالة للطلاب (عربي)" hint="مثلاً: التقديم هيفتح تاني في فبراير">
+            <Input value={data.message_ar} maxLength={200} onChange={(e) => set({ ...data, message_ar: e.target.value })} />
+          </Field>
+          <Field label="Message (English)">
+            <Input value={data.message_en} dir="ltr" maxLength={200} onChange={(e) => set({ ...data, message_en: e.target.value })} />
+          </Field>
+          <Button size="sm" loading={busy} onClick={() => save(data)}>
+            حفظ الرسالة
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
+
+/** Where applications come from: counts per track, faculty and source. */
+function Stats({ list }: { list: Application[] }) {
+  const [open, setOpen] = useState(false);
+  const count = (key: (a: Application) => string | null | undefined) => {
+    const m = new Map<string, number>();
+    for (const a of list) {
+      const k = key(a);
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m.entries()].sort((x, y) => y[1] - x[1]);
+  };
+  const groups: [string, [string, number][]][] = [
+    ["المسار الأول", count((a) => trackAr(a.track_first))],
+    ["الكلية", count((a) => a.faculty.trim())],
+    ["عرفوا منين", count((a) => label(HEARD_FROM, a.heard_from, "ar"))],
+    ["المستوى", count((a) => label(LEVELS, a.experience_level, "ar"))],
+  ];
+  return (
+    <div className="mt-3">
+      <Button size="sm" variant="ghost" icon="chart" onClick={() => setOpen((v) => !v)}>
+        {open ? "إخفاء الإحصائيات" : "الإحصائيات"}
+      </Button>
+      {open && (
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          {groups.map(([title, rows]) => (
+            <Card key={title}>
+              <p className="mb-2 font-semibold text-chalk">{title}</p>
+              <ul className="grid gap-1.5">
+                {rows.slice(0, 8).map(([k, n]) => (
+                  <li key={k} className="flex items-center gap-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-mist">{k}</span>
+                    <span className="h-1.5 rounded-full bg-cyan/70" style={{ width: `${Math.max(6, (n / list.length) * 120)}px` }} />
+                    <span className="w-8 text-end font-mono text-chalk">{n}</span>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

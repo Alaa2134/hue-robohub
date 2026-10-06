@@ -107,6 +107,7 @@ const T = {
       consent: "Please agree so we can review your application.",
       invalid: "Some answers look wrong. Please check them and try again.",
       busy: "Lots of people are applying right now. Please try again in a minute.",
+      closed: "Applications are closed right now.",
       network: "We couldn't reach the server. Check your connection and try again.",
     },
     done: "Application received!",
@@ -163,6 +164,7 @@ const T = {
       consent: "لازم توافق عشان نقدر نراجع طلبك.",
       invalid: "فيه إجابات شكلها غلط. راجعها وجرّب تاني.",
       busy: "فيه ناس كتير بتقدّم دلوقتي. جرّب تاني بعد دقيقة.",
+      closed: "التقديم مقفول دلوقتي.",
       network: "مقدرناش نوصل للسيرفر. اتأكد من النت وجرّب تاني.",
     },
     done: "طلبك وصل!",
@@ -240,6 +242,22 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
   const [formError, setFormError] = useState("");
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<{ ref: string; duplicate: boolean } | null>(null);
+  const [closed, setClosed] = useState<string | null>(null);
+
+  // The team can close the intake from the app; read it before showing the form.
+  useEffect(() => {
+    let alive = true;
+    fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=value&key=eq.applications`, { headers: { apikey: SUPABASE_KEY } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { value?: { open?: boolean; message_ar?: string; message_en?: string } }[]) => {
+        const v = rows[0]?.value;
+        if (alive && v && v.open === false) setClosed((locale === "ar" ? v.message_ar : v.message_en) || "");
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [locale]);
   const top = useRef<HTMLDivElement>(null);
   const honey = useRef<HTMLInputElement>(null);
   const loaded = useRef(false);
@@ -302,7 +320,8 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       const out = (await res.json().catch(() => null)) as { ok?: boolean; ref?: string; duplicate?: boolean; error?: string } | null;
       if (!res.ok || !out) throw new Error("network");
       if (!out.ok) {
-        setFormError(out.error === "busy" ? t.err.busy : t.err.invalid);
+        if (out.error === "closed") setClosed("");
+        setFormError(out.error === "busy" ? t.err.busy : out.error === "closed" ? t.err.closed : t.err.invalid);
         return;
       }
       setDone({ ref: out.ref ?? "", duplicate: !!out.duplicate });
@@ -318,6 +337,18 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
   };
 
   const trackName = useMemo(() => Object.fromEntries(tracks.map((x) => [x.slug, x.name])), [tracks]);
+
+  if (closed !== null && !done) {
+    return (
+      <div role="status" className="frame flex flex-col items-start gap-4 p-7 sm:p-10">
+        <span className="flex size-14 items-center justify-center rounded-2xl border border-warn/40 bg-warn/10 text-warn">
+          <Icon name="clock" size={26} />
+        </span>
+        <p className="t-headline text-3xl text-chalk">{t.err.closed}</p>
+        <p className="max-w-xl text-lg leading-relaxed text-mist">{closed || (locale === "ar" ? "تابعنا عشان تعرف أول ما التقديم يفتح تاني." : "Follow us to hear the moment applications open again.")}</p>
+      </div>
+    );
+  }
 
   if (done) {
     const wa = whatsapp ? whatsappLink(whatsapp, t.waText(done.ref)) : null;

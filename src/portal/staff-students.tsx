@@ -431,7 +431,7 @@ function PinsSheet({ open, onClose, groups, students, onPins }: { open: boolean;
   );
 }
 
-function PinResults({ items, onClose }: { items: PinItem[] | null; onClose: () => void }) {
+export function PinResults({ items, onClose }: { items: PinItem[] | null; onClose: () => void }) {
   const [printing, setPrinting] = useState(false);
   if (!items) return null;
   const text = items.map((p) => `${p.name} — ${p.code} — رمز الدخول: ${p.pin}`).join("\n");

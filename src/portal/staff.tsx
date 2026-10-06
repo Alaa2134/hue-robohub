@@ -38,7 +38,7 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       screen = id ? sub === "results" ? <QuizResults key={id} id={id} /> : <QuizEditor key={id} id={id} me={me} /> : <QuizzesScreen />;
       break;
     case "applications":
-      screen = id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen />;
+      screen = id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen me={me} />;
       break;
     case "portfolio":
       screen = <PortfolioScreen me={me} />;
