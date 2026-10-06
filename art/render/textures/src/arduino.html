@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"><style>body{background:#0f1720}pre{font-family:"JetBrains Mono";font-size:16px;line-height:25px;padding:16px 22px;color:#d6dde6}.k{color:#56b6c2}.f{color:#e5c07b}.n{color:#d19a66}.c{color:#5c6b7a}.top{background:#00878f;height:44px;display:flex;align-items:center;gap:12px;padding:0 14px;color:#fff;font:600 14px Inter}.top i{width:26px;height:26px;border-radius:50%;background:#fff3;display:inline-block}.con{position:absolute;bottom:0;left:0;right:0;height:170px;background:#000;color:#3ddc97;font:14px JetBrains Mono;padding:12px 16px;line-height:22px}</style></head><body>
+<div class="top"><i></i><i></i><span>bootcamp_week3_motors.ino</span><span style="margin-left:auto;font-weight:400">ESP32 Dev Module on /dev/ttyUSB0</span></div>
+<pre><span class="c">// RoboHub Bootcamp · Week 3 — Motors &amp; Drivers</span>
+<span class="k">const int</span> ENA = <span class="n">25</span>, IN1 = <span class="n">26</span>, IN2 = <span class="n">27</span>;
+
+<span class="k">void</span> <span class="f">setup</span>() {
+  <span class="f">pinMode</span>(IN1, OUTPUT); <span class="f">pinMode</span>(IN2, OUTPUT);
+  <span class="f">ledcAttach</span>(ENA, <span class="n">20000</span>, <span class="n">10</span>);   <span class="c">// 20 kHz, 10-bit PWM</span>
+  Serial.<span class="f">begin</span>(<span class="n">115200</span>);
+}
+
+<span class="k">void</span> <span class="f">loop</span>() {
+  <span class="k">for</span> (<span class="k">int</span> duty = <span class="n">0</span>; duty &lt;= <span class="n">1023</span>; duty += <span class="n">16</span>) {
+    <span class="f">digitalWrite</span>(IN1, HIGH); <span class="f">digitalWrite</span>(IN2, LOW);
+    <span class="f">ledcWrite</span>(ENA, duty);
+    Serial.<span class="f">printf</span>(<span class="s">"duty=%d rpm=%d\n"</span>, duty, <span class="f">readRpm</span>());
+    <span class="f">delay</span>(<span class="n">40</span>);
+  }
+}</pre><div class="con">Compiling sketch...<br>Sketch uses 287314 bytes (21%) of program storage space.<br>Connecting.... Writing at 0x00010000 (100 %)<br>Hard resetting via RTS pin...<br>duty=512 rpm=4180</div></body></html>

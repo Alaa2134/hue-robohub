@@ -1,0 +1,27 @@
+node_modules
+.next
+/out
+/coverage
+/storage
+/playwright-report
+/test-results
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+.vercel
+
+# Render pipeline outputs (reproducible from art/render; processed renditions live in public/media/library)
+art/render/out/
+art/render/logs/
+art/render/textures/out/
+art/render/__pycache__/
+art/render/rh/__pycache__/
+
+# Static export (GitHub Pages)
+/out-static
+/.static-build
+/public/app/zxing_reader.wasm

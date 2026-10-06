@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"><style>
+.g{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto 1fr 1fr;gap:12px;padding:14px;height:766px}
+.p{background:#0a1220;border:1px solid #1a2a44;border-radius:6px;padding:12px;position:relative}
+.h{font:600 11px JetBrains Mono;letter-spacing:.16em;color:#5f7aa3}.v{font:700 44px Saira;font-stretch:115%;color:#eaf2ff;margin-top:6px}.v small{font-size:15px;color:#45e1ff}
+canvas{width:100%;height:calc(100% - 20px)}
+</style></head><body><div class="bar"><span class="dot" style="background:#3ddc97"></span><b>RoboHub Telemetry</b><span>SUMO-02 · live</span><span style="margin-left:auto" class="mono">t+00:04:12.884</span></div>
+<div class="g"><div class="p"><div class="h">MOTOR L</div><div class="v">8,420<small> rpm</small></div></div><div class="p"><div class="h">MOTOR R</div><div class="v">8,395<small> rpm</small></div></div><div class="p"><div class="h">BATTERY</div><div class="v">7.86<small> V</small></div></div>
+<div class="p" style="grid-column:span 2"><div class="h">LINE ERROR / PID OUTPUT</div><canvas id="a" width="780" height="270"></canvas></div><div class="p"><div class="h">CURRENT DRAW</div><canvas id="b" width="380" height="270"></canvas></div>
+<div class="p"><div class="h">IMU · YAW</div><canvas id="d" width="380" height="270"></canvas></div><div class="p" style="grid-column:span 2"><div class="h">ENCODER SPEED</div><canvas id="e" width="780" height="270"></canvas></div></div>
+<script>
+function plot(id,col,f,fill){const c=document.getElementById(id),x=c.getContext('2d');const W=c.width,H=c.height;x.strokeStyle='#162640';for(let i=0;i<W;i+=40){x.beginPath();x.moveTo(i,0);x.lineTo(i,H);x.stroke()}for(let j=0;j<H;j+=30){x.beginPath();x.moveTo(0,j);x.lineTo(W,j);x.stroke()}
+col.forEach((cc,k)=>{x.strokeStyle=cc;x.lineWidth=2.2;x.beginPath();for(let i=0;i<W;i++){const y=H/2+f(i,k)*H*0.38;i?x.lineTo(i,y):x.moveTo(i,y)}x.stroke();if(fill&&k==0){x.lineTo(W,H);x.lineTo(0,H);x.fillStyle='rgba(47,123,255,.12)';x.fill()}})}
+plot('a',['#2f7bff','#45e1ff'],(i,k)=>Math.sin(i/37+k)*Math.exp(-i/900)*(k?0.6:1)+Math.sin(i/7)*0.05,true);
+plot('b',['#ffb547'],(i)=>-0.4+Math.abs(Math.sin(i/30))*0.7);plot('d',['#9b8cff'],(i)=>Math.sin(i/60)*0.8);plot('e',['#3ddc97','#2f7bff'],(i,k)=>-0.6+Math.min(1,i/200)*1.1+Math.sin(i/13+k)*0.04,true);
+</script></body></html>

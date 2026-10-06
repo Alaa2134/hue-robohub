@@ -1,0 +1,19 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "BuildX HUE — Student Innovation & Robotics Community",
+    short_name: "BuildX HUE",
+    description: "Build • Innovate • Compete — a student-led robotics and hardware community.",
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    background_color: "#050e26",
+    theme_color: "#050e26",
+    icons: [
+      { src: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/brand/icon-512.png", sizes: "512x512", type: "image/png" },
+      { src: "/brand/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+    ],
+  };
+}

@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"></head><body>
+<div class="bar"><span class="dot" style="background:#ffb547"></span><b>KiCad · rh-motor-driver.kicad_pcb</b><span>F.Cu</span><span>B.Cu</span><span>F.Silkscreen</span><span style="margin-left:auto">DRC ✓ 0 errors</span></div>
+<canvas id="c" width="1280" height="766"></canvas><script>
+const c=document.getElementById('c'),x=c.getContext('2d');x.fillStyle='#071016';x.fillRect(0,0,1280,766);
+x.fillStyle='#0b2a1f';x.strokeStyle='#e6c07b';x.lineWidth=2;x.beginPath();x.roundRect(160,80,960,600,20);x.fill();x.stroke();
+let s=3;function r(){s=(s*9301+49297)%233280;return s/233280}
+const pads=[];for(let i=0;i<46;i++)pads.push([200+r()*880,120+r()*520]);
+x.lineCap='round';
+for(let i=0;i<70;i++){const a=pads[i%pads.length],b=pads[(i*7+3)%pads.length];x.strokeStyle=i%3?'#c8463c':'#3b6fd8';x.globalAlpha=.85;x.lineWidth=i%5?4:9;x.beginPath();x.moveTo(a[0],a[1]);const mx=(a[0]+b[0])/2;x.lineTo(mx,a[1]);x.lineTo(mx+(b[1]-a[1])*0.0,b[1]);x.lineTo(b[0],b[1]);x.stroke()}
+x.globalAlpha=1;pads.forEach(([px,py],i)=>{x.fillStyle='#e6c07b';x.fillRect(px-7,py-7,14,14);x.fillStyle='#071016';x.beginPath();x.arc(px,py,3,0,7);x.fill()});
+[[420,300,140,140],[720,210,100,70],[820,470,180,110]].forEach(([a,b,w,h])=>{x.strokeStyle='#f0f0f0';x.lineWidth=2;x.strokeRect(a,b,w,h);for(let k=0;k<w;k+=14){x.fillStyle='#e6c07b';x.fillRect(a+k+4,b-10,6,10);x.fillRect(a+k+4,b+h,6,10)}});
+x.fillStyle='#f0f0f0';x.font='18px JetBrains Mono';x.fillText('U1  DRV8871',420,290);x.fillText('U2  STM32G431',720,200);x.fillText('HUE ROBOHUB · MDRV-02 · REV B',200,660);
+</script></body></html>
