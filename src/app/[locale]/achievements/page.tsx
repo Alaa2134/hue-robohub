@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STATIC_SITE } from "@/lib/deploy";
+import { LiveAchievements } from "@/components/live/live-content";
 import Link from "next/link";
 import { Icon } from "@/components/brand/icons";
 import { Picture } from "@/components/media/picture";
@@ -22,6 +24,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function Achievements({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
+  if (STATIC_SITE)
+    return (
+      <>
+        <PageHero eyebrow={t.achievements.eyebrow} title={t.achievements.title} body={t.achievements.body} image={art("trophy", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.achievements }]} size="md" />
+        <Band>
+          <LiveAchievements locale={locale} />
+        </Band>
+      </>
+    );
   const [items, upcoming] = await Promise.all([getAchievements(), getUpcomingCompetitions()]);
   const kinds = Object.entries(items.reduce<Record<string, number>>((a, x) => ((a[x.kind] = (a[x.kind] ?? 0) + 1), a), {}));
 

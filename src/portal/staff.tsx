@@ -6,6 +6,7 @@ import { InstallCard, AppShell, BrandLine, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
+import { SiteContentScreen } from "./staff-site";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -39,6 +40,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "applications":
       screen = id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen me={me} />;
+      break;
+    case "site":
+      screen = <SiteContentScreen me={me} query={query} />;
       break;
     case "portfolio":
       screen = <PortfolioScreen me={me} />;
@@ -180,7 +184,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       <Section title="اختصارات">
         <div className="grid grid-cols-3 gap-2">
           <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />
-          <Shortcut icon="upload" label="رفع محتوى" to="/staff/content" />
+          <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />
           <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />
           <Shortcut icon="users" label="طلبات الانضمام" to="/staff/applications" />
           <Shortcut icon="chart" label="التقارير" to="/staff/reports" />
@@ -206,6 +210,7 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 
 function MoreScreen({ me }: { me: StaffRow }) {
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
+    { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
