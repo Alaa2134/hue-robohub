@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STATIC_SITE } from "@/lib/deploy";
+import { LiveGallery } from "@/components/live/live-content";
 import Link from "next/link";
 import { Picture } from "@/components/media/picture";
 import { Reveal } from "@/components/motion/reveal";
@@ -41,6 +43,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function Gallery({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
+  if (STATIC_SITE)
+    return (
+      <>
+        <PageHero eyebrow={t.gallery.eyebrow} title={t.gallery.title} body={t.gallery.body} image={art("team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.gallery }]} size="md" />
+        <Band>
+          <LiveGallery locale={locale} />
+        </Band>
+      </>
+    );
   const { albums, items } = await getGallery();
   const wall = items.length
     ? items.map((g) => fromImage(g.id, g.image, g.caption ?? "", GALLERY_CATEGORY_LABEL[g.category] ?? g.category))

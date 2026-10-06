@@ -25,3 +25,7 @@ jobs:
         env:
           CNAME: buildxhue.com
           SITE_URL: https://buildxhue.com
+      - name: Smoke tests
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test

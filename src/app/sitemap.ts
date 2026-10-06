@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { STATIC_SITE } from "@/lib/deploy";
 import { SITE_URL } from "@/lib/seo";
 import { getArticles, getEvents, getGallery, getProjects, getPublicMembers, getTeams, getTracks } from "@/server/queries/public";
 
@@ -8,11 +9,13 @@ const PAGES = ["", "/about", "/tracks", "/projects", "/competitions", "/bootcamp
 
 /** Both locales for every public URL, with hreflang alternates. Private routes are never listed. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // The static export serves every page as a folder (/about/), so list the final URL, not a redirect.
+  const slash = (p: string) => (STATIC_SITE && !p.endsWith("/") ? `${p}/` : p);
   const entry = (path: string, lastModified?: Date | string | null, priority = 0.6): MetadataRoute.Sitemap[number] => ({
-    url: `${SITE_URL}${path || "/"}`,
+    url: `${SITE_URL}${slash(path || "/")}`,
     lastModified: lastModified ? new Date(lastModified) : undefined,
     priority,
-    alternates: { languages: { en: `${SITE_URL}${path || "/"}`, ar: `${SITE_URL}/ar${path}` } },
+    alternates: { languages: { en: `${SITE_URL}${slash(path || "/")}`, ar: `${SITE_URL}${slash(`/ar${path}`)}` } },
   });
   const safe = async <T,>(p: Promise<T>, fallback: T) => p.catch(() => fallback);
   const [tracks, teams, projects, members, events, gallery, articles] = await Promise.all([

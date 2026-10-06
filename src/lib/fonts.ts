@@ -22,6 +22,8 @@ export const fontMono = localFont({
   src: [{ path: "../fonts/jbmono-var.woff2", weight: "100 800", style: "normal" }],
   variable: "--font-jbmono",
   display: "swap",
+  // Only small labels use it: let it load with the page instead of competing with the hero.
+  preload: false,
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 });
 

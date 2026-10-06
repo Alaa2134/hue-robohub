@@ -5,6 +5,7 @@ import { Garage, type GarageTeam } from "@/components/home/garage";
 import { Hero, type HeroStat } from "@/components/home/hero";
 import { TrackPanels, type TrackPanel } from "@/components/home/tracks";
 import { TeamDirectory } from "@/components/team/team-directory";
+import { LatestStrip } from "@/components/live/live-content";
 import type { Film } from "@/components/media/film";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
@@ -90,6 +91,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   return (
     <>
       <Hero locale={locale} t={t} hero={hero} image={art("hero")} stats={heroStats} film={heroFilm} ambient={ambient} thumbs={["team_sprint", "track_embedded", "team_sumo"].map((n) => art(n)).filter((e) => !!e) as NonNullable<ReturnType<typeof art>>[]} />
+
+      <LatestStrip locale={locale} eventsHref={`${href("/events")}/`} newsHref={`${href("/news")}/`} postHref={`${href("/news/post")}/`} />
 
       <WhySection locale={locale} index="01" />
 

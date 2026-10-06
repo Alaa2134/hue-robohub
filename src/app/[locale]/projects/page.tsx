@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STATIC_SITE } from "@/lib/deploy";
+import { LiveList } from "@/components/live/live-content";
 import { ProjectCard } from "@/components/cards/project-card";
 import { FilterGrid } from "@/components/pages/filter-grid";
 import { Band } from "@/components/pages/section";
@@ -19,6 +21,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function Projects({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
+  if (STATIC_SITE)
+    return (
+      <>
+        <PageHero eyebrow={t.projects.eyebrow} title={t.home.projectsTitle} body={t.projects.body} image={art("showcase", "track_software", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.projects }]} />
+        <Band>
+          <LiveList kind="project" locale={locale} href={`${href("/projects/item")}/`} />
+        </Band>
+      </>
+    );
   const [projects, tracks] = await Promise.all([getProjects(), getTracks()]);
   const used = new Set(projects.map((x) => x.track?.slug).filter(Boolean));
   return (

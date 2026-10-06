@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { STATIC_SITE } from "@/lib/deploy";
+import { LiveEvents } from "@/components/live/live-content";
 import { RoadmapSection } from "@/components/home/buildx";
 import { Band } from "@/components/pages/section";
 import { EventRow } from "@/components/pages/event-row";
@@ -22,6 +24,11 @@ export default async function Events({ params }: Params) {
   return (
     <>
       <PageHero eyebrow={t.events.eyebrow} title={t.events.title} body={t.events.body} image={art("arena", "team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.events }]} size="md" />
+      {STATIC_SITE && (
+        <Band tight>
+          <LiveEvents locale={locale} />
+        </Band>
+      )}
       {upcoming.length > 0 && (
         <Band tight>
           <SectionHead index="01" eyebrow={p.events.upcoming} title={t.home.eventsTitle} size="md" />
