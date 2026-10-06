@@ -8,5 +8,5 @@ Disallow: /reset-password
 Disallow: /api/
 Disallow: /uploads/
 
-Host: https://alaa2134.github.io/hue-robohub
-Sitemap: https://alaa2134.github.io/hue-robohub/sitemap.xml
+Host: https://buildxhue.com
+Sitemap: https://buildxhue.com/sitemap.xml

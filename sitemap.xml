@@ -1,171 +1,189 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar" />
+<loc>https://buildxhue.com/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar" />
 <priority>1</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/about</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/about" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/about" />
+<loc>https://buildxhue.com/about</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/about" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/about" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks" />
+<loc>https://buildxhue.com/tracks</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/projects</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/projects" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/projects" />
+<loc>https://buildxhue.com/projects</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/projects" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/projects" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions" />
+<loc>https://buildxhue.com/competitions</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/bootcamp</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/bootcamp" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/bootcamp" />
+<loc>https://buildxhue.com/bootcamp</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/bootcamp" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/bootcamp" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/team</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/team" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/team" />
+<loc>https://buildxhue.com/team</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/achievements</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/achievements" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/achievements" />
+<loc>https://buildxhue.com/achievements</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/achievements" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/achievements" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/events</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/events" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/events" />
+<loc>https://buildxhue.com/events</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/gallery</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/gallery" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/gallery" />
+<loc>https://buildxhue.com/gallery</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/gallery" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/gallery" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/films</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/films" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/films" />
+<loc>https://buildxhue.com/films</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/films" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/films" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/sponsors</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/sponsors" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/sponsors" />
+<loc>https://buildxhue.com/sponsors</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/sponsors" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/sponsors" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/join</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/join" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/join" />
+<loc>https://buildxhue.com/join</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/join" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/join" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/contact</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/contact" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/contact" />
+<loc>https://buildxhue.com/contact</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/contact" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/contact" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/news</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/news" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/news" />
+<loc>https://buildxhue.com/news</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/resources</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/resources" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/resources" />
+<loc>https://buildxhue.com/resources</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/resources" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/resources" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/brand</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/brand" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/brand" />
+<loc>https://buildxhue.com/brand</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/brand" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/brand" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/privacy</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/privacy" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/privacy" />
+<loc>https://buildxhue.com/privacy</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/privacy" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/privacy" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks/embedded-systems</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks/embedded-systems" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks/embedded-systems" />
+<loc>https://buildxhue.com/tracks/robotics-embedded</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/robotics-embedded" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/robotics-embedded" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks/robotics</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks/robotics" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks/robotics" />
+<loc>https://buildxhue.com/tracks/ai-ml</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/ai-ml" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/ai-ml" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks/mechanical-cad</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks/mechanical-cad" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks/mechanical-cad" />
+<loc>https://buildxhue.com/tracks/software</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/software" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/software" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks/robotics-software</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks/robotics-software" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks/robotics-software" />
+<loc>https://buildxhue.com/tracks/iot</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/iot" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/iot" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/tracks/competition-engineering</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/tracks/competition-engineering" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/tracks/competition-engineering" />
+<loc>https://buildxhue.com/tracks/3d-design</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/3d-design" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/3d-design" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions/line-follower</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions/line-follower" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions/line-follower" />
+<loc>https://buildxhue.com/tracks/media-design</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/media-design" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/media-design" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions/sumo</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions/sumo" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions/sumo" />
+<loc>https://buildxhue.com/tracks/business</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/business" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/business" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions/sprint</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions/sprint" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions/sprint" />
+<loc>https://buildxhue.com/competitions/line-follower</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/line-follower" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/line-follower" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions/autonomous</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions/autonomous" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions/autonomous" />
+<loc>https://buildxhue.com/competitions/sumo</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/sumo" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/sumo" />
 <priority>0.6</priority>
 </url>
 <url>
-<loc>https://alaa2134.github.io/hue-robohub/competitions/innovation</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://alaa2134.github.io/hue-robohub/competitions/innovation" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://alaa2134.github.io/hue-robohub/ar/competitions/innovation" />
+<loc>https://buildxhue.com/competitions/iot-challenges</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/iot-challenges" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/iot-challenges" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/competitions/ai-hackathons</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/ai-hackathons" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/ai-hackathons" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/competitions/programming</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/programming" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/programming" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/competitions/green-innovation</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/green-innovation" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/green-innovation" />
 <priority>0.6</priority>
 </url>
 </urlset>

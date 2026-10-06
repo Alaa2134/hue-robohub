@@ -1,6 +1,6 @@
-/* RoboHub App service worker: the app opens offline, static files come from the cache,
+/* BuildX App service worker: the app opens offline, static files come from the cache,
  * pages are network-first. Supabase (another origin) is never cached. */
-const VERSION = "rh-app-mutsrudy";
+const VERSION = "rh-app-muwxw052";
 const SCOPE = self.registration.scope;
 
 self.addEventListener("install", (event) => {
