@@ -31,6 +31,10 @@ jobs:
         env:
           CNAME: buildxhue.com
           SITE_URL: https://buildxhue.com
+      - name: Smoke tests
+        run: |
+          npx playwright install --with-deps chromium
+          npx playwright test
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:

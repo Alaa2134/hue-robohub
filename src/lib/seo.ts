@@ -18,7 +18,9 @@ export function alternates(locale: Locale, path: string): Metadata["alternates"]
 export function pageMeta({ locale, path, title, description, image }: { locale: Locale; path: string; title?: string; description?: string; image?: string | null }): Metadata {
   const og = image ?? art("hero")?.og ?? "/brand/icon-512.png";
   return {
-    title,
+    // Spelled out per page: an undefined title would blank the layout's default, and the layout's
+    // template does not reach pages rendered from the same segment.
+    title: { absolute: title ? `${title} — BuildX HUE` : "BuildX HUE — Student Innovation & Robotics Community" },
     description,
     alternates: alternates(locale, path),
     openGraph: {
