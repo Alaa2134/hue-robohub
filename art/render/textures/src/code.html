@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"><style>
+pre{font-family:"JetBrains Mono";font-size:15px;line-height:23px;padding:16px 20px;color:#c7d3e6;white-space:pre}
+.k{color:#7aa7ff}.t{color:#45e1ff}.s{color:#9fe8a8}.c{color:#4b5d78}.n{color:#ffb86b}.f{color:#e6c07b}.ln{color:#2c3b52;display:inline-block;width:34px}
+.tabs{display:flex;background:#0a0f18;border-bottom:1px solid #1a2433}.tabs div{padding:9px 16px;font-size:13px;color:#6f86a6;border-right:1px solid #1a2433}.tabs .on{color:#e3eeff;background:#05080e;border-top:2px solid #2f7bff}
+</style></head><body><div class="bar"><b>robohub-firmware</b><span>main</span><span>●</span><span style="margin-left:auto">C++ · UTF-8 · ESP32-S3</span></div>
+<div class="tabs"><div class="on">line_follower.cpp</div><div>pid.hpp</div><div>sensors.cpp</div><div>telemetry.cpp</div></div>
+<pre><span class="ln">1</span><span class="c">// HUE RoboHub — line follower control loop (1 kHz)</span>
+<span class="ln">2</span><span class="k">#include</span> <span class="s">"pid.hpp"</span>
+<span class="ln">3</span><span class="k">#include</span> <span class="s">"sensors.hpp"</span>
+<span class="ln">4</span>
+<span class="ln">5</span><span class="k">constexpr</span> <span class="t">float</span> KP = <span class="n">1.85f</span>, KI = <span class="n">0.42f</span>, KD = <span class="n">0.091f</span>;
+<span class="ln">6</span><span class="k">static</span> <span class="t">Pid</span> steer(KP, KI, KD, <span class="c">/*limit*/</span> <span class="n">1.0f</span>);
+<span class="ln">7</span>
+<span class="ln">8</span><span class="t">void</span> <span class="f">IRAM_ATTR</span> <span class="f">control_tick</span>() {
+<span class="ln">9</span>  <span class="k">const</span> <span class="t">float</span> err = sensors.<span class="f">line_position</span>();   <span class="c">// −1 … +1</span>
+<span class="ln">10</span>  <span class="k">const</span> <span class="t">float</span> u   = steer.<span class="f">update</span>(err, DT);
+<span class="ln">11</span>  <span class="k">const</span> <span class="t">float</span> base = <span class="f">adaptive_speed</span>(err, curvature);
+<span class="ln">12</span>
+<span class="ln">13</span>  motors.<span class="f">set</span>(base * (<span class="n">1.0f</span> - u), base * (<span class="n">1.0f</span> + u));
+<span class="ln">14</span>  telemetry.<span class="f">push</span>({err, u, base, encoders.<span class="f">rpm</span>()});
+<span class="ln">15</span>}
+<span class="ln">16</span>
+<span class="ln">17</span><span class="t">float</span> <span class="f">adaptive_speed</span>(<span class="t">float</span> err, <span class="t">float</span> k) {
+<span class="ln">18</span>  <span class="c">// slow into corners, full power on straights</span>
+<span class="ln">19</span>  <span class="k">return</span> <span class="f">clamp</span>(V_MAX * (<span class="n">1.0f</span> - <span class="n">0.65f</span> * <span class="f">fabsf</span>(k)), V_MIN, V_MAX);
+<span class="ln">20</span>}</pre></body></html>

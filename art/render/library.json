@@ -1,0 +1,245 @@
+{
+  "hero": {
+    "alt": "RH-01, a faceted black armoured humanoid robot with a glowing visor, in the dark HUE RoboHub lab while students work at their stations behind it.",
+    "category": "hero",
+    "focal": [
+      64,
+      42
+    ],
+    "vignette": 0.32
+  },
+  "track_embedded": {
+    "alt": "Macro view of an ESP32 development board on an ESD mat, jumper wires running to a breadboard, with STM32, Arduino-class and motor-driver boards, sensors and an oscilloscope glowing in the dark lab.",
+    "category": "track",
+    "focal": [
+      48,
+      50
+    ],
+    "vignette": 0.3
+  },
+  "team_line_follower": {
+    "alt": "The Line Follower team's low, lightweight robot tracking a white line on a black epoxy floor, lit with electric-blue rim light.",
+    "category": "team",
+    "focal": [
+      50,
+      55
+    ],
+    "vignette": 0.3
+  },
+  "team_sumo": {
+    "alt": "Two sumo robots facing off inside a black dohyo ring with a white border, red rim light glinting on the steel blade.",
+    "category": "team",
+    "focal": [
+      50,
+      55
+    ],
+    "vignette": 0.3
+  },
+  "team_sprint": {
+    "alt": "The Sprint team's long, low racer on its starting grid between white lane lines, orange rim light tracing the bodywork.",
+    "category": "team",
+    "focal": [
+      50,
+      55
+    ],
+    "vignette": 0.3
+  },
+  "team_autonomous": {
+    "alt": "The Autonomous team's rover on a mapped test floor, its LiDAR sweeping green scan lines through the haze.",
+    "category": "team",
+    "focal": [
+      50,
+      52
+    ],
+    "vignette": 0.3
+  },
+  "team_innovation": {
+    "alt": "The Innovation team's prototype on a glowing violet-rimmed plinth, presented like a product reveal.",
+    "category": "team",
+    "focal": [
+      50,
+      52
+    ],
+    "vignette": 0.3
+  },
+  "track_robotics": {
+    "alt": "A six-wheel rocker-bogie research rover with a stereo camera mast and LiDAR on a gridded motion-test floor, its planned trajectory glowing ahead.",
+    "category": "track",
+    "focal": [
+      62,
+      52
+    ],
+    "vignette": 0.3
+  },
+  "track_mechanical": {
+    "alt": "An exploded gearbox floating above the workbench \u2014 machined flange, bearing, brass spur gear, pinion and a printed cap \u2014 with amber explode guides.",
+    "category": "track",
+    "focal": [
+      62,
+      45
+    ],
+    "vignette": 0.3
+  },
+  "track_software": {
+    "alt": "An autonomous rover inside its own LiDAR point cloud: scanned walls in mint-green points, an occupancy grid on the floor and a planned path to the goal.",
+    "category": "track",
+    "focal": [
+      62,
+      55
+    ],
+    "vignette": 0.28
+  },
+  "arena": {
+    "alt": "The RoboHub competition arena: two sumo robots facing off in a black dohyo, the line-follower course and sprint lanes beyond, LED walls and light beams overhead.",
+    "category": "arena",
+    "focal": [
+      60,
+      60
+    ],
+    "vignette": 0.3
+  },
+  "bootcamp_1": {
+    "alt": "Bootcamp week 1: the RH-T1 trainer robot's chassis plate on a bench stand, battery holder and breadboard being installed.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_2": {
+    "alt": "Bootcamp week 2: a microcontroller board, IR line sensors and an ultrasonic sensor added to the RH-T1 chassis.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_3": {
+    "alt": "Bootcamp week 3: gear motors, wheels, caster and the motor driver being fitted to RH-T1.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_4": {
+    "alt": "Bootcamp week 4: an ESP32 wireless module, antenna and status LEDs added to RH-T1.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_5": {
+    "alt": "Bootcamp week 5: the 3D-printed body shell and front bumper lowered onto RH-T1.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_6": {
+    "alt": "Bootcamp week 6: RH-T1 fully integrated with its wiring harness, LiPo battery and underglow.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "bootcamp_7": {
+    "alt": "Challenge Day: the finished RH-T1 robot on the line course under gold light, a trophy in the background.",
+    "category": "bootcamp",
+    "focal": [
+      58,
+      52
+    ],
+    "vignette": 0.28
+  },
+  "recruit": {
+    "alt": "RH-01's armoured robotic hand reaching toward the viewer, its palm core glowing blue.",
+    "category": "recruit",
+    "focal": [
+      70,
+      45
+    ],
+    "vignette": 0.3
+  },
+  "recruit_tall": {
+    "alt": "RH-01's armoured robotic hand reaching toward the viewer, its palm core glowing blue (portrait).",
+    "category": "recruit",
+    "focal": [
+      50,
+      45
+    ],
+    "vignette": 0.3
+  },
+  "trophy": {
+    "alt": "A gold RoboHub Challenge trophy on a black stone plinth engraved with the RH mark, lit by a shaft of light.",
+    "category": "trophy",
+    "focal": [
+      66,
+      45
+    ],
+    "vignette": 0.3
+  },
+  "idea": {
+    "alt": "Blueprint: the rover and a robot arm drawn as glowing wireframes over a drafting grid with dimension lines.",
+    "category": "idea",
+    "focal": [
+      55,
+      50
+    ],
+    "vignette": 0.25
+  },
+  "showcase": {
+    "alt": "Three RoboHub machines \u2014 a rover, an innovation prototype with a robot arm and an autonomous platform \u2014 on lit plinths in a dark studio.",
+    "category": "showcase",
+    "focal": [
+      50,
+      60
+    ],
+    "vignette": 0.3
+  },
+  "team_env": {
+    "alt": "The RoboHub lab at work: students at their stations, robot arms on the benches, BUILD \u00b7 LEARN \u00b7 COMPETE banners and RH-01 on its display stand.",
+    "category": "environment",
+    "focal": [
+      50,
+      50
+    ],
+    "vignette": 0.3
+  },
+  "macro": {
+    "alt": "Macro of an STM32 microcontroller and an aluminium heatsink on a dark PCB, lit by a raking blue light.",
+    "category": "macro",
+    "focal": [
+      45,
+      50
+    ],
+    "vignette": 0.3
+  },
+  "logo3d_wide": {
+    "alt": "The HUE RoboHub RH mark as a dark chrome sculpture with its glowing blue axis, reflected in a black mirror floor.",
+    "category": "brand",
+    "focal": [
+      50,
+      50
+    ],
+    "vignette": 0.25
+  },
+  "logo3d_square": {
+    "alt": "The HUE RoboHub RH mark as a dark chrome sculpture with its glowing blue axis (square).",
+    "category": "brand",
+    "focal": [
+      50,
+      50
+    ],
+    "vignette": 0.25
+  }
+}

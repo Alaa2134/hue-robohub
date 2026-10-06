@@ -1,0 +1,404 @@
+"use client";
+/**
+ * BuildX App core: Supabase client, data types, errors, formatting, CSV and upload helpers.
+ * The app is a static PWA. Staff use Supabase Auth; students use an opaque token from
+ * student_login (see supabase/migrations). Only the public URL and publishable key ship here.
+ */
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+
+export { SUPABASE_KEY, SUPABASE_URL };
+export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
+export const APP_PATH = `${BASE_PATH}/app/`;
+export const MAX_UPLOAD = 50 * 1024 * 1024;
+
+let client: SupabaseClient | null = null;
+export function sb(): SupabaseClient {
+  client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "rh-app-staff" },
+  });
+  return client;
+}
+
+/* ─── Types ─────────────────────────────────────────────────────────────── */
+
+export type Role = "owner" | "admin" | "lead";
+export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string };
+export type Student = {
+  id: string;
+  code: string;
+  codeKey: string;
+  barcode: string | null;
+  barcodeKey: string | null;
+  name: string;
+  group: string;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  hasPin: boolean;
+  locked: boolean;
+  lastLogin: string | null;
+};
+export type AttStatus = "present" | "late" | "excused" | "absent";
+export type Session = {
+  id: string;
+  title: string;
+  group_name: string;
+  starts_at: string;
+  late_after_min: number;
+  closed_at: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+export type AttRow = { session_id: string; student_id: string; status: AttStatus; method: "scan" | "manual"; marked_at: string };
+export type Material = {
+  id: string;
+  title: string;
+  description: string;
+  kind: "file" | "link";
+  storage_path: string | null;
+  url: string | null;
+  file_name: string | null;
+  mime: string | null;
+  size_bytes: number | null;
+  group_name: string;
+  published: boolean;
+  pinned: boolean;
+  created_by: string | null;
+  created_at: string;
+};
+export type QuestionKind = "single" | "multi" | "truefalse" | "short";
+export type Option = { id: string; text: string };
+export type Question = {
+  id: string;
+  quiz_id: string;
+  position: number;
+  kind: QuestionKind;
+  prompt: string;
+  image_path: string | null;
+  options: Option[];
+  correct: string[];
+  explanation: string;
+  points: number;
+};
+export type Quiz = {
+  id: string;
+  title: string;
+  description: string;
+  group_name: string;
+  published: boolean;
+  opens_at: string | null;
+  closes_at: string | null;
+  time_limit_min: number | null;
+  max_attempts: number;
+  shuffle: boolean;
+  show_answers: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+export type Attempt = {
+  id: string;
+  quiz_id: string;
+  student_id: string;
+  started_at: string;
+  deadline: string | null;
+  submitted_at: string | null;
+  late: boolean;
+  question_ids: string[];
+  answers: Record<string, string | string[]>;
+  results: Record<string, boolean>;
+  score: number | null;
+  max_score: number | null;
+};
+
+export const ROLE_LABEL: Record<Role, string> = { owner: "المالك", admin: "مشرف", lead: "مدرّب" };
+export const STATUS_LABEL: Record<AttStatus | "pending", string> = {
+  present: "حاضر",
+  late: "متأخر",
+  excused: "بعذر",
+  absent: "غائب",
+  pending: "لم يُسجَّل بعد",
+};
+
+/* ─── Errors ────────────────────────────────────────────────────────────── */
+
+type ErrLike = { message?: string; code?: string } | null | undefined;
+
+export function errorText(e: unknown): string {
+  const err = e as ErrLike;
+  const msg = err?.message ?? String(e ?? "");
+  const code = err?.code ?? "";
+  if (/Failed to fetch|NetworkError|Load failed|network|ERR_INTERNET/i.test(msg)) return "لا يوجد اتصال بالإنترنت. حاول مرة أخرى.";
+  if (msg === "session_invalid") return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
+  if (msg === "invalid_code") return "رقم الطالب يجب أن يحتوي على حروف أو أرقام.";
+  if (msg === "last_owner") return "يجب أن يبقى مالك واحد على الأقل.";
+  if (code === "23505" || /duplicate key|code_taken|barcode_taken/.test(msg)) return "هذا الرقم مسجَّل لطالب آخر.";
+  if (code === "42501" || msg === "forbidden" || /permission denied|row-level security|violates row-level/i.test(msg)) return "ليست لديك صلاحية لهذا الإجراء.";
+  if (/JWT expired|invalid JWT|refresh token/i.test(msg)) return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
+  if (/exceeded the maximum allowed size|Payload too large|413/i.test(msg)) return "الملف أكبر من الحد المسموح (50 ميجابايت).";
+  return "حدث خطأ غير متوقع. حاول مرة أخرى.";
+}
+
+export const isNetworkError = (e: unknown) => /Failed to fetch|NetworkError|Load failed|network/i.test((e as ErrLike)?.message ?? "");
+
+export async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
+  const { data, error } = await sb().rpc(fn, args);
+  if (error) throw error;
+  return data as T;
+}
+
+export function must<T>(res: { data: T | null; error: unknown }): T {
+  if (res.error) throw res.error;
+  return res.data as T;
+}
+
+/* ─── Student session (opaque token, never a password) ─────────────────── */
+
+export type StudentSession = { token: string; name: string; code: string; group: string };
+const STUDENT_KEY = "rh-app-student";
+
+export const studentStore = {
+  get(): StudentSession | null {
+    try {
+      const v = localStorage.getItem(STUDENT_KEY);
+      return v ? (JSON.parse(v) as StudentSession) : null;
+    } catch {
+      return null;
+    }
+  },
+  set(s: StudentSession | null) {
+    try {
+      if (s) localStorage.setItem(STUDENT_KEY, JSON.stringify(s));
+      else localStorage.removeItem(STUDENT_KEY);
+    } catch {
+      /* private mode: the session lasts for this tab only */
+    }
+    window.dispatchEvent(new Event("rh-student"));
+  },
+};
+
+export async function studentRpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+  const s = studentStore.get();
+  if (!s) throw new Error("session_invalid");
+  const { data, error } = await sb().rpc(fn, { p_token: s.token, ...args });
+  if (error) {
+    if (error.message === "session_invalid") studentStore.set(null);
+    throw error;
+  }
+  return data as T;
+}
+
+/* ─── Codes ─────────────────────────────────────────────────────────────── */
+
+const EASTERN_DIGITS = "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹";
+
+/** Same normalisation as private.code_key in SQL: Arabic digits → ASCII, upper case, [0-9A-Z] only. */
+export function codeKey(v: string): string {
+  let s = "";
+  for (const ch of v) {
+    const i = EASTERN_DIGITS.indexOf(ch);
+    s += i >= 0 ? String(i % 10) : ch;
+  }
+  return s.toUpperCase().replace(/[^0-9A-Z]/g, "");
+}
+
+export const digitsOnly = (v: string) => codeKey(v).replace(/\D/g, "");
+
+/** Arabic/Persian digits typed on an Arabic keyboard → ASCII digits. */
+export const asciiDigits = (v: string) => v.replace(/[٠-٩۰-۹]/g, (ch) => String(EASTERN_DIGITS.indexOf(ch) % 10));
+
+export function tempPassword(length = 12) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from(crypto.getRandomValues(new Uint32Array(length)), (x) => alphabet[x % alphabet.length]).join("");
+}
+
+export const uid = () => crypto.randomUUID();
+
+/* ─── Formatting (Arabic words, Latin digits) ──────────────────────────── */
+
+const LOCALE = "ar-EG-u-nu-latn";
+const dtf = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(LOCALE, o);
+const F = {
+  day: dtf({ weekday: "long", day: "numeric", month: "long" }),
+  short: dtf({ day: "numeric", month: "short" }),
+  time: dtf({ hour: "numeric", minute: "2-digit" }),
+  full: dtf({ day: "numeric", month: "long", year: "numeric" }),
+};
+
+export const fmt = {
+  day: (d: string | Date) => F.day.format(new Date(d)),
+  short: (d: string | Date) => F.short.format(new Date(d)),
+  time: (d: string | Date) => F.time.format(new Date(d)),
+  full: (d: string | Date) => F.full.format(new Date(d)),
+  dateTime: (d: string | Date) => `${F.day.format(new Date(d))} · ${F.time.format(new Date(d))}`,
+  size(n: number | null | undefined) {
+    if (!n) return "";
+    if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  },
+  rel(d: string | Date) {
+    const s = Math.round((Date.now() - new Date(d).getTime()) / 1000);
+    if (s < 45) return "الآن";
+    const m = Math.round(s / 60);
+    if (m < 60) return m <= 1 ? "منذ دقيقة" : m === 2 ? "منذ دقيقتين" : `منذ ${m} دقيقة`;
+    const h = Math.round(m / 60);
+    if (h < 24) return h === 1 ? "منذ ساعة" : h === 2 ? "منذ ساعتين" : `منذ ${h} ساعة`;
+    return fmt.short(d);
+  },
+  pct: (n: number) => `${Math.round(n)}%`,
+  num: (n: number | null | undefined) => (n == null ? "—" : Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(1)),
+};
+
+/** Value for <input type="datetime-local"> in the device time zone. */
+export function toLocalInput(d: string | Date | null | undefined): string {
+  if (!d) return "";
+  const x = new Date(d);
+  return new Date(x.getTime() - x.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+export const fromLocalInput = (v: string): string | null => (v ? new Date(v).toISOString() : null);
+
+/* ─── Files ─────────────────────────────────────────────────────────────── */
+
+export const fileUrl = (path: string, downloadName?: string) =>
+  `${SUPABASE_URL}/storage/v1/object/public/materials/${path.split("/").map(encodeURIComponent).join("/")}${
+    downloadName ? `?download=${encodeURIComponent(downloadName)}` : ""
+  }`;
+
+/** Storage-safe file name (the original name is kept in the database for display). */
+export function safeName(name: string) {
+  const dot = name.lastIndexOf(".");
+  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) : "";
+  const base =
+    (dot > 0 ? name.slice(0, dot) : name)
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^[-.]+|[-.]+$/g, "")
+      .slice(0, 80) || "file";
+  return ext ? `${base}.${ext}` : base;
+}
+
+/** Upload straight to Storage with progress (supabase-js has no progress events). */
+export async function uploadObject(path: string, body: Blob, contentType: string, onProgress?: (p: number) => void, bucket = "materials"): Promise<void> {
+  const { data } = await sb().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("session_invalid");
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${SUPABASE_URL}/storage/v1/object/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`);
+    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.setRequestHeader("apikey", SUPABASE_KEY);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("cache-control", "max-age=31536000");
+    xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else {
+        let message = `upload_failed_${xhr.status}`;
+        try {
+          message = (JSON.parse(xhr.responseText) as { message?: string }).message ?? message;
+        } catch {
+          /* keep the status text */
+        }
+        reject(new Error(message));
+      }
+    };
+    xhr.onerror = () => reject(new TypeError("Failed to fetch"));
+    xhr.send(body);
+  });
+}
+
+export async function removeObjects(paths: string[], bucket = "materials") {
+  const list = paths.filter(Boolean);
+  if (!list.length) return;
+  const { error } = await sb().storage.from(bucket).remove(list);
+  if (error) throw error;
+}
+
+/** Re-encodes a picture as JPEG (drops EXIF/GPS, keeps quiz images light). */
+export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promise<Blob> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", quality));
+    if (!blob) throw new Error("image");
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/* ─── CSV / download ───────────────────────────────────────────────────── */
+
+export function download(blob: Blob, name: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 1500);
+}
+
+/** UTF-8 CSV with BOM (Excel shows Arabic correctly); cells that could run as formulas are neutralised. */
+export function downloadCsv(name: string, rows: (string | number | boolean | null | undefined)[][]) {
+  const cell = (v: string | number | boolean | null | undefined) => {
+    let s = v == null ? "" : String(v);
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  download(new Blob([`﻿${rows.map((r) => r.map(cell).join(",")).join("\r\n")}`], { type: "text/csv;charset=utf-8" }), name);
+}
+
+export const today = () => new Date().toISOString().slice(0, 10);
+
+/* ─── Feedback for the scanner ─────────────────────────────────────────── */
+
+let audio: AudioContext | null = null;
+export function feedback(kind: "ok" | "warn" | "error") {
+  try {
+    audio ??= new AudioContext();
+    const t = audio.currentTime;
+    const tone = (freq: number, at: number, dur: number) => {
+      const o = audio!.createOscillator();
+      const g = audio!.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.3, t + at + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + dur);
+      o.connect(g).connect(audio!.destination);
+      o.start(t + at);
+      o.stop(t + at + dur + 0.05);
+    };
+    if (kind === "ok") tone(1480, 0, 0.12);
+    else if (kind === "warn") (tone(880, 0, 0.1), tone(880, 0.16, 0.1));
+    else (tone(260, 0, 0.18), tone(200, 0.22, 0.22));
+  } catch {
+    /* audio is optional */
+  }
+  try {
+    navigator.vibrate?.(kind === "ok" ? 45 : [70, 50, 70]);
+  } catch {
+    /* vibration is optional */
+  }
+}

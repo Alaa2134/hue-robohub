@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"><style>
+.wrap{display:grid;grid-template-columns:1fr 250px;height:766px}.side{background:#0a0f18;border-left:1px solid #1a2433;padding:14px;font-size:12px;line-height:22px}
+canvas{display:block}
+</style></head><body><div class="bar"><span class="dot" style="background:#3ddc97"></span><b>RViz2</b><span>/map</span><span>/scan</span><span>/odom</span><span>/plan</span><span style="margin-left:auto">Fixed frame: map · 30 fps</span></div>
+<div class="wrap"><canvas id="c" width="1030" height="766"></canvas><div class="side mono"><div style="color:#cfe0f7">Displays</div><div>☑ Grid</div><div>☑ Map</div><div>☑ LaserScan</div><div>☑ RobotModel</div><div>☑ TF</div><div>☑ Path (Nav2)</div><div>☑ Costmap</div><div style="margin-top:16px;color:#cfe0f7">Status</div><div style="color:#3ddc97">● Localized 0.04 m</div><div>Goal: dock_02</div><div>v: 0.42 m/s  ω: 0.12</div><div>Battery 87%</div></div></div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');x.fillStyle='#070b12';x.fillRect(0,0,1030,766);
+let s=7;function r(){s=(s*9301+49297)%233280;return s/233280}
+x.fillStyle='#16202e';x.fillRect(80,70,860,620);x.fillStyle='#d5dce6';
+const walls=[[80,70,860,6],[80,684,860,6],[80,70,6,620],[934,70,6,620],[300,70,6,240],[300,400,6,290],[560,240,6,450],[560,240,200,6],[760,70,6,120],[760,420,180,6]];
+x.fillStyle='#cfd6e0';walls.forEach(w=>x.fillRect(...w));
+for(let i=0;i<80;i++){x.fillStyle='rgba(47,123,255,'+(0.04+r()*0.08)+')';x.beginPath();x.arc(80+r()*860,70+r()*620,10+r()*30,0,7);x.fill()}
+x.strokeStyle='#1e2b3e';for(let i=0;i<=1030;i+=40){x.beginPath();x.moveTo(i,0);x.lineTo(i,766);x.stroke()}for(let j=0;j<=766;j+=40){x.beginPath();x.moveTo(0,j);x.lineTo(1030,j);x.stroke()}
+x.strokeStyle='#3ddc97';x.lineWidth=3;x.beginPath();x.moveTo(190,600);x.bezierCurveTo(250,420,420,340,430,200);x.bezierCurveTo(440,140,620,140,680,170);x.stroke();
+x.fillStyle='#ff5a4f';for(let a=0;a<360;a+=1.2){const d=60+r()*140;const px=190+Math.cos(a/57.3)*d,py=600+Math.sin(a/57.3)*d;if(px>86&&px<934&&py>76&&py<684&&r()>.4)x.fillRect(px,py,2.5,2.5)}
+x.save();x.translate(190,600);x.rotate(-1.2);x.fillStyle='#2f7bff';x.fillRect(-22,-16,44,32);x.strokeStyle='#fff';x.lineWidth=2;x.strokeRect(-22,-16,44,32);
+x.strokeStyle='#ff4040';x.beginPath();x.moveTo(0,0);x.lineTo(40,0);x.stroke();x.strokeStyle='#40ff70';x.beginPath();x.moveTo(0,0);x.lineTo(0,-40);x.stroke();x.restore();
+x.fillStyle='#45e1ff';x.beginPath();x.arc(680,170,9,0,7);x.fill();x.font='13px JetBrains Mono';x.fillText('dock_02',694,160);
+</script></body></html>

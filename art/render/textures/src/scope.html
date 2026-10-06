@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><style>@font-face{font-family:Inter;src:url(../../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2)}@font-face{font-family:"JetBrains Mono";src:url(../../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2)}@font-face{font-family:Saira;src:url(../../../../node_modules/@fontsource-variable/saira/files/saira-latin-wdth-normal.woff2);font-stretch:50% 125%;font-weight:100 900}</style><link rel="stylesheet" href="_base.css"><style>body{background:#020406}</style></head><body>
+<canvas id="c" width="1280" height="800"></canvas><script>
+const c=document.getElementById('c'),x=c.getContext('2d');x.fillStyle='#03070a';x.fillRect(0,0,1280,800);
+x.strokeStyle='#14303a';x.lineWidth=1;for(let i=0;i<=10;i++){x.beginPath();x.moveTo(90+i*110,60);x.lineTo(90+i*110,700);x.stroke()}for(let j=0;j<=8;j++){x.beginPath();x.moveTo(90,60+j*80);x.lineTo(1190,60+j*80);x.stroke()}
+function tr(col,f,glow){x.shadowColor=col;x.shadowBlur=glow;x.strokeStyle=col;x.lineWidth=3;x.beginPath();for(let i=0;i<1100;i++){const y=f(i);i?x.lineTo(90+i,y):x.moveTo(90+i,y)}x.stroke();x.shadowBlur=0}
+tr('#ffe14a',i=>220+((Math.floor(i/55)%2)?-70:70)+Math.sin(i*0.9)*2,18);
+tr('#45e1ff',i=>470+Math.sin(i/40)*110*Math.exp(-((i%220)/260)),18);
+x.font='22px JetBrains Mono';x.fillStyle='#ffe14a';x.fillText('CH1 2.00V  PWM 20.0kHz  D 52.4%',100,40);x.fillStyle='#45e1ff';x.fillText('CH2 500mV  ENC A',720,40);
+x.fillStyle='#9fb3cf';x.fillText('Trig ↑ CH1 1.20V   10µs/div   RUN',100,750);
+</script></body></html>
