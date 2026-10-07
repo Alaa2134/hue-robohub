@@ -303,3 +303,29 @@ test("a photo the browser can't open gets a clear message and is reported", asyn
   await expect(page.getByText("المتصفح مقدرش يفتح الصورة دي").first()).toBeVisible();
   await expect.poll(() => (calls.find((c) => c.fn === "log_client_error")?.body as { p?: { message?: string } })?.p?.message ?? "").toContain("upload team: image_unreadable [image/heic");
 });
+
+test("photo upload still works when the site is opened over plain http (no crypto.randomUUID)", async ({ page }) => {
+  await page.addInitScript(() => {
+    // Insecure contexts don't have randomUUID; localhost tests are secure, so remove it by hand.
+    Object.defineProperty(Crypto.prototype, "randomUUID", { value: undefined, configurable: true });
+  });
+  await signInAsOwner(page);
+  const profile = { id: "p1", user_id: "u1", slug: "owner-test", full_name: "Owner Test", full_name_ar: null, headline: "", headline_ar: null, bio: "", bio_ar: null, group_kind: "founder", track: null, photo_path: null, skills: [], links: {}, external_url: null, published: false, sort_order: 0 };
+  const uploads: string[] = [];
+  await page.route(/\/storage\/v1\/object\/team\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/team/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => {
+    const single = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    const body = route.request().method() === "PATCH" ? { ...profile, ...(route.request().postDataJSON() as object) } : profile;
+    return route.fulfill({ json: single ? body : [body] });
+  });
+  await page.route(/\/rest\/v1\/team_projects/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/portfolio");
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+  await page.locator('input[type="file"]').first().setInputFiles("public/brand/icon-512.png");
+  await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
+  expect(uploads).toHaveLength(2);
+  expect(uploads[0]).toMatch(/^u1\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.w\.webp$/);
+});
