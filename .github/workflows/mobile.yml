@@ -103,12 +103,12 @@ jobs:
       - name: Build the bundle
         working-directory: mobile/${{ matrix.app }}/android
         env:
-          VERSION_CODE: ${{ 100 + github.run_number }}
           ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          export VERSION_CODE=$((100 + BUILD_NUMBER))
           chmod +x gradlew
           ./gradlew --no-daemon bundleRelease assembleRelease
           mkdir -p "$RUNNER_TEMP/out"
