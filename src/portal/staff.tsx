@@ -22,6 +22,8 @@ import { StudentsScreen } from "./staff-students";
 import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AppsSettingsScreen } from "./app-update";
+import { TaskSubmissions, TasksScreen } from "./tasks";
+import { AnnouncementsScreen } from "./schedule";
 import { Badge, Button, Card, Icon, IconButton, List, Row, Section, Stat, go, useAsync, type IconKey } from "./ui";
 
 const TABS: Tab[] = [
@@ -103,6 +105,12 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "errors":
       screen = <ErrorsScreen />;
+      break;
+    case "announcements":
+      screen = <AnnouncementsScreen me={me} />;
+      break;
+    case "tasks":
+      screen = id ? <TaskSubmissions key={id} id={id} me={me} /> : <TasksScreen me={me} />;
       break;
     case "apps":
       screen = <AppsSettingsScreen me={me} />;
@@ -247,7 +255,7 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />
           <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />
           <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />
-          <Shortcut icon="users" label="طلبات الانضمام" to="/staff/applications" />
+          <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />
           <Shortcut icon="chart" label="زيارات الموقع" to="/staff/stats" />
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
         </div>
@@ -272,6 +280,8 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 function MoreScreen({ me }: { me: StaffRow }) {
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify", show: me.role !== "lead" },
+    { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
+    { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "settings", label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)", to: "/staff/settings", show: me.role !== "lead" },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },

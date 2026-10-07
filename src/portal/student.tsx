@@ -8,6 +8,8 @@ import { MyPoints, PointsCard } from "./points";
 import { PushCard } from "./push";
 import { DeleteAccountCard } from "./account-deletion";
 import { CheckinCard, StudentCheckin } from "./self-checkin";
+import { StudentTasks, TasksCard } from "./tasks";
+import { Announcements, NextUpCard, StudentSchedule } from "./schedule";
 import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
@@ -64,6 +66,7 @@ const TABS: Tab[] = [
   { href: "/me", label: "الرئيسية", icon: "home", match: (p) => p.length === 0 },
   { href: "/me/content", label: "المحتوى", icon: "book", match: (p) => p[0] === "content" },
   { href: "/me/quizzes", label: "الكويزات", icon: "quiz", match: (p) => p[0] === "quizzes" },
+  { href: "/me/tasks", label: "التاسكات", icon: "upload", match: (p) => p[0] === "tasks" },
   { href: "/me/attendance", label: "حضوري", icon: "calendar", match: (p) => p[0] === "attendance" },
 ];
 
@@ -108,6 +111,8 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
 
   let screen: React.ReactNode;
   if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
+  else if (section === "tasks") screen = <StudentTasks id={id} />;
+  else if (section === "schedule") screen = <StudentSchedule />;
   else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
   else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
@@ -161,7 +166,10 @@ function Home({ data, reload, loading }: ScreenProps) {
         </p>
       </div>
 
+      <Announcements />
       <CheckinCard />
+      <NextUpCard />
+      <TasksCard />
       <a href="#/me/attendance" className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
         <Ring value={stats.rate} size={72} />
         <div className="min-w-0 flex-1">

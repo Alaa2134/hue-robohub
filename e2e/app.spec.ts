@@ -430,3 +430,108 @@ test("a student checks in from the projector QR link", async ({ page }) => {
   expect(sent).toEqual({ p_token: "a".repeat(64), p_session: "11111111-2222-3333-4444-555555555555", p_window: 59712746, p_code: "0123456789ab" });
   expect(errors).toEqual([]);
 });
+
+test("a student hands in a task and sees it on the tasks tab", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const task = { id: "t1", title: "Photo of your circuit", description: "Upload a photo or a link.", dueAt: new Date(Date.now() + 864e5).toISOString(), maxPoints: 10, allowLate: true, submission: null as unknown };
+  let sent: unknown = null;
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home") return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_tasks") return route.fulfill({ json: [task] });
+    if (fn === "student_submit") {
+      sent = route.request().postDataJSON();
+      task.submission = { submittedAt: new Date().toISOString(), late: false, body: "Done", link: "https://github.com/mona/circuit", files: [], grade: null, feedback: "", gradedAt: null };
+      return route.fulfill({ json: { ok: true, late: false } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByText("تاسك مطلوب منك")).toBeVisible();
+  await page.getByText("تاسك مطلوب منك").click();
+  await page.getByText("Photo of your circuit").click();
+  await page.getByLabel("ردّك (اختياري)").fill("Done");
+  await page.getByLabel("لينك (اختياري)").fill("https://github.com/mona/circuit");
+  await page.getByRole("button", { name: "سلّم", exact: true }).click();
+  await expect(page.getByText("تسليمك")).toBeVisible();
+  expect(sent).toEqual({ p_token: "a".repeat(64), p_assignment: "t1", p_body: "Done", p_link: "https://github.com/mona/circuit", p_files: [] });
+  expect(errors).toEqual([]);
+});
+
+test("a coach grades a submission with feedback", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_list_students = [{ id: "s1", code: "S1", codeKey: "s1", barcode: null, barcodeKey: null, name: "Mona Adel", group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true }];
+  RPC.staff_grade_submission = { ok: true };
+  await signInAsOwner(page, calls);
+  const a = { id: "t1", title: "Photo of your circuit", description: "", group_name: "G1", due_at: null, max_points: 10, allow_late: true, published: true, created_at: at(60) };
+  const sub = { id: "sub1", assignment_id: "t1", student_id: "s1", body: "Done", link: "https://github.com/mona/circuit", files: [], submitted_at: at(5), late: false, grade: null, feedback: "", graded_at: null };
+  await page.route(/\/rest\/v1\/assignments\?/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? a : [{ ...a, assignment_submissions: [{ id: "sub1", grade: null }] }] }));
+  await page.route(/\/rest\/v1\/assignment_submissions/, (route) => route.fulfill({ json: [sub] }));
+  await page.goto("/app/#/staff/tasks");
+  await expect(page.getByText("1 مستني تصحيح")).toBeVisible();
+  await page.getByText("Photo of your circuit").click();
+  await page.getByText("Mona Adel").click();
+  await page.getByLabel("الدرجة (من 10)").fill("8");
+  await page.getByLabel("ملاحظاتك للطالب (اختياري)").fill("Nice wiring");
+  await page.getByRole("button", { name: "حفظ الدرجة" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_grade_submission")?.body).toEqual({ p_submission: "sub1", p_grade: 8, p_feedback: "Nice wiring" });
+  expect(errors).toEqual([]);
+});
+
+test("a student sees announcements and the next session, and adds it to the calendar", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const soon = new Date(Date.now() + 2 * 864e5).toISOString();
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] },
+    student_announcements: [{ id: "n1", title: "Session moved to 5 PM", body: "Same room.", pinned: true, at: at(30) }],
+    student_schedule: [{ kind: "session", id: "s9", title: "Session 7: Sensors", startsAt: soon, endsAt: null, location: null }],
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByText("Session moved to 5 PM")).toBeVisible();
+  await expect(page.getByText("السيشن الجاية")).toBeVisible();
+  await page.getByText("Session 7: Sensors").click();
+  const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "أضف للتقويم" }).click()]);
+  const ics = (await import("node:fs")).readFileSync(await file.path(), "utf8");
+  expect(ics).toContain("BEGIN:VEVENT");
+  expect(ics).toContain("SUMMARY:Session 7: Sensors · BuildX HUE");
+  expect(ics).toContain("UID:session-s9@buildxhue.com");
+  expect(errors).toEqual([]);
+});
+
+test("a coach posts an announcement to one group", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  RPC.staff_list_students = [{ id: "s1", code: "S1", codeKey: "s1", barcode: null, barcodeKey: null, name: "Mona", group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true }];
+  await signInAsOwner(page);
+  let inserted: unknown = null;
+  let pushed: unknown = null;
+  await page.route(/\/rest\/v1\/announcements/, (route) => {
+    if (route.request().method() === "POST") {
+      inserted = route.request().postDataJSON();
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.route(/\/functions\/v1\/send-push/, (route) => {
+    pushed = route.request().postDataJSON();
+    return route.fulfill({ json: { ok: true, targets: 0, delivered: 0 } });
+  });
+  await page.goto("/app/#/staff/announcements");
+  await page.getByRole("button", { name: "إعلان" }).first().click();
+  await page.getByLabel("العنوان").fill("Session moved to 5 PM");
+  await page.getByRole("dialog").getByRole("combobox").selectOption("G1");
+  await page.getByRole("button", { name: "نشر" }).click();
+  await expect.poll(() => inserted).toEqual(expect.objectContaining({ title: "Session moved to 5 PM", group_name: "G1", pinned: false }));
+  await expect.poll(() => pushed).toEqual(expect.objectContaining({ title: "Session moved to 5 PM", audience: "group", group: "G1" }));
+  expect(errors).toEqual([]);
+});

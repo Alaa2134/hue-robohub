@@ -18,7 +18,7 @@ export const BADGES: Record<string, { ar: string; hint: string; icon: IconKey; c
   team_star: { ar: "نجم الفريق", hint: "50 نقطة تقدير من الفريق", icon: "star", color: "#fde047" },
 };
 
-export const POINT_RULES = "الحضور 10 (متأخر 6) · كل كويز لحد 20 · الشهادة 30 · الفعالية 15 · ونقاط تقدير من الفريق";
+export const POINT_RULES = "الحضور 10 (متأخر 6) · كل كويز لحد 20 · كل تاسك لحد 20 · الشهادة 30 · الفعالية 15 · ونقاط تقدير من الفريق";
 
 function Badge_({ k, dim }: { k: string; dim?: boolean }) {
   const b = BADGES[k];
@@ -78,9 +78,10 @@ export function MyPoints() {
           <p className="text-sm text-fog">{data.rank ? `الترتيب ${data.rank} من ${data.of}${data.group ? ` · ${data.group}` : ""}` : "نقطة"}</p>
         </div>
       </Card>
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-4 gap-2">
         <Stat label="جلسات" value={b.attended ?? 0} />
         <Stat label="كويزات" value={b.quizzes ?? 0} />
+        <Stat label="تاسكات" value={b.tasks ?? 0} />
         <Stat label="فعاليات" value={b.events ?? 0} />
       </div>
       <p className="mt-2 text-xs leading-relaxed text-fog">{POINT_RULES}</p>
