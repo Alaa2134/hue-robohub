@@ -29,6 +29,8 @@ export type SiteItem = {
   created_at: string;
   updated_at?: string;
   publish_at?: string | null;
+  rsvp_open?: boolean;
+  capacity?: number | null;
   created_by?: string | null;
 };
 

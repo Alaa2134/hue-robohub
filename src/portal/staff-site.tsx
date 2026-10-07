@@ -10,9 +10,9 @@ import { errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, 
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
-type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned" | "sort" | "schedule";
+type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned" | "sort" | "schedule" | "rsvp";
 const KINDS: { key: ContentKind; label: string; one: string; fields: F[]; titleLabel: string; urlLabel?: string; startsLabel?: string; resultLabel?: string; path?: string }[] = [
-  { key: "event", label: "الفعاليات", one: "فعالية", fields: ["title", "starts", "ends", "location", "summary", "url", "image", "body", "slug", "schedule"], titleLabel: "اسم الفعالية", urlLabel: "لينك التسجيل", startsLabel: "بتبدأ", path: "/events/" },
+  { key: "event", label: "الفعاليات", one: "فعالية", fields: ["title", "starts", "ends", "location", "summary", "rsvp", "url", "image", "body", "slug", "schedule"], titleLabel: "اسم الفعالية", urlLabel: "لينك تسجيل خارجي (لو مش هتستخدم التسجيل من الموقع)", startsLabel: "بتبدأ", path: "/events/" },
   { key: "post", label: "الأخبار", one: "خبر", fields: ["title", "summary", "body", "image", "slug", "pinned", "schedule"], titleLabel: "العنوان", path: "/news/" },
   { key: "project", label: "المشاريع", one: "مشروع", fields: ["title", "summary", "track", "result", "image", "url", "tags", "body", "slug", "pinned", "schedule"], titleLabel: "اسم المشروع", urlLabel: "لينك (GitHub، فيديو…)", resultLabel: "النتيجة / الإنجاز", path: "/projects/" },
   { key: "photo", label: "الجاليري", one: "صورة", fields: ["image", "title", "starts", "tags"], titleLabel: "وصف الصورة", startsLabel: "اتصوّرت يوم" },
@@ -133,6 +133,8 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
     published: item?.published ?? false,
     sort: String(item?.sort_order ?? 100),
     schedule: toLocalInput(item?.publish_at),
+    rsvp: item?.rsvp_open ?? false,
+    capacity: item?.capacity ? String(item.capacity) : "",
   });
   const [busy, setBusy] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
@@ -179,6 +181,7 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
         .slice(0, 12),
       ...(has("sort") ? { sort_order: Math.max(0, Math.min(9999, Math.round(Number(f.sort)) || 100)) } : {}),
       ...(has("schedule") ? { publish_at: f.schedule ? fromLocalInput(f.schedule) : null } : {}),
+      ...(has("rsvp") ? { rsvp_open: f.rsvp, capacity: f.capacity.trim() ? Math.max(1, Math.min(5000, Math.round(Number(f.capacity)) || 1)) : null } : {}),
       ...(admin ? { published: f.published, pinned: f.pinned } : {}),
     };
     setBusy(true);
@@ -279,6 +282,16 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
               ))}
             </Select>
           </Field>
+        )}
+        {has("rsvp") && (
+          <Card className="grid gap-3">
+            <Toggle checked={f.rsvp} disabled={locked} onChange={(v) => put("rsvp", v)} label="التسجيل من الموقع" hint="فورم على صفحة الفعالية، وكل واحد بياخد تذكرة QR تتمسح على الباب من التطبيق." />
+            {f.rsvp && (
+              <Field label="عدد الأماكن (اختياري)" hint="لما تتملي، اللي بعدهم بيدخلوا قائمة انتظار وبيطلعوا لوحدهم لو حد لغى.">
+                <Input value={f.capacity} disabled={locked} onChange={(e) => put("capacity", e.target.value.replace(/\D/g, ""))} inputMode="numeric" dir="ltr" className="w-32" placeholder="∞" />
+              </Field>
+            )}
+          </Card>
         )}
         {has("url") && (
           <Field label={k.urlLabel ?? "لينك"}>

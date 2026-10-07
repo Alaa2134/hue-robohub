@@ -168,3 +168,19 @@ test("staff issue certificates to typed names and get a printable A4 page with a
   expect(inserted).toEqual([[expect.objectContaining({ recipient_name: "Mona Adel", title: "Robotics Bootcamp 2026", hours: 24, kind: "completion", student_id: null })]]);
   expect(errors).toEqual([]);
 });
+
+test("door check-in by a typed ticket code marks the attendee", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_check_in = { ok: true, name: "Mona Adel", status: "going", ticket: "BXT-1A2B3C4D" };
+  await signInAsOwner(page, calls);
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: { id: "e1", title: "Kickoff", title_ar: "اجتماع البداية", starts_at: at(-60), capacity: 40, rsvp_open: true, published: true } }));
+  await page.route(/\/rest\/v1\/event_registrations/, (route) =>
+    route.fulfill({ json: [{ id: "r1", ticket: "BXT-1A2B3C4D", full_name: "Mona Adel", phone: "+201012345678", email: null, faculty: "Engineering", status: "going", checked_in_at: null, created_at: at(100) }] }),
+  );
+  await page.goto("/app/#/staff/events/e1");
+  await expect(page.getByText("Mona Adel")).toBeVisible();
+  await page.getByPlaceholder("أو اكتب كود التذكرة BXT-…").fill("bxt-1a2b3c4d");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Mona Adel ✓" })).toBeVisible();
+  expect(calls.find((c) => c.fn === "staff_check_in")?.body).toEqual({ p_event: "e1", p_ticket: "BXT-1A2B3C4D" });
+});
