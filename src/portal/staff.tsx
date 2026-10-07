@@ -14,6 +14,7 @@ import { CertificatesPrintScreen, CertificatesScreen } from "./staff-certificate
 import { EventRegistrations, EventsScreen } from "./staff-events";
 import { LeaderboardScreen } from "./points";
 import { BackupsScreen } from "./staff-backups";
+import { NotifyScreen, PushCard } from "./push";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -73,6 +74,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "settings":
       screen = <SiteSettingsScreen me={me} />;
+      break;
+    case "notify":
+      screen = <NotifyScreen />;
       break;
     case "backups":
       screen = <BackupsScreen me={me} />;
@@ -248,6 +252,7 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 
 function MoreScreen({ me }: { me: StaffRow }) {
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
+    { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify", show: me.role !== "lead" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "settings", label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)", to: "/staff/settings", show: me.role !== "lead" },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
@@ -293,6 +298,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
             </Row>
           ))}
       </List>
+      <PushCard kind="staff" />
       <div className="mt-4">
         <InstallCard />
       </div>
