@@ -535,3 +535,36 @@ test("a coach posts an announcement to one group", async ({ page }) => {
   await expect.poll(() => pushed).toEqual(expect.objectContaining({ title: "Session moved to 5 PM", audience: "group", group: "G1" }));
   expect(errors).toEqual([]);
 });
+
+test("staff make a student's monthly report as a PDF", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_list_students = [{ id: "s1", code: "S1", codeKey: "s1", barcode: null, barcodeKey: null, name: "Mona Adel", group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true }];
+  RPC.staff_student_report = {
+    student: { name: "Mona Adel", code: "S1", group: "G1" },
+    from: "2026-10-01",
+    to: "2026-10-31",
+    attendance: [
+      { title: "Session 1", at: "2026-10-02T15:00:00Z", status: "present" },
+      { title: "Session 2", at: "2026-10-05T15:00:00Z", status: "late" },
+      { title: "Session 3", at: "2026-10-07T15:00:00Z", status: "absent" },
+    ],
+    quizzes: [{ title: "Sensors quiz", score: 9, max: 10, at: "2026-10-06T10:00:00Z" }],
+    tasks: [{ title: "Photo of your circuit", max: 10, due: "2026-10-06T20:00:00Z", submitted: "2026-10-06T18:00:00Z", late: false, grade: 8 }],
+    points: { points: 120, rank: 2, of: 14, badges: ["first_step", "full_marks"] },
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/students");
+  await page.getByText("Mona Adel").click();
+  await page.getByRole("button", { name: "تقرير شهري PDF" }).click();
+  await page.getByLabel("الشهر").fill("2026-10");
+  const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "اعمل التقرير PDF" }).click()]);
+  expect(file.suggestedFilename()).toBe("report-S1-2026-10.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf).toContain("/Count 1");
+  expect(pdf).toContain("/MediaBox [0 0 595.28 841.89]");
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
+  expect(calls.find((c) => c.fn === "staff_student_report")?.body).toEqual({ p_student: "s1", p_from: "2026-10-01", p_to: "2026-10-31" });
+  expect(errors).toEqual([]);
+});

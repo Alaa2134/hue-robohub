@@ -35,6 +35,20 @@ for (const app of ["student", "team"]) {
         '<uses-permission android:name="android.permission.INTERNET" />',
         '<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />',
       );
+    // The student app opens buildxhue.com/app/… links (check-in QR, quiz links); see build-static.mjs step 9.
+    if (app === "student" && !s.includes('android:host="buildxhue.com"'))
+      s = must(s, "            </intent-filter>\n").replace(
+        "            </intent-filter>\n",
+        `            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="buildxhue.com" android:pathPrefix="/app" />
+            </intent-filter>
+`,
+      );
     return s.replace('android:allowBackup="true"', 'android:allowBackup="false"');
   });
   edit(path.join(dir, "android/app/build.gradle"), (s) => {
@@ -71,6 +85,7 @@ for (const app of ["student", "team"]) {
     add("NSPhotoLibraryUsageDescription", `<string>${PHOTOS}</string>`);
     add("NSPhotoLibraryAddUsageDescription", `<string>${PHOTOS_ADD}</string>`);
     add("ITSAppUsesNonExemptEncryption", "<false/>");
+    add("NSFaceIDUsageDescription", "<string>Unlock the app with Face ID. لفتح التطبيق بـ Face ID.</string>");
     // The app is dark: light status bar text, and dark system sheets (pickers, share).
     add("UIStatusBarStyle", "<string>UIStatusBarStyleLightContent</string>");
     add("UIUserInterfaceStyle", "<string>Dark</string>");
@@ -79,6 +94,21 @@ for (const app of ["student", "team"]) {
     s = s.replace(/(<key>UIRequiredDeviceCapabilities<\/key>\s*<array>\s*<string>)armv7(<\/string>)/, "$1arm64$2");
     s = s.replace(/(<key>UISupportedInterfaceOrientations<\/key>\s*<array>)[\s\S]*?(<\/array>)/, "$1\n\t\t<string>UIInterfaceOrientationPortrait</string>\n\t$2");
     return s;
+  });
+  // Push notifications: hand the APNs device token to Capacitor (the push plugin needs this in AppDelegate).
+  edit(path.join(dir, "ios/App/App/AppDelegate.swift"), (s) => {
+    if (s.includes("capacitorDidRegisterForRemoteNotifications")) return s;
+    const at = s.lastIndexOf("}");
+    return `${s.slice(0, at)}
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+}
+`;
   });
   edit(path.join(dir, "ios/App/App.xcodeproj/project.pbxproj"), (s) =>
     s.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, "TARGETED_DEVICE_FAMILY = 1;").replace(/MARKETING_VERSION = 1\.0;/g, "MARKETING_VERSION = 1.0.0;"),

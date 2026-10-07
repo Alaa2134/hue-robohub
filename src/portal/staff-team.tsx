@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
 import { APP_PATH, publicOrigin, ROLE_LABEL, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type AttStatus, type Role, type StaffRow, type Student } from "./core";
 import { DeleteAccountCard } from "./account-deletion";
+import { BiometricToggle } from "./biometric";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import {
   Avatar,
@@ -324,6 +325,9 @@ export function AccountScreen({ me, onProfile }: { me: StaffRow; onProfile: (s: 
           </Button>
         </form>
       </Card>
+      <div className="mt-4">
+        <BiometricToggle />
+      </div>
       <Button variant="danger" icon="logout" className="mt-6" block onClick={() => sb().auth.signOut()}>
         تسجيل الخروج
       </Button>

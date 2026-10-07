@@ -89,6 +89,15 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           cd ${{ matrix.app }} && npx cap sync android
+      - name: Firebase (push notifications)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/${{ matrix.app }}/android/app/google-services.json
+          else
+            echo "::notice::GOOGLE_SERVICES_JSON is not set: the Android app builds without push notifications."
+          fi
       - name: Signing key
         id: key
         env:
@@ -172,10 +181,23 @@ jobs:
           KEY="$RUNNER_TEMP/AuthKey.p8"
           printf '%s' "$ASC_KEY_P8" > "$KEY"
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+          # Capabilities are opt-in (repository variables), so a missing Apple setup never breaks the upload:
+          #   IOS_PUSH=1             push notifications (APNs key added in Supabase, see mobile/README.md)
+          #   IOS_UNIVERSAL_LINKS=1  buildxhue.com/app links open the student app (needs https on the site)
+          ENT=""
+          if [ "${{ vars.IOS_PUSH }}" = "1" ]; then ENT="$ENT<key>aps-environment</key><string>production</string>"; fi
+          if [ "${{ matrix.app }}" = "student" ] && [ "${{ vars.IOS_UNIVERSAL_LINKS }}" = "1" ]; then
+            ENT="$ENT<key>com.apple.developer.associated-domains</key><array><string>applinks:buildxhue.com</string></array>"
+          fi
+          EXTRA=()
+          if [ -n "$ENT" ]; then
+            printf '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>%s</dict></plist>\n' "$ENT" > App/App.entitlements
+            EXTRA=(CODE_SIGN_ENTITLEMENTS=App/App.entitlements)
+          fi
           xcodebuild -project App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/App.xcarchive" "${AUTH[@]}" \
             DEVELOPMENT_TEAM="$TEAM_ID" CODE_SIGN_STYLE=Automatic \
-            MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="$((100 + BUILD_NUMBER))" \
+            MARKETING_VERSION="$VERSION_NAME" CURRENT_PROJECT_VERSION="$((100 + BUILD_NUMBER))" "${EXTRA[@]}" \
             archive | tail -n 60
           cat > "$RUNNER_TEMP/export.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
