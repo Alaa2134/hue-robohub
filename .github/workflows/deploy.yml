@@ -54,6 +54,8 @@ jobs:
           CNAME: buildxhue.com
           SITE_URL: https://buildxhue.com
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
+          ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       - name: Smoke tests
         run: |
           npx playwright install --with-deps chromium

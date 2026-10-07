@@ -162,6 +162,23 @@ if (base) {
 const sw = path.join(out, "app/sw.js");
 if (existsSync(sw)) writeFileSync(sw, readFileSync(sw, "utf8").replace("__BUILD_ID__", Date.now().toString(36)));
 
+// 9. Links to buildxhue.com/app/… open the BuildX HUE app when it's installed (Android App Links,
+// iOS Universal Links). Android trusts the app's signing certificates: the upload key below, plus the
+// Play App Signing key from Play Console → App integrity (GitHub variable ANDROID_CERT_SHA256,
+// comma-separated). iOS needs the Apple Team ID (GitHub variable APPLE_TEAM_ID).
+const UPLOAD_KEY_SHA256 = "0D:A3:37:DD:5D:49:E7:CA:2B:9A:EC:34:EA:BE:E4:7F:62:B9:A6:0F:B1:F6:66:DF:8D:4C:7B:78:DF:07:61:90";
+const certs = [UPLOAD_KEY_SHA256, ...(process.env.ANDROID_CERT_SHA256 ?? "").split(",").map((s) => s.trim().toUpperCase()).filter((s) => /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(s))];
+mkdirSync(path.join(out, ".well-known"), { recursive: true });
+writeFileSync(
+  path.join(out, ".well-known/assetlinks.json"),
+  `${JSON.stringify([{ relation: ["delegate_permission/common.handle_all_urls"], target: { namespace: "android_app", package_name: "com.buildxhue.student", sha256_cert_fingerprints: [...new Set(certs)] } }], null, 2)}\n`,
+);
+const team = (process.env.APPLE_TEAM_ID ?? "").trim();
+if (/^[A-Z0-9]{10}$/.test(team)) {
+  const aasa = { applinks: { details: [{ appIDs: [`${team}.com.buildxhue.student`], components: [{ "/": "/app/*", comment: "BuildX HUE app links (check-in, quizzes, sign-in)" }] }] } };
+  writeFileSync(path.join(out, ".well-known/apple-app-site-association"), `${JSON.stringify(aasa, null, 2)}\n`);
+}
+
 writeFileSync(path.join(out, ".nojekyll"), "");
 // What the scheduled deploy compares against to decide whether published content changed.
 writeFileSync(path.join(out, "content-version.txt"), `${version}\n`);

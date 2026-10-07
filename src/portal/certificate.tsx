@@ -88,88 +88,171 @@ const fmtDate = (iso: string, locale: string) =>
     new Date(`${iso}T12:00:00`),
   );
 
+const NAVY = "#081634";
+const GOLD = "#b8892f";
+const GOLD_LIGHT = "#e8c77a";
+const INK = "#3d4a63";
+const AR = "var(--font-kufi), var(--font-plex-arabic), var(--font-saira), system-ui, sans-serif";
+const EN = "var(--font-saira), var(--font-inter), system-ui, sans-serif";
+
+/** Gold line with a diamond in the middle. */
+function Rule({ width }: { width: string }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "0.8em", width }}>
+      <span style={{ flex: 1, height: "0.12em", background: `linear-gradient(to left, ${GOLD}, transparent)` }} />
+      <span style={{ width: "0.7em", height: "0.7em", transform: "rotate(45deg)", background: GOLD }} />
+      <span style={{ flex: 1, height: "0.12em", background: `linear-gradient(to right, ${GOLD}, transparent)` }} />
+    </span>
+  );
+}
+
+/** A4 landscape certificate. Sizes are in em with 1em = 1% of the page width, so it scales anywhere. */
 export function CertificateSheet({ c }: { c: Certificate }) {
   const kind = CERT_KINDS.find((k) => k.key === c.kind) ?? CERT_KINDS[0];
   const qr = useQr(verifyUrl(c.code));
+  const year = c.issued_on.slice(0, 4);
+  // Arabic names in Kufi, Latin names in Saira (Kufi has no Latin letters).
+  const nameFont = /[\u0600-\u06FF]/.test(c.name) ? AR : EN;
   return (
     <div className="cert-page mx-auto w-full max-w-[297mm] [container-type:inline-size] print:max-w-none">
-      <div
-        className="relative aspect-[297/210] w-full overflow-hidden bg-white text-[#081634]"
-        style={{ fontSize: "1cqw" }}
-      >
-        {/* Frame */}
-        <div className="absolute inset-[2.2em] rounded-[0.6em] border-[0.35em] border-[#081634]" />
-        <div className="absolute inset-[3.1em] rounded-[0.35em] border-[0.12em] border-[#2b6dff]/60" />
-        <div className="absolute -end-[9em] -top-[9em] size-[24em] rounded-full bg-[#2b6dff]/[0.07]" />
-        <div className="absolute -bottom-[11em] -start-[8em] size-[26em] rounded-full bg-[#38dcff]/[0.08]" />
+      <div className="relative aspect-[297/210] w-full overflow-hidden" style={{ fontSize: "1cqw", background: "#fdfbf6", color: NAVY }} dir="rtl">
+        {/* ── Side panel: logo, seal, verification ── */}
+        <div
+          className="absolute inset-y-0 right-0 flex flex-col items-center justify-between"
+          style={{
+            width: "27em",
+            padding: "4.2em 2.6em 3.6em",
+            background: `repeating-linear-gradient(135deg, rgb(255 255 255 / 0.025) 0 0.35em, transparent 0.35em 1.1em), linear-gradient(160deg, #13306b 0%, ${NAVY} 55%, #050e24 100%)`,
+            boxShadow: "inset 0.4em 0 0 rgb(232 199 122 / 0.9), inset 0.9em 0 0 rgb(8 22 52 / 1), inset 1.05em 0 0 rgb(232 199 122 / 0.45)",
+          }}
+        >
+          <img src={`${BASE_PATH}/brand/logo-stacked-white.svg`} alt="BuildX HUE" style={{ width: "13em", height: "auto" }} />
 
-        <div className="absolute inset-[5.5em] flex flex-col items-center text-center" dir="ltr">
-          <img
-            src={`${BASE_PATH}/brand/logo-horizontal-black.svg`}
-            alt="BuildX HUE"
-            className="h-[3.2em] w-auto"
-          />
-          <div className="flex w-full flex-1 flex-col items-center justify-center">
-            <p className="text-[1.25em] font-semibold uppercase tracking-[0.42em] text-[#2b6dff]">
-              {kind.en}
-            </p>
-            <p className="mt-[0.3em] text-[1.6em] font-bold" dir="rtl">
-              {kind.ar}
-            </p>
-            <p className="mt-[1.8em] text-[1.25em] text-[#45526b]">This certifies that · نشهد بأن</p>
-            <p
-              className="mt-[0.5em] max-w-[90%] text-balance text-[3.6em] font-extrabold leading-[1.1]"
-              dir="auto"
+          {/* Seal */}
+          <div
+            className="flex flex-col items-center justify-center text-center"
+            style={{
+              width: "15.5em",
+              height: "15.5em",
+              borderRadius: "50%",
+              background: `radial-gradient(circle at 35% 30%, #f6dfa0, ${GOLD} 55%, #8a6420 100%)`,
+              boxShadow: "0 0.6em 1.6em rgb(0 0 0 / 0.35), inset 0 0 0 0.35em rgb(255 255 255 / 0.25)",
+              padding: "1.1em",
+            }}
+          >
+            <div
+              className="flex size-full flex-col items-center justify-center"
+              style={{ borderRadius: "50%", border: `0.18em dashed rgb(8 22 52 / 0.55)`, gap: "0.4em" }}
             >
-              {c.name}
-            </p>
-            <span className="mt-[0.9em] h-[0.18em] w-[28em] bg-gradient-to-r from-transparent via-[#2b6dff] to-transparent" />
-            <p className="mt-[1.2em] text-[1.25em] text-[#45526b]">
-              {kind.lead} · <span dir="rtl">{kind.leadAr}</span>
-            </p>
-            <p className="mt-[0.5em] max-w-[85%] text-balance text-[2.2em] font-bold leading-tight">
-              {c.title}
-            </p>
-            {c.title_ar && (
-              <p
-                className="mt-[0.2em] max-w-[85%] text-balance text-[1.9em] font-bold leading-tight"
-                dir="rtl"
-              >
-                {c.title_ar}
-              </p>
-            )}
-            {(c.details || c.details_ar || c.hours) && (
-              <p className="mt-[0.8em] max-w-[75%] text-[1.15em] leading-snug text-[#45526b]">
-                {[c.details, c.hours ? `${c.hours} training hours` : null].filter(Boolean).join(" · ")}
-                {c.details_ar && (
-                  <span className="block" dir="rtl">
-                    {c.details_ar}
-                  </span>
-                )}
-              </p>
-            )}
+              <img src={`${BASE_PATH}/brand/mark-black.svg`} alt="" style={{ width: "5.2em", height: "auto", opacity: 0.9 }} />
+              <span style={{ fontFamily: EN, fontWeight: 800, fontSize: "1.25em", letterSpacing: "0.18em", color: NAVY }}>BUILDX HUE</span>
+              <span style={{ fontFamily: EN, fontWeight: 600, fontSize: "0.95em", letterSpacing: "0.3em", color: "rgb(8 22 52 / 0.75)" }}>{year}</span>
+            </div>
           </div>
 
-          <div className="flex w-full items-end justify-between gap-[2em] text-start">
-            <div>
-              <p className="text-[1em] uppercase tracking-[0.2em] text-[#45526b]">Issued · تاريخ الإصدار</p>
-              <p className="mt-[0.3em] text-[1.35em] font-bold">{fmtDate(c.issued_on, "en-GB")}</p>
+          {/* Verification */}
+          <div className="flex flex-col items-center" style={{ gap: "0.8em" }}>
+            <div style={{ background: "#fff", padding: "0.7em", borderRadius: "0.9em", boxShadow: `0 0 0 0.15em ${GOLD_LIGHT}` }}>
+              {qr ? <img src={qr} alt={`QR ${c.code}`} style={{ width: "8.4em", height: "8.4em", display: "block" }} /> : <span style={{ width: "8.4em", height: "8.4em", display: "block" }} />}
             </div>
-            <div className="text-center">
-              <span className="block h-[0.12em] w-[16em] bg-[#081634]/50" />
-              <p className="mt-[0.5em] text-[1.05em] font-semibold">BuildX HUE · Horus University</p>
+            <span dir="ltr" style={{ fontFamily: "var(--font-jbmono), ui-monospace, monospace", fontWeight: 700, fontSize: "1.25em", letterSpacing: "0.12em", color: "#fff" }}>
+              {c.code}
+            </span>
+            <span style={{ fontFamily: AR, fontSize: "0.95em", color: GOLD_LIGHT }}>
+              تحقق من الشهادة · <span dir="ltr">buildxhue.com/verify</span>
+            </span>
+          </div>
+        </div>
+
+        {/* ── Main area ── */}
+        <div className="absolute inset-y-0 left-0" style={{ right: "27em" }}>
+          {/* Watermark and frame */}
+          <img
+            src={`${BASE_PATH}/brand/mark-black.svg`}
+            alt=""
+            className="pointer-events-none absolute"
+            style={{ width: "44em", left: "50%", top: "52%", transform: "translate(-50%, -50%)", opacity: 0.022 }}
+          />
+          <div className="absolute" style={{ inset: "2.6em", border: `0.28em solid ${NAVY}` }} />
+          <div className="absolute" style={{ inset: "3.35em", border: `0.1em solid ${GOLD}` }} />
+          {[
+            { top: "2.95em", left: "2.95em" },
+            { top: "2.95em", right: "2.95em" },
+            { bottom: "2.95em", left: "2.95em" },
+            { bottom: "2.95em", right: "2.95em" },
+          ].map((pos, i) => (
+            <span key={i} className="absolute" style={{ ...pos, width: "0.9em", height: "0.9em", background: GOLD, transform: "rotate(45deg)" }} />
+          ))}
+
+          <div className="absolute flex flex-col items-center text-center" style={{ inset: "5.6em 6em 5em" }}>
+            <p dir="ltr" style={{ fontFamily: EN, fontWeight: 700, fontSize: "1.2em", letterSpacing: "0.5em", color: GOLD, textTransform: "uppercase" }}>
+              {kind.en}
+            </p>
+            <p style={{ fontFamily: AR, fontWeight: 800, fontSize: "4.4em", lineHeight: 1.15, marginTop: "0.12em" }}>{kind.ar}</p>
+            <div style={{ marginTop: "1em" }}>
+              <Rule width="22em" />
             </div>
-            <div className="flex items-end gap-[0.9em]">
-              <div className="text-end">
-                <p className="text-[0.95em] text-[#45526b]">Verify · تحقق</p>
-                <p className="font-mono text-[1.15em] font-bold tracking-wider">{c.code}</p>
-                <p className="text-[0.85em] text-[#45526b]">buildxhue.com/verify</p>
-              </div>
-              {qr ? (
-                <img src={qr} alt={`QR ${c.code}`} className="size-[7.5em]" />
-              ) : (
-                <span className="size-[7.5em]" />
+
+            <div className="flex w-full flex-1 flex-col items-center justify-center">
+              <p style={{ fontFamily: AR, fontSize: "1.35em", color: INK }}>
+                نشهد بأن <span style={{ color: "rgb(61 74 99 / 0.55)" }}>·</span> <span dir="ltr" style={{ fontFamily: EN }}>This certifies that</span>
+              </p>
+              <p dir="auto" className="text-balance" style={{ fontFamily: nameFont, fontWeight: 800, fontSize: "4.6em", lineHeight: 1.2, marginTop: "0.18em", maxWidth: "92%" }}>
+                {c.name}
+              </p>
+              <span style={{ display: "block", width: "40em", height: "0.16em", marginTop: "0.6em", background: `linear-gradient(to right, transparent, ${GOLD}, transparent)` }} />
+              <p style={{ fontFamily: AR, fontSize: "1.35em", color: INK, marginTop: "1.1em" }}>
+                {kind.leadAr} <span style={{ color: "rgb(61 74 99 / 0.55)" }}>·</span> <span dir="ltr" style={{ fontFamily: EN }}>{kind.lead}</span>
+              </p>
+              {c.title_ar && (
+                <p className="text-balance" style={{ fontFamily: AR, fontWeight: 700, fontSize: "2.6em", lineHeight: 1.25, marginTop: "0.35em", maxWidth: "90%" }}>
+                  {c.title_ar}
+                </p>
               )}
+              <p dir="ltr" className="text-balance" style={{ fontFamily: EN, fontWeight: 700, fontSize: c.title_ar ? "1.9em" : "2.6em", lineHeight: 1.25, marginTop: "0.2em", maxWidth: "90%", color: c.title_ar ? INK : NAVY }}>
+                {c.title}
+              </p>
+              {(c.details || c.details_ar) && (
+                <p style={{ fontSize: "1.15em", lineHeight: 1.5, color: INK, marginTop: "0.8em", maxWidth: "80%" }}>
+                  {c.details_ar && <span style={{ fontFamily: AR, display: "block" }}>{c.details_ar}</span>}
+                  {c.details && (
+                    <span dir="ltr" style={{ fontFamily: EN, display: "block" }}>
+                      {c.details}
+                    </span>
+                  )}
+                </p>
+              )}
+              {c.hours ? (
+                <span style={{ marginTop: "1em", display: "inline-flex", gap: "0.7em", alignItems: "center", border: `0.12em solid ${GOLD}`, borderRadius: "999em", padding: "0.35em 1.4em", fontSize: "1.15em" }}>
+                  <span style={{ fontFamily: AR, fontWeight: 700 }}>{c.hours} ساعة تدريبية</span>
+                  <span style={{ width: "0.35em", height: "0.35em", borderRadius: "50%", background: GOLD }} />
+                  <span dir="ltr" style={{ fontFamily: EN, fontWeight: 600 }}>
+                    {c.hours} training hours
+                  </span>
+                </span>
+              ) : null}
+            </div>
+
+            {/* Date and signature */}
+            <div className="flex w-full items-end justify-between" style={{ gap: "4em" }}>
+              <div className="text-center">
+                <p style={{ fontFamily: AR, fontWeight: 700, fontSize: "1.4em" }}>{fmtDate(c.issued_on, "ar-EG")}</p>
+                <p dir="ltr" style={{ fontFamily: EN, fontWeight: 600, fontSize: "1.05em", color: INK }}>
+                  {fmtDate(c.issued_on, "en-GB")}
+                </p>
+                <span style={{ display: "block", width: "18em", height: "0.1em", background: "rgb(8 22 52 / 0.35)", margin: "0.6em auto 0.5em" }} />
+                <p style={{ fontFamily: AR, fontSize: "1em", color: INK }}>
+                  تاريخ الإصدار · <span dir="ltr" style={{ fontFamily: EN }}>Date of issue</span>
+                </p>
+              </div>
+              <div className="text-center">
+                <p style={{ fontFamily: EN, fontWeight: 800, fontSize: "1.6em", letterSpacing: "0.08em" }}>BuildX HUE</p>
+                <p style={{ fontFamily: AR, fontSize: "1.05em", color: INK }}>مجتمع الروبوتات والابتكار · جامعة حورس</p>
+                <span style={{ display: "block", width: "18em", height: "0.1em", background: "rgb(8 22 52 / 0.35)", margin: "0.6em auto 0.5em" }} />
+                <p style={{ fontFamily: AR, fontSize: "1em", color: INK }}>
+                  قائد المجتمع · <span dir="ltr" style={{ fontFamily: EN }}>Community Lead</span>
+                </p>
+              </div>
             </div>
           </div>
         </div>

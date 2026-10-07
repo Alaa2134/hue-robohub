@@ -7,6 +7,7 @@ import { whatsappLink } from "@/lib/contact";
 import { APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
+import { ReportSheet } from "./report";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -167,6 +168,7 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
   const [form, setForm] = useState({ code: "", name: "", group: "", phone: "", notes: "", barcode: "", active: true, withPin: true });
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState<null | "code" | "barcode">(null);
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     if (!student) return;
@@ -284,6 +286,9 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
             <Button icon="key" onClick={newPin} block>
               {s.hasPin ? "رمز دخول جديد" : "إنشاء رمز دخول"}
             </Button>
+            <Button icon="file" onClick={() => setReporting(true)} block>
+              تقرير شهري PDF
+            </Button>
             {(me.role === "owner" || me.role === "admin") && (
               <Button variant="danger" icon="trash" onClick={remove} block>
                 حذف الطالب
@@ -292,6 +297,7 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
           </div>
         )}
       </form>
+      {reporting && s && <ReportSheet student={{ id: s.id, name: s.name, code: s.code }} onClose={() => setReporting(false)} />}
     </Sheet>
   );
 }

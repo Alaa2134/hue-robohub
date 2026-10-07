@@ -1,5 +1,6 @@
 "use client";
 /** BuildX App root: who is using the app (staff / student / nobody) and the hash route. */
+import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { APP_PATH, BASE_PATH, appMode, asciiDigits, isNative, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
 import { BrandLine, InstallCard } from "./shell";
@@ -7,8 +8,10 @@ import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
+import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute, type IconKey } from "./ui";
 
+const AppPlugin = registerPlugin<{ addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle> }>("App");
 const STAFF_CACHE = "rh-app-staff-row";
 
 function readStaffCache(): StaffRow | null {
@@ -41,6 +44,15 @@ export default function PortalApp() {
     sync();
     window.addEventListener("rh-student", sync);
     window.addEventListener("storage", sync);
+    // A buildxhue.com/app/#/… link that opened the store app (App Links / Universal Links) goes to that screen.
+    let linkHandle: PluginListenerHandle | undefined;
+    if (isNative())
+      AppPlugin.addListener("appUrlOpen", ({ url }) => {
+        const i = url.indexOf("#");
+        if (i >= 0) window.location.hash = url.slice(i + 1);
+      })
+        .then((h) => (linkHandle = h))
+        .catch(() => undefined);
     // The store apps carry their own files, so they skip the offline worker.
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator && !isNative()) {
       navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH }).catch(() => undefined);
@@ -60,6 +72,7 @@ export default function PortalApp() {
       window.removeEventListener("storage", sync);
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
+      linkHandle?.remove();
     };
   }, []);
 
@@ -137,7 +150,9 @@ export default function PortalApp() {
 
   return (
     <>
-      <UpdateGate>{screen}</UpdateGate>
+      <UpdateGate>
+        <BiometricGate active={!!staff}>{screen}</BiometricGate>
+      </UpdateGate>
       <Overlays />
     </>
   );
