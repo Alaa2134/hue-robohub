@@ -206,7 +206,7 @@ export function Overlays() {
   };
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[70] flex flex-col items-center gap-2 px-4" aria-live="polite">
+      <div className="pointer-events-none fixed inset-x-0 top-[calc(0.75rem+env(safe-area-inset-top))] z-[70] flex flex-col items-center gap-2 px-4 print:hidden" aria-live="polite">
         {toasts.map((t) => (
           <div
             key={t.id}

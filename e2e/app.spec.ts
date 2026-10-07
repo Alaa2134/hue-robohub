@@ -142,3 +142,29 @@ test("the two-factor screen lists the team and walks through adding an authentic
   await expect(page.getByText("JBSWY3DPEHPK3PXP")).toBeVisible();
   await expect(page.getByRole("img", { name: "QR code للتحقق بخطوتين" })).toBeVisible();
 });
+
+test("staff issue certificates to typed names and get a printable A4 page with a QR", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const inserted: unknown[] = [];
+  const cert = { id: "c1", code: "BXC-1A2B3C4D", name: "Mona Adel", kind: "completion", title: "Robotics Bootcamp 2026", title_ar: null, details: null, details_ar: null, hours: 24, issued_on: "2026-10-07", student_id: null, revoked_at: null, created_at: at(1) };
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [cert] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Robotics Bootcamp 2026");
+  await page.getByLabel("عدد الساعات (اختياري)").fill("24");
+  await page.getByRole("button", { name: "أسماء بإيدي" }).click();
+  await page.getByLabel("الأسماء — اسم في كل سطر").fill("Mona Adel\n");
+  await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
+  await expect(page.getByRole("button", { name: "طباعة / PDF" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "QR BXC-1A2B3C4D" })).toBeVisible();
+  expect(inserted).toEqual([[expect.objectContaining({ recipient_name: "Mona Adel", title: "Robotics Bootcamp 2026", hours: 24, kind: "completion", student_id: null })]]);
+  expect(errors).toEqual([]);
+});

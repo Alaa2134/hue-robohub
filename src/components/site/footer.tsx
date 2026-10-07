@@ -149,6 +149,9 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
             <Link href={href("/brand")} className="hover:text-chalk">
               {t.nav.brand}
             </Link>
+            <Link href={href("/verify")} className="hover:text-chalk">
+              {locale === "ar" ? "تحقّق من شهادة" : "Verify a certificate"}
+            </Link>
             <Link href={localePath(locale === "en" ? "ar" : "en", "/")} hrefLang={locale === "en" ? "ar" : "en"} className="hover:text-chalk">
               {t.nav.language}
             </Link>

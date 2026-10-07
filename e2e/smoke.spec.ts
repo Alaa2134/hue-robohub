@@ -98,3 +98,29 @@ test("an applicant checks their application status with reference and phone", as
   expect(calls.at(-1)).toEqual({ p_ref: "BX-TEST01", p_phone: "01012345678" });
   expect(errors).toEqual([]);
 });
+
+test("a scanned certificate QR opens the verify page and shows it is genuine", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  const asked: string[] = [];
+  await page.route("**/rest/v1/rpc/verify_certificate", async (route) => {
+    const { p_code } = route.request().postDataJSON() as { p_code: string };
+    asked.push(p_code);
+    await route.fulfill({
+      json:
+        p_code === "BXC-1A2B3C4D"
+          ? { ok: true, code: "BXC-1A2B3C4D", name: "Mona Adel", kind: "completion", title: "Robotics Bootcamp 2026", title_ar: "بوتكامب الروبوتات 2026", details: null, details_ar: null, hours: 24, issued_on: "2026-10-07", revoked: false, revoked_on: null }
+          : { ok: false, error: "not_found" },
+    });
+  });
+  await page.goto("/verify/?c=BXC-1A2B3C4D");
+  await expect(page.getByText("Valid certificate")).toBeVisible();
+  await expect(page.getByText("Mona Adel")).toBeVisible();
+  await expect(page.getByText("Certificate of Completion — Robotics Bootcamp 2026")).toBeVisible();
+  await page.getByRole("button", { name: "Check another code" }).click();
+  await page.getByLabel("Certificate code").fill("BXC-FFFFFFFF");
+  await page.getByRole("button", { name: "Verify" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "No certificate has this code" })).toBeVisible();
+  expect(asked).toEqual(["BXC-1A2B3C4D", "BXC-FFFFFFFF"]);
+  expect(errors).toEqual([]);
+});

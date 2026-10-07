@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentStore, type AttStatus, type StudentSession } from "./core";
+import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
@@ -98,6 +99,7 @@ function useHome() {
 export function StudentApp({ session, path }: { session: StudentSession; path: string[] }) {
   const home = useHome();
   const [section, id] = path;
+  if (section === "certificate" && id) return <MyCertificatePrint id={id} />;
   if (section === "quiz" && id) return <TakeQuiz key={id} id={id} info={home.data?.quizzes.find((q) => q.id === id)} onDone={home.reload} />;
 
   let screen: React.ReactNode;
@@ -187,11 +189,64 @@ function Home({ data, reload, loading }: ScreenProps) {
           <Card className="text-sm text-fog">لم يُضَف محتوى بعد.</Card>
         )}
       </Section>
+      <MyCertificates />
       <div className="mt-6">
         <InstallCard />
       </div>
     </>
   );
+}
+
+let certCache: Certificate[] | null = null;
+function useMyCertificates() {
+  const [list, setList] = useState<Certificate[] | null>(certCache);
+  useEffect(() => {
+    let alive = true;
+    studentRpc<Certificate[]>("student_certificates")
+      .then((r) => {
+        certCache = r;
+        if (alive) setList(r);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return list;
+}
+
+/** The student's certificates (hidden until they have one). */
+function MyCertificates() {
+  const list = useMyCertificates();
+  if (!list?.length) return null;
+  return (
+    <Section title="شهاداتي">
+      <List>
+        {list.map((c) => (
+          <a key={c.id} href={`#/me/certificate/${c.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold">
+              <Icon name="award" size={22} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[15px] font-semibold text-chalk">{c.title_ar || c.title}</span>
+              <span className="block truncate text-xs text-fog">
+                {CERT_KINDS.find((k) => k.key === c.kind)?.ar} · {fmt.short(`${c.issued_on}T12:00:00`)}
+              </span>
+            </span>
+            <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+          </a>
+        ))}
+      </List>
+    </Section>
+  );
+}
+
+function MyCertificatePrint({ id }: { id: string }) {
+  const list = useMyCertificates();
+  if (!list) return <Loading />;
+  const c = list.find((x) => x.id === id);
+  if (!c) return <ErrorBox error="الشهادة مش موجودة" />;
+  return <CertificatePrint certs={[c]} onBack={() => go("/me")} />;
 }
 
 function MaterialRow({ m }: { m: HomeMaterial }) {

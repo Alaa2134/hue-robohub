@@ -10,6 +10,7 @@ import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./
 import { SiteContentScreen } from "./staff-site";
 import { SiteSettingsScreen } from "./staff-settings";
 import { TwoFactorScreen } from "./staff-2fa";
+import { CertificatesPrintScreen, CertificatesScreen } from "./staff-certificates";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -27,6 +28,8 @@ const TABS: Tab[] = [
 
 export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: string[]; query: URLSearchParams; onProfile: (s: StaffRow) => void }) {
   const [section, id, sub] = path;
+  // The print view is a bare page (no tab bar) so it prints as clean A4 sheets.
+  if (section === "certificates" && id === "print") return <CertificatesPrintScreen ids={(query.get("ids") ?? "").split(",").filter(Boolean)} />;
   let screen: React.ReactNode;
   switch (section) {
     case "attendance":
@@ -67,6 +70,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "settings":
       screen = <SiteSettingsScreen me={me} />;
+      break;
+    case "certificates":
+      screen = <CertificatesScreen me={me} />;
       break;
     case "2fa":
       screen = <TwoFactorScreen me={me} />;
@@ -235,6 +241,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
+    { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security", show: me.role !== "lead" },
