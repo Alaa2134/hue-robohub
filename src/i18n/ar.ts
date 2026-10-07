@@ -3,6 +3,12 @@ import type { Dictionary } from "./en";
 const ar: Dictionary = {
   meta: { skip: "تخطَّ إلى المحتوى" },
   nav: {
+    signInShort: "دخول",
+    signIn: "تسجيل الدخول",
+    signInStudent: "أنا طالب",
+    signInStudentHint: "المحتوى والكويزات وحضورك",
+    signInStaff: "فريق التدريب",
+    signInStaffHint: "الحضور والطلاب والمحتوى ولوحة التحكم",
     faq: "الأسئلة الشائعة",
     competitions: "المنافسات",
     brand: "الهوية",

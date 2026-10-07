@@ -57,6 +57,28 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
   const socialEntries = (Object.entries(socials) as [keyof SocialConfig, string][]).filter(([, v]) => safeHref(v));
   const current = previews[hover] ?? previews[0];
 
+  const signIn = (
+    <>
+      <p className="t-eyebrow mb-3 text-fog">{t.signIn}</p>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
+        {(
+          [
+            ["login/student", t.signInStudent, t.signInStudentHint, "users"],
+            ["login/staff", t.signInStaff, t.signInStaffHint, "lock"],
+          ] as const
+        ).map(([to, label, hint, icon]) => (
+          <a key={to} href={`${APP_HREF}#/${to}`} className="flex flex-col gap-1 rounded-xl border border-[var(--line-2)] bg-panel/60 p-3 transition-colors hover:border-cyan/50">
+            <span className="flex items-center gap-2 font-semibold text-chalk">
+              <Icon name={icon} size={16} className="text-cyan" />
+              {label}
+            </span>
+            <span className="text-xs leading-snug text-fog">{hint}</span>
+          </a>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <div
       id="site-menu"
@@ -88,6 +110,7 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
 
         <div className="relative mx-auto grid w-full max-w-[1680px] flex-1 grid-cols-1 gap-8 overflow-y-auto px-5 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-5 sm:px-8 lg:grid-cols-12 lg:gap-10 lg:overflow-hidden lg:px-8 lg:pb-10 lg:pt-28">
           {/* Primary destinations */}
+          <div className="lg:hidden">{signIn}</div>
           <nav aria-label={t.explore} className="lg:col-span-5 xl:col-span-4">
             <p className="t-eyebrow mb-4 text-fog lg:mb-6">{t.explore}</p>
             <ol className="space-y-0.5 lg:space-y-1">
@@ -150,6 +173,7 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
 
           {/* Groups, language, command center */}
           <div className="flex flex-col gap-7 lg:col-span-3 lg:gap-8">
+            <div className="hidden lg:block">{signIn}</div>
             {MENU_GROUPS.map((g) => (
               <div key={g.key}>
                 <p className="t-eyebrow mb-3 text-fog">{t[g.key]}</p>
@@ -174,8 +198,8 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
                 <span>{t.language}</span>
               </Link>
               <a href={APP_HREF} className="btn btn-sm">
-                <Icon name="grid" size={15} />
-                <span>{t.app}</span>
+                <Icon name="lock" size={15} />
+                <span>{t.signIn}</span>
               </a>
               {COMMAND_URL && (
                 <Link href={COMMAND_URL} prefetch={false} className="btn btn-sm">

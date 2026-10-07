@@ -155,3 +155,15 @@ test("a student registers for an event and opens a QR ticket", async ({ page }) 
   await expect(page.getByText("انت متسجل في الفعالية دي")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("sign-in is visible in the header on a phone and the menu offers student and staff sign-in", async ({ page }) => {
+  await mockSupabase(page);
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/ar/");
+  const signIn = page.locator("header").getByRole("link", { name: "تسجيل الدخول" });
+  await expect(signIn).toBeVisible();
+  await expect(signIn).toHaveAttribute("href", "/app/");
+  await page.locator('header button[aria-controls="site-menu"]').click();
+  await expect(page.locator("#site-menu").getByRole("link", { name: /أنا طالب/ })).toHaveAttribute("href", "/app/#/login/student");
+  await expect(page.locator("#site-menu").getByRole("link", { name: /فريق التدريب/ })).toHaveAttribute("href", "/app/#/login/staff");
+});
