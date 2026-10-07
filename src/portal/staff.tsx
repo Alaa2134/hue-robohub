@@ -8,6 +8,7 @@ import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance"
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
 import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./staff-insights";
 import { SiteContentScreen } from "./staff-site";
+import { SiteSettingsScreen } from "./staff-settings";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -62,6 +63,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "reports":
       screen = <ReportsScreen />;
+      break;
+    case "settings":
+      screen = <SiteSettingsScreen me={me} />;
       break;
     case "security":
       screen = <SecurityScreen me={me} />;
@@ -223,6 +227,7 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 function MoreScreen({ me }: { me: StaffRow }) {
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
+    { icon: "settings", label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)", to: "/staff/settings", show: me.role !== "lead" },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },

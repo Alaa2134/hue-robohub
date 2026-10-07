@@ -234,7 +234,8 @@ export function RoadmapSection({
 }
 
 /** Season targets. Labelled as goals — never presented as achieved numbers. */
-export function GoalsSection({ locale }: { locale: string }) {
+export function GoalsSection({ locale, goals }: { locale: string; goals?: { value: string; label: { en: string; ar: string }; note: { en: string; ar: string } }[] }) {
+  const list = goals?.length ? goals : GOALS;
   const ar = locale === "ar";
   return (
     <section
@@ -250,14 +251,14 @@ export function GoalsSection({ locale }: { locale: string }) {
           {ar ? "اللي ناويين نحققه السنة دي" : "What we're aiming for this year"}
         </h2>
         <ul role="list" className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
-          {GOALS.map((g, i) => (
+          {list.map((g, i) => (
             <Reveal
               as="li"
               key={g.value + g.label.en}
               delay={i * 60}
               className={cn(
                 "rounded-[18px] border border-[var(--line-2)] bg-void/40 px-3 py-5 text-center sm:p-6",
-                i === GOALS.length - 1 && "col-span-2 lg:col-span-1",
+                i === list.length - 1 && list.length % 2 === 1 && "col-span-2 lg:col-span-1",
               )}
             >
               <p className="t-display text-5xl text-cyan" dir="ltr">

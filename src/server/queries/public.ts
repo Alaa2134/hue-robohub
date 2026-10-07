@@ -8,6 +8,9 @@ import { fallbackBootcamp, fallbackTeam, fallbackTeams, fallbackTeamsWithSpecs, 
 import { presentImage, ogImageUrl } from "../media/present";
 import { TAGS } from "@/lib/cache-tags";
 import { defaultSiteConfig, SETTING_KEYS, type SiteConfig } from "@/lib/site-config";
+import { buildSiteSettings } from "@/lib/build-content";
+import { STATIC_SITE } from "@/lib/deploy";
+import { applySettings } from "@/lib/site-settings";
 import type { MemberCard, PublicImage, VideoSource } from "@/lib/types";
 import { resolveVideo } from "@/lib/video";
 import { RANK_ORDER } from "@/lib/members";
@@ -49,7 +52,7 @@ async function loadOg(id: string | null | undefined) {
 
 /* ─── Settings ─────────────────────────────────────────────────────────────── */
 
-export const getSiteConfig = cached(
+const getSiteConfigFromDb = cached(
   async (): Promise<SiteConfig> => {
     const rows = await db.select().from(s.settings).where(inArray(s.settings.key, SETTING_KEYS));
     const merged = structuredClone(defaultSiteConfig) as Record<string, unknown>;
@@ -64,6 +67,12 @@ export const getSiteConfig = cached(
   },
   ["site-config"],
   { tags: [TAGS.settings], revalidate: REVALIDATE }, () => structuredClone(defaultSiteConfig));
+
+/** Site settings: the database on the server build; on the static site, the defaults plus what the owner set in the BuildX App. */
+export async function getSiteConfig(): Promise<SiteConfig> {
+  if (STATIC_SITE) return applySettings(structuredClone(defaultSiteConfig), await buildSiteSettings());
+  return getSiteConfigFromDb();
+}
 
 /* ─── Stats (live, from the database) ──────────────────────────────────────── */
 

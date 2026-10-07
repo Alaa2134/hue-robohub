@@ -18,6 +18,9 @@ import { HOME_TITLE, pageMeta, SITE_URL } from "@/lib/seo";
 import { campus, ORG_ID } from "@/lib/structured-data";
 import { JsonLd } from "@/components/seo/json-ld";
 import { STATIC_SITE } from "@/lib/deploy";
+import { buildSiteSettings } from "@/lib/build-content";
+import { announcementOf } from "@/lib/site-settings";
+import { Announcement } from "@/components/site/announcement";
 import { staticSiteCsp } from "@/lib/security-headers";
 import { SUPABASE_URL } from "@/lib/supabase-public";
 import { getSiteConfig, getTeams, getTracks } from "@/server/queries/public";
@@ -76,7 +79,7 @@ export default async function SiteLayout({ children, params }: { children: React
   if (!isLocale(raw)) notFound();
   const locale = raw as Locale;
   const t = getDictionary(locale);
-  const [config, tracks, teams] = await Promise.all([getSiteConfig(), getTracks(), getTeams()]);
+  const [config, tracks, teams, settings] = await Promise.all([getSiteConfig(), getTracks(), getTeams(), STATIC_SITE ? buildSiteSettings() : null]);
 
   const previews: MenuPreview[] = PREVIEWS.map((p) => {
     const e = art(...p.art);
@@ -127,6 +130,7 @@ export default async function SiteLayout({ children, params }: { children: React
         </main>
         <Footer locale={locale} t={t} config={config} />
         <TabBar locale={locale} t={t.nav} />
+        {STATIC_SITE && <Announcement initial={announcementOf(settings, locale)} locale={locale} localePrefix={locale === "ar" ? "/ar" : ""} />}
         <SmoothScroll />
         <Hydrated />
         {STATIC_SITE && <Telemetry host={new URL(SITE_URL).hostname} locale={locale} />}

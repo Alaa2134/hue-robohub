@@ -38,8 +38,8 @@ const Skeleton = ({ n = 3, tall }: { n?: number; tall?: boolean }) => (
 );
 const Note = ({ children }: { children: ReactNode }) => <p className="rounded-[18px] border border-[var(--line-2)] bg-panel/50 p-6 text-center text-mist">{children}</p>;
 
-function Cover({ item, className }: { item: SiteItem; className?: string }) {
-  return item.image_path ? <img src={siteImageUrl(item.image_path)} alt="" loading="lazy" className={cn("w-full object-cover", className)} /> : null;
+function Cover({ item, className, full }: { item: SiteItem; className?: string; full?: boolean }) {
+  return item.image_path ? <img src={siteImageUrl(item.image_path, full ? "full" : "thumb")} alt="" loading="lazy" decoding="async" className={cn("w-full object-cover", className)} /> : null;
 }
 
 /* ─── Events ───────────────────────────────────────────────────────────── */
@@ -228,7 +228,7 @@ export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { k
       <h1 className="t-display text-[clamp(2rem,5vw,3.6rem)] text-chalk">{titleOf(i, locale)}</h1>
       {resultOf(i, locale) && <p className="w-fit rounded-full bg-gold/15 px-4 py-1 font-semibold text-gold">{resultOf(i, locale)}</p>}
       {summaryOf(i, locale) && <p className="text-xl leading-relaxed text-frost">{summaryOf(i, locale)}</p>}
-      {i.image_path && <Cover item={i} className="rounded-[20px] border border-[var(--line-2)]" />}
+      {i.image_path && <Cover item={i} full className="rounded-[20px] border border-[var(--line-2)]" />}
       {bodyOf(i, locale) && <div className="whitespace-pre-line text-pretty text-lg leading-relaxed text-mist">{bodyOf(i, locale)}</div>}
       {link && (
         <a href={link} target="_blank" rel="noopener noreferrer nofollow" className={cn("btn w-fit", kind === "event" && "btn-primary")}>
@@ -278,7 +278,7 @@ export function LiveGallery({ locale, initial }: { locale: string; initial?: Sit
         {photos.map((p, idx) => (
           <li key={p.id} className="mb-3 break-inside-avoid">
             <button type="button" onClick={() => setOpen(idx)} className="block w-full overflow-hidden rounded-2xl border border-[var(--line)] focus-visible:outline-2">
-              <img src={siteImageUrl(p.image_path!)} alt={titleOf(p, locale)} loading="lazy" className="w-full transition-transform duration-500 hover:scale-[1.03]" />
+              <img src={siteImageUrl(p.image_path!, "thumb")} alt={titleOf(p, locale)} loading="lazy" decoding="async" className="w-full transition-transform duration-500 hover:scale-[1.03]" />
             </button>
           </li>
         ))}
@@ -395,7 +395,7 @@ export function LatestStrip({ locale, eventsHref, newsHref }: { locale: string; 
                 {s.data.posts.map((p) => (
                   <li key={p.id}>
                     <Link href={`${newsHref}${encodeURIComponent(p.slug ?? "")}/`} className="flex gap-4 rounded-[18px] border border-[var(--line-2)] bg-panel/70 p-4 transition-colors hover:border-cyan/50">
-                      {p.image_path && <img src={siteImageUrl(p.image_path)} alt="" loading="lazy" className="size-20 shrink-0 rounded-xl object-cover" />}
+                      {p.image_path && <img src={siteImageUrl(p.image_path, "thumb")} alt="" loading="lazy" decoding="async" className="size-20 shrink-0 rounded-xl object-cover" />}
                       <span className="flex min-w-0 flex-col gap-1">
                         <span className="text-sm text-fog">{fmtDate(p.created_at, locale)}</span>
                         <span className="t-title text-lg text-chalk">{titleOf(p, locale)}</span>

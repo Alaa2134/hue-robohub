@@ -16,7 +16,7 @@ export const trackName = (slug: string | null | undefined, locale: string) => {
   return t ? (locale === "ar" ? t.nameAr : t.name) : "";
 };
 
-export function Avatar({ p, locale, className }: { p: TeamProfile; locale: string; className?: string }) {
+export function Avatar({ p, locale, className, thumb }: { p: TeamProfile; locale: string; className?: string; thumb?: boolean }) {
   const name = nameOf(p, locale);
   const initials = name
     .split(/\s+/)
@@ -26,7 +26,7 @@ export function Avatar({ p, locale, className }: { p: TeamProfile; locale: strin
   return (
     <span className={cn("relative flex items-center justify-center overflow-hidden bg-gradient-to-br from-volt/60 via-volt-lo/60 to-cyan/40", className)}>
       {p.photo_path ? (
-        <img src={teamImageUrl(p.photo_path)} alt={name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={teamImageUrl(p.photo_path, thumb ? "thumb" : "full")} alt={name} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <span className="t-display text-4xl text-white/90" aria-hidden>
           {initials}
@@ -42,7 +42,7 @@ function MemberCard({ p, locale, href, big }: { p: TeamProfile; locale: string; 
   const track = trackName(p.track, locale);
   const body = (
     <>
-      <Avatar p={p} locale={locale} className={cn("w-full", big ? "aspect-[4/5]" : "aspect-square")} />
+      <Avatar p={p} locale={locale} thumb className={cn("w-full", big ? "aspect-[4/5]" : "aspect-square")} />
       <div className="flex flex-1 flex-col gap-2 p-5">
         <p className="t-title text-xl text-chalk">{nameOf(p, locale)}</p>
         {headlineOf(p, locale) && <p className="text-[0.95rem] text-mist">{headlineOf(p, locale)}</p>}
