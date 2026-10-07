@@ -197,7 +197,7 @@ export function Scanner({ onDetect, paused = false, autoStart = true, className 
               <p className="max-w-xs text-sm leading-relaxed text-mist">
                 {state === "off" && "امسح باركود كارنيه الطالب بالكاميرا، أو اكتب الرقم في الخانة بالأسفل."}
                 {state === "denied" && "لم يُسمح باستخدام الكاميرا. اسمح بها من إعدادات المتصفح ثم حاول مرة أخرى."}
-                {state === "error" && "تعذّر تشغيل الكاميرا على هذا الجهاز. اكتب الرقم أو استخدم قارئ باركود USB."}
+                {state === "error" && (typeof window !== "undefined" && !window.isSecureContext ? "الكاميرا مش بتشتغل والموقع مفتوح بـ http (غير آمن). افتحه بـ https، أو اكتب الرقم أو استخدم قارئ باركود USB." : "تعذّر تشغيل الكاميرا على هذا الجهاز. اكتب الرقم أو استخدم قارئ باركود USB.")}
               </p>
               <Button variant="primary" icon="camera" onClick={() => start(facing)}>
                 {state === "off" ? "تشغيل الكاميرا" : "حاول مرة أخرى"}
