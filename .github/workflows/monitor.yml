@@ -1,0 +1,69 @@
+# Hourly health and security check of buildxhue.com. When something is wrong it opens (or updates) one
+# "Site alert" issue — GitHub emails the repository owner — and closes it once everything is fine again.
+name: Monitor
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check the site, certificate, database and attack signals
+        run: node scripts/monitor.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Open, update or close the alert issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const report = JSON.parse(fs.readFileSync("monitor-report.json", "utf8"));
+            const LABEL = "site-alert";
+            const { owner, repo } = context.repo;
+            const open = (await github.rest.issues.listForRepo({ owner, repo, labels: LABEL, state: "open", per_page: 5 })).data;
+            const issue = open[0];
+            const serious = report.problems.filter((p) => p.severity >= 2);
+            const icon = (s) => (s >= 3 ? "🔴" : s === 2 ? "🟠" : "🟡");
+            const body = [
+              `**${report.level === "attack" ? "Possible attack" : serious.length ? "Problems found" : "Warnings"}** on ${report.site} — checked ${report.at}`,
+              "",
+              ...report.problems.map((p) => `- ${icon(p.severity)} ${p.text}`),
+              "",
+              "<details><summary>All checks</summary>",
+              "",
+              ...report.checks.map((c) => `- ${c.ok ? "✅" : "❌"} ${c.name} — ${c.detail}`),
+              "",
+              "</details>",
+              "",
+              `What to do: open BuildX App → More → Security (الأمان والهجمات) to see the addresses behind an attack and block them, or close applications for a while. [Monitor run](${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId})`,
+            ].join("\n");
+            const keys = serious.map((p) => p.key).sort().join(",");
+            if (serious.length) {
+              const title = `${report.level === "attack" ? "🔴 Possible attack" : "🟠 Site alert"}: ${serious.map((p) => p.key.split(":")[0]).filter((v, i, a) => a.indexOf(v) === i).join(", ")}`;
+              if (!issue) {
+                await github.rest.issues.create({ owner, repo, title, body: `${body}\n\n<!-- keys:${keys} -->`, labels: [LABEL] });
+              } else if (!issue.body?.includes(`<!-- keys:${keys} -->`)) {
+                // Something new: say so in a comment (that notifies), and keep the summary current.
+                await github.rest.issues.update({ owner, repo, issue_number: issue.number, title, body: `${body}\n\n<!-- keys:${keys} -->` });
+                await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body });
+              }
+            } else if (issue) {
+              await github.rest.issues.createComment({ owner, repo, issue_number: issue.number, body: `✅ All checks pass again (${report.at}).${report.problems.length ? `\n\nMinor notes:\n${report.problems.map((p) => `- ${p.text}`).join("\n")}` : ""}` });
+              await github.rest.issues.update({ owner, repo, issue_number: issue.number, state: "closed", state_reason: "completed" });
+            }

@@ -41,9 +41,21 @@ export default function PortalApp() {
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH }).catch(() => undefined);
     }
+    // Uncaught errors reach the dashboard's error list (production domain only, five per load).
+    let sent = 0;
+    const report = (message: string, source?: string) => {
+      if (!message || sent++ >= 5 || !/^(www\.)?buildxhue\.com$/.test(location.hostname)) return;
+      rpc("log_client_error", { p: { message: message.slice(0, 500), source: source?.slice(0, 300), path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
+    };
+    const onError = (e: ErrorEvent) => report(e.message, e.filename ? `${e.filename.replace(location.origin, "")}:${e.lineno}:${e.colno}` : undefined);
+    const onRejection = (e: PromiseRejectionEvent) => report(e.reason instanceof Error ? e.reason.message : String(e.reason), "unhandledrejection");
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
     return () => {
       window.removeEventListener("rh-student", sync);
       window.removeEventListener("storage", sync);
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
     };
   }, []);
 
@@ -242,7 +254,9 @@ function StudentLogin({ initialCode }: { initialCode: string }) {
           ? "لم يُصدَر لك رمز دخول بعد. اطلبه من المدرّب."
           : r.error === "locked"
             ? `توقف الدخول مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد ${r.until ? new Date(r.until).toLocaleTimeString("ar-EG-u-nu-latn", { hour: "numeric", minute: "2-digit" }) : "قليل"}.`
-            : "رقم الطالب أو رمز الدخول غير صحيح.",
+            : r.error === "rate_limited"
+              ? "محاولات دخول كتير من نفس الشبكة. استنى ربع ساعة وجرّب تاني."
+              : "رقم الطالب أو رمز الدخول غير صحيح.",
       );
       setPin("");
     } catch (e2) {

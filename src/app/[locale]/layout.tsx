@@ -8,6 +8,7 @@ import { Header } from "@/components/site/header";
 import { MenuSheet, type MenuPreview } from "@/components/site/menu-sheet";
 import { SearchDialog, type SearchSeed } from "@/components/site/search-dialog";
 import { TabBar } from "@/components/site/tab-bar";
+import { Telemetry } from "@/components/site/telemetry";
 import { MENU_GROUPS } from "@/components/site/nav";
 import { dirOf, getDictionary, isLocale, LOCALES, type Locale } from "@/i18n";
 import { fontVariables } from "@/lib/fonts";
@@ -125,6 +126,7 @@ export default async function SiteLayout({ children, params }: { children: React
         <Footer locale={locale} t={t} config={config} />
         <TabBar locale={locale} t={t.nav} />
         <SmoothScroll />
+        {STATIC_SITE && <Telemetry host={new URL(SITE_URL).hostname} locale={locale} />}
       </body>
     </html>
   );

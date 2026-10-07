@@ -356,7 +356,7 @@ function Account({ session }: { session: StudentSession }) {
       if (r.ok) {
         setForm({ old: "", a: "", b: "" });
         toast("تم تغيير رمز الدخول");
-      } else toast(r.error === "weak" ? "اختر رمزًا أصعب (ليس 123456 أو أرقامًا مكررة)." : "الرمز الحالي غير صحيح.", "error");
+      } else toast(r.error === "weak" ? "اختر رمزًا أصعب (ليس 123456 أو أرقامًا مكررة)." : r.error === "rate_limited" ? "محاولات كتير. استنى ربع ساعة وجرّب تاني." : "الرمز الحالي غير صحيح.", "error");
     } catch (e2) {
       toast.error(e2);
     } finally {

@@ -29,3 +29,11 @@ Migrations live in `supabase/migrations/` and are applied to the Supabase projec
 - submit an application through `public.submit_application`.
 
 Everything else needs a staff account.
+
+## Security and monitoring
+
+- **Limits on everything visitors can call** (`private.throttle`, per IP and time window): applications 5/hour, student sign-in 30 per 15 min (plus the per-account PIN lockout), PIN changes 10 per 15 min, page-view and error reports. Refused requests, bot-trap hits, failed sign-ins and lockouts go to `private.security_events`.
+- **Responding:** BuildX App → More → *الأمان والهجمات* shows the alert level, the addresses behind suspicious activity, locked student accounts, and lets owners/admins block or unblock an address. Applications can be closed from the applications screen.
+- **Hourly monitor** (`.github/workflows/monitor.yml`, `scripts/monitor.mjs`): key pages, Content-Security-Policy, titles, sitemap, HTTPS certificate, database reachability, the attack level from `security_pulse()`, and that only the deploy workflow writes to `gh-pages`. Problems open a **site-alert** issue (GitHub emails the owner); it closes itself when everything passes again.
+- **Visits and errors:** `track_view` counts page views without cookies (daily-rotating visitor hash, Do Not Track respected); `log_client_error` records browser errors. Both only run on buildxhue.com. See BuildX App → More → *زيارات الموقع* and *أخطاء الموقع*.
+- **Retention:** `supabase/migrations/20261007110000_retention.sql` schedules the daily clean-up; it deletes rows, so it is applied only with the owner's approval.
