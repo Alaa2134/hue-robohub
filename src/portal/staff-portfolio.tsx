@@ -35,11 +35,11 @@ function ImagePick({ label, path, onPick, busy, round }: { label: string; path: 
       </span>
       <span className="flex flex-col gap-1">
         <span className="font-semibold text-chalk">{label}</span>
-        <span className="text-xs text-fog">JPG أو PNG — هتتصغّر تلقائي</span>
+        <span className="text-xs text-fog">أي صورة من الموبايل — بتتصغّر لوحدها</span>
       </span>
       <input
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/*"
         className="sr-only"
         disabled={busy}
         onChange={(e) => {

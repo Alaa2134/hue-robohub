@@ -137,6 +137,9 @@ export function errorText(e: unknown): string {
   if (code === "23505" || /duplicate key|code_taken|barcode_taken/.test(msg)) return "هذا الرقم مسجَّل لطالب آخر.";
   if (code === "42501" || msg === "forbidden" || /permission denied|row-level security|violates row-level/i.test(msg)) return "ليست لديك صلاحية لهذا الإجراء.";
   if (/JWT expired|invalid JWT|refresh token/i.test(msg)) return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
+  if (msg === "image_unreadable") return "المتصفح مقدرش يفتح الصورة دي. جرّب صورة تانية، أو خد لها سكرين شوت وارفعها.";
+  if (msg === "image_encode") return "مقدرناش نصغّر الصورة دي. جرّب صورة تانية.";
+  if (/mime type .* is not supported|invalid_mime_type/i.test(msg)) return "نوع الملف ده مش مسموح. ارفع صورة JPG أو PNG.";
   if (/exceeded the maximum allowed size|Payload too large|413/i.test(msg)) return "الملف أكبر من الحد المسموح (50 ميجابايت).";
   return "حدث خطأ غير متوقع. حاول مرة أخرى.";
 }
@@ -320,45 +323,61 @@ export async function removeObjects(paths: string[], bucket = "materials") {
   if (error) throw error;
 }
 
-async function loadImage(file: Blob): Promise<{ img: HTMLImageElement; done: () => void }> {
+type Decoded = { src: CanvasImageSource; width: number; height: number; done: () => void };
+
+/** Decodes a picked photo. `<img>` first (applies EXIF rotation everywhere); createImageBitmap as a fallback
+ * for formats some browsers only decode that way. */
+async function loadImage(file: Blob): Promise<Decoded> {
   const url = URL.createObjectURL(file);
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const i = new Image();
-    i.onload = () => resolve(i);
-    i.onerror = () => reject(new Error("image_unreadable"));
-    i.src = url;
-  }).catch((e) => {
-    URL.revokeObjectURL(url);
-    throw e;
-  });
-  return { img, done: () => URL.revokeObjectURL(url) };
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error("image_unreadable"));
+      i.src = url;
+    });
+    if (img.naturalWidth && img.naturalHeight) return { src: img, width: img.naturalWidth, height: img.naturalHeight, done: () => URL.revokeObjectURL(url) };
+  } catch {
+    /* try the bitmap decoder below */
+  }
+  URL.revokeObjectURL(url);
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" } as ImageBitmapOptions);
+      return { src: bmp, width: bmp.width, height: bmp.height, done: () => bmp.close() };
+    } catch {
+      /* unreadable */
+    }
+  }
+  throw new Error("image_unreadable");
 }
 
 /** Draws the image no larger than `maxEdge` (browsers apply the EXIF rotation; the metadata itself is dropped). */
-async function encode(img: HTMLImageElement, maxEdge: number, type: string, quality: number, flatten: boolean): Promise<Blob> {
-  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+async function encode(img: Decoded, maxEdge: number, type: string, quality: number, flatten: boolean): Promise<Blob> {
+  const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
   const ctx = canvas.getContext("2d")!;
   ctx.imageSmoothingQuality = "high";
   if (flatten) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img.src, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
-  if (!blob) throw new Error("image");
+  canvas.width = canvas.height = 0; // iOS keeps canvas memory until it is shrunk
+  if (!blob) throw new Error("image_encode");
   return blob;
 }
 
 /** Re-encodes a picture as JPEG (drops EXIF/GPS, keeps quiz images light). */
 export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promise<Blob> {
-  const { img, done } = await loadImage(file);
+  const img = await loadImage(file);
   try {
     return await encode(img, maxEdge, "image/jpeg", quality, true);
   } finally {
-    done();
+    img.done();
   }
 }
 
@@ -369,17 +388,17 @@ export type PreparedImage = { main: Blob; thumb: Blob; ext: "webp" | "jpg"; type
  * WebP (JPEG where the browser can't write WebP) and stripped of metadata such as GPS location.
  */
 export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640, quality = 0.8 } = {}): Promise<PreparedImage> {
-  const { img, done } = await loadImage(file);
+  const img = await loadImage(file);
   try {
     let main = await encode(img, maxEdge, "image/webp", quality, false);
     const webp = main.type === "image/webp";
     if (!webp) main = await encode(img, maxEdge, "image/jpeg", 0.84, true);
     const type = webp ? "image/webp" : "image/jpeg";
     const thumb = await encode(img, thumbEdge, type, webp ? 0.74 : 0.8, !webp);
-    const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
-    return { main, thumb, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.size, width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) };
+    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+    return { main, thumb, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.size, width: Math.round(img.width * scale), height: Math.round(img.height * scale) };
   } finally {
-    done();
+    img.done();
   }
 }
 
@@ -388,11 +407,19 @@ export const thumbPath = (path: string) => path.replace(/\.w\.(webp|jpg)$/, ".t.
 
 /** Compresses and uploads a photo plus its thumbnail; returns the main object's path. */
 export async function uploadImage(bucket: string, dir: string, file: Blob, opts?: { maxEdge?: number; thumbEdge?: number; onProgress?: (p: number) => void }) {
-  const img = await prepareImage(file, { maxEdge: opts?.maxEdge, thumbEdge: opts?.thumbEdge });
-  const path = `${dir}/${uid()}.w.${img.ext}`;
-  await uploadObject(path, img.main, img.type, opts?.onProgress, bucket);
-  await uploadObject(thumbPath(path), img.thumb, img.type, undefined, bucket);
-  return { path, before: img.before, after: img.after, width: img.width, height: img.height };
+  try {
+    const img = await prepareImage(file, { maxEdge: opts?.maxEdge, thumbEdge: opts?.thumbEdge });
+    const path = `${dir}/${uid()}.w.${img.ext}`;
+    await uploadObject(path, img.main, img.type, opts?.onProgress, bucket);
+    await uploadObject(thumbPath(path), img.thumb, img.type, undefined, bucket);
+    return { path, before: img.before, after: img.after, width: img.width, height: img.height };
+  } catch (e) {
+    // Record why (file type and size included) so a failed upload shows up under "أخطاء الموقع".
+    const f = file as Partial<File>;
+    const message = `upload ${bucket}: ${(e as Error)?.message ?? e} [${f.type || "no-type"} ${Math.round(file.size / 1024)}KB ${(f.name ?? "").split(".").pop()}]`;
+    rpc("log_client_error", { p: { message: message.slice(0, 500), source: "uploadImage", path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
+    throw e;
+  }
 }
 
 /** "4.8 MB → 214 KB" for the upload toast. */
