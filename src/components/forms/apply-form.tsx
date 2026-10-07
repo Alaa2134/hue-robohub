@@ -115,6 +115,8 @@ const T = {
     doneBody: "Thank you for applying to BuildX HUE. Our team will review your answers and contact you on WhatsApp with the next steps.",
     dupBody: "You already applied in the last few days — your application is with our team. Here is its reference again.",
     refLabel: "Your reference",
+    trackIt: "Track your application",
+    saveRef: "Save this number — you'll use it with your phone number to check your application's status.",
     waFollow: "Message us on WhatsApp",
     another: "Submit another application",
     waText: (ref: string) => `Hi BuildX HUE! I just applied — my reference is ${ref}.`,
@@ -173,6 +175,8 @@ const T = {
     doneBody: "شكراً إنك قدّمت في BuildX HUE. فريقنا هيراجع إجاباتك وهيتواصل معاك على واتساب بالخطوات الجاية.",
     dupBody: "انت قدّمت قبل كده من كام يوم — طلبك عند الفريق. ده رقمه المرجعي تاني.",
     refLabel: "رقم طلبك",
+    trackIt: "تابع حالة طلبك",
+    saveRef: "احتفظ بالرقم ده — هتستخدمه مع رقم موبايلك عشان تعرف حالة طلبك.",
     waFollow: "كلّمنا على واتساب",
     another: "قدّم طلب تاني",
     waText: (ref: string) => `أهلاً BuildX HUE! لسه مقدّم طلب ورقمه ${ref}.`,
@@ -329,6 +333,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       setDone({ ref: out.ref ?? "", duplicate: !!out.duplicate });
       try {
         localStorage.removeItem(DRAFT_KEY);
+        if (out.ref && out.ref !== "BX-000000") localStorage.setItem("bx-last-ref", out.ref);
       } catch {}
       requestAnimationFrame(scrollTop);
     } catch {
@@ -366,10 +371,14 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
           <p className="t-display text-3xl text-cyan" dir="ltr">
             {done.ref}
           </p>
+          <p className="mt-2 max-w-sm text-sm text-mist">{t.saveRef}</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <a href={`${locale === "ar" ? "/ar" : ""}/join/status/?ref=${encodeURIComponent(done.ref)}`} className="btn btn-primary">
+            <span>{t.trackIt}</span>
+          </a>
           {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+            <a href={wa} target="_blank" rel="noopener noreferrer" className="btn">
               <span>{t.waFollow}</span>
             </a>
           )}

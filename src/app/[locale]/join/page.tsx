@@ -67,6 +67,12 @@ export default async function Join({ params }: Params) {
             {t.join.title}
           </h2>
           <p className="mt-3 max-w-xl text-mist">{t.join.body}</p>
+          {STATIC_SITE && (
+            <a href={`${href("/join/status")}/`} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-cyan underline-offset-4 hover:underline">
+              <Icon name="search" size={15} />
+              {locale === "ar" ? "قدّمت قبل كده؟ تابع حالة طلبك" : "Already applied? Track your application"}
+            </a>
+          )}
           <div className="mt-10">
             {STATIC_SITE ? (
               <>

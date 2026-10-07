@@ -70,3 +70,31 @@ test("team page lists founders and links out to 3laa.site", async ({ page }) => 
   await expect(card).toHaveAttribute("href", "https://3laa.site");
   expect(errors).toEqual([]);
 });
+
+test("an applicant checks their application status with reference and phone", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  const calls: { p_ref: string; p_phone: string }[] = [];
+  await page.route("**/rest/v1/rpc/application_status", async (route) => {
+    const body = route.request().postDataJSON() as { p_ref: string; p_phone: string };
+    calls.push(body);
+    await route.fulfill({
+      json:
+        body.p_phone === "01012345678"
+          ? { ok: true, ref: "BX-TEST01", first_name: "Mona", track: "ai-ml", status: "interview", created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-03T10:00:00Z", note: "Sunday 2pm, lab B" }
+          : { ok: false, error: "not_found" },
+    });
+  });
+  await page.goto("/ar/join/status/?ref=bx-test01");
+  await expect(page.getByLabel("رقم الطلب")).toHaveValue("BX-TEST01");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01099999999");
+  await page.getByRole("button", { name: "اعرف حالة طلبك" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "مش لاقيين" })).toBeVisible();
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالة طلبك" }).click();
+  await expect(page.getByText("أهلاً Mona!")).toBeVisible();
+  await expect(page.getByText("Sunday 2pm, lab B")).toBeVisible();
+  await expect(page.getByText("الذكاء الاصطناعي وتعلّم الآلة")).toBeVisible();
+  expect(calls.at(-1)).toEqual({ p_ref: "BX-TEST01", p_phone: "01012345678" });
+  expect(errors).toEqual([]);
+});
