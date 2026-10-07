@@ -11,6 +11,7 @@ import { SiteContentScreen } from "./staff-site";
 import { SiteSettingsScreen } from "./staff-settings";
 import { TwoFactorScreen } from "./staff-2fa";
 import { CertificatesPrintScreen, CertificatesScreen } from "./staff-certificates";
+import { EventRegistrations, EventsScreen } from "./staff-events";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -70,6 +71,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "settings":
       screen = <SiteSettingsScreen me={me} />;
+      break;
+    case "events":
+      screen = id ? <EventRegistrations key={id} id={id} /> : <EventsScreen />;
       break;
     case "certificates":
       screen = <CertificatesScreen me={me} />;
@@ -241,6 +245,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
+    { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },

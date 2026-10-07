@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@/components/brand/icons";
 import { trackName } from "@/components/team/team-directory";
+import { EventRsvp } from "./event-rsvp";
 import { cn } from "@/lib/cn";
 import { bodyOf, fetchContent, fetchItem, fetchUpcoming, fmtDate, locationOf, resultOf, safeLink, siteImageUrl, summaryOf, titleOf, type ContentKind, type SiteItem } from "@/lib/site-content";
 
@@ -228,6 +229,7 @@ export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { k
       <h1 className="t-display text-[clamp(2rem,5vw,3.6rem)] text-chalk">{titleOf(i, locale)}</h1>
       {resultOf(i, locale) && <p className="w-fit rounded-full bg-gold/15 px-4 py-1 font-semibold text-gold">{resultOf(i, locale)}</p>}
       {summaryOf(i, locale) && <p className="text-xl leading-relaxed text-frost">{summaryOf(i, locale)}</p>}
+      {kind === "event" && <EventRsvp eventId={i.id} locale={locale} />}
       {i.image_path && <Cover item={i} full className="rounded-[20px] border border-[var(--line-2)]" />}
       {bodyOf(i, locale) && <div className="whitespace-pre-line text-pretty text-lg leading-relaxed text-mist">{bodyOf(i, locale)}</div>}
       {link && (

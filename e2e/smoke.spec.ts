@@ -124,3 +124,34 @@ test("a scanned certificate QR opens the verify page and shows it is genuine", a
   expect(asked).toEqual(["BXC-1A2B3C4D", "BXC-FFFFFFFF"]);
   expect(errors).toEqual([]);
 });
+
+test("a student registers for an event and opens a QR ticket", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  const event = { id: "e1", kind: "event", slug: "kickoff", title: "Kickoff meeting", title_ar: "اجتماع البداية", summary: null, summary_ar: null, body: null, body_ar: null, result: null, result_ar: null, image_path: null, url: null, starts_at: "2030-01-10T15:00:00Z", ends_at: null, location: "Hall B", location_ar: "قاعة ب", track: null, tags: [], pinned: false, published: true, sort_order: 0, created_at: "2026-10-01T00:00:00Z", rsvp_open: true, capacity: 40 };
+  await page.route("**/rest/v1/site_content**", (route) => route.fulfill({ json: route.request().headers().accept?.includes("vnd.pgrst.object") ? event : [event] }));
+  await page.route("**/rest/v1/rpc/event_rsvp", (route) => route.fulfill({ json: { open: true, capacity: 40, going: 37 } }));
+  let sent: { p_event: string; p: Record<string, string> } | null = null;
+  await page.route("**/rest/v1/rpc/register_event", async (route) => {
+    sent = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, ticket: "BXT-1A2B3C4D", status: "going" } });
+  });
+  await page.route("**/rest/v1/rpc/event_ticket", (route) =>
+    route.fulfill({ json: { ok: true, ticket: "BXT-1A2B3C4D", name: "Mona Adel", status: "going", checked_in: false, waitlist_place: null, event: { id: "e1", slug: "kickoff", title: "Kickoff meeting", title_ar: "اجتماع البداية", starts_at: "2030-01-10T15:00:00Z", location: "Hall B", location_ar: "قاعة ب" } } }),
+  );
+  await page.goto("/ar/events/item/?s=kickoff");
+  await expect(page.getByText("فاضل 3 مكان")).toBeVisible();
+  await page.getByLabel("الاسم بالكامل").fill("Mona Adel");
+  await page.getByLabel("الموبايل (واتساب)").fill("01012345678");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByText("اتسجلت!")).toBeVisible();
+  expect(sent).toMatchObject({ p_event: "e1", p: { full_name: "Mona Adel", phone: "01012345678", website: "" } });
+  await page.getByRole("link", { name: "افتح تذكرتي" }).click();
+  await expect(page).toHaveURL(/\/ar\/ticket\/\?t=BXT-1A2B3C4D$/);
+  await expect(page.getByText("مؤكَّد")).toBeVisible();
+  await expect(page.getByRole("img", { name: "BXT-1A2B3C4D" })).toBeVisible();
+  // Coming back to the event page shows the saved ticket instead of the form.
+  await page.goto("/ar/events/item/?s=kickoff");
+  await expect(page.getByText("انت متسجل في الفعالية دي")).toBeVisible();
+  expect(errors).toEqual([]);
+});
