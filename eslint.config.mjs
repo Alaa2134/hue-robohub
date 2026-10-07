@@ -1,7 +1,7 @@
 import next from "eslint-config-next";
 
 const config = [
-  { ignores: [".next/**", "node_modules/**", "storage/**", "load-tests/**", "drizzle/**", "public/sw.js", "public/app/sw.js", "supabase/functions/**", ".static-build/**", "out-static/**"] },
+  { ignores: [".next/**", "node_modules/**", "storage/**", "load-tests/**", "drizzle/**", "public/sw.js", "public/app/sw.js", "supabase/functions/**", ".static-build/**", "out-static/**", "mobile/node_modules/**", "mobile/*/www/**", "mobile/*/android/**", "mobile/*/ios/**"] },
   ...next,
   {
     rules: {

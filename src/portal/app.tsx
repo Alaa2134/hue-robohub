@@ -1,7 +1,7 @@
 "use client";
 /** BuildX App root: who is using the app (staff / student / nobody) and the hash route. */
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { APP_PATH, BASE_PATH, asciiDigits, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
+import { APP_PATH, BASE_PATH, appMode, asciiDigits, isNative, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
 import { BrandLine, InstallCard } from "./shell";
 import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
@@ -40,13 +40,14 @@ export default function PortalApp() {
     sync();
     window.addEventListener("rh-student", sync);
     window.addEventListener("storage", sync);
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+    // The store apps carry their own files, so they skip the offline worker.
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator && !isNative()) {
       navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH }).catch(() => undefined);
     }
-    // Uncaught errors reach the dashboard's error list (production domain only, five per load).
+    // Uncaught errors reach the dashboard's error list (production domain and the store apps, five per load).
     let sent = 0;
     const report = (message: string, source?: string) => {
-      if (!message || sent++ >= 5 || !/^(www\.)?buildxhue\.com$/.test(location.hostname)) return;
+      if (!message || sent++ >= 5 || !(isNative() || /^(www\.)?buildxhue\.com$/.test(location.hostname))) return;
       rpc("log_client_error", { p: { message: message.slice(0, 500), source: source?.slice(0, 300), path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
     };
     const onError = (e: ErrorEvent) => report(e.message, e.filename ? `${e.filename.replace(location.origin, "")}:${e.lineno}:${e.colno}` : undefined);
@@ -118,8 +119,14 @@ export default function PortalApp() {
   if (!mounted || staff === undefined) return <Splash />;
 
   const [head, ...rest] = route.path;
+  const mode = appMode();
   let screen: ReactNode;
-  if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
+  // Each store app is one side only: BuildX HUE for students, BuildX Team for staff.
+  if (mode === "student" && (head === "staff" || head === "setup" || (head === "login" && rest[0] === "staff"))) screen = <Redirect to={student ? "/me" : "/login/student"} />;
+  else if (mode === "staff" && (head === "me" || (head === "login" && rest[0] !== "staff"))) screen = <Redirect to={staff ? "/staff" : "/login/staff"} />;
+  else if (mode === "student" && !head) screen = <Redirect to={student ? "/me" : "/login/student"} />;
+  else if (mode === "staff" && !head) screen = <Redirect to={staff ? "/staff" : "/login/staff"} />;
+  else if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
   else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login/staff" />;
   else if (head === "me") screen = student ? <StudentApp session={student} path={rest} /> : <Redirect to="/login/student" />;
   else if (head === "login" && rest[0] === "staff") screen = staff ? <Redirect to="/staff" /> : <StaffLogin noAccess={noAccess} />;
@@ -154,7 +161,7 @@ function AuthFrame({ children, back }: { children: ReactNode; back?: boolean }) 
     <div className="flex min-h-dvh flex-col bg-abyss bg-[radial-gradient(100%_55%_at_50%_0%,rgb(43_109_255/0.18),transparent_65%)] px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
       <div className="mx-auto flex w-full max-w-md items-center justify-between">
         <BrandLine />
-        {back && (
+        {back && !appMode() && (
           <a href="#/" className="flex items-center gap-1 text-sm text-mist hover:text-chalk">
             رجوع
             <Icon name="chevron" size={16} className="rotate-180" />

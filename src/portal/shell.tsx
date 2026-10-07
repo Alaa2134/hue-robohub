@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Mark } from "@/components/brand/logo";
 import { cn } from "@/lib/cn";
 import { Button, Card, Icon, type IconKey } from "./ui";
+import { appMode, isNative } from "./core";
 
 export type Tab = { href: string; label: string; icon: IconKey; match: (path: string[]) => boolean };
 
@@ -34,12 +35,20 @@ export function AppShell({ tabs, path, children }: { tabs: Tab[]; path: string[]
   );
 }
 
+const APP_NAME = { student: "HUE", staff: "Team" } as const;
+
 export function BrandLine({ className }: { className?: string }) {
+  // The store apps carry their own names (read after mount, so the prerendered page still matches).
+  const [name, setName] = useState("App");
+  useEffect(() => {
+    const mode = appMode();
+    if (mode) setName(APP_NAME[mode]);
+  }, []);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       <Mark className="h-7 w-auto" />
       <span className="font-display text-[15px] font-semibold tracking-wide text-chalk" dir="ltr">
-        BuildX <span className="text-cyan">App</span>
+        BuildX <span className="text-cyan">{name}</span>
       </span>
     </div>
   );
@@ -64,7 +73,8 @@ export function useInstall() {
       setState({
         can: !!deferredInstall,
         ios: /iphone|ipad|ipod/i.test(navigator.userAgent),
-        standalone: window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true,
+        // The store apps are already installed.
+        standalone: isNative() || window.matchMedia("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true,
       });
     update();
     window.addEventListener("rh-installable", update);

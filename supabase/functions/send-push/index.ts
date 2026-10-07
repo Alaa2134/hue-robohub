@@ -5,7 +5,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://buildxhue.com", "http://localhost:4173"];
+// The site, and the store apps (Android serves from https://localhost, iOS from capacitor://localhost).
+const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://buildxhue.com", "http://localhost:4173", "https://localhost", "capacitor://localhost"];
 
 function cors(req: Request) {
   const origin = req.headers.get("origin") ?? "";

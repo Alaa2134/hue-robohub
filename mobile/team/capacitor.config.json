@@ -1,0 +1,25 @@
+{
+  "appId": "com.buildxhue.team",
+  "appName": "BuildX Team",
+  "webDir": "www",
+  "backgroundColor": "#081634",
+  "loggingBehavior": "none",
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": true,
+    "backgroundColor": "#081634"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "css",
+      "initialViewportFitValueHint": "cover",
+      "style": "DARK"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "launchAutoHide": true,
+      "backgroundColor": "#081634",
+      "showSpinner": false
+    }
+  }
+}

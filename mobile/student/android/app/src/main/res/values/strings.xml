@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BuildX HUE</string>
+    <string name="title_activity_main">BuildX HUE</string>
+    <string name="package_name">com.buildxhue.student</string>
+    <string name="custom_url_scheme">com.buildxhue.student</string>
+</resources>

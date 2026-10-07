@@ -27,7 +27,7 @@ const version = await contentVersion().catch(() => "unknown");
 execSync("node scripts/app-assets.mjs", { cwd: root, stdio: "inherit" });
 
 // 1. Clean copy of the sources (node_modules is linked, render sources and local data stay behind).
-const SKIP = new Set([".git", "node_modules", ".next", ".static-build", "out-static", "out", "art", "storage", "logs", "coverage", "playwright-report", "test-results", ".env"]);
+const SKIP = new Set([".git", "node_modules", "mobile", ".next", ".static-build", "out-static", "out", "art", "storage", "logs", "coverage", "playwright-report", "test-results", ".env"]);
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work);
 for (const f of readdirSync(root)) if (!SKIP.has(f)) cpSync(path.join(root, f), path.join(work, f), { recursive: true });
