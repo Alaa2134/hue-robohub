@@ -12,6 +12,8 @@ import { SiteSettingsScreen } from "./staff-settings";
 import { TwoFactorScreen } from "./staff-2fa";
 import { CertificatesPrintScreen, CertificatesScreen } from "./staff-certificates";
 import { EventRegistrations, EventsScreen } from "./staff-events";
+import { LeaderboardScreen } from "./points";
+import { BackupsScreen } from "./staff-backups";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -71,6 +73,12 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "settings":
       screen = <SiteSettingsScreen me={me} />;
+      break;
+    case "backups":
+      screen = <BackupsScreen me={me} />;
+      break;
+    case "leaderboard":
+      screen = <LeaderboardScreen />;
       break;
     case "events":
       screen = id ? <EventRegistrations key={id} id={id} /> : <EventsScreen />;
@@ -246,6 +254,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
+    { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
@@ -253,6 +262,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
+    { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "user", label: "حسابي وكلمة المرور", to: "/staff/account" },
     { icon: "lock", label: "التحقق بخطوتين (كود من الموبايل)", to: "/staff/2fa" },
   ];
