@@ -175,7 +175,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
         </div>
       </section>
 
-      {STATIC_SITE && <LivePartners locale={locale} title={locale === "ar" ? "شركاؤنا والرعاة" : "Partners & sponsors"} initial={await buildItems("partner")} />}
+      {STATIC_SITE && <LivePartners id="partners" locale={locale} title={locale === "ar" ? "شركاؤنا والرعاة" : "Partners & sponsors"} initial={await buildItems("partner")} />}
 
       <p className="sr-only">{pick(config["site.homepage"].manifesto, locale)}</p>
     </>
