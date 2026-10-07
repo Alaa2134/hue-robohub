@@ -34,6 +34,7 @@ export type Application = {
   heard_from: string | null;
   status: Status;
   staff_notes: string;
+  public_note: string;
   reviewed_at: string | null;
   student_id: string | null;
 };
@@ -79,7 +80,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
 
   const exportCsv = () => {
     downloadCsv(`buildx-applications-${today()}.csv`, [
-      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", "ملاحظات الفريق"],
+      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", "ملاحظات الفريق", "رسالة للمتقدم"],
       ...list.map((a) => [
         a.ref,
         fmt.dateTime(a.created_at),
@@ -103,6 +104,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         a.team_roles.map((r) => label(TEAM_ROLES, r, "ar")).join("، "),
         label(HEARD_FROM, a.heard_from, "ar"),
         a.staff_notes,
+        a.public_note,
       ]),
     ]);
   };
@@ -192,6 +194,7 @@ function Item({ k, v, ltr }: { k: string; v: React.ReactNode; ltr?: boolean }) {
 export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   const { data: a, error, loading, reload, set } = useAsync(async () => (await sb().from("applications").select("*").eq("id", id).single().then(must)) as Application, [id]);
   const [notes, setNotes] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [pins, setPins] = useState<PinItem[] | null>(null);
@@ -199,7 +202,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   if (loading && !a) return <Loading />;
   if (error || !a) return <ErrorBox error={error ?? "الطلب مش موجود"} retry={reload} />;
 
-  const save = async (patch: Partial<Pick<Application, "status" | "staff_notes">>, okText: string) => {
+  const save = async (patch: Partial<Pick<Application, "status" | "staff_notes" | "public_note">>, okText: string) => {
     setBusy(true);
     try {
       const row = (await sb().from("applications").update(patch).eq("id", a.id).select("*").single().then(must)) as Application;
@@ -223,8 +226,10 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   };
 
   const first = a.full_name.split(/\s+/)[0];
-  const wa = whatsappLink(a.phone, `أهلاً ${first}، معاك فريق BuildX HUE بخصوص طلب الانضمام رقم ${a.ref}.`);
+  const statusUrl = `https://buildxhue.com${a.locale === "en" ? "" : "/ar"}/join/status/?ref=${a.ref}`;
+  const wa = whatsappLink(a.phone, `أهلاً ${first}، معاك فريق BuildX HUE بخصوص طلب الانضمام رقم ${a.ref}.\nتقدر تتابع حالة طلبك هنا: ${statusUrl}`);
   const noteValue = notes ?? a.staff_notes;
+  const publicValue = note ?? a.public_note ?? "";
 
   return (
     <>
@@ -273,7 +278,20 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         {a.reviewed_at && <p className="mt-2 text-xs text-fog">آخر مراجعة {fmt.rel(a.reviewed_at)}</p>}
       </Section>
 
-      <Section title="ملاحظات الفريق">
+      <Section title="رسالة للمتقدم">
+        <p className="mb-2 text-xs text-fog">بتظهر له هو بس في صفحة «تابع طلبك» على الموقع (برقم الطلب + موبايله). مثلاً ميعاد ومكان المقابلة.</p>
+        <Textarea value={publicValue} onChange={(e) => setNote(e.target.value)} maxLength={600} placeholder="المقابلة يوم الأحد الساعة 2 في معمل الروبوتات (مبنى B)" className="min-h-20" />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="sm" loading={busy} disabled={publicValue === (a.public_note ?? "")} onClick={() => save({ public_note: publicValue.trim() }, "اتحفظت الرسالة — بتظهر له على طول")}>
+            حفظ الرسالة
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => copyText(statusUrl)}>
+            نسخ لينك المتابعة
+          </Button>
+        </div>
+      </Section>
+
+      <Section title="ملاحظات الفريق (داخلية)">
         <Textarea value={noteValue} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="مثلاً: كلمناه يوم الأحد، ميعاد المقابلة…" className="min-h-24" />
         <Button size="sm" className="mt-2" loading={busy} disabled={noteValue === a.staff_notes} onClick={() => save({ staff_notes: noteValue }, "اتحفظت الملاحظات")}>
           حفظ الملاحظات
@@ -451,6 +469,22 @@ function Stats({ list }: { list: Application[] }) {
       </Button>
       {open && (
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <PerDay list={list} />
+          <Card className="sm:col-span-2">
+            <p className="mb-3 font-semibold text-chalk">مراحل الطلبات</p>
+            <div className="grid grid-cols-3 gap-2 text-center sm:grid-cols-6">
+              {STATUSES.map((st) => {
+                const n = list.filter((a) => a.status === st.key).length;
+                return (
+                  <div key={st.key} className="rounded-xl border border-[var(--line)] p-2">
+                    <p className="font-mono text-xl text-chalk">{n}</p>
+                    <p className="text-xs text-fog">{st.ar}</p>
+                    <p className="text-[11px] text-mist">{list.length ? Math.round((n / list.length) * 100) : 0}%</p>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
           {groups.map(([title, rows]) => (
             <Card key={title}>
               <p className="mb-2 font-semibold text-chalk">{title}</p>
@@ -468,5 +502,47 @@ function Stats({ list }: { list: Application[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Applications per day over the last 30 days. */
+function PerDay({ list }: { list: Application[] }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const days = 30;
+  const key = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" });
+  const by = new Map<string, number>();
+  for (const a of list) by.set(key(new Date(a.created_at)), (by.get(key(new Date(a.created_at))) ?? 0) + 1);
+  const now = Date.now();
+  const series = Array.from({ length: days }, (_, i) => {
+    const d = new Date(now - (days - 1 - i) * 86_400_000);
+    return { day: key(d), n: by.get(key(d)) ?? 0 };
+  });
+  const max = Math.max(1, ...series.map((d) => d.n));
+  const total = series.reduce((x, d) => x + d.n, 0);
+  const cur = hover !== null ? series[hover] : null;
+  return (
+    <Card className="sm:col-span-2">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <p className="font-semibold text-chalk">الطلبات كل يوم</p>
+        <p className="min-h-[1.25rem] text-xs text-mist" aria-live="polite">
+          {cur ? `${fmt.day(`${cur.day}T12:00:00`)}: ${cur.n} طلب` : `${total} طلب في آخر ${days} يوم`}
+        </p>
+      </div>
+      <div className="flex h-28 items-end gap-[2px] border-b border-[var(--line)]" dir="ltr" onPointerLeave={() => setHover(null)}>
+        {series.map((d, i) => (
+          <button
+            key={d.day}
+            type="button"
+            aria-label={`${fmt.day(`${d.day}T12:00:00`)}: ${d.n} طلب`}
+            onPointerEnter={() => setHover(i)}
+            onFocus={() => setHover(i)}
+            onBlur={() => setHover(null)}
+            className="flex h-full min-w-0 flex-1 items-end"
+          >
+            <span className={`w-full rounded-t-[4px] ${hover === i ? "bg-cyan" : "bg-cyan/60"}`} style={{ height: d.n ? `${Math.max(4, (d.n / max) * 100)}%` : "2px", opacity: d.n ? 1 : 0.35 }} />
+          </button>
+        ))}
+      </div>
+    </Card>
   );
 }
