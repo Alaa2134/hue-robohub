@@ -1,14 +1,14 @@
 "use client";
 /** BuildX App → certificates: issue (one name, a list of names, or students picked from the app), print, revoke. */
 import { useMemo, useState } from "react";
-import { CERT_KINDS, CertificatePrint, verifyUrl, type Certificate } from "./certificate";
+import { CERT_DESIGNS, CERT_KINDS, CertificatePrint, certArt, designKeyFor, verifyUrl, type Certificate } from "./certificate";
 import { errorText, fmt, must, sb, today, type StaffRow } from "./core";
 import { useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, IconButton, Input, List, Loading, Row, SearchBox, Sheet, Textarea, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 type Row_ = Certificate & { student_id: string | null; revoked_at: string | null; created_at: string };
 
-const COLS = "id,code,name:recipient_name,kind,title,title_ar,details,details_ar,hours,issued_on,student_id,revoked_at,created_at";
+const COLS = "id,code,name:recipient_name,kind,title,title_ar,details,details_ar,hours,issued_on,design,student_id,revoked_at,created_at";
 const kindAr = (k: string) => CERT_KINDS.find((x) => x.key === k)?.ar ?? k;
 
 export function CertificatesScreen({ me }: { me: StaffRow }) {
@@ -112,6 +112,10 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
   const [detailsAr, setDetailsAr] = useState("");
   const [hours, setHours] = useState("");
   const [date, setDate] = useState(today());
+  // "" follows the kind and title (Appreciation, or the track named in the title).
+  const [design, setDesign] = useState("");
+  const autoDesign = designKeyFor({ kind, title, title_ar: titleAr, design: null });
+  const chosenDesign = design || autoDesign;
   const [mode, setMode] = useState<"students" | "names">("students");
   const [group, setGroup] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -150,6 +154,7 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
         details_ar: detailsAr.trim() || null,
         hours: h,
         issued_on: date,
+        design: chosenDesign,
       }));
       const out = (await sb().from("certificates").insert(rows).select("id").then(must)) as { id: string }[];
       toast(`اتصدرت ${out.length} شهادة ✓`);
@@ -191,6 +196,33 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} dir="ltr" />
           </Field>
         </div>
+
+        <Field label="تصميم الشهادة" hint={design ? undefined : "بيتختار لوحده من النوع والعنوان. دوس على تصميم لو عايز غيره."}>
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            {[...CERT_DESIGNS.map((d) => ({ key: d.key, ar: d.ar })), { key: "classic", ar: "الكلاسيكي" }].map((d) => {
+              const on = chosenDesign === d.key;
+              return (
+                <button
+                  key={d.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setDesign(design === d.key ? "" : d.key)}
+                  className={`w-28 shrink-0 overflow-hidden rounded-xl border text-start transition ${on ? "border-cyan ring-2 ring-cyan/40" : "border-[var(--line-2)] opacity-75 hover:opacity-100"}`}
+                >
+                  {d.key === "classic" ? (
+                    <span className="flex aspect-[297/210] items-center justify-center bg-[#081634] text-[11px] font-bold tracking-widest text-[#e8c77a]">BUILDX</span>
+                  ) : (
+                    <img src={certArt(d.key)} alt="" loading="lazy" className="block aspect-[297/210] w-full object-cover" />
+                  )}
+                  <span className="block truncate px-2 py-1.5 text-xs text-mist">
+                    {d.ar}
+                    {!design && on ? " · تلقائي" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
 
         <div className="flex gap-2">
           <Chip active={mode === "students"} onClick={() => setMode("students")}>

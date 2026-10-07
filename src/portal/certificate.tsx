@@ -3,6 +3,11 @@
  * The printed certificate: one A4 landscape page per certificate, with a QR code that opens
  * buildxhue.com/verify/?c=<code>. Sizes use container units, so the same page scales on a phone
  * screen and prints at exactly 297 × 210 mm.
+ *
+ * Certificates use the BuildX HUE artworks in public/certificates (Appreciation, and Achievement for
+ * each track): the name, the date and the QR are drawn on top. The artworks were exported without
+ * their sample date; their layout (where the gold line under the name and the date line sit) is in
+ * CERT_DESIGNS, in pixels of the 1491 × 1055 artwork. "classic" is the original drawn design.
  */
 import { useEffect, useRef, useState } from "react";
 import { BASE_PATH, errorText, isNative } from "./core";
@@ -20,6 +25,7 @@ export type Certificate = {
   details_ar: string | null;
   hours: number | null;
   issued_on: string;
+  design?: string | null;
 };
 
 export const CERT_KINDS: {
@@ -60,6 +66,33 @@ export const CERT_KINDS: {
 ];
 
 export const verifyUrl = (code: string) => `https://buildxhue.com/verify/?c=${code}`;
+
+export type CertDesign = { key: string; en: string; ar: string; rule: number; dateLine: number; dateX: number; match?: RegExp };
+
+const ART = { w: 1491, h: 1055 };
+
+/** The artworks (order = order in the picker). `match` guesses the track from a certificate title. */
+export const CERT_DESIGNS: CertDesign[] = [
+  { key: "appreciation", en: "Appreciation", ar: "شكر وتقدير", rule: 613, dateLine: 890, dateX: 349 },
+  { key: "robotics", en: "Robotics", ar: "روبوتكس", rule: 602, dateLine: 886, dateX: 392, match: /robot|روبوت/i },
+  { key: "ai", en: "Artificial Intelligence", ar: "ذكاء اصطناعي", rule: 611, dateLine: 890, dateX: 349, match: /\bai\b|artificial|machine learning|deep learning|ذكاء|تعلم الآلة/i },
+  { key: "iot", en: "IoT", ar: "إنترنت الأشياء", rule: 610, dateLine: 891, dateX: 348, match: /\biot\b|internet of things|الأشياء|الاشياء/i },
+  { key: "cybersecurity", en: "Cybersecurity", ar: "أمن سيبراني", rule: 612, dateLine: 891, dateX: 348, match: /cyber|security|سيبران|أمن المعلومات/i },
+  { key: "hardware", en: "Hardware", ar: "هاردوير", rule: 602, dateLine: 891, dateX: 335.5, match: /hardware|embedded|electronic|هارد|إلكترون|الكترون|امبيدد/i },
+  { key: "software", en: "Software", ar: "برمجيات", rule: 619, dateLine: 897, dateX: 350.5, match: /software|programming|coding|developer|web|برمج|سوفت/i },
+  { key: "design", en: "Design", ar: "تصميم", rule: 611, dateLine: 890, dateX: 351, match: /design|\bui\b|\bux\b|graphic|media|تصميم|جرافيك|ميديا/i },
+  { key: "entrepreneurship", en: "Entrepreneurship", ar: "ريادة أعمال", rule: 613, dateLine: 892, dateX: 349, match: /entrepreneur|business|startup|ريادة|بيزنس|أعمال/i },
+];
+
+/** The design to use: the one saved on the certificate, else Appreciation or the track in its title. */
+export function designKeyFor(c: Pick<Certificate, "design" | "kind" | "title" | "title_ar">): string {
+  if (c.design && (c.design === "classic" || CERT_DESIGNS.some((d) => d.key === c.design))) return c.design;
+  if (c.kind === "appreciation") return "appreciation";
+  const text = `${c.title} ${c.title_ar ?? ""}`;
+  return CERT_DESIGNS.find((d) => d.match?.test(text))?.key ?? "classic";
+}
+
+export const certArt = (key: string) => `${BASE_PATH}/certificates/${key}.webp`;
 
 function useQr(text: string) {
   const [src, setSrc] = useState("");
@@ -108,6 +141,74 @@ function Rule({ width }: { width: string }) {
 
 /** A4 landscape certificate. Sizes are in em with 1em = 1% of the page width, so it scales anywhere. */
 export function CertificateSheet({ c }: { c: Certificate }) {
+  const design = CERT_DESIGNS.find((d) => d.key === designKeyFor(c));
+  return design ? <ArtworkSheet c={c} d={design} /> : <ClassicSheet c={c} />;
+}
+
+/** One of the BuildX HUE artworks with the name, date and QR drawn in their places. */
+function ArtworkSheet({ c, d }: { c: Certificate; d: CertDesign }) {
+  const qr = useQr(verifyUrl(c.code));
+  const arabic = /[\u0600-\u06FF]/.test(c.name);
+  // Long names get smaller so they stay on one line between the frame's ornaments.
+  const max = arabic ? 3.7 : 4.1;
+  const size = Math.max(2.2, Math.min(max, (max * 24) / Math.max(24, [...c.name].length)));
+  const pctX = (x: number) => `${(x / ART.w) * 100}%`;
+  const fromBottom = (y: number) => `${((ART.h - y) / ART.h) * 100}%`;
+  return (
+    <div className="cert-page mx-auto w-full max-w-[297mm] [container-type:inline-size] print:max-w-none">
+      <div className="relative aspect-[297/210] w-full overflow-hidden" style={{ fontSize: "1cqw", background: "#fbfaf7", color: NAVY }}>
+        <img src={certArt(d.key)} alt="" className="absolute inset-0 block size-full" draggable={false} />
+        <p
+          dir="auto"
+          style={{
+            position: "absolute",
+            left: "14%",
+            right: "14%",
+            bottom: fromBottom(d.rule - 11),
+            textAlign: "center",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            fontFamily: arabic ? "var(--font-cert-ar), var(--font-kufi), serif" : "var(--font-cert), Georgia, 'Times New Roman', serif",
+            fontWeight: 700,
+            fontSize: `${size}em`,
+            lineHeight: 1.25,
+            letterSpacing: arabic ? 0 : "0.01em",
+          }}
+        >
+          {c.name}
+        </p>
+        <p
+          dir="ltr"
+          style={{
+            position: "absolute",
+            left: pctX(d.dateX),
+            bottom: fromBottom(d.dateLine - 9),
+            transform: "translateX(-50%)",
+            whiteSpace: "nowrap",
+            fontFamily: "var(--font-cert), Georgia, 'Times New Roman', serif",
+            fontWeight: 700,
+            fontSize: "1.85em",
+            lineHeight: 1.2,
+          }}
+        >
+          {fmtDate(c.issued_on, "en-GB")}
+        </p>
+        {/* Verification, right of the signature inside the frame. */}
+        <div className="absolute flex flex-col items-center" style={{ left: pctX(1284), top: `${(876 / ART.h) * 100}%`, width: "6.6em", gap: "0.3em" }}>
+          <div style={{ background: "#fff", padding: "0.35em", borderRadius: "0.45em", boxShadow: `0 0 0 0.09em ${GOLD}` }}>
+            {qr ? <img src={qr} alt={`QR ${c.code}`} style={{ width: "5.3em", height: "5.3em", display: "block" }} /> : <span style={{ width: "5.3em", height: "5.3em", display: "block" }} />}
+          </div>
+          <span dir="ltr" style={{ fontFamily: "var(--font-jbmono), ui-monospace, monospace", fontWeight: 700, fontSize: "0.7em", letterSpacing: "0.05em", color: NAVY }}>
+            {c.code}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The original drawn design (for titles that match no artwork, or when chosen). */
+function ClassicSheet({ c }: { c: Certificate }) {
   const kind = CERT_KINDS.find((k) => k.key === c.kind) ?? CERT_KINDS[0];
   const qr = useQr(verifyUrl(c.code));
   const year = c.issued_on.slice(0, 4);

@@ -165,7 +165,11 @@ test("staff issue certificates to typed names and get a printable A4 page with a
   await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
   await expect(page.getByRole("button", { name: "طباعة" })).toBeVisible();
   await expect(page.getByRole("img", { name: "QR BXC-1A2B3C4D" })).toBeVisible();
-  expect(inserted).toEqual([[expect.objectContaining({ recipient_name: "Mona Adel", title: "Robotics Bootcamp 2026", hours: 24, kind: "completion", student_id: null })]]);
+  // The Robotics artwork is picked from the title; the name and date are drawn on it.
+  expect(inserted).toEqual([[expect.objectContaining({ recipient_name: "Mona Adel", title: "Robotics Bootcamp 2026", hours: 24, kind: "completion", student_id: null, design: "robotics" })]]);
+  await expect(page.locator(".cert-page img[src$='/certificates/robotics.webp']")).toBeVisible();
+  await expect(page.locator(".cert-page").getByText("Mona Adel")).toBeVisible();
+  await expect(page.locator(".cert-page").getByText("7 October 2026")).toBeVisible();
   // The PDF is made in the page: one A4 landscape page with the certificate as an image.
   const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "تحميل PDF" }).click()]);
   expect(file.suggestedFilename()).toBe("certificate-BXC-1A2B3C4D.pdf");
