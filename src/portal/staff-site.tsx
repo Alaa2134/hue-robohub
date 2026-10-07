@@ -386,7 +386,7 @@ function BulkPhotos({ me, onClose, onDone }: { me: StaffRow; onClose: () => void
           <span className="font-semibold text-chalk">{files.length ? `${files.length} صورة متختارة` : "اختار صور من الموبايل"}</span>
           <input
             type="file"
-            accept="image/jpeg,image/png,image/webp"
+            accept="image/*"
             multiple
             className="sr-only"
             disabled={busy}

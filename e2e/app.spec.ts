@@ -265,3 +265,41 @@ test("admins send a push notification to one group", async ({ page }) => {
   await expect(page.getByText("اتبعت لـ 11 من 12 جهاز")).toBeVisible();
   expect(sent).toEqual({ title: "Quiz is live", body: "", url: "/app/", audience: "group", group: "Robotics A" });
 });
+
+test("a portfolio photo from the phone is compressed and uploaded with its thumbnail", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const profile = { id: "p1", user_id: "u1", slug: "owner-test", full_name: "Owner Test", full_name_ar: null, headline: "", headline_ar: null, bio: "", bio_ar: null, group_kind: "founder", track: null, photo_path: null, skills: [], links: {}, external_url: null, published: false, sort_order: 0 };
+  const uploads: { path: string; type: string | undefined }[] = [];
+  await page.route(/\/storage\/v1\/object\/team\//, async (route) => {
+    uploads.push({ path: new URL(route.request().url()).pathname.split("/object/team/")[1], type: route.request().headers()["content-type"] });
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => {
+    const single = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    const body = route.request().method() === "PATCH" ? { ...profile, ...(route.request().postDataJSON() as object) } : profile;
+    return route.fulfill({ json: single ? body : [body] });
+  });
+  await page.route(/\/rest\/v1\/team_projects/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/portfolio");
+  const input = page.locator('input[type="file"]').first();
+  await expect(input).toHaveAttribute("accept", "image/*");
+  await input.setInputFiles("public/brand/icon-512.png");
+  await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
+  expect(uploads.map((u) => u.path.replace(/[0-9a-f-]{36}/, "ID"))).toEqual(["u1/ID.w.webp", "u1/ID.t.webp"]);
+  expect(uploads.every((u) => u.type === "image/webp")).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("a photo the browser can't open gets a clear message and is reported", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const profile = { id: "p1", user_id: "u1", slug: "owner-test", full_name: "Owner Test", full_name_ar: null, headline: "", headline_ar: null, bio: "", bio_ar: null, group_kind: "founder", track: null, photo_path: null, skills: [], links: {}, external_url: null, published: false, sort_order: 0 };
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => route.fulfill({ json: [profile] }));
+  await page.route(/\/rest\/v1\/team_projects/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/portfolio");
+  await page.locator('input[type="file"]').first().setInputFiles({ name: "IMG_0001.HEIC", mimeType: "image/heic", buffer: Buffer.from("not really an image") });
+  await expect(page.getByText("المتصفح مقدرش يفتح الصورة دي").first()).toBeVisible();
+  await expect.poll(() => (calls.find((c) => c.fn === "log_client_error")?.body as { p?: { message?: string } })?.p?.message ?? "").toContain("upload team: image_unreadable [image/heic");
+});
