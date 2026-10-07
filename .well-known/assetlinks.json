@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.buildxhue.student",
+      "sha256_cert_fingerprints": [
+        "0D:A3:37:DD:5D:49:E7:CA:2B:9A:EC:34:EA:BE:E4:7F:62:B9:A6:0F:B1:F6:66:DF:8D:4C:7B:78:DF:07:61:90"
+      ]
+    }
+  }
+]
