@@ -45,6 +45,9 @@ const ORDER: Record<ContentKind, string> = {
   project: "pinned.desc,sort_order.asc,created_at.desc",
   photo: "starts_at.desc.nullslast,created_at.desc",
   achievement: "starts_at.desc.nullslast,created_at.desc",
+  faq: "sort_order.asc,created_at.asc",
+  testimonial: "pinned.desc,sort_order.asc,created_at.desc",
+  partner: "sort_order.asc,created_at.asc",
 };
 
 export function buildItems(kind: ContentKind): Promise<SiteItem[]> {

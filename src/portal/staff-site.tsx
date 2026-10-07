@@ -10,13 +10,16 @@ import { errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, 
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
-type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned";
+type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned" | "sort" | "schedule";
 const KINDS: { key: ContentKind; label: string; one: string; fields: F[]; titleLabel: string; urlLabel?: string; startsLabel?: string; resultLabel?: string; path?: string }[] = [
-  { key: "event", label: "الفعاليات", one: "فعالية", fields: ["title", "starts", "ends", "location", "summary", "url", "image", "body"], titleLabel: "اسم الفعالية", urlLabel: "لينك التسجيل", startsLabel: "بتبدأ" },
-  { key: "post", label: "الأخبار", one: "خبر", fields: ["title", "summary", "body", "image", "slug", "pinned"], titleLabel: "العنوان", path: "/news/post/?s=" },
-  { key: "project", label: "المشاريع", one: "مشروع", fields: ["title", "summary", "track", "result", "image", "url", "tags", "body", "slug", "pinned"], titleLabel: "اسم المشروع", urlLabel: "لينك (GitHub، فيديو…)", resultLabel: "النتيجة / الإنجاز", path: "/projects/item/?s=" },
+  { key: "event", label: "الفعاليات", one: "فعالية", fields: ["title", "starts", "ends", "location", "summary", "url", "image", "body", "slug", "schedule"], titleLabel: "اسم الفعالية", urlLabel: "لينك التسجيل", startsLabel: "بتبدأ", path: "/events/" },
+  { key: "post", label: "الأخبار", one: "خبر", fields: ["title", "summary", "body", "image", "slug", "pinned", "schedule"], titleLabel: "العنوان", path: "/news/" },
+  { key: "project", label: "المشاريع", one: "مشروع", fields: ["title", "summary", "track", "result", "image", "url", "tags", "body", "slug", "pinned", "schedule"], titleLabel: "اسم المشروع", urlLabel: "لينك (GitHub، فيديو…)", resultLabel: "النتيجة / الإنجاز", path: "/projects/" },
   { key: "photo", label: "الجاليري", one: "صورة", fields: ["image", "title", "starts", "tags"], titleLabel: "وصف الصورة", startsLabel: "اتصوّرت يوم" },
-  { key: "achievement", label: "الإنجازات", one: "إنجاز", fields: ["title", "result", "starts", "summary", "image", "url"], titleLabel: "اسم المسابقة / الإنجاز", urlLabel: "لينك", startsLabel: "التاريخ", resultLabel: "المركز / النتيجة" },
+  { key: "achievement", label: "الإنجازات", one: "إنجاز", fields: ["title", "result", "starts", "summary", "image", "url", "schedule"], titleLabel: "اسم المسابقة / الإنجاز", urlLabel: "لينك", startsLabel: "التاريخ", resultLabel: "المركز / النتيجة" },
+  { key: "faq", label: "الأسئلة الشائعة", one: "سؤال", fields: ["title", "body", "sort"], titleLabel: "السؤال" },
+  { key: "testimonial", label: "آراء الطلاب", one: "رأي", fields: ["title", "result", "summary", "image", "pinned", "sort"], titleLabel: "الاسم", resultLabel: "الصفة (مثلاً: طالب فرقة تانية · روبوتات)" },
+  { key: "partner", label: "الشركاء والرعاة", one: "شريك", fields: ["title", "image", "url", "result", "sort"], titleLabel: "اسم الشريك", urlLabel: "موقع الشريك", resultLabel: "نوع الشراكة (راعي، شريك تعليمي…)" },
 ];
 const kindOf = (k: ContentKind) => KINDS.find((x) => x.key === k)!;
 const isAdmin = (me: StaffRow) => me.role === "owner" || me.role === "admin";
@@ -90,6 +93,7 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
                 <div className="flex shrink-0 flex-col items-end gap-1">
                   {i.published ? <Badge tone="ok">منشور</Badge> : <Badge tone="warn">مسودة</Badge>}
                   {i.pinned && <Badge tone="volt">مثبّت</Badge>}
+                  {i.published && i.publish_at && new Date(i.publish_at) > new Date() && <Badge tone="info">مجدول {fmt.dateTime(i.publish_at)}</Badge>}
                 </div>
               </div>
             </Row>
@@ -127,6 +131,8 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
     slug: item?.slug ?? "",
     pinned: item?.pinned ?? false,
     published: item?.published ?? false,
+    sort: String(item?.sort_order ?? 100),
+    schedule: toLocalInput(item?.publish_at),
   });
   const [busy, setBusy] = useState(false);
   const [imgBusy, setImgBusy] = useState(false);
@@ -171,6 +177,8 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
         .map((s) => s.trim())
         .filter(Boolean)
         .slice(0, 12),
+      ...(has("sort") ? { sort_order: Math.max(0, Math.min(9999, Math.round(Number(f.sort)) || 100)) } : {}),
+      ...(has("schedule") ? { publish_at: f.schedule ? fromLocalInput(f.schedule) : null } : {}),
       ...(admin ? { published: f.published, pinned: f.pinned } : {}),
     };
     setBusy(true);
@@ -226,14 +234,14 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
         {locked && <Card className="border-warn/30 bg-warn/[0.06] text-sm text-[#ffd08a]">ده منشور على الموقع — المشرفين بس يقدروا يعدّلوه.</Card>}
         {has("image") && (
           <label className="flex cursor-pointer flex-col gap-2">
-            <span className="font-semibold text-chalk">الصورة</span>
-            <span className="relative flex aspect-video items-center justify-center overflow-hidden rounded-2xl border border-dashed border-[var(--line-2)] bg-deep">
-              {f.image_path ? <img src={siteImageUrl(f.image_path)} alt="" className="h-full w-full object-cover" /> : <Icon name="image" size={30} className="text-fog" />}
+            <span className="font-semibold text-chalk">{kind === "partner" ? "اللوجو" : kind === "testimonial" ? "صورة الطالب (اختياري)" : "الصورة"}</span>
+            <span className={`relative flex items-center justify-center overflow-hidden rounded-2xl border border-dashed border-[var(--line-2)] bg-deep ${kind === "partner" || kind === "testimonial" ? "aspect-[2/1]" : "aspect-video"}`}>
+              {f.image_path ? <img src={siteImageUrl(f.image_path, "thumb")} alt="" className={`h-full w-full ${kind === "partner" ? "object-contain p-4" : "object-cover"}`} /> : <Icon name="image" size={30} className="text-fog" />}
               {imgBusy && <span className="absolute inset-0 flex items-center justify-center bg-void/70 text-sm text-chalk">جارٍ الرفع…</span>}
             </span>
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               className="sr-only"
               disabled={imgBusy || locked}
               onChange={(e) => {
@@ -259,7 +267,7 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
         )}
         {has("location") && pair("location", "المكان")}
         {has("result") && pair("result", k.resultLabel ?? "النتيجة")}
-        {has("summary") && pair("summary", "وصف قصير", true)}
+        {has("summary") && pair("summary", kind === "testimonial" ? "الرأي (كلام الطالب)" : "وصف قصير", true)}
         {has("track") && (
           <Field label="المسار">
             <Select value={f.track} disabled={locked} onChange={(e) => put("track", e.target.value)}>
@@ -282,7 +290,12 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
             <Input value={f.tags} disabled={locked} onChange={(e) => put("tags", e.target.value)} />
           </Field>
         )}
-        {has("body") && pair("body", "التفاصيل", true)}
+        {has("body") && pair("body", kind === "faq" ? "الإجابة" : "التفاصيل", true)}
+        {has("sort") && (
+          <Field label="الترتيب" hint="الرقم الأصغر بيظهر الأول">
+            <Input type="number" inputMode="numeric" value={f.sort} disabled={locked} onChange={(e) => put("sort", e.target.value)} className="w-32" />
+          </Field>
+        )}
         {has("slug") && (
           <Field label="الرابط" hint={k.path ? `${SITE}/ar${k.path}${slugify(f.slug || f.title) || "…"}` : undefined}>
             <Input value={f.slug} dir="ltr" placeholder={slugify(f.title) || "auto"} disabled={locked} onChange={(e) => put("slug", e.target.value.toLowerCase())} />
@@ -292,6 +305,11 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
           <Card className="grid gap-3">
             <Toggle checked={f.published} onChange={(v) => put("published", v)} label="منشور على الموقع" />
             {has("pinned") && <Toggle checked={f.pinned} onChange={(v) => put("pinned", v)} label="تثبيت في الأول" />}
+            {has("schedule") && f.published && (
+              <Field label="انشر في ميعاد (اختياري)" hint="لو حددت ميعاد، هيظهر على الموقع لوحده في الوقت ده. سيبه فاضي عشان يظهر دلوقتي.">
+                <Input type="datetime-local" value={f.schedule} onChange={(e) => put("schedule", e.target.value)} />
+              </Field>
+            )}
           </Card>
         ) : (
           !locked && <p className="text-sm text-fog">هيتحفظ كمسودة، والمشرف هيراجعه وينشره.</p>

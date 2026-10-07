@@ -1,6 +1,7 @@
 const en = {
   meta: { skip: "Skip to content" },
   nav: {
+    faq: "FAQ",
     competitions: "Competitions",
     brand: "Brand",
     privacy: "Privacy",

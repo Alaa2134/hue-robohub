@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildSiteSettings, buildTeam } from "@/lib/build-content";
+import { buildItems, buildSiteSettings, buildTeam } from "@/lib/build-content";
 import { goalsOf, heroImageOf } from "@/lib/site-settings";
 import { STATIC_SITE } from "@/lib/deploy";
 import { notFound } from "next/navigation";
@@ -8,7 +8,7 @@ import { Garage, type GarageTeam } from "@/components/home/garage";
 import { Hero, type HeroStat } from "@/components/home/hero";
 import { TrackPanels, type TrackPanel } from "@/components/home/tracks";
 import { TeamDirectory } from "@/components/team/team-directory";
-import { LatestStrip } from "@/components/live/live-content";
+import { LatestStrip, LivePartners, LiveTestimonials } from "@/components/live/live-content";
 import type { Film } from "@/components/media/film";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
@@ -156,6 +156,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
       <GoalsSection locale={locale} goals={goalsOf(settings).map((g) => ({ value: g.value, label: { en: g.label_en || g.label_ar, ar: g.label_ar || g.label_en }, note: { en: g.note_en || g.note_ar, ar: g.note_ar || g.note_en } }))} />
 
+      {STATIC_SITE && <LiveTestimonials locale={locale} title={locale === "ar" ? "قالوا عن BuildX HUE" : "What students say"} initial={await buildItems("testimonial")} />}
+
       <section id="founders" aria-labelledby="founders-title" className="mx-auto max-w-[1680px] px-5 py-20 sm:px-8 lg:py-28">
         <SectionHead
           id="founders-title"
@@ -172,6 +174,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           <TeamDirectory locale={locale} memberHref={`${href("/team")}/`} variant="founders" initial={STATIC_SITE ? await buildTeam() : undefined} />
         </div>
       </section>
+
+      {STATIC_SITE && <LivePartners locale={locale} title={locale === "ar" ? "شركاؤنا والرعاة" : "Partners & sponsors"} initial={await buildItems("partner")} />}
 
       <p className="sr-only">{pick(config["site.homepage"].manifesto, locale)}</p>
     </>
