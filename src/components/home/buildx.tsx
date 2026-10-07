@@ -256,14 +256,14 @@ export function GoalsSection({ locale }: { locale: string }) {
               key={g.value + g.label.en}
               delay={i * 60}
               className={cn(
-                "rounded-[18px] border border-[var(--line-2)] bg-void/40 p-6 text-center",
+                "rounded-[18px] border border-[var(--line-2)] bg-void/40 px-3 py-5 text-center sm:p-6",
                 i === GOALS.length - 1 && "col-span-2 lg:col-span-1",
               )}
             >
               <p className="t-display text-5xl text-cyan" dir="ltr">
                 {g.value}
               </p>
-              <p className="mt-2 text-lg font-semibold text-chalk">{l(g.label, locale)}</p>
+              <p className="mt-2 text-base font-semibold text-chalk hyphens-auto sm:text-lg">{l(g.label, locale)}</p>
               <p className="mt-1 text-sm text-mist">{l(g.note, locale)}</p>
             </Reveal>
           ))}

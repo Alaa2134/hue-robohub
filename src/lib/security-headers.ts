@@ -45,7 +45,9 @@ export function privateCsp(nonce: string, dev: boolean, mediaBase?: string) {
 export function staticSiteCsp(supabaseUrl: string) {
   const supabase = supabaseUrl.replace(/\/+$/, "");
   return [
-    ...common(false, supabase).filter((d) => !d.startsWith("frame-ancestors")),
+    // No upgrade-insecure-requests here: on a plain-http visit it forced every later script and image
+    // onto https, and when that failed the page never started (sections stayed hidden).
+    ...common(false, supabase).filter((d) => !d.startsWith("frame-ancestors") && d !== "upgrade-insecure-requests"),
     "script-src 'self' 'unsafe-inline'",
   ].join("; ");
 }

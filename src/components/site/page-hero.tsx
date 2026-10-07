@@ -1,3 +1,4 @@
+import { fitLongestWord } from "@/lib/fit-text";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Picture } from "@/components/media/picture";
@@ -73,7 +74,7 @@ export function PageHero({
           <span className="h-px w-8" style={{ background: accent }} />
           {eyebrow}
         </p>
-        <h1 className="t-display max-w-5xl text-[clamp(2.6rem,7.4vw,6.6rem)] text-chalk">
+        <h1 className="t-display max-w-5xl text-[clamp(2.15rem,7.4vw,6.6rem)] text-chalk" style={fitLongestWord(title, "clamp(2.15rem,7.4vw,6.6rem)", "100vw - 2.5rem")}>
           <MaskText text={title} delay={250} />
         </h1>
         {body && (
@@ -89,7 +90,7 @@ export function PageHero({
         {meta && meta.length > 0 && (
           <dl className="enter mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--line)] sm:grid-cols-4" style={{ ["--d" as string]: "800ms" }}>
             {meta.map((m) => (
-              <div key={m.label} className="bg-void/70 px-5 py-4 backdrop-blur">
+              <div key={m.label} className="bg-void/70 px-3.5 py-4 backdrop-blur sm:px-5">
                 <dt className="t-eyebrow text-[0.58rem] text-fog">{m.label}</dt>
                 <dd className="t-headline mt-1.5 text-xl text-chalk">{m.value}</dd>
               </div>

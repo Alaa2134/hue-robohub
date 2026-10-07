@@ -17,7 +17,7 @@ export function Swatch({ name, hex, note, copy, copied }: { name: string; hex: s
       aria-label={`${copy} ${name} ${hex}`}
     >
       <span className="block h-24 w-full" style={{ background: hex }} />
-      <span className="flex items-end justify-between gap-3 p-4">
+      <span className="flex flex-wrap items-end justify-between gap-x-3 gap-y-1 p-4">
         <span>
           <span className="block text-sm text-chalk">{name}</span>
           {note && <span className="block text-xs text-fog">{note}</span>}
