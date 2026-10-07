@@ -110,10 +110,16 @@ jobs:
         run: |
           export VERSION_CODE=$((100 + BUILD_NUMBER))
           chmod +x gradlew
-          ./gradlew --no-daemon bundleRelease assembleRelease
           mkdir -p "$RUNNER_TEMP/out"
-          cp app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.aab"
-          cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.apk"
+          if [ -n "$ANDROID_KEYSTORE_FILE" ]; then
+            ./gradlew --no-daemon bundleRelease assembleRelease
+            cp app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.aab"
+            cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.apk"
+          else
+            # No key yet: a debug APK still installs on any Android phone for trying the app.
+            ./gradlew --no-daemon bundleRelease assembleDebug
+            cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}-test.apk"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: android-${{ matrix.app }}
