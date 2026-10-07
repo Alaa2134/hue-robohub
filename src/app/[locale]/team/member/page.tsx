@@ -5,7 +5,7 @@ import { pageMeta } from "@/lib/seo";
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/team/member", title: t.team.title, description: t.team.body });
+  return pageMeta({ locale, path: "/team/member", title: t.team.title, description: t.team.body, noindex: true });
 }
 
 /** One static page renders every portfolio; the member comes from ?u=<slug>. */

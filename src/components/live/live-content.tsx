@@ -13,13 +13,14 @@ const T = {
 };
 const tr = (l: string) => T[l === "ar" ? "ar" : "en"];
 
-function useLive<R>(load: () => Promise<R>, deps: unknown[] = []) {
-  const [s, setS] = useState<{ data?: R; failed?: boolean }>({});
+/** Live data with an optional build-time copy: the copy renders first (and stays if the live read fails). */
+function useLive<R>(load: () => Promise<R>, deps: unknown[] = [], initial?: R) {
+  const [s, setS] = useState<{ data?: R; failed?: boolean }>(initial === undefined ? {} : { data: initial });
   useEffect(() => {
     let alive = true;
     load()
       .then((data) => alive && setS({ data }))
-      .catch(() => alive && setS({ failed: true }));
+      .catch(() => alive && setS((prev) => (prev.data === undefined ? { failed: true } : prev)));
     return () => {
       alive = false;
     };
@@ -43,7 +44,7 @@ function Cover({ item, className }: { item: SiteItem; className?: string }) {
 
 /* ─── Events ───────────────────────────────────────────────────────────── */
 
-function EventCard({ e, locale, past }: { e: SiteItem; locale: string; past?: boolean }) {
+function EventCard({ e, locale, past, href }: { e: SiteItem; locale: string; past?: boolean; href?: string }) {
   const t = tr(locale);
   const link = safeLink(e.url);
   const where = locationOf(e, locale);
@@ -66,18 +67,31 @@ function EventCard({ e, locale, past }: { e: SiteItem; locale: string; past?: bo
         <h3 className="t-title text-xl text-chalk">{titleOf(e, locale)}</h3>
         {summaryOf(e, locale) && <p className="text-[0.97rem] leading-relaxed text-mist">{summaryOf(e, locale)}</p>}
         {bodyOf(e, locale) && <p className="whitespace-pre-line text-sm leading-relaxed text-fog">{bodyOf(e, locale)}</p>}
-        {link && !past && (
-          <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm mt-2 w-fit">
-            <span>{t.register}</span>
-            <Icon name="arrowUpRight" size={14} />
-          </a>
+        {((link && !past) || (href && e.slug)) && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {link && !past && (
+              <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm w-fit">
+                <span>{t.register}</span>
+                <Icon name="arrowUpRight" size={14} />
+              </a>
+            )}
+            {href && e.slug && (
+              <Link href={`${href}${encodeURIComponent(e.slug)}/`} className="btn btn-sm w-fit">
+                <span>
+                  {t.details}
+                  <span className="sr-only"> — {titleOf(e, locale)}</span>
+                </span>
+              </Link>
+            )}
+          </div>
         )}
       </div>
     </li>
   );
 }
 
-export function LiveEvents({ locale }: { locale: string }) {
+/** `href` is the events page ("/events/"): event pages live at /events/<slug>/. */
+export function LiveEvents({ locale, href }: { locale: string; href: string }) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("event", 200));
   if (s.failed) return <Note>{t.error}</Note>;
@@ -93,7 +107,7 @@ export function LiveEvents({ locale }: { locale: string }) {
         {upcoming.length ? (
           <ul className="grid gap-4">
             {upcoming.map((e) => (
-              <EventCard key={e.id} e={e} locale={locale} />
+              <EventCard key={e.id} e={e} locale={locale} href={href} />
             ))}
           </ul>
         ) : (
@@ -105,7 +119,7 @@ export function LiveEvents({ locale }: { locale: string }) {
           <h2 className="t-headline mb-5 text-2xl text-chalk">{t.past}</h2>
           <ul className="grid gap-4">
             {past.slice(0, 20).map((e) => (
-              <EventCard key={e.id} e={e} locale={locale} past />
+              <EventCard key={e.id} e={e} locale={locale} href={href} past />
             ))}
           </ul>
         </section>
@@ -121,7 +135,7 @@ function ItemCard({ item, locale, href }: { item: SiteItem; locale: string; href
   const track = trackName(item.track, locale);
   return (
     <li>
-      <Link href={`${href}?s=${encodeURIComponent(item.slug ?? "")}`} className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-[var(--line-2)] bg-panel/70 transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-cyan/50">
+      <Link href={`${href}${encodeURIComponent(item.slug ?? "")}/`} className="group flex h-full flex-col overflow-hidden rounded-[20px] border border-[var(--line-2)] bg-panel/70 transition-[transform,border-color] duration-300 hover:-translate-y-1 hover:border-cyan/50">
         {item.image_path ? <Cover item={item} className="aspect-video" /> : <span className="aspect-video bg-gradient-to-br from-volt/40 via-volt-lo/30 to-cyan/20" />}
         <div className="flex flex-1 flex-col gap-2 p-5">
           <p className="flex flex-wrap items-center gap-2 text-sm text-fog">
@@ -141,9 +155,10 @@ function ItemCard({ item, locale, href }: { item: SiteItem; locale: string; href
   );
 }
 
-export function LiveList({ kind, locale, href }: { kind: "post" | "project"; locale: string; href: string }) {
+/** `href` is the section page ("/news/"): items live at /news/<slug>/. */
+export function LiveList({ kind, locale, href, initial }: { kind: "post" | "project"; locale: string; href: string; initial?: SiteItem[] }) {
   const t = tr(locale);
-  const s = useLive(() => fetchContent(kind, 200), [kind]);
+  const s = useLive(() => fetchContent(kind, 200), [kind], initial?.length ? initial : undefined);
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton tall />;
   if (!s.data.length) return <Note>{t.empty}</Note>;
@@ -156,11 +171,17 @@ export function LiveList({ kind, locale, href }: { kind: "post" | "project"; loc
   );
 }
 
-export function LiveDetail({ kind, locale, backHref }: { kind: "post" | "project"; locale: string; backHref: string }) {
+/**
+ * One news post, project or event. Pre-rendered pages pass the slug and the build-time copy; the
+ * ?s=<slug> pages serve items published since the last build. Both refresh live.
+ */
+export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { kind: "post" | "project" | "event"; locale: string; backHref: string; slug?: string; initial?: SiteItem }) {
   const t = tr(locale);
-  const [slug, setSlug] = useState<string | null>(null);
-  useEffect(() => setSlug(new URLSearchParams(window.location.search).get("s") ?? ""), []);
-  const s = useLive(async () => (slug === null ? undefined : fetchItem(kind, slug)), [kind, slug]);
+  const [slug, setSlug] = useState<string | null>(fixed ?? null);
+  useEffect(() => {
+    if (fixed === undefined) setSlug(new URLSearchParams(window.location.search).get("s") ?? "");
+  }, [fixed]);
+  const s = useLive(async () => (slug === null ? undefined : fetchItem(kind, slug)), [kind, slug], initial);
   useEffect(() => {
     if (s.data) document.title = `${titleOf(s.data, locale)} — BuildX HUE`;
   }, [s.data, locale]);
@@ -185,18 +206,33 @@ export function LiveDetail({ kind, locale, backHref }: { kind: "post" | "project
   return (
     <article className="mx-auto flex max-w-3xl flex-col gap-6">
       {back}
-      <p className="flex flex-wrap items-center gap-3 text-sm text-fog">
-        {kind === "post" ? fmtDate(i.created_at, locale) : track}
-        {i.tags.length > 0 && <span>{i.tags.join(" · ")}</span>}
-      </p>
+      {kind === "event" ? (
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold text-cyan">
+          <span className="inline-flex items-center gap-1.5">
+            <Icon name="calendar" size={16} />
+            {fmtDate(i.starts_at, locale, true)}
+          </span>
+          {locationOf(i, locale) && (
+            <span className="inline-flex items-center gap-1.5 text-mist">
+              <Icon name="pin" size={16} />
+              {locationOf(i, locale)}
+            </span>
+          )}
+        </p>
+      ) : (
+        <p className="flex flex-wrap items-center gap-3 text-sm text-fog">
+          {kind === "post" ? fmtDate(i.created_at, locale) : track}
+          {i.tags.length > 0 && <span>{i.tags.join(" · ")}</span>}
+        </p>
+      )}
       <h1 className="t-display text-[clamp(2rem,5vw,3.6rem)] text-chalk">{titleOf(i, locale)}</h1>
       {resultOf(i, locale) && <p className="w-fit rounded-full bg-gold/15 px-4 py-1 font-semibold text-gold">{resultOf(i, locale)}</p>}
       {summaryOf(i, locale) && <p className="text-xl leading-relaxed text-frost">{summaryOf(i, locale)}</p>}
       {i.image_path && <Cover item={i} className="rounded-[20px] border border-[var(--line-2)]" />}
       {bodyOf(i, locale) && <div className="whitespace-pre-line text-pretty text-lg leading-relaxed text-mist">{bodyOf(i, locale)}</div>}
       {link && (
-        <a href={link} target="_blank" rel="noopener noreferrer nofollow" className="btn w-fit">
-          <span>{t.open}</span>
+        <a href={link} target="_blank" rel="noopener noreferrer nofollow" className={cn("btn w-fit", kind === "event" && "btn-primary")}>
+          <span>{kind === "event" ? t.register : t.open}</span>
           <Icon name="arrowUpRight" size={14} />
         </a>
       )}
@@ -206,9 +242,9 @@ export function LiveDetail({ kind, locale, backHref }: { kind: "post" | "project
 
 /* ─── Gallery ──────────────────────────────────────────────────────────── */
 
-export function LiveGallery({ locale }: { locale: string }) {
+export function LiveGallery({ locale, initial }: { locale: string; initial?: SiteItem[] }) {
   const t = tr(locale);
-  const s = useLive(() => fetchContent("photo", 500));
+  const s = useLive(() => fetchContent("photo", 500), [], initial?.length ? initial : undefined);
   const [album, setAlbum] = useState("");
   const [open, setOpen] = useState<number | null>(null);
   const photos = (s.data ?? []).filter((p) => p.image_path && (!album || p.tags.includes(album)));
@@ -281,9 +317,9 @@ export function LiveGallery({ locale }: { locale: string }) {
 
 /* ─── Achievements ─────────────────────────────────────────────────────── */
 
-export function LiveAchievements({ locale }: { locale: string }) {
+export function LiveAchievements({ locale, initial }: { locale: string; initial?: SiteItem[] }) {
   const t = tr(locale);
-  const s = useLive(() => fetchContent("achievement", 200));
+  const s = useLive(() => fetchContent("achievement", 200), [], initial?.length ? initial : undefined);
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton />;
   if (!s.data.length) return <Note>{t.empty}</Note>;
@@ -318,7 +354,7 @@ export function LiveAchievements({ locale }: { locale: string }) {
 
 /* ─── Home: what's new (hidden until there is something) ───────────────── */
 
-export function LatestStrip({ locale, eventsHref, newsHref, postHref }: { locale: string; eventsHref: string; newsHref: string; postHref: string }) {
+export function LatestStrip({ locale, eventsHref, newsHref }: { locale: string; eventsHref: string; newsHref: string }) {
   const t = tr(locale);
   const s = useLive(async () => {
     const [events, posts] = await Promise.all([fetchUpcoming(2), fetchContent("post", 3)]);
@@ -342,7 +378,7 @@ export function LatestStrip({ locale, eventsHref, newsHref, postHref }: { locale
               </div>
               <ul className="grid gap-3">
                 {s.data.events.map((e) => (
-                  <EventCard key={e.id} e={e} locale={locale} />
+                  <EventCard key={e.id} e={e} locale={locale} href={eventsHref} />
                 ))}
               </ul>
             </div>
@@ -358,7 +394,7 @@ export function LatestStrip({ locale, eventsHref, newsHref, postHref }: { locale
               <ul className="grid gap-3">
                 {s.data.posts.map((p) => (
                   <li key={p.id}>
-                    <Link href={`${postHref}?s=${encodeURIComponent(p.slug ?? "")}`} className="flex gap-4 rounded-[18px] border border-[var(--line-2)] bg-panel/70 p-4 transition-colors hover:border-cyan/50">
+                    <Link href={`${newsHref}${encodeURIComponent(p.slug ?? "")}/`} className="flex gap-4 rounded-[18px] border border-[var(--line-2)] bg-panel/70 p-4 transition-colors hover:border-cyan/50">
                       {p.image_path && <img src={siteImageUrl(p.image_path)} alt="" loading="lazy" className="size-20 shrink-0 rounded-xl object-cover" />}
                       <span className="flex min-w-0 flex-col gap-1">
                         <span className="text-sm text-fog">{fmtDate(p.created_at, locale)}</span>

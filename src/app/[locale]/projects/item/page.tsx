@@ -5,10 +5,10 @@ import { pageMeta } from "@/lib/seo";
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/projects/item", title: t.projects.title });
+  return pageMeta({ locale, path: "/projects/item", title: t.projects.title, noindex: true });
 }
 
-/** One static page shows every item; the slug comes from ?s=<slug>. */
+/** Serves items published since the last build (?s=<slug>); built ones have their own /<slug>/ page. */
 export default async function Item({ params }: Params) {
   const { locale, href } = await resolvePage(params);
   return (

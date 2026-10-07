@@ -27,6 +27,7 @@ export type SiteItem = {
   pinned: boolean;
   sort_order: number;
   created_at: string;
+  updated_at?: string;
   created_by?: string | null;
 };
 
@@ -82,4 +83,32 @@ export function fmtDate(iso: string | null | undefined, locale: Loc, withTime = 
     ...(withTime ? { hour: "numeric", minute: "2-digit" } : {}),
     timeZone: "Africa/Cairo",
   }).format(d);
+}
+
+export type SearchHit = { type: "member" | "project" | "event" | "article" | "achievement"; title: string; subtitle: string; href: string };
+
+/** Site search over published content and portfolios (case-insensitive, Arabic and English fields). */
+export async function searchLive(term: string, locale: Loc, limit = 6): Promise<SearchHit[]> {
+  // PostgREST filter syntax: drop the characters that structure it, then URL-encode the rest.
+  const q = term.replace(/[,()*:%\\"'.]/g, " ").trim().replace(/\s+/g, " ").slice(0, 60);
+  if (q.length < 2) return [];
+  const like = encodeURIComponent(`*${q}*`);
+  const or = (cols: string[]) => `or=(${cols.map((c) => `${c}.ilike.${like}`).join(",")})`;
+  const [items, people] = await Promise.all([
+    rest<SiteItem[]>(`site_content?select=id,kind,slug,title,title_ar,summary,summary_ar,starts_at,created_at&published=eq.true&kind=neq.photo&${or(["title", "title_ar", "summary", "summary_ar"])}&order=created_at.desc&limit=${limit * 2}`),
+    rest<{ slug: string; full_name: string; full_name_ar: string | null; headline: string; headline_ar: string | null; external_url: string | null }[]>(
+      `team_profiles?select=slug,full_name,full_name_ar,headline,headline_ar,external_url&published=eq.true&${or(["full_name", "full_name_ar", "headline", "headline_ar"])}&limit=${limit}`,
+    ),
+  ]);
+  const SECTION = { post: "/news", project: "/projects", event: "/events", achievement: "/achievements", photo: "/gallery" } as const;
+  const TYPE = { post: "article", project: "project", event: "event", achievement: "achievement", photo: "article" } as const;
+  return [
+    ...people.map((p) => ({ type: "member" as const, title: pickL(p.full_name, p.full_name_ar, locale), subtitle: pickL(p.headline, p.headline_ar, locale), href: safeLink(p.external_url) ?? `/team/${p.slug}` })),
+    ...items.map((i) => ({
+      type: TYPE[i.kind],
+      title: titleOf(i, locale),
+      subtitle: i.kind === "event" ? fmtDate(i.starts_at, locale) : summaryOf(i, locale),
+      href: i.slug && i.kind !== "achievement" ? `${SECTION[i.kind]}/${i.slug}` : SECTION[i.kind],
+    })),
+  ].slice(0, limit * 2);
 }

@@ -25,6 +25,7 @@ jobs:
         env:
           CNAME: buildxhue.com
           SITE_URL: https://buildxhue.com
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
       - name: Smoke tests
         run: |
           npx playwright install --with-deps chromium

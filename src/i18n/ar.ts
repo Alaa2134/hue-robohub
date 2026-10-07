@@ -78,7 +78,7 @@ const ar: Dictionary = {
     achievements: "إنجاز",
     live: "مباشر من المعمل",
   },
-  hero: { cta3: "مركز القيادة", scroll: "مرّر", telemetry: "قياسات النظام" },
+  hero: { cta3: "مركز القيادة", scroll: "مرّر", telemetry: "قياسات النظام", statsLabel: "BuildX HUE بالأرقام" },
   home: {
     storyEyebrow: "من الفكرة إلى منصة التتويج",
     storyTitle: "كيف يولد الروبوت",
@@ -242,9 +242,9 @@ const ar: Dictionary = {
     direct: "مباشر",
   },
   bootcamp: { eyebrow: "المعسكر", title: "معسكر BuildX للروبوتات", body: "ست أسابيع وروبوت واحد. برنامج عملي بيحوّل الأعضاء الجداد لبنّائين — وبيخلص بتحدّي BuildX الداخلي.", week: "الأسبوع", final: "الختام", outcomes: "المخرجات", lessons: "الجلسات", sessions: "الجلسات القادمة", apply: "قدّم للدفعة القادمة" },
-  news: { eyebrow: "الأخبار", title: "ملاحظات المعمل والإعلانات", empty: "لم تُنشر أي مقالات بعد.", by: "بقلم" },
+  news: { eyebrow: "الأخبار", title: "ملاحظات المعمل والإعلانات", body: "أخبار وإعلانات BuildX HUE — ورش ومسابقات ومشاريع، واللي الفريق بيبنيه في جامعة حورس.", empty: "لم تُنشر أي مقالات بعد.", by: "بقلم" },
   resources: { eyebrow: "المصادر", title: "مصادر التعلّم", body: "أدلة وأوراق بيانات ومستودعات ودورات يرشحها قادتنا.", empty: "ستُنشر المصادر هنا." },
-  search: { title: "بحث", placeholder: "ابحث عن أعضاء أو مشروعات أو فعاليات…", hint: "اكتب حرفين على الأقل.", empty: "لا توجد نتائج مطابقة.", types: { member: "عضو", project: "مشروع", event: "فعالية", article: "مقال", resource: "مصدر" } },
+  search: { title: "بحث", placeholder: "ابحث في الصفحات والمسارات والناس والأخبار والفعاليات…", hint: "اكتب حرفين على الأقل.", empty: "لا توجد نتائج مطابقة.", types: { member: "عضو", project: "مشروع", event: "فعالية", article: "مقال", resource: "مصدر", achievement: "إنجاز", page: "صفحة", track: "مسار", team: "فريق" } },
   footer: {
     tagline: "مجتمع الابتكار والروبوتات الطلابي في جامعة حورس. ابنِ • ابتكر • نافس.",
     navigation: "التنقل",

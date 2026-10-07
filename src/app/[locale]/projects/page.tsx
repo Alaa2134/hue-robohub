@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildItems } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveList } from "@/components/live/live-content";
 import { ProjectCard } from "@/components/cards/project-card";
@@ -26,7 +27,7 @@ export default async function Projects({ params }: Params) {
       <>
         <PageHero eyebrow={t.projects.eyebrow} title={t.home.projectsTitle} body={t.projects.body} image={art("showcase", "track_software", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.projects }]} />
         <Band>
-          <LiveList kind="project" locale={locale} href={`${href("/projects/item")}/`} />
+          <LiveList kind="project" locale={locale} href={`${href("/projects")}/`} initial={await buildItems("project")} />
         </Band>
       </>
     );

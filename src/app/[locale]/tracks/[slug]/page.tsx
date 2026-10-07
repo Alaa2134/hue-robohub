@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   const { locale, slug } = await resolvePage(params);
   const tr = await getTrack(slug);
   if (!tr) return {};
-  return pageMeta({ locale, path: `/tracks/${slug}`, title: loc(locale, tr.name, tr.nameAr), description: loc(locale, tr.tagline, tr.taglineAr), image: art(...trackWorld(slug).art)?.og });
+  return pageMeta({ locale, path: `/tracks/${slug}`, title: loc(locale, tr.name, tr.nameAr), description: `${loc(locale, tr.tagline, tr.taglineAr)} ${loc(locale, tr.description, tr.descriptionAr)}`.slice(0, 160), image: art(...trackWorld(slug).art)?.og });
 }
 
 const RES_ICON: Record<string, IconName> = { guide: "book", datasheet: "cpu", video: "film", repository: "github", course: "rocket", tool: "wrench" };

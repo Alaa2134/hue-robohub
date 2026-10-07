@@ -12,7 +12,7 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    command: "python3 -m http.server 4173 --directory out-static",
+    command: "node scripts/serve-static.mjs out-static 4173",
     url: "http://localhost:4173/",
     reuseExistingServer: !process.env.CI,
   },

@@ -249,9 +249,10 @@ export function GoalsSection({ locale }: { locale: string }) {
         <h2 id="goals-title" className="t-display text-[clamp(2rem,4.6vw,3.8rem)] text-chalk">
           {ar ? "اللي ناويين نحققه السنة دي" : "What we're aiming for this year"}
         </h2>
-        <dl className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+        <ul role="list" className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
           {GOALS.map((g, i) => (
             <Reveal
+              as="li"
               key={g.value + g.label.en}
               delay={i * 60}
               className={cn(
@@ -259,14 +260,14 @@ export function GoalsSection({ locale }: { locale: string }) {
                 i === GOALS.length - 1 && "col-span-2 lg:col-span-1",
               )}
             >
-              <dd className="t-display text-5xl text-cyan" dir="ltr">
+              <p className="t-display text-5xl text-cyan" dir="ltr">
                 {g.value}
-              </dd>
-              <dt className="mt-2 text-lg font-semibold text-chalk">{l(g.label, locale)}</dt>
+              </p>
+              <p className="mt-2 text-lg font-semibold text-chalk">{l(g.label, locale)}</p>
               <p className="mt-1 text-sm text-mist">{l(g.note, locale)}</p>
             </Reveal>
           ))}
-        </dl>
+        </ul>
       </div>
     </section>
   );

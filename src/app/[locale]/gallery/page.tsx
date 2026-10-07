@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildItems } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveGallery } from "@/components/live/live-content";
 import Link from "next/link";
@@ -48,7 +49,7 @@ export default async function Gallery({ params }: Params) {
       <>
         <PageHero eyebrow={t.gallery.eyebrow} title={t.gallery.title} body={t.gallery.body} image={art("team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.gallery }]} size="md" />
         <Band>
-          <LiveGallery locale={locale} />
+          <LiveGallery locale={locale} initial={await buildItems("photo")} />
         </Band>
       </>
     );

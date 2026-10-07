@@ -120,13 +120,14 @@ export function Hero({
 
         {/* Bottom rail: live stats · scroll cue · film */}
         <div className="enter relative grid items-end gap-5 border-t border-[var(--line)] pt-4 sm:pt-5 lg:grid-cols-[1fr_auto_1fr]" style={{ ["--d" as string]: "1300ms" }}>
-          <dl className="rail -mx-5 gap-0 px-5 sm:mx-0 sm:px-0 lg:flex-wrap">
+          {/* Scrolls sideways on phones, so keyboard users can focus it too. */}
+          <dl tabIndex={0} aria-label={t.hero.statsLabel} className="rail -mx-5 gap-0 px-5 outline-none focus-visible:ring-2 focus-visible:ring-cyan sm:mx-0 sm:px-0 lg:flex-wrap">
             {stats.map((s, i) => (
-              <div key={s.label} className={`flex min-w-[7.5rem] flex-col gap-1 pe-6 ${i > 0 ? "border-s border-[var(--line)] ps-5 sm:ps-6" : ""}`}>
+              <div key={s.label} className={`flex min-w-[7.5rem] flex-col-reverse gap-1 pe-6 ${i > 0 ? "border-s border-[var(--line)] ps-5 sm:ps-6" : ""}`}>
+                <dt className="t-eyebrow whitespace-nowrap text-[0.6rem] text-fog">{s.label}</dt>
                 <dd className="t-display text-[clamp(1.6rem,2.6vw,2.4rem)] leading-none text-chalk" dir="ltr">
                   {String(s.value).padStart(s.pad ?? 2, "0")}
                 </dd>
-                <dt className="t-eyebrow whitespace-nowrap text-[0.6rem] text-fog">{s.label}</dt>
               </div>
             ))}
           </dl>

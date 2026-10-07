@@ -12,26 +12,30 @@ const T = {
 
 type State = { status: "loading" } | { status: "missing" } | { status: "error" } | { status: "ok"; profile: TeamProfile; projects: TeamProject[] };
 
-/** Portfolio page for one member (the slug comes from ?u=, so one static page serves everyone). */
-export function MemberProfile({ locale, teamHref }: { locale: string; teamHref: string }) {
+/**
+ * Portfolio page for one member. Pre-rendered pages pass the slug and the data read at build time;
+ * the /team/member/?u=<slug> page serves members published since the last build. Both refresh live.
+ */
+export function MemberProfile({ locale, teamHref, slug, initial }: { locale: string; teamHref: string; slug?: string; initial?: { profile: TeamProfile; projects: TeamProject[] } }) {
   const t = T[locale === "ar" ? "ar" : "en"];
-  const [s, setS] = useState<State>({ status: "loading" });
+  const [s, setS] = useState<State>(initial ? { status: "ok", ...initial } : { status: "loading" });
 
   useEffect(() => {
-    const slug = new URLSearchParams(window.location.search).get("u") ?? "";
+    const u = slug ?? new URLSearchParams(window.location.search).get("u") ?? "";
     let alive = true;
-    fetchMember(slug)
+    fetchMember(u)
       .then((r) => {
         if (!alive) return;
         if (!r) return setS({ status: "missing" });
         setS({ status: "ok", ...r });
         document.title = `${nameOf(r.profile, locale)} — BuildX HUE`;
       })
-      .catch(() => alive && setS({ status: "error" }));
+      // Keep the pre-rendered copy when the live read fails.
+      .catch(() => alive && !initial && setS({ status: "error" }));
     return () => {
       alive = false;
     };
-  }, [locale]);
+  }, [locale, slug, initial]);
 
   const back = (
     <Link href={teamHref} className="inline-flex items-center gap-2 text-sm font-semibold text-cyan hover:underline">

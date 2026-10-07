@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { buildTeam } from "@/lib/build-content";
+import { STATIC_SITE } from "@/lib/deploy";
 import { notFound } from "next/navigation";
 import { ActivitiesSection, GoalsSection, RoadmapSection, WhySection } from "@/components/home/buildx";
 import { Garage, type GarageTeam } from "@/components/home/garage";
@@ -26,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   if (!isLocale(locale)) return {};
   const config = await getSiteConfig();
-  return pageMeta({ locale, path: "/", description: config["site.seo"].description });
+  return pageMeta({ locale, path: "/", description: (locale === "ar" && config["site.seo"].descriptionAr) || config["site.seo"].description });
 }
 
 const KIND_KICKER: Record<string, string> = { hero: "Hero film", story: "Who we are", showreel: "Competition showreel", promo: "Bootcamp promo" };
@@ -92,7 +94,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     <>
       <Hero locale={locale} t={t} hero={hero} image={art("hero")} stats={heroStats} film={heroFilm} ambient={ambient} thumbs={["team_sprint", "track_embedded", "team_sumo"].map((n) => art(n)).filter((e) => !!e) as NonNullable<ReturnType<typeof art>>[]} />
 
-      <LatestStrip locale={locale} eventsHref={`${href("/events")}/`} newsHref={`${href("/news")}/`} postHref={`${href("/news/post")}/`} />
+      <LatestStrip locale={locale} eventsHref={`${href("/events")}/`} newsHref={`${href("/news")}/`} />
 
       <WhySection locale={locale} index="01" />
 
@@ -165,7 +167,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
           }
         />
         <div className="mt-12">
-          <TeamDirectory locale={locale} memberHref={`${href("/team/member")}/`} variant="founders" />
+          <TeamDirectory locale={locale} memberHref={`${href("/team")}/`} variant="founders" initial={STATIC_SITE ? await buildTeam() : undefined} />
         </div>
       </section>
 
