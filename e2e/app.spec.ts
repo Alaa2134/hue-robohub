@@ -184,3 +184,67 @@ test("door check-in by a typed ticket code marks the attendee", async ({ page })
   await expect(page.getByRole("status").filter({ hasText: "Mona Adel ✓" })).toBeVisible();
   expect(calls.find((c) => c.fn === "staff_check_in")?.body).toEqual({ p_event: "e1", p_ticket: "BXT-1A2B3C4D" });
 });
+
+test("leaderboard ranks students and staff can give bonus points", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_leaderboard = [
+    { id: "s1", name: "Mona Adel", group: "G1", points: 75, attended: 1, quizzes: 1, perfect: 1, certs: 1, events: 1, bonus: 0, badges: ["first_step", "full_marks", "certified"] },
+    { id: "s2", name: "Omar Ali", group: "G1", points: 66, attended: 1, quizzes: 1, perfect: 0, certs: 0, events: 0, bonus: 50, badges: ["first_step", "team_star"] },
+  ];
+  await signInAsOwner(page, calls);
+  const bonus: unknown[] = [];
+  await page.route(/\/rest\/v1\/student_bonus/, async (route) => {
+    bonus.push(route.request().postDataJSON());
+    await route.fulfill({ status: 201, json: [] });
+  });
+  await page.goto("/app/#/staff/leaderboard");
+  await expect(page.getByText("Mona Adel")).toBeVisible();
+  await expect(page.getByText("تقدير +50")).toBeVisible();
+  await page.getByText("Omar Ali").click();
+  await page.getByRole("button", { name: "+20" }).click();
+  await page.getByLabel("السبب").fill("Ran a workshop");
+  await page.getByRole("button", { name: "إضافة 20 نقطة" }).click();
+  await expect.poll(() => bonus).toEqual([{ student_id: "s2", points: 20, reason: "Ran a workshop" }]);
+});
+
+test("the owner can take a backup and download it as JSON", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_backups = [{ slot: 3, taken_at: at(60), counts: { students: 42, applications: 7 }, bytes: 20480 }];
+  RPC.staff_backup_download = { version: 1, students: [] };
+  RPC.staff_backup_now = { students: 42 };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/backups");
+  await expect(page.getByText("42 طالب · 7 طلب · 20 KB")).toBeVisible();
+  const file = page.waitForEvent("download");
+  await page.getByRole("button", { name: "تنزيل" }).click();
+  expect((await file).suggestedFilename()).toMatch(/^buildx-backup-\d{4}-\d{2}-\d{2}\.json$/);
+  await page.getByRole("button", { name: "نسخة دلوقتي" }).click();
+  await expect.poll(() => calls.some((c) => c.fn === "staff_backup_now")).toBe(true);
+});
+
+test("a student sees their points, badges, group ranking and certificates", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [{ title: "Session 1", at: at(2000), status: "present" }] },
+    student_points: {
+      points: 75, rank: 1, of: 2, group: "G1",
+      breakdown: { attended: 1, quizzes: 1, perfect: 1, certs: 1, events: 1, bonus: 0 },
+      badges: ["first_step", "full_marks", "certified"],
+      top: [{ name: "Mona A.", points: 75, me: true }, { name: "Omar A.", points: 66, me: false }],
+    },
+    student_certificates: [{ id: "c1", code: "BXC-1A2B3C4D", name: "Mona Adel", kind: "completion", title: "Robotics Bootcamp 2026", title_ar: "بوتكامب الروبوتات", details: null, details_ar: null, hours: 24, issued_on: "2026-10-07" }],
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام")).toBeVisible();
+  await expect(page.getByText("بوتكامب الروبوتات")).toBeVisible();
+  await page.getByText("ترتيبك 1 من 2").click();
+  await expect(page.getByText("الأوسمة (3 من 9)")).toBeVisible();
+  await expect(page.getByText("Mona A. (انت)")).toBeVisible();
+  expect(errors).toEqual([]);
+});

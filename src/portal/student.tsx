@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentStore, type AttStatus, type StudentSession } from "./core";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
+import { MyPoints, PointsCard } from "./points";
 import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
@@ -108,6 +109,7 @@ export function StudentApp({ session, path }: { session: StudentSession; path: s
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "attendance") screen = <Attendance data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "account") screen = <Account session={session} />;
+  else if (section === "points") screen = <MyPoints />;
   else screen = <Home data={home.data} reload={home.reload} loading={home.loading} />;
 
   return (
@@ -165,6 +167,7 @@ function Home({ data, reload, loading }: ScreenProps) {
         </div>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
+      <PointsCard />
 
       <Section title="كويزات متاحة" action={<a href="#/me/quizzes" className="text-sm text-cyan">الكل</a>}>
         {openQuizzes.length ? (
