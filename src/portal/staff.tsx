@@ -9,6 +9,7 @@ import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
 import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./staff-insights";
 import { SiteContentScreen } from "./staff-site";
 import { SiteSettingsScreen } from "./staff-settings";
+import { TwoFactorScreen } from "./staff-2fa";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
@@ -66,6 +67,9 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "settings":
       screen = <SiteSettingsScreen me={me} />;
+      break;
+    case "2fa":
+      screen = <TwoFactorScreen me={me} />;
       break;
     case "security":
       screen = <SecurityScreen me={me} />;
@@ -238,6 +242,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
     { icon: "user", label: "حسابي وكلمة المرور", to: "/staff/account" },
+    { icon: "lock", label: "التحقق بخطوتين (كود من الموبايل)", to: "/staff/2fa" },
   ];
   return (
     <>
