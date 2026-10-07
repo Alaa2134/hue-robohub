@@ -111,11 +111,11 @@ export function Header({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
           })}
         </nav>
 
-        <div className="ms-auto flex items-center gap-1.5 sm:gap-2">
+        <div className="ms-auto flex items-center gap-1 min-[360px]:gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => ui.set({ search: true, menu: false })}
-            className="group flex h-10 items-center gap-2.5 rounded-md px-2.5 text-mist transition-colors hover:text-chalk"
+            className="group flex h-10 items-center gap-2.5 rounded-md px-2 text-mist transition-colors hover:text-chalk min-[360px]:px-2.5"
             aria-label={t.search}
           >
             <Icon name="search" size={19} />
@@ -137,9 +137,10 @@ export function Header({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
               <span className="2xl:hidden">CC</span>
             </Link>
           )}
-          <a href={APP_HREF} className="btn btn-sm hidden lg:inline-flex">
-            <Icon name="grid" size={15} />
-            <span>{t.app}</span>
+          <a href={APP_HREF} className="btn btn-sm !px-2.5 min-[360px]:!px-3 sm:!px-4" aria-label={t.signIn}>
+            <Icon name="lock" size={15} />
+            <span className="hidden min-[360px]:inline sm:hidden">{t.signInShort}</span>
+            <span className="hidden sm:inline">{t.signIn}</span>
           </a>
           <Link href={href("/join")} className="btn btn-primary btn-sm hidden md:inline-flex">
             <span aria-hidden className="btn-sheen" />

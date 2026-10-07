@@ -1,6 +1,12 @@
 const en = {
   meta: { skip: "Skip to content" },
   nav: {
+    signInShort: "Sign in",
+    signIn: "Sign in",
+    signInStudent: "Student",
+    signInStudentHint: "Course content, quizzes and your attendance",
+    signInStaff: "Training team",
+    signInStaffHint: "Attendance, students, content and the dashboard",
     faq: "FAQ",
     competitions: "Competitions",
     brand: "Brand",

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { APP_HREF } from "@/lib/deploy";
 import { Icon } from "@/components/brand/icons";
 import { Lockup, Wordmark } from "@/components/brand/logo";
 import { SOCIAL_LABEL, SocialIcon, safeHref } from "@/components/brand/social-icons";
@@ -143,6 +144,9 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
             © {year} BuildX HUE. {t.footer.disclaimer}
           </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <a href={APP_HREF} className="hover:text-chalk">
+              {t.nav.signIn}
+            </a>
             <Link href={href("/privacy")} className="hover:text-chalk">
               {t.footer.privacy}
             </Link>
