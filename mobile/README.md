@@ -49,7 +49,7 @@
    - وافق على **Play App Signing** لما يسألك (Google بيحفظ مفتاح التوقيع النهائي، وإحنا معانا مفتاح الرفع بس).
 2. **Store presence ← Main store listing**: النصوص تحت، و `mobile/store/<app>/play-icon.png` و `feature-graphic.png` وصور `mobile/store/<app>/play/*.png`.
 3. **Policy ← App content**:
-   - Privacy policy: `https://buildxhue.com/ar/privacy/`
+   - Privacy policy: `https://github.com/Alaa2134/hue-robohub/blob/main/PRIVACY.md` (أو `https://buildxhue.com/ar/privacy/` بعد ما https يشتغل)
    - App access: **All or some functionality is restricted** ← أضف بيانات حساب المراجعة (تحت).
    - Ads: **No**
    - Content rating: املأ الاستبيان. التصنيف Education، والإجابة "لا" على كل حاجة (عنف، محتوى جنسي، مقامرة…)، فيطلع **Everyone / 3+**.
@@ -67,13 +67,14 @@
 4. صفحة الإصدار **1.0.0**:
    - الصور: `mobile/store/<app>/appstore/*.png` (مقاس 6.9 بوصة، 1290×2796). التطبيق للآيفون بس، فمحتاجش صور آيباد.
    - النصوص تحت. Category: **Education**. Age rating: املأ الاستبيان (كله None) فيطلع **4+**.
-   - Privacy Policy URL: `https://buildxhue.com/ar/privacy/`
+   - Support URL: `https://github.com/Alaa2134/hue-robohub/blob/main/SUPPORT.md`
+   - Privacy Policy URL: `https://github.com/Alaa2134/hue-robohub/blob/main/PRIVACY.md` (أو `https://buildxhue.com/ar/privacy/` بعد ما https يشتغل)
    - **App Privacy**: الإجابات تحت.
    - **App Review Information**: Sign-in required ✓ وبيانات الحساب والملاحظات تحت.
    - Build: اختار البناء من TestFlight ← **Add for Review** ← Submit.
 5. **تطبيق الفريق**: لو Apple رفضته على أساس إنه لجهة معيّنة بس (Guideline 3.2 / 2.1)، اطلب **Unlisted App Distribution** من `developer.apple.com/contact/request/unlisted-app` بعد الموافقة. التطبيق ساعتها بيتنزل بلينك مباشر بس ومش بيظهر في البحث.
 
-> **مهم قبل الإرسال**: لينك الخصوصية لازم يفتح بـ https. شهادة https لـ buildxhue.com لسه مش متفعلة. صلّحها من **Settings ← Pages** في الريبو: امسح الـ Custom domain واحفظ، وبعدين اكتب `buildxhue.com` تاني واحفظ، واستنى لحد ما يظهر ✓ وفعّل **Enforce HTTPS**.
+> **https للموقع**: لحد ما شهادة buildxhue.com تتفعل، استخدم لينك الخصوصية اللي على GitHub (فوق)، لأنه بيفتح بـ https دلوقتي ومحتواه هو نفس صفحة الموقع. ولما تصلّح الشهادة تقدر تغيّر اللينك. صلّحها من **Settings ← Pages** في الريبو: امسح الـ Custom domain واحفظ، وبعدين اكتب `buildxhue.com` تاني واحفظ، واستنى لحد ما يظهر ✓ وفعّل **Enforce HTTPS**.
 
 ---
 
