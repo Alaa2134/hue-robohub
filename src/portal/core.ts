@@ -4,6 +4,7 @@
  * The app is a static PWA. Staff use Supabase Auth; students use an opaque token from
  * student_login (see supabase/migrations). Only the public URL and publishable key ship here.
  */
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
@@ -11,6 +12,46 @@ export { SUPABASE_KEY, SUPABASE_URL };
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
 export const APP_PATH = `${BASE_PATH}/app/`;
 export const MAX_UPLOAD = 50 * 1024 * 1024;
+
+/* ─── Native apps (Capacitor) ──────────────────────────────────────────── */
+
+/** True inside the BuildX HUE / BuildX Team store apps (the same bundle, served from the device). */
+export const isNative = () => typeof window !== "undefined" && Capacitor.isNativePlatform();
+
+/** Which store app this is: the student app only knows students, the team app only staff. Null on the web. */
+export function appMode(): "student" | "staff" | null {
+  if (!isNative()) return null;
+  try {
+    const m = localStorage.getItem("rh-app-mode");
+    return m === "student" || m === "staff" ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The public site, for links people share (inside the apps the page origin is the device itself). */
+export const SITE_ORIGIN = "https://buildxhue.com";
+export const publicOrigin = () => (isNative() ? SITE_ORIGIN : window.location.origin);
+
+/** Apps can't print: open the same screen on the website, where the browser's print / PDF works. */
+export const openInBrowser = () => window.open(`${SITE_ORIGIN}${APP_PATH}index.html${window.location.hash}`, "_blank", "noopener");
+
+type FsPlugin = { writeFile(o: { path: string; data: string; directory: string; recursive?: boolean }): Promise<{ uri: string }> };
+type SharePlugin = { share(o: { title?: string; files?: string[]; dialogTitle?: string }): Promise<unknown> };
+const Filesystem = registerPlugin<FsPlugin>("Filesystem");
+const Share = registerPlugin<SharePlugin>("Share");
+
+/** Apps: save the file to the cache and open the share sheet (WebViews ignore download links). */
+async function shareFile(blob: Blob, name: string) {
+  const data = await new Promise<string>((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+  const { uri } = await Filesystem.writeFile({ path: `exports/${name}`, data, directory: "CACHE", recursive: true });
+  await Share.share({ title: name, files: [uri], dialogTitle: name });
+}
 
 let client: SupabaseClient | null = null;
 export function sb(): SupabaseClient {
@@ -437,6 +478,10 @@ export const savedText = (before: number, after: number) => `${fmt.size(before)}
 /* ─── CSV / download ───────────────────────────────────────────────────── */
 
 export function download(blob: Blob, name: string) {
+  if (isNative()) {
+    shareFile(blob, name).catch(() => undefined);
+    return;
+  }
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = name;

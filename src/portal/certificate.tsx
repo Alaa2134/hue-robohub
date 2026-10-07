@@ -5,7 +5,7 @@
  * screen and prints at exactly 297 × 210 mm.
  */
 import { useEffect, useState } from "react";
-import { BASE_PATH } from "./core";
+import { BASE_PATH, isNative, openInBrowser } from "./core";
 import { Button, Icon } from "./ui";
 
 export type Certificate = {
@@ -198,12 +198,14 @@ export function CertificatePrint({ certs, onBack }: { certs: Certificate[]; onBa
         <span className="flex-1 text-center text-sm text-fog">
           {certs.length > 1 ? `${certs.length} شهادة` : certs[0]?.code}
         </span>
-        <Button size="sm" variant="primary" icon="download" onClick={() => window.print()}>
-          طباعة / PDF
+        <Button size="sm" variant="primary" icon="download" onClick={() => (isNative() ? openInBrowser() : window.print())}>
+          {isNative() ? "افتح للطباعة" : "طباعة / PDF"}
         </Button>
       </div>
       <p className="mx-auto mb-3 max-w-[297mm] text-xs text-fog print:hidden">
-        من نافذة الطباعة اختار «حفظ كـ PDF» عشان تبعتها للطالب، أو اطبعها على A4 بالعرض.
+        {isNative()
+          ? "الطباعة وحفظ PDF بتتم من المتصفح: الزرار بيفتح الشهادة دي على buildxhue.com/app (سجّل دخول هناك لو طلب)."
+          : "من نافذة الطباعة اختار «حفظ كـ PDF» عشان تبعتها للطالب، أو اطبعها على A4 بالعرض."}
       </p>
       <div className="grid gap-4 print:block">
         {certs.map((c) => (

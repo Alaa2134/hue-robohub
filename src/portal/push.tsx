@@ -1,7 +1,7 @@
 "use client";
 /** Push notifications in the BuildX App: turning them on for this device, and the staff "send" screen. */
 import { useEffect, useState } from "react";
-import { APP_PATH, errorText, fmt, must, rpc, sb, studentRpc } from "./core";
+import { APP_PATH, errorText, isNative, fmt, must, rpc, sb, studentRpc } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Textarea, TopBar, toast, useAsync } from "./ui";
 
@@ -23,6 +23,8 @@ async function registration() {
 }
 
 export async function pushState(): Promise<State> {
+  // Web push needs a browser; the store apps don't have it (yet).
+  if (isNative()) return "unsupported";
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return isIos() && !standalone() ? "ios-install" : "unsupported";
   if (Notification.permission === "denied") return "denied";
   const reg = await navigator.serviceWorker.getRegistration(APP_PATH);

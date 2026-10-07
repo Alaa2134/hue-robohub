@@ -2,7 +2,7 @@
 /** Team accounts, my account, activity log and attendance reports. */
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { APP_PATH, ROLE_LABEL, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type AttStatus, type Role, type StaffRow, type Student } from "./core";
+import { APP_PATH, publicOrigin, ROLE_LABEL, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type AttStatus, type Role, type StaffRow, type Student } from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import {
   Avatar,
@@ -240,7 +240,7 @@ function MemberSheet({ member: m, me, onClose, onChanged, onCredentials }: { mem
 
 function CredentialsSheet({ creds, onClose }: { creds: Credentials | null; onClose: () => void }) {
   if (!creds) return null;
-  const url = `${window.location.origin}${APP_PATH}#/login/staff`;
+  const url = `${publicOrigin()}${APP_PATH}#/login/staff`;
   const msg = `أهلاً ${creds.name}\nحسابك على تطبيق BuildX HUE:\nالبريد: ${creds.email}\nكلمة المرور المؤقتة: ${creds.password}\n${url}\nغيّر كلمة المرور من «حسابي» بعد أول دخول.`;
   return (
     <Sheet open onClose={onClose} title="بيانات الدخول">

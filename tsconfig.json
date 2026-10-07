@@ -19,5 +19,5 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next/dev/types/**/*.ts"],
-  "exclude": ["node_modules", "load-tests", "supabase/functions"]
+  "exclude": ["node_modules", "load-tests", "supabase/functions", "mobile"]
 }

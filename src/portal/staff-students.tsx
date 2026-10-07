@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { APP_PATH, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { APP_PATH, isNative, openInBrowser, publicOrigin, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -34,7 +34,7 @@ import {
 
 export type PinItem = { id: string; code: string; name: string; group: string; pin: string };
 
-const loginUrl = (code?: string) => `${window.location.origin}${APP_PATH}#/login/student${code ? `?c=${encodeURIComponent(code)}` : ""}`;
+const loginUrl = (code?: string) => `${publicOrigin()}${APP_PATH}#/login/student${code ? `?c=${encodeURIComponent(code)}` : ""}`;
 
 export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchParams }) {
   const { list, error, loading, reload } = useStudents();
@@ -475,7 +475,7 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <Button icon="printer" onClick={() => setPrinting(true)}>
+            <Button icon="printer" onClick={() => (isNative() ? openInBrowser() : setPrinting(true))}>
               طباعة كروت
             </Button>
             <Button icon="copy" onClick={() => copyText(one ? msg : text)}>
@@ -533,7 +533,7 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
       window.removeEventListener("afterprint", after);
     };
   }, [qr, onDone]);
-  const host = `${window.location.host}${APP_PATH}`;
+  const host = `${publicOrigin().replace(/^https?:\/\//, "")}${APP_PATH}`;
   return createPortal(
     <div id="rh-print" dir="rtl">
       <style>{`#rh-print{display:none}@media print{body>*:not(#rh-print){display:none!important}#rh-print{display:block!important;color:#000;background:#fff}@page{margin:9mm}}`}</style>

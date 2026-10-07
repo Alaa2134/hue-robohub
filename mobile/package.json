@@ -1,0 +1,16 @@
+{
+  "name": "buildx-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BuildX HUE (students) and BuildX Team (staff): the BuildX App bundled as native Android and iOS apps with Capacitor.",
+  "type": "module",
+  "scripts": {
+    "bundle": "node ../scripts/build-native.mjs",
+    "sync": "npm run sync -w student && npm run sync -w team",
+    "icons": "node scripts/icons.mjs"
+  },
+  "workspaces": [
+    "student",
+    "team"
+  ]
+}

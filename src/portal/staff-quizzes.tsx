@@ -9,6 +9,7 @@ import {
   fmt,
   fromLocalInput,
   must,
+  publicOrigin,
   rpc,
   sb,
   toJpeg,
@@ -314,7 +315,7 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
           {quiz.closes_at ? ` · يغلق ${fmt.dateTime(quiz.closes_at)}` : ""}
         </p>
         {quiz.published && (
-          <Button size="sm" icon="link" onClick={() => copyText(`${window.location.origin}${APP_PATH}#/me/quiz/${id}`, "تم نسخ رابط الكويز")}>
+          <Button size="sm" icon="link" onClick={() => copyText(`${publicOrigin()}${APP_PATH}#/me/quiz/${id}`, "تم نسخ رابط الكويز")}>
             رابط للطلاب
           </Button>
         )}
