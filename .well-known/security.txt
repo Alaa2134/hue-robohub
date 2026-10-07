@@ -1,0 +1,5 @@
+# BuildX HUE — how to report a security problem with buildxhue.com or the BuildX App.
+Contact: mailto:alaa00saber@gmail.com
+Expires: 2027-10-01T00:00:00.000Z
+Preferred-Languages: ar, en
+Canonical: https://buildxhue.com/.well-known/security.txt

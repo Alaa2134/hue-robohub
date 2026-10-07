@@ -1,12 +1,6 @@
 User-Agent: *
 Allow: /
-Disallow: /command
-Disallow: /login
-Disallow: /setup
-Disallow: /forgot-password
-Disallow: /reset-password
-Disallow: /api/
-Disallow: /uploads/
+Disallow: /app/
 
 Host: https://buildxhue.com
 Sitemap: https://buildxhue.com/sitemap.xml
