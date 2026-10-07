@@ -88,7 +88,7 @@
 
 **ملاحظات للمراجع (بالإنجليزي، انسخها زي ما هي):**
 
-> BuildX HUE is the app of a student robotics & innovation community at Horus University (Egypt). Accounts are created by the community's training team; there is no in-app sign-up. Sign in with the demo account above. The camera is used only to scan attendance barcodes and event tickets (team app). Account deletion: users request it by email (see the privacy policy) because accounts are issued by the organisation.
+> BuildX HUE is the app of a student robotics & innovation community at Horus University (Egypt). Accounts are created by the community's training team; there is no in-app sign-up. Sign in with the demo account above. The camera is used only to scan attendance barcodes and event tickets (team app). Account deletion: in the app, Account → "حذف حسابي" (Delete my account) sends a deletion request; the owner carries it out within 30 days (accounts are issued by the organisation).
 
 ---
 

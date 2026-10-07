@@ -163,9 +163,19 @@ test("staff issue certificates to typed names and get a printable A4 page with a
   await page.getByRole("button", { name: "أسماء بإيدي" }).click();
   await page.getByLabel("الأسماء — اسم في كل سطر").fill("Mona Adel\n");
   await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
-  await expect(page.getByRole("button", { name: "طباعة / PDF" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "طباعة" })).toBeVisible();
   await expect(page.getByRole("img", { name: "QR BXC-1A2B3C4D" })).toBeVisible();
   expect(inserted).toEqual([[expect.objectContaining({ recipient_name: "Mona Adel", title: "Robotics Bootcamp 2026", hours: 24, kind: "completion", student_id: null })]]);
+  // The PDF is made in the page: one A4 landscape page with the certificate as an image.
+  const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "تحميل PDF" }).click()]);
+  expect(file.suggestedFilename()).toBe("certificate-BXC-1A2B3C4D.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf.startsWith("%PDF-1.4")).toBe(true);
+  expect(pdf).toContain("/Count 1");
+  expect(pdf).toContain("/MediaBox [0 0 841.89 595.28]");
+  expect(pdf).toMatch(/\/Width 2480 \/Height 175\d/);
+  expect(pdf.trimEnd().endsWith("%%EOF")).toBe(true);
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
   expect(errors).toEqual([]);
 });
 
@@ -328,4 +338,95 @@ test("photo upload still works when the site is opened over plain http (no crypt
   await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
   expect(uploads).toHaveLength(2);
   expect(uploads[0]).toMatch(/^u1\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.w\.webp$/);
+});
+
+test("a student asks to delete their account and the owner deletes it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  let pending = false;
+  let asked: unknown = null;
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home") return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_deletion_status") return route.fulfill({ json: pending ? { pending: true, at: at(0) } : { pending: false } });
+    if (fn === "student_request_deletion") {
+      asked = route.request().postDataJSON();
+      pending = true;
+      return route.fulfill({ json: { ok: true, at: at(0) } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByRole("button", { name: "حذف حسابي" }).click();
+  await page.getByRole("dialog").locator("textarea").fill("خلصت الكورس");
+  await page.getByRole("button", { name: "ابعت طلب الحذف" }).click();
+  await page.locator('[role="dialog"] button', { hasText: "ابعت الطلب" }).last().click();
+  await expect(page.getByText("طلب حذف حسابك اتبعت")).toBeVisible();
+  expect(asked).toEqual({ p_token: "a".repeat(64), p_reason: "خلصت الكورس" });
+  expect(errors).toEqual([]);
+});
+
+test("the owner carries out a deletion request from the dashboard", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_resolve_deletion = { ok: true };
+  await signInAsOwner(page, calls);
+  const request = { id: "d1", kind: "student", student_id: "s1", user_id: null, name: "Mona Adel", identifier: "S1", reason: "خلصت الكورس", status: "pending", created_at: at(60), handled_at: null };
+  await page.route(/\/rest\/v1\/deletion_requests/, (route) =>
+    route.request().method() === "HEAD"
+      ? route.fulfill({ status: 200, headers: { "content-range": "0-0/1", "access-control-expose-headers": "content-range" } })
+      : route.fulfill({ json: [request] }),
+  );
+  await page.goto("/app/#/staff");
+  await expect(page.getByText("فيه طلب حذف حساب مستني")).toBeVisible();
+  await page.goto("/app/#/staff/deletions");
+  await expect(page.getByText("خلصت الكورس")).toBeVisible();
+  await page.getByRole("button", { name: "احذف الحساب" }).click();
+  await page.locator('[role="dialog"] button', { hasText: "احذف نهائيًا" }).last().click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_resolve_deletion")?.body).toEqual({ p_request: "d1", p_approve: true });
+  expect(errors).toEqual([]);
+});
+
+test("the coach projects a rotating check-in QR for an open session", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_checkin_qr = { ok: true, window: 59712746, code: "0123456789ab", next_in: 12, count: 7 };
+  RPC.staff_checkin_stop = null;
+  await signInAsOwner(page, calls);
+  const session = { id: "11111111-2222-3333-4444-555555555555", title: "Session 6", group_name: "G1", starts_at: at(10), late_after_min: 15, closed_at: null, created_by: "u1", created_at: at(20), self_checkin: false };
+  await page.route(/\/rest\/v1\/attendance_sessions/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? session : [session] }));
+  await page.route(/\/rest\/v1\/attendance\?/, (route) => route.fulfill({ json: [] }));
+  await page.goto(`/app/#/staff/attendance/${session.id}`);
+  await page.getByRole("button", { name: /الطلاب يسجّلوا بنفسهم/ }).click();
+  await expect(page.getByRole("img", { name: "QR تسجيل الحضور" })).toBeVisible();
+  await expect(page.locator("span.font-mono", { hasText: "7" })).toBeVisible();
+  await page.getByRole("button", { name: "إيقاف التسجيل الذاتي" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_checkin_stop")?.body).toEqual({ p_session: session.id });
+  expect(errors).toEqual([]);
+});
+
+test("a student checks in from the projector QR link", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  let sent: unknown = null;
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_self_checkin") {
+      sent = route.request().postDataJSON();
+      return route.fulfill({ json: { result: "marked", title: "Session 6", status: "present", at: new Date().toISOString() } });
+    }
+    if (fn === "student_home") return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByText("سجّل حضوري")).toBeVisible();
+  await page.goto("/app/#/me/checkin?s=11111111-2222-3333-4444-555555555555&w=59712746&c=0123456789ab");
+  await expect(page.getByText("اتسجّل حضورك")).toBeVisible();
+  await expect(page.getByText("Session 6")).toBeVisible();
+  expect(sent).toEqual({ p_token: "a".repeat(64), p_session: "11111111-2222-3333-4444-555555555555", p_window: 59712746, p_code: "0123456789ab" });
+  expect(errors).toEqual([]);
 });

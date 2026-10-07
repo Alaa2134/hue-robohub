@@ -20,6 +20,8 @@ import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
 import { StudentsScreen } from "./staff-students";
 import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
+import { DeletionsScreen, pendingDeletions } from "./account-deletion";
+import { AppsSettingsScreen } from "./app-update";
 import { Badge, Button, Card, Icon, IconButton, List, Row, Section, Stat, go, useAsync, type IconKey } from "./ui";
 
 const TABS: Tab[] = [
@@ -102,6 +104,12 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
     case "errors":
       screen = <ErrorsScreen />;
       break;
+    case "apps":
+      screen = <AppsSettingsScreen me={me} />;
+      break;
+    case "deletions":
+      screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
+      break;
     case "more":
       screen = <MoreScreen me={me} />;
       break;
@@ -134,7 +142,8 @@ function StaffHome({ me }: { me: StaffRow }) {
       sb().from("quizzes").select("id", { count: "exact", head: true }).eq("published", true),
       newApplicationsCount().catch(() => 0),
     ]);
-    return { open: open as OpenSession[], week: week.count ?? 0, materials: materials.count ?? 0, quizzes: quizzes.count ?? 0, applications };
+    const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
+    return { open: open as OpenSession[], week: week.count ?? 0, materials: materials.count ?? 0, quizzes: quizzes.count ?? 0, applications, deletions };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
   const noPin = active.filter((s) => !s.hasPin).length;
@@ -180,6 +189,16 @@ function StaffHome({ me }: { me: StaffRow }) {
             {data.applications === 1 ? "فيه طلب انضمام جديد مستني المراجعة." : `فيه ${data.applications} طلبات انضمام جديدة مستنية المراجعة.`}
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/applications")}>
+            راجِع
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.deletions && (
+        <Card className="mt-4 flex items-center gap-3 border-danger/30 bg-danger/[0.06]">
+          <Icon name="trash" size={22} className="shrink-0 text-[#ff9aa5]" />
+          <p className="flex-1 text-sm text-mist">{data.deletions === 1 ? "فيه طلب حذف حساب مستني. المتاجر بتطلب تنفيذه خلال 30 يوم." : `فيه ${data.deletions} طلبات حذف حسابات مستنية. المتاجر بتطلب تنفيذها خلال 30 يوم.`}</p>
+          <Button size="sm" onClick={() => go("/staff/deletions")}>
             راجِع
           </Button>
         </Card>
@@ -268,6 +287,8 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
+    { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
+    { icon: "install", label: "التطبيقات (التحديث الإجباري ولينكات المتاجر)", to: "/staff/apps", show: me.role !== "lead" },
     { icon: "user", label: "حسابي وكلمة المرور", to: "/staff/account" },
     { icon: "lock", label: "التحقق بخطوتين (كود من الموبايل)", to: "/staff/2fa" },
   ];

@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
 import { APP_PATH, publicOrigin, ROLE_LABEL, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type AttStatus, type Role, type StaffRow, type Student } from "./core";
+import { DeleteAccountCard } from "./account-deletion";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import {
   Avatar,
@@ -30,7 +31,7 @@ import {
   useAsync,
 } from "./ui";
 
-async function staffAdmin(body: Record<string, unknown>) {
+export async function staffAdmin(body: Record<string, unknown>) {
   const { data, error } = await sb().functions.invoke("staff-admin", { body });
   if (error) {
     let code = "";
@@ -326,6 +327,7 @@ export function AccountScreen({ me, onProfile }: { me: StaffRow; onProfile: (s: 
       <Button variant="danger" icon="logout" className="mt-6" block onClick={() => sb().auth.signOut()}>
         تسجيل الخروج
       </Button>
+      {me.role !== "owner" && <DeleteAccountCard kind="staff" />}
     </>
   );
 }
