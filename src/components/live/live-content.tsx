@@ -414,3 +414,105 @@ export function LatestStrip({ locale, eventsHref, newsHref }: { locale: string; 
 }
 
 export type { ContentKind };
+
+/* ─── FAQ, testimonials, partners ──────────────────────────────────────── */
+
+/** Questions and answers published from the BuildX App (FAQ page). */
+export function LiveFaq({ locale, initial, fallback = [] }: { locale: string; initial?: SiteItem[]; fallback?: { q: string; a: string }[] }) {
+  const t = tr(locale);
+  const s = useLive(() => fetchContent("faq", 200), [], initial?.length ? initial : undefined);
+  if (!s.data && !s.failed) return <Skeleton n={3} />;
+  const list = s.data?.length ? s.data.map((q) => ({ id: q.id, q: titleOf(q, locale), a: bodyOf(q, locale) })) : fallback.map((f, i) => ({ id: `d${i}`, ...f }));
+  if (!list.length) return <Note>{s.failed ? t.error : t.empty}</Note>;
+  return (
+    <div className="mx-auto grid max-w-3xl gap-3">
+      {list.map((f, i) => (
+        <details key={f.id} open={i === 0} className="group rounded-[18px] border border-[var(--line-2)] bg-panel/60 open:border-cyan/40 open:bg-panel/80">
+          <summary className="flex cursor-pointer list-none items-center gap-4 px-5 py-4 text-start [&::-webkit-details-marker]:hidden">
+            <span className="t-title min-w-0 flex-1 text-lg text-chalk">{f.q}</span>
+            <Icon name="plus" size={18} className="shrink-0 text-cyan transition-transform duration-300 group-open:rotate-45" />
+          </summary>
+          <div className="whitespace-pre-line px-5 pb-5 text-[1.02rem] leading-relaxed text-mist">{f.a}</div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+/** Students' words about the community (home page; hidden until something is published). */
+export function LiveTestimonials({ locale, initial, title }: { locale: string; initial?: SiteItem[]; title: string }) {
+  const s = useLive(() => fetchContent("testimonial", 30), [], initial?.length ? initial : undefined);
+  if (!s.data?.length) return null;
+  return (
+    <section aria-labelledby="voices-title" className="mx-auto max-w-[1680px] px-5 py-20 sm:px-8 lg:py-28">
+      <h2 id="voices-title" className="t-display mb-10 text-[clamp(1.9rem,4.4vw,3.6rem)] text-chalk">
+        {title}
+      </h2>
+      <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {s.data.map((q) => (
+          <li key={q.id} className="flex flex-col gap-5 rounded-[20px] border border-[var(--line-2)] bg-panel/70 p-6">
+            <p className="text-pretty text-[1.05rem] leading-relaxed text-frost">“{summaryOf(q, locale)}”</p>
+            <div className="mt-auto flex items-center gap-3">
+              {q.image_path ? (
+                <img src={siteImageUrl(q.image_path, "thumb")} alt="" loading="lazy" decoding="async" className="size-11 rounded-full object-cover" />
+              ) : (
+                <span aria-hidden className="flex size-11 items-center justify-center rounded-full bg-gradient-to-br from-volt/60 to-cyan/40 font-bold text-white">
+                  {titleOf(q, locale).trim()[0]}
+                </span>
+              )}
+              <span className="min-w-0">
+                <span className="block font-semibold text-chalk">{titleOf(q, locale)}</span>
+                {resultOf(q, locale) && <span className="block text-sm text-fog">{resultOf(q, locale)}</span>}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Partner and sponsor logos (home strip and the sponsors page). */
+export function LivePartners({ locale, initial, title, variant = "strip", empty }: { locale: string; initial?: SiteItem[]; title?: string; variant?: "strip" | "grid"; empty?: ReactNode }) {
+  const t = tr(locale);
+  const s = useLive(() => fetchContent("partner", 60), [], initial?.length ? initial : undefined);
+  if (!s.data?.length) return variant === "grid" ? (empty ?? <Note>{t.empty}</Note>) : null;
+  const logo = (p: SiteItem) =>
+    p.image_path ? (
+      <img src={siteImageUrl(p.image_path, "thumb")} alt={titleOf(p, locale)} loading="lazy" decoding="async" className="h-12 w-full object-contain sm:h-14" />
+    ) : (
+      <span className="t-headline text-lg text-chalk">{titleOf(p, locale)}</span>
+    );
+  const items = (
+    <ul className={cn("grid gap-px overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--line)]", variant === "grid" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6")}>
+      {s.data.map((p) => {
+        const link = safeLink(p.url);
+        const inner = (
+          <>
+            {logo(p)}
+            {variant === "grid" && resultOf(p, locale) && <span className="mt-3 text-xs text-fog">{resultOf(p, locale)}</span>}
+          </>
+        );
+        const cls = "flex h-full flex-col items-center justify-center bg-void p-6 text-center transition-colors hover:bg-panel/50";
+        return (
+          <li key={p.id}>
+            {link ? (
+              <a href={link} target="_blank" rel="noopener noreferrer" className={cls}>
+                {inner}
+              </a>
+            ) : (
+              <div className={cls}>{inner}</div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+  if (variant === "grid") return items;
+  return (
+    <section aria-label={title} className="mx-auto max-w-[1680px] px-5 pb-20 sm:px-8">
+      {title && <p className="t-eyebrow mb-5 text-fog">{title}</p>}
+      {items}
+    </section>
+  );
+}

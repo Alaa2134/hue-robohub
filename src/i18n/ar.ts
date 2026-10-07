@@ -3,6 +3,7 @@ import type { Dictionary } from "./en";
 const ar: Dictionary = {
   meta: { skip: "تخطَّ إلى المحتوى" },
   nav: {
+    faq: "الأسئلة الشائعة",
     competitions: "المنافسات",
     brand: "الهوية",
     privacy: "الخصوصية",

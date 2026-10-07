@@ -15,6 +15,9 @@ import { art } from "@/lib/media-library";
 import { resolvePage, type Params } from "@/lib/page";
 import { pageMeta } from "@/lib/seo";
 import { getSponsors } from "@/server/queries/public";
+import { LivePartners } from "@/components/live/live-content";
+import { buildItems } from "@/lib/build-content";
+import { STATIC_SITE } from "@/lib/deploy";
 
 export const revalidate = 3600;
 
@@ -32,7 +35,8 @@ const TIER_STYLE: Record<string, { c: string; icon: "diamond" | "award" | "troph
 
 export default async function Sponsors({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
-  const sponsors = await getSponsors();
+  const sponsors = STATIC_SITE ? [] : await getSponsors();
+  const partners = STATIC_SITE ? await buildItems("partner") : [];
   return (
     <>
       <PageHero
@@ -76,7 +80,9 @@ export default async function Sponsors({ params }: Params) {
       <Band>
         <SectionHead index="03" eyebrow={p.sponsors.current} title={t.home.sponsorsEyebrow} size="md" />
         <div className="mt-12">
-          {sponsors.length ? (
+          {STATIC_SITE ? (
+            <LivePartners locale={locale} initial={partners} variant="grid" empty={<EmptyState icon="handshake" title={p.sponsors.current} body={t.sponsors.empty} action={<ButtonLink href={href("/contact")} variant="primary" size="sm" arrow>{p.sponsors.cta}</ButtonLink>} />} />
+          ) : sponsors.length ? (
             <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--line)] md:grid-cols-4">
               {sponsors.map((sp) => {
                 const site = safeHref(sp.website);

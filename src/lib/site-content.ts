@@ -1,7 +1,7 @@
 /** Website content the team publishes from the app (events, news, projects, gallery, achievements). */
 import { SUPABASE_KEY, SUPABASE_URL } from "./supabase-public";
 
-export type ContentKind = "event" | "post" | "project" | "photo" | "achievement";
+export type ContentKind = "event" | "post" | "project" | "photo" | "achievement" | "faq" | "testimonial" | "partner";
 
 export type SiteItem = {
   id: string;
@@ -28,6 +28,7 @@ export type SiteItem = {
   sort_order: number;
   created_at: string;
   updated_at?: string;
+  publish_at?: string | null;
   created_by?: string | null;
 };
 
@@ -52,6 +53,9 @@ const ORDER: Record<ContentKind, string> = {
   project: "pinned.desc,sort_order.asc,created_at.desc",
   photo: "starts_at.desc.nullslast,created_at.desc",
   achievement: "starts_at.desc.nullslast,created_at.desc",
+  faq: "sort_order.asc,created_at.asc",
+  testimonial: "pinned.desc,sort_order.asc,created_at.desc",
+  partner: "sort_order.asc,created_at.asc",
 };
 
 async function rest<T>(q: string): Promise<T> {
@@ -99,20 +103,20 @@ export async function searchLive(term: string, locale: Loc, limit = 6): Promise<
   const like = encodeURIComponent(`*${q}*`);
   const or = (cols: string[]) => `or=(${cols.map((c) => `${c}.ilike.${like}`).join(",")})`;
   const [items, people] = await Promise.all([
-    rest<SiteItem[]>(`site_content?select=id,kind,slug,title,title_ar,summary,summary_ar,starts_at,created_at&published=eq.true&kind=neq.photo&${or(["title", "title_ar", "summary", "summary_ar"])}&order=created_at.desc&limit=${limit * 2}`),
+    rest<SiteItem[]>(`site_content?select=id,kind,slug,title,title_ar,summary,summary_ar,starts_at,created_at&published=eq.true&kind=not.in.(photo,testimonial,partner)&${or(["title", "title_ar", "summary", "summary_ar"])}&order=created_at.desc&limit=${limit * 2}`),
     rest<{ slug: string; full_name: string; full_name_ar: string | null; headline: string; headline_ar: string | null; external_url: string | null }[]>(
       `team_profiles?select=slug,full_name,full_name_ar,headline,headline_ar,external_url&published=eq.true&${or(["full_name", "full_name_ar", "headline", "headline_ar"])}&limit=${limit}`,
     ),
   ]);
-  const SECTION = { post: "/news", project: "/projects", event: "/events", achievement: "/achievements", photo: "/gallery" } as const;
-  const TYPE = { post: "article", project: "project", event: "event", achievement: "achievement", photo: "article" } as const;
+  const SECTION: Record<ContentKind, string> = { post: "/news", project: "/projects", event: "/events", achievement: "/achievements", photo: "/gallery", faq: "/faq", testimonial: "/", partner: "/sponsors" };
+  const TYPE: Record<ContentKind, SearchHit["type"]> = { post: "article", project: "project", event: "event", achievement: "achievement", photo: "article", faq: "article", testimonial: "article", partner: "article" };
   return [
     ...people.map((p) => ({ type: "member" as const, title: pickL(p.full_name, p.full_name_ar, locale), subtitle: pickL(p.headline, p.headline_ar, locale), href: safeLink(p.external_url) ?? `/team/${p.slug}` })),
     ...items.map((i) => ({
       type: TYPE[i.kind],
       title: titleOf(i, locale),
       subtitle: i.kind === "event" ? fmtDate(i.starts_at, locale) : summaryOf(i, locale),
-      href: i.slug && i.kind !== "achievement" ? `${SECTION[i.kind]}/${i.slug}` : SECTION[i.kind],
+      href: i.slug && ["post", "project", "event"].includes(i.kind) ? `${SECTION[i.kind]}/${i.slug}` : SECTION[i.kind],
     })),
   ].slice(0, limit * 2);
 }
