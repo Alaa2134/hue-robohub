@@ -690,6 +690,35 @@ html.lenis body {
   }
 }
 
+/* Endless marquee: the track holds two identical halves and slides by one half, so the seam never shows. */
+.marquee {
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+.marquee-track {
+  animation: marquee 32s linear infinite;
+}
+[dir="rtl"] .marquee-track {
+  animation-name: marquee-rtl;
+}
+.marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+@keyframes marquee-rtl {
+  to {
+    transform: translate3d(50%, 0, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
 /* Skip link */
 .skip-link {
   position: fixed;
