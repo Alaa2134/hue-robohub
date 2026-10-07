@@ -70,27 +70,30 @@ function MemberCard({ p, locale, href, big }: { p: TeamProfile; locale: string; 
       {body}
     </a>
   ) : (
-    <Link href={`${href}?u=${encodeURIComponent(p.slug)}`} className={cls}>
+    <Link href={`${href}${encodeURIComponent(p.slug)}/`} className={cls}>
       {body}
     </Link>
   );
 }
 
-/** Live team directory (published portfolios). `founders` shows only the founding team. */
-export function TeamDirectory({ locale, memberHref, variant = "full" }: { locale: string; memberHref: string; variant?: "full" | "founders" }) {
+/**
+ * Live team directory (published portfolios). `founders` shows only the founding team. `memberHref` is
+ * the team page ("/team/"): portfolios live at /team/<slug>/. `initial` is the list read at build time.
+ */
+export function TeamDirectory({ locale, memberHref, variant = "full", initial }: { locale: string; memberHref: string; variant?: "full" | "founders"; initial?: TeamProfile[] }) {
   const t = T[locale === "ar" ? "ar" : "en"];
-  const [list, setList] = useState<TeamProfile[] | null>(null);
+  const [list, setList] = useState<TeamProfile[] | null>(initial?.length ? initial : null);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     fetchTeam()
       .then((r) => alive && setList(r))
-      .catch(() => alive && setFailed(true));
+      .catch(() => alive && !initial?.length && setFailed(true));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [initial]);
 
   if (failed) return variant === "full" ? <p className="rounded-xl border border-[var(--line)] p-6 text-center text-mist">{t.error}</p> : null;
   if (!list)

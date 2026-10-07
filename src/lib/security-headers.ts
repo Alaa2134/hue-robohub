@@ -36,3 +36,16 @@ export function publicCsp(dev: boolean, mediaBase?: string) {
 export function privateCsp(nonce: string, dev: boolean, mediaBase?: string) {
   return [...common(dev, mediaBase), `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`].join("; ");
 }
+
+/**
+ * Policy for the static (GitHub Pages) site, delivered as a <meta> tag because Pages can't set
+ * headers: same lock-down, plus the Supabase project the pages read published content from.
+ * (frame-ancestors only works as a header, so it is left out here.)
+ */
+export function staticSiteCsp(supabaseUrl: string) {
+  const supabase = supabaseUrl.replace(/\/+$/, "");
+  return [
+    ...common(false, supabase).filter((d) => !d.startsWith("frame-ancestors")),
+    "script-src 'self' 'unsafe-inline'",
+  ].join("; ");
+}

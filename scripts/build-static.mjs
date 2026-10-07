@@ -11,6 +11,7 @@
 import { execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { contentVersion } from "./content-version.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const work = path.join(root, ".static-build");
@@ -18,6 +19,9 @@ const out = path.join(root, "out-static");
 const base = (process.env.BASE_PATH ?? "").replace(/\/+$/, "");
 const site = (process.env.SITE_URL ?? `https://alaa2134.github.io${base}`).replace(/\/+$/, "");
 const log = (m) => console.log(`[static] ${m}`);
+
+// Fingerprint the published content before reading it, so an edit made mid-build triggers the next run.
+const version = await contentVersion().catch(() => "unknown");
 
 // 0. Self-hosted barcode reader for the RoboHub App (public/app/zxing_reader.wasm).
 execSync("node scripts/app-assets.mjs", { cwd: root, stdio: "inherit" });
@@ -43,6 +47,12 @@ for (const p of [
   "src/app/[locale]/news/[slug]",
 ])
   rmSync(path.join(work, p), { recursive: true, force: true });
+
+// 2b. Static-only pages take their place: one page per published member, post, project and event,
+// read from Supabase at build time (src/static-routes).
+const staticRoutes = path.join(work, "src/static-routes");
+for (const d of readdirSync(staticRoutes).filter((d) => statSync(path.join(staticRoutes, d)).isDirectory()))
+  cpSync(path.join(staticRoutes, d), path.join(work, "src/app/[locale]", d), { recursive: true });
 
 // 3. Server actions become inert (static pages render notices instead of forms).
 writeFileSync(
@@ -109,6 +119,33 @@ if (existsSync(en)) {
   rmSync(en, { recursive: true, force: true });
 }
 
+// 6a. GitHub Pages serves /404.html for every missing URL: use the site's own 404 page (it forwards
+// clean URLs of items published after this build to their live pages).
+if (existsSync(path.join(out, "lost/index.html"))) {
+  renameSync(path.join(out, "lost/index.html"), path.join(out, "404.html"));
+  for (const d of [path.join(out, "lost"), path.join(out, "ar/lost"), path.join(out, "404")]) rmSync(d, { recursive: true, force: true });
+}
+
+// 6a'. A section with nothing published yet only builds its "_" placeholder (an export needs one path).
+for (const sec of ["team", "news", "projects", "events"]) for (const l of ["", "ar"]) rmSync(path.join(out, l, sec, "_"), { recursive: true, force: true });
+
+// 6b. Arabic pages preload the Arabic fonts instead of the Latin ones: their text is set in Kufi and
+// Plex, and late Arabic fonts made the first view reflow on phones.
+{
+  const media = readdirSync(path.join(out, "_next/static/media"));
+  const ar = ["kufi_var", "plex_arabic_400"].map((n) => media.find((f) => f.startsWith(n) && f.endsWith(".woff2"))).filter(Boolean);
+  const latin = /<link rel="preload" href="([^"]*\/_next\/static\/media\/)(?:inter_var|saira_var)[^"]*" as="font"[^>]*>/g;
+  let n = 0;
+  if (ar.length === 2 && existsSync(path.join(out, "ar")))
+    for (const f of walk(path.join(out, "ar")).filter((f) => f.endsWith(".html"))) {
+      const s = readFileSync(f, "utf8");
+      let i = 0;
+      const t = s.replace(latin, (_m, dir) => (i < ar.length ? `<link rel="preload" href="${dir}${ar[i++]}" as="font" crossorigin="" type="font/woff2"/>` : ""));
+      if (t !== s) (writeFileSync(f, t), n++);
+    }
+  log(`arabic font preloads in ${n} pages`);
+}
+
 // 7. Project sites live under /<repo>: prefix root-relative media and brand URLs that are plain strings.
 if (base) {
   const re = /(["'(\s,=])\/(media|brand)\//g;
@@ -126,6 +163,8 @@ const sw = path.join(out, "app/sw.js");
 if (existsSync(sw)) writeFileSync(sw, readFileSync(sw, "utf8").replace("__BUILD_ID__", Date.now().toString(36)));
 
 writeFileSync(path.join(out, ".nojekyll"), "");
+// What the scheduled deploy compares against to decide whether published content changed.
+writeFileSync(path.join(out, "content-version.txt"), `${version}\n`);
 // Custom domain for GitHub Pages (the CNAME file is what binds the domain to the gh-pages branch).
 if (process.env.CNAME) writeFileSync(path.join(out, "CNAME"), `${process.env.CNAME.trim()}\n`);
 log(`done → ${path.relative(root, out)}`);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildTeam } from "@/lib/build-content";
 import { Band } from "@/components/pages/section";
 import { FilterGrid } from "@/components/pages/filter-grid";
 import { OrgMap } from "@/components/pages/org-map";
@@ -29,7 +30,7 @@ export default async function Team({ params }: Params) {
       <>
         <PageHero eyebrow={t.team.eyebrow} title={t.team.title} body={t.team.body} image={art("team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.team }]} />
         <Band>
-          <TeamDirectory locale={locale} memberHref={`${href("/team/member")}/`} />
+          <TeamDirectory locale={locale} memberHref={`${href("/team")}/`} initial={await buildTeam()} />
         </Band>
       </>
     );

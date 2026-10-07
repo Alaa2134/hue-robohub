@@ -1,20 +1,42 @@
 # Builds the static site and publishes it to gh-pages (served at https://buildxhue.com).
+# Also runs every 30 minutes: when the team has published or changed something in the BuildX App,
+# the site is rebuilt so the new members, posts, projects and events get their own pages.
 name: Deploy site
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: write
 
 concurrency:
   group: deploy-site
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'schedule'
+      - id: check
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          now=$(node scripts/content-version.mjs)
+          live=$(curl -fsS "https://raw.githubusercontent.com/${{ github.repository }}/gh-pages/content-version.txt" || echo none)
+          echo "published content: $now · live site: $live"
+          if [ "$now" != "unknown" ] && [ "$now" != "$live" ]; then echo "build=true" >> "$GITHUB_OUTPUT"; else echo "build=false" >> "$GITHUB_OUTPUT"; fi
+
   deploy:
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,6 +53,7 @@ jobs:
         env:
           CNAME: buildxhue.com
           SITE_URL: https://buildxhue.com
+          GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
       - name: Smoke tests
         run: |
           npx playwright install --with-deps chromium

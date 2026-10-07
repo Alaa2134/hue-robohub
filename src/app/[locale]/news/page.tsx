@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildItems } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveList } from "@/components/live/live-content";
 import Link from "next/link";
@@ -17,7 +18,7 @@ export const revalidate = 900;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/news", title: t.news.title, image: art("team_env", "hero")?.og });
+  return pageMeta({ locale, path: "/news", title: t.news.title, description: t.news.body, image: art("team_env", "hero")?.og });
 }
 
 export default async function News({ params }: Params) {
@@ -27,7 +28,7 @@ export default async function News({ params }: Params) {
       <>
         <PageHero eyebrow={t.news.eyebrow} title={t.news.title} image={art("team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.news }]} size="md" />
         <Band>
-          <LiveList kind="post" locale={locale} href={`${href("/news/post")}/`} />
+          <LiveList kind="post" locale={locale} href={`${href("/news")}/`} initial={await buildItems("post")} />
         </Band>
       </>
     );

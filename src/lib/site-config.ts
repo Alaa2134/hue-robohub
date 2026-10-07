@@ -59,7 +59,7 @@ export type RecruitmentConfig = {
   closedMessage: Localized;
 };
 
-export type SeoConfig = { description: string; keywords: string[] };
+export type SeoConfig = { description: string; descriptionAr?: string; keywords: string[] };
 
 export type SiteConfig = {
   "site.hero": HeroConfig;
@@ -157,7 +157,9 @@ export const defaultSiteConfig: SiteConfig = {
   "site.seo": {
     description:
       "BuildX HUE is a student-led innovation and robotics community at Horus University – Egypt. Join a track — robotics, AI, software, IoT, 3D design, media or business — build real projects and compete.",
-    keywords: ["BuildX HUE", "robotics", "Horus University", "AI", "IoT", "student community", "Egypt"],
+    descriptionAr:
+      "BuildX HUE مجتمع طلابي للابتكار والروبوتات في جامعة حورس – مصر. اختار مسارك — روبوتات، ذكاء اصطناعي، برمجة، إنترنت الأشياء، تصميم 3D، ميديا أو بيزنس — واتعلّم وابني مشاريع حقيقية ونافس.",
+    keywords: ["BuildX HUE", "robotics", "Horus University", "AI", "IoT", "student community", "Egypt", "روبوتات", "جامعة حورس", "ذكاء اصطناعي", "مجتمع طلابي", "دمياط الجديدة"],
   },
 };
 

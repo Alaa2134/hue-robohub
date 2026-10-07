@@ -12,7 +12,12 @@ import { MENU_GROUPS } from "@/components/site/nav";
 import { dirOf, getDictionary, isLocale, LOCALES, type Locale } from "@/i18n";
 import { fontVariables } from "@/lib/fonts";
 import { art, artUrl } from "@/lib/media-library";
-import { pageMeta, SITE_URL } from "@/lib/seo";
+import { HOME_TITLE, pageMeta, SITE_URL } from "@/lib/seo";
+import { campus, ORG_ID } from "@/lib/structured-data";
+import { JsonLd } from "@/components/seo/json-ld";
+import { STATIC_SITE } from "@/lib/deploy";
+import { staticSiteCsp } from "@/lib/security-headers";
+import { SUPABASE_URL } from "@/lib/supabase-public";
 import { getSiteConfig, getTeams, getTracks } from "@/server/queries/public";
 
 export function generateStaticParams() {
@@ -34,8 +39,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const config = await getSiteConfig();
   return {
     metadataBase: new URL(SITE_URL),
-    title: { default: "BuildX HUE — Student Innovation & Robotics Community", template: "%s — BuildX HUE" },
-    description: config["site.seo"].description,
+    title: { default: HOME_TITLE[locale], template: "%s — BuildX HUE" },
+    description: (locale === "ar" && config["site.seo"].descriptionAr) || config["site.seo"].description,
     keywords: config["site.seo"].keywords,
     applicationName: "BuildX HUE",
     icons: {
@@ -48,7 +53,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     manifest: "/manifest.webmanifest",
     appleWebApp: { capable: true, title: "BuildX HUE", statusBarStyle: "black-translucent" },
     formatDetection: { telephone: false },
-    ...pageMeta({ locale, path: "/", description: config["site.seo"].description }),
+    // Search Console ownership (set GOOGLE_SITE_VERIFICATION, or verify the domain with a DNS record).
+    ...(process.env.GOOGLE_SITE_VERIFICATION ? { verification: { google: process.env.GOOGLE_SITE_VERIFICATION } } : {}),
+    ...pageMeta({ locale, path: "/", description: (locale === "ar" && config["site.seo"].descriptionAr) || config["site.seo"].description }),
   };
 }
 
@@ -85,19 +92,25 @@ export default async function SiteLayout({ children, params }: { children: React
   const org = {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": ORG_ID,
     name: "BuildX HUE",
-    alternateName: "BuildX HUE — Student Innovation & Robotics Community",
-    url: SITE_URL,
+    alternateName: ["BuildX HUE — Student Innovation & Robotics Community", "بيلد إكس حورس"],
+    url: `${SITE_URL}/`,
     logo: `${SITE_URL}/brand/icon-512.png`,
     slogan: "Build • Innovate • Compete",
-    description: config["site.seo"].description,
+    description: (locale === "ar" && config["site.seo"].descriptionAr) || config["site.seo"].description,
+    address: campus.address,
+    parentOrganization: { "@type": "CollegeOrUniversity", name: "Horus University – Egypt", url: "https://www.horus.edu.eg/" },
     sameAs: Object.values(config["site.socials"]).filter((v) => /^https?:\/\//.test(v)),
   };
+  const website = { "@context": "https://schema.org", "@type": "WebSite", "@id": `${SITE_URL}/#website`, name: "BuildX HUE", url: `${SITE_URL}/`, inLanguage: ["en", "ar"], publisher: { "@id": ORG_ID } };
 
   return (
     <html lang={locale} dir={dirOf(locale)} className={fontVariables} suppressHydrationWarning>
       <head>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(org).replace(/</g, "\\u003c") }} />
+        {STATIC_SITE && <meta httpEquiv="Content-Security-Policy" content={staticSiteCsp(SUPABASE_URL)} />}
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        <JsonLd data={[org, website]} />
       </head>
       <body>
         <a href="#main" className="skip-link">

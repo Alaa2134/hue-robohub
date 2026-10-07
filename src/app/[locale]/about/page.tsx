@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { buildTeam } from "@/lib/build-content";
+import { STATIC_SITE } from "@/lib/deploy";
 import { Icon, type IconName } from "@/components/brand/icons";
 import { Reveal } from "@/components/motion/reveal";
 import { Tilt } from "@/components/motion/tilt";
@@ -91,7 +93,7 @@ export default async function About({ params }: Params) {
         <StructureSection locale={locale} index="04" />
         <div className="mx-auto max-w-[1680px] px-5 pb-12 sm:px-8">
           <h3 className="t-headline mb-6 text-2xl text-chalk">{locale === "ar" ? "الفريق المؤسس" : "Founding team"}</h3>
-          <TeamDirectory locale={locale} memberHref={`${href("/team/member")}/`} variant="founders" />
+          <TeamDirectory locale={locale} memberHref={`${href("/team")}/`} variant="founders" initial={STATIC_SITE ? await buildTeam() : undefined} />
         </div>
         <div className="mx-auto flex max-w-[1680px] flex-wrap gap-3 px-5 pb-20 sm:px-8 lg:pb-28">
           <ButtonLink href={href("/join")} variant="primary" arrow>

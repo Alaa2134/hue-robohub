@@ -150,7 +150,10 @@ export function Garage({ teams, labels }: { teams: GarageTeam[]; labels: { specs
                 </dl>
               )}
               <Link href={team.href} className="enter btn btn-sm mt-6" style={{ ["--d" as string]: "320ms" }}>
-                <span>{labels.open}</span>
+                <span>
+                  {labels.open}
+                  <span className="sr-only"> — {team.name}</span>
+                </span>
                 <Icon name="arrow" size={15} className="btn-arrow" />
               </Link>
             </div>

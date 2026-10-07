@@ -26,7 +26,7 @@ export default async function Events({ params }: Params) {
       <PageHero eyebrow={t.events.eyebrow} title={t.events.title} body={t.events.body} image={art("arena", "team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.events }]} size="md" />
       {STATIC_SITE && (
         <Band tight>
-          <LiveEvents locale={locale} />
+          <LiveEvents locale={locale} href={`${href("/events")}/`} />
         </Band>
       )}
       {upcoming.length > 0 && (

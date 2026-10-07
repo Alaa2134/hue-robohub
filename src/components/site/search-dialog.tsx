@@ -1,5 +1,6 @@
 "use client";
 import { STATIC_SITE } from "@/lib/deploy";
+import { searchLive } from "@/lib/site-content";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon, type IconName } from "@/components/brand/icons";
@@ -20,6 +21,7 @@ const TYPE_ICON: Record<string, IconName> = {
   event: "calendar",
   article: "news",
   resource: "book",
+  achievement: "trophy",
 };
 
 function norm(s: string) {
@@ -49,25 +51,32 @@ export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictiona
 
   useEffect(() => {
     const term = q.trim();
-    if (term.length < 2 || STATIC_SITE) {
+    if (term.length < 2) {
       setRemote([]);
       setLoading(false);
       return;
     }
     const ctl = new AbortController();
+    let alive = true;
     setLoading(true);
     const id = setTimeout(() => {
-      fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: ctl.signal })
-        .then((r) => (r.ok ? r.json() : { results: [] }))
-        .then((d: { results?: Hit[] }) => setRemote(d.results ?? []))
+      // The static site searches the content published from the BuildX App straight from Supabase.
+      const load: Promise<Hit[]> = STATIC_SITE
+        ? searchLive(term, locale)
+        : fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: ctl.signal })
+            .then((r) => (r.ok ? r.json() : { results: [] }))
+            .then((d: { results?: Hit[] }) => d.results ?? []);
+      load
+        .then((r) => alive && setRemote(r))
         .catch(() => {})
-        .finally(() => setLoading(false));
-    }, 160);
+        .finally(() => alive && setLoading(false));
+    }, STATIC_SITE ? 250 : 160);
     return () => {
+      alive = false;
       clearTimeout(id);
       ctl.abort();
     };
-  }, [q]);
+  }, [q, locale]);
 
   const local = useMemo(() => {
     const term = norm(q.trim());

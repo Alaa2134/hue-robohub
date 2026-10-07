@@ -617,21 +617,22 @@ html.lenis body {
 .grain::after {
   content: "";
   position: absolute;
-  inset: -50%;
+  inset: 0;
   pointer-events: none;
   z-index: 1;
   opacity: 0.09;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.4 -.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Moves the texture, not the box: a moving box counts as layout shift every time fonts swap in. */
   animation: grain 0.9s steps(6) infinite;
   mix-blend-mode: overlay;
 }
 @keyframes grain {
-  0% { transform: translate(0, 0); }
-  20% { transform: translate(-6%, 4%); }
-  40% { transform: translate(5%, -7%); }
-  60% { transform: translate(-3%, 8%); }
-  80% { transform: translate(7%, 2%); }
-  100% { transform: translate(-4%, -5%); }
+  0% { background-position: 0 0; }
+  20% { background-position: -13px 9px; }
+  40% { background-position: 11px -15px; }
+  60% { background-position: -7px 18px; }
+  80% { background-position: 15px 4px; }
+  100% { background-position: -9px -11px; }
 }
 
 .scanlines {

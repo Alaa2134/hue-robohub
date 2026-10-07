@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildItems } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveAchievements } from "@/components/live/live-content";
 import Link from "next/link";
@@ -29,7 +30,7 @@ export default async function Achievements({ params }: Params) {
       <>
         <PageHero eyebrow={t.achievements.eyebrow} title={t.achievements.title} body={t.achievements.body} image={art("trophy", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.achievements }]} size="md" />
         <Band>
-          <LiveAchievements locale={locale} />
+          <LiveAchievements locale={locale} initial={await buildItems("achievement")} />
         </Band>
       </>
     );

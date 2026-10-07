@@ -80,6 +80,7 @@ const en = {
     cta3: "Command Center",
     scroll: "Scroll",
     telemetry: "System telemetry",
+    statsLabel: "BuildX HUE in numbers",
   },
   home: {
     storyEyebrow: "From idea to podium",
@@ -244,9 +245,9 @@ const en = {
     direct: "Direct",
   },
   bootcamp: { eyebrow: "Bootcamp", title: "BuildX Robotics Bootcamp", body: "Six weeks, one robot. A hands-on program that turns new members into builders — ending with the BuildX Internal Challenge.", week: "Week", final: "Final", outcomes: "Outcomes", lessons: "Sessions", sessions: "Upcoming sessions", apply: "Apply for the next cohort" },
-  news: { eyebrow: "News", title: "Lab notes & announcements", empty: "No posts published yet.", by: "By" },
+  news: { eyebrow: "News", title: "Lab notes & announcements", body: "News and announcements from BuildX HUE — workshops, competitions, projects and what the team is building at Horus University.", empty: "No posts published yet.", by: "By" },
   resources: { eyebrow: "Resources", title: "Learning resources", body: "Curated guides, datasheets, repositories and courses recommended by our leads.", empty: "Resources will be published here." },
-  search: { title: "Search", placeholder: "Search members, projects, events…", hint: "Type at least two characters.", empty: "Nothing matched your search.", types: { member: "Member", project: "Project", event: "Event", article: "Article", resource: "Resource" } },
+  search: { title: "Search", placeholder: "Search pages, tracks, people, news, events…", hint: "Type at least two characters.", empty: "Nothing matched your search.", types: { member: "Member", project: "Project", event: "Event", article: "Article", resource: "Resource", achievement: "Achievement", page: "Page", track: "Track", team: "Team" } },
   footer: {
     tagline: "Student Innovation & Robotics Community at Horus University. Build • Innovate • Compete.",
     navigation: "Navigation",

@@ -27,7 +27,13 @@ export const fontMono = localFont({
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 });
 
-/** Arabic display: Noto Kufi Arabic (geometric kufi pairs with Saira). */
+/**
+ * Arabic display: Noto Kufi Arabic (geometric kufi pairs with Saira). Subset to Arabic, Arabic
+ * Supplement/Extended-A, Latin-1 and punctuation with every layout feature kept (124 → 72 KB):
+ *   pyftsubset kufi-var.woff2 --unicodes="U+0000-00FF,U+0131,U+0152-0153,U+02C6,U+02DA,U+02DC,U+0600-06FF,
+ *     U+0750-077F,U+08A0-08FF,U+200C-200F,U+2010-2027,U+2030-205E,U+20AC,U+2122,U+2190-2199,U+2212,U+25CC,
+ *     U+FD3E-FD3F" --layout-features='*' --flavor=woff2
+ */
 export const fontArabicDisplay = localFont({
   src: [{ path: "../fonts/kufi-var.woff2", weight: "100 900", style: "normal" }],
   variable: "--font-kufi",
