@@ -475,7 +475,7 @@ export function LiveTestimonials({ locale, initial, title }: { locale: string; i
 }
 
 /** Partner and sponsor logos (home strip and the sponsors page). */
-export function LivePartners({ locale, initial, title, variant = "strip", empty }: { locale: string; initial?: SiteItem[]; title?: string; variant?: "strip" | "grid"; empty?: ReactNode }) {
+export function LivePartners({ locale, initial, title, variant = "strip", empty, id }: { locale: string; initial?: SiteItem[]; title?: string; variant?: "strip" | "grid"; empty?: ReactNode; id?: string }) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("partner", 60), [], initial?.length ? initial : undefined);
   if (!s.data?.length) return variant === "grid" ? (empty ?? <Note>{t.empty}</Note>) : null;
@@ -512,7 +512,7 @@ export function LivePartners({ locale, initial, title, variant = "strip", empty 
   );
   if (variant === "grid") return items;
   return (
-    <section aria-label={title} className="mx-auto max-w-[1680px] px-5 pb-20 sm:px-8">
+    <section id={id} aria-label={title} className="mx-auto max-w-[1680px] px-5 pb-20 sm:px-8">
       {title && <p className="t-eyebrow mb-5 text-fog">{title}</p>}
       {items}
     </section>

@@ -972,3 +972,27 @@ html[data-intro="play"] .hero-lock-label {
 [class*="text-[0.6"] {
   font-size: 0.75rem !important;
 }
+
+/* BuildX guide (components/mascot) */
+@keyframes mascot-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mascot-bubble-in {
+  animation: mascot-pop-in 0.35s var(--ease-out-expo) both;
+}
+.mascot-menu-in {
+  animation: mascot-pop-in 0.3s var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-bubble-in,
+  .mascot-menu-in {
+    animation: none;
+  }
+}
