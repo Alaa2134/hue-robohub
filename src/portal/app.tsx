@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { APP_PATH, BASE_PATH, asciiDigits, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
 import { BrandLine, InstallCard } from "./shell";
 import { StaffApp } from "./staff";
+import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute, type IconKey } from "./ui";
 
@@ -30,6 +31,7 @@ export default function PortalApp() {
   const [mounted, setMounted] = useState(false);
   const [staff, setStaff] = useState<StaffRow | null | undefined>(undefined);
   const [noAccess, setNoAccess] = useState<string | null>(null);
+  const [gate, setGate] = useState<MfaGateMode | null>(null);
   const [student, setStudent] = useState<StudentSession | null>(null);
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function PortalApp() {
       const { data, error } = await sb().from("staff").select("*").eq("user_id", userId).maybeSingle();
       if (error) throw error;
       if (data?.active) {
+        setGate(await mfaNeeded().catch(() => null));
         setStaff(data as StaffRow);
         setNoAccess(null);
         writeStaffCache(data as StaffRow);
@@ -97,6 +100,7 @@ export default function PortalApp() {
       });
     const { data } = sb().auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
+        setGate(null);
         setStaff(null);
         setNoAccess(null);
         writeStaffCache(null);
@@ -115,7 +119,8 @@ export default function PortalApp() {
 
   const [head, ...rest] = route.path;
   let screen: ReactNode;
-  if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login/staff" />;
+  if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
+  else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login/staff" />;
   else if (head === "me") screen = student ? <StudentApp session={student} path={rest} /> : <Redirect to="/login/student" />;
   else if (head === "login" && rest[0] === "staff") screen = staff ? <Redirect to="/staff" /> : <StaffLogin noAccess={noAccess} />;
   else if (head === "login") screen = student ? <Redirect to="/me" /> : <StudentLogin initialCode={route.query.get("c") ?? ""} />;
