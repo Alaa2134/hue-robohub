@@ -56,4 +56,24 @@ export const fontArabic = localFont({
   fallback: ["Tahoma", "sans-serif"],
 });
 
+/** Certificates only: recipient names in a classic serif that matches the certificate artwork. */
+export const fontCertLatin = localFont({
+  src: [{ path: "../fonts/cormorant-700.woff2", weight: "700", style: "normal" }],
+  variable: "--font-cert",
+  display: "swap",
+  preload: false,
+  fallback: ["Georgia", "Times New Roman", "serif"],
+});
+
+export const fontCertArabic = localFont({
+  src: [{ path: "../fonts/amiri-700.woff2", weight: "700", style: "normal" }],
+  variable: "--font-cert-ar",
+  display: "swap",
+  preload: false,
+  fallback: ["Times New Roman", "serif"],
+});
+
 export const fontVariables = [fontDisplay.variable, fontSans.variable, fontMono.variable, fontArabicDisplay.variable, fontArabic.variable].join(" ");
+
+/** The app also needs the certificate fonts. */
+export const portalFontVariables = [fontVariables, fontCertLatin.variable, fontCertArabic.variable].join(" ");

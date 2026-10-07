@@ -1,7 +1,7 @@
 import "../../globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { fontVariables } from "@/lib/fonts";
+import { portalFontVariables } from "@/lib/fonts";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SUPABASE = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zrtfupdnfxxnguznphis.supabase.co").replace(/\/+$/, "");
@@ -50,7 +50,7 @@ export const viewport: Viewport = {
 /** BuildX App: Arabic, client-only PWA backed by Supabase (works on static hosting). */
 export default function PortalRoot({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" className={fontVariables} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
       </head>
