@@ -121,7 +121,7 @@ export function MemberProfile({ locale, teamHref, slug, initial }: { locale: str
               const url = safeUrl(pr.url);
               return (
                 <li key={pr.id} className="flex flex-col overflow-hidden rounded-[20px] border border-[var(--line-2)] bg-panel/70">
-                  {pr.image_path && <img src={teamImageUrl(pr.image_path)} alt="" loading="lazy" className="aspect-video w-full object-cover" />}
+                  {pr.image_path && <img src={teamImageUrl(pr.image_path, "thumb")} alt="" loading="lazy" decoding="async" className="aspect-video w-full object-cover" />}
                   <div className="flex flex-1 flex-col gap-2 p-5">
                     <div className="flex items-baseline justify-between gap-3">
                       <h3 className="t-title text-lg text-chalk">{pr.title}</h3>

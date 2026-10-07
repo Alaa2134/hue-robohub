@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
-import { errorText, fmt, fromLocalInput, must, removeObjects, sb, toJpeg, toLocalInput, uid, uploadObject, type StaffRow } from "./core";
+import { errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -28,11 +28,10 @@ const slugify = (v: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 
+/** Every website photo is compressed (WebP + thumbnail, no metadata) before it is uploaded. */
 async function uploadSiteImage(me: StaffRow, file: Blob, maxEdge = 1800) {
-  const jpeg = await toJpeg(file, maxEdge, 0.85);
-  const path = `${me.user_id}/${uid()}.jpg`;
-  await uploadObject(path, jpeg, "image/jpeg", undefined, "site");
-  return path;
+  const r = await uploadImage("site", me.user_id, file, { maxEdge });
+  return r.path;
 }
 
 export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearchParams }) {

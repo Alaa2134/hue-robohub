@@ -313,37 +313,90 @@ export async function uploadObject(path: string, body: Blob, contentType: string
 }
 
 export async function removeObjects(paths: string[], bucket = "materials") {
-  const list = paths.filter(Boolean);
+  // Photos uploaded through uploadImage have a thumbnail beside them: remove it too.
+  const list = [...new Set(paths.filter(Boolean).flatMap((p) => (thumbPath(p) !== p ? [p, thumbPath(p)] : [p])))];
   if (!list.length) return;
   const { error } = await sb().storage.from(bucket).remove(list);
   if (error) throw error;
 }
 
-/** Re-encodes a picture as JPEG (drops EXIF/GPS, keeps quiz images light). */
-export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promise<Blob> {
+async function loadImage(file: Blob): Promise<{ img: HTMLImageElement; done: () => void }> {
   const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = url;
-    });
-    const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.naturalWidth * scale);
-    canvas.height = Math.round(img.naturalHeight * scale);
-    const ctx = canvas.getContext("2d")!;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = () => reject(new Error("image_unreadable"));
+    i.src = url;
+  }).catch((e) => {
+    URL.revokeObjectURL(url);
+    throw e;
+  });
+  return { img, done: () => URL.revokeObjectURL(url) };
+}
+
+/** Draws the image no larger than `maxEdge` (browsers apply the EXIF rotation; the metadata itself is dropped). */
+async function encode(img: HTMLImageElement, maxEdge: number, type: string, quality: number, flatten: boolean): Promise<Blob> {
+  const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d")!;
+  ctx.imageSmoothingQuality = "high";
+  if (flatten) {
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", quality));
-    if (!blob) throw new Error("image");
-    return blob;
+  }
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, type, quality));
+  if (!blob) throw new Error("image");
+  return blob;
+}
+
+/** Re-encodes a picture as JPEG (drops EXIF/GPS, keeps quiz images light). */
+export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promise<Blob> {
+  const { img, done } = await loadImage(file);
+  try {
+    return await encode(img, maxEdge, "image/jpeg", quality, true);
   } finally {
-    URL.revokeObjectURL(url);
+    done();
   }
 }
+
+export type PreparedImage = { main: Blob; thumb: Blob; ext: "webp" | "jpg"; type: string; before: number; after: number; width: number; height: number };
+
+/**
+ * The upload pipeline for every photo: resized (main ≤ maxEdge, thumbnail ≤ thumbEdge), re-encoded as
+ * WebP (JPEG where the browser can't write WebP) and stripped of metadata such as GPS location.
+ */
+export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640, quality = 0.8 } = {}): Promise<PreparedImage> {
+  const { img, done } = await loadImage(file);
+  try {
+    let main = await encode(img, maxEdge, "image/webp", quality, false);
+    const webp = main.type === "image/webp";
+    if (!webp) main = await encode(img, maxEdge, "image/jpeg", 0.84, true);
+    const type = webp ? "image/webp" : "image/jpeg";
+    const thumb = await encode(img, thumbEdge, type, webp ? 0.74 : 0.8, !webp);
+    const scale = Math.min(1, maxEdge / Math.max(img.naturalWidth, img.naturalHeight));
+    return { main, thumb, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.size, width: Math.round(img.naturalWidth * scale), height: Math.round(img.naturalHeight * scale) };
+  } finally {
+    done();
+  }
+}
+
+/** Main image `<dir>/<id>.w.<ext>` with its thumbnail beside it as `.t.<ext>`. */
+export const thumbPath = (path: string) => path.replace(/\.w\.(webp|jpg)$/, ".t.$1");
+
+/** Compresses and uploads a photo plus its thumbnail; returns the main object's path. */
+export async function uploadImage(bucket: string, dir: string, file: Blob, opts?: { maxEdge?: number; thumbEdge?: number; onProgress?: (p: number) => void }) {
+  const img = await prepareImage(file, { maxEdge: opts?.maxEdge, thumbEdge: opts?.thumbEdge });
+  const path = `${dir}/${uid()}.w.${img.ext}`;
+  await uploadObject(path, img.main, img.type, opts?.onProgress, bucket);
+  await uploadObject(thumbPath(path), img.thumb, img.type, undefined, bucket);
+  return { path, before: img.before, after: img.after, width: img.width, height: img.height };
+}
+
+/** "4.8 MB → 214 KB" for the upload toast. */
+export const savedText = (before: number, after: number) => `${fmt.size(before)} ← ${fmt.size(after)}`;
 
 /* ─── CSV / download ───────────────────────────────────────────────────── */
 

@@ -17,6 +17,7 @@ const QUERIES = [
   "site_content?select=id,slug,kind,updated_at&published=eq.true&order=id",
   "team_profiles?select=*&published=eq.true&order=id",
   "team_projects?select=*&order=id",
+  "site_settings?select=key,value&order=key",
 ];
 
 export async function contentVersion() {

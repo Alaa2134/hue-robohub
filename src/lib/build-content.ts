@@ -4,6 +4,7 @@
  * refreshes everything live; a failed or blocked read here just means fewer pre-rendered pages.
  */
 import type { ContentKind, SiteItem } from "./site-content";
+import type { SiteSettings } from "./site-settings";
 import { SUPABASE_KEY, SUPABASE_URL } from "./supabase-public";
 import { sortProfiles, type TeamProfile, type TeamProject } from "./team-public";
 
@@ -63,3 +64,9 @@ export async function buildItem(kind: "post" | "project" | "event", slug: string
  * gets a placeholder that renders the not-found page. */
 export const PLACEHOLDER = "_";
 export const slugParams = (slugs: string[]) => (slugs.length ? slugs : [PLACEHOLDER]).map((slug) => ({ slug }));
+
+/** The owner's website settings (BuildX App → Site settings). */
+export async function buildSiteSettings(): Promise<SiteSettings | null> {
+  const [row] = await rows<{ value: SiteSettings }>("site_settings?select=value&key=eq.site");
+  return row?.value ?? null;
+}

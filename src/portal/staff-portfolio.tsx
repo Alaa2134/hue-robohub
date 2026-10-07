@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { LINK_KEYS, LINK_LABEL, sortProfiles, teamImageUrl, type TeamGroup, type TeamProfile, type TeamProject } from "@/lib/team-public";
-import { must, removeObjects, sb, toJpeg, uid, uploadObject, type StaffRow } from "./core";
+import { must, removeObjects, sb, uid, uploadImage, type StaffRow } from "./core";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -21,11 +21,9 @@ const slugify = (v: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
 
-async function uploadImage(me: StaffRow, file: File, maxEdge: number) {
-  const jpeg = await toJpeg(file, maxEdge, 0.86);
-  const path = `${me.user_id}/${uid()}.jpg`;
-  await uploadObject(path, jpeg, "image/jpeg", undefined, "team");
-  return path;
+/** Portfolio photos go through the shared pipeline (WebP + thumbnail, no metadata). */
+async function uploadTeamImage(me: StaffRow, file: File, maxEdge: number) {
+  return (await uploadImage("team", me.user_id, file, { maxEdge })).path;
 }
 
 function ImagePick({ label, path, onPick, busy, round }: { label: string; path: string | null; onPick: (f: File) => void; busy?: boolean; round?: boolean }) {
@@ -156,7 +154,7 @@ function Editor({ me, admin, profile, projects, onSaved, reload, back }: { me: S
   const changePhoto = async (file: File) => {
     setPhotoBusy(true);
     try {
-      const path = await uploadImage(me, file, 900);
+      const path = await uploadTeamImage(me, file, 900);
       const old = profile.photo_path;
       const saved = (await sb().from("team_profiles").update({ photo_path: path }).eq("id", profile.id).select("*").single().then(must)) as TeamProfile;
       onSaved(saved);
@@ -335,7 +333,7 @@ function ProjectSheet({ me, profileId, project, onClose, onSaved }: { me: StaffR
   const pick = async (file: File) => {
     setImgBusy(true);
     try {
-      const path = await uploadImage(me, file, 1600);
+      const path = await uploadTeamImage(me, file, 1600);
       setF((p) => ({ ...p, image_path: path }));
     } catch (e) {
       toast.error(e);

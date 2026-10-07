@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { buildTeam } from "@/lib/build-content";
+import { buildSiteSettings, buildTeam } from "@/lib/build-content";
+import { goalsOf, heroImageOf } from "@/lib/site-settings";
 import { STATIC_SITE } from "@/lib/deploy";
 import { notFound } from "next/navigation";
 import { ActivitiesSection, GoalsSection, RoadmapSection, WhySection } from "@/components/home/buildx";
@@ -47,6 +48,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const [config, stats, tracks, teams, videos] = await Promise.all([getSiteConfig(), getOrgStats(), getTracks(), getTeamsWithSpecs(), getVideos()]);
   const show = config["site.homepage"].sections;
   const hero = config["site.hero"];
+  const settings = STATIC_SITE ? await buildSiteSettings() : null;
 
   // Films (CMS): the configured hero film first, then one per kind.
   const films = videos.map(toFilm);
@@ -92,7 +94,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
   return (
     <>
-      <Hero locale={locale} t={t} hero={hero} image={art("hero")} stats={heroStats} film={heroFilm} ambient={ambient} thumbs={["team_sprint", "track_embedded", "team_sumo"].map((n) => art(n)).filter((e) => !!e) as NonNullable<ReturnType<typeof art>>[]} />
+      <Hero locale={locale} t={t} hero={hero} image={heroImageOf(settings) ?? art("hero")} stats={heroStats} film={heroFilm} ambient={ambient} thumbs={["team_sprint", "track_embedded", "team_sumo"].map((n) => art(n)).filter((e) => !!e) as NonNullable<ReturnType<typeof art>>[]} />
 
       <LatestStrip locale={locale} eventsHref={`${href("/events")}/`} newsHref={`${href("/news")}/`} />
 
@@ -152,7 +154,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 
       <RoadmapSection locale={locale} index="05" eventsHref={href("/events")} />
 
-      <GoalsSection locale={locale} />
+      <GoalsSection locale={locale} goals={goalsOf(settings).map((g) => ({ value: g.value, label: { en: g.label_en || g.label_ar, ar: g.label_ar || g.label_en }, note: { en: g.note_en || g.note_ar, ar: g.note_ar || g.note_en } }))} />
 
       <section id="founders" aria-labelledby="founders-title" className="mx-auto max-w-[1680px] px-5 py-20 sm:px-8 lg:py-28">
         <SectionHead

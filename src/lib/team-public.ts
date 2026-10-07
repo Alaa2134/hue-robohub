@@ -46,7 +46,8 @@ export const LINK_LABEL: Record<(typeof LINK_KEYS)[number], string> = {
   youtube: "YouTube",
 };
 
-export const teamImageUrl = (path: string) => `${SUPABASE_URL}/storage/v1/object/public/team/${path.split("/").map(encodeURIComponent).join("/")}`;
+export const teamImageUrl = (path: string, size: "full" | "thumb" = "full") =>
+  `${SUPABASE_URL}/storage/v1/object/public/team/${(size === "thumb" ? path.replace(/\.w\.(webp|jpg)$/, ".t.$1") : path).split("/").map(encodeURIComponent).join("/")}`;
 
 export const nameOf = (p: Pick<TeamProfile, "full_name" | "full_name_ar">, locale: string) => (locale === "ar" && p.full_name_ar) || p.full_name;
 export const headlineOf = (p: Pick<TeamProfile, "headline" | "headline_ar">, locale: string) => (locale === "ar" && p.headline_ar) || p.headline;
