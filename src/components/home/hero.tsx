@@ -120,10 +120,10 @@ export function Hero({
 
         {/* Bottom rail: live stats · scroll cue · film */}
         <div className="enter relative grid items-end gap-5 border-t border-[var(--line)] pt-4 sm:pt-5 lg:grid-cols-[1fr_auto_1fr]" style={{ ["--d" as string]: "1300ms" }}>
-          {/* Scrolls sideways on phones, so keyboard users can focus it too. */}
-          <dl tabIndex={0} aria-label={t.hero.statsLabel} className="rail -mx-5 gap-0 px-5 outline-none focus-visible:ring-2 focus-visible:ring-cyan sm:mx-0 sm:px-0 lg:flex-wrap">
+          {/* Desktop: the numbers side by side. */}
+          <dl aria-label={t.hero.statsLabel} className="hidden lg:flex lg:flex-wrap">
             {stats.map((s, i) => (
-              <div key={s.label} className={`flex min-w-[7.5rem] flex-col-reverse gap-1 pe-6 ${i > 0 ? "border-s border-[var(--line)] ps-5 sm:ps-6" : ""}`}>
+              <div key={s.label} className={`flex min-w-[7.5rem] flex-col-reverse gap-1 pe-6 ${i > 0 ? "border-s border-[var(--line)] ps-6" : ""}`}>
                 <dt className="t-eyebrow whitespace-nowrap text-[0.6rem] text-fog">{s.label}</dt>
                 <dd className="t-display text-[clamp(1.6rem,2.6vw,2.4rem)] leading-none text-chalk" dir="ltr">
                   {String(s.value).padStart(s.pad ?? 2, "0")}
@@ -131,6 +131,33 @@ export function Hero({
               </div>
             ))}
           </dl>
+          {/* Phones and tablets: the same numbers as an endless marquee (screen readers get the list once). */}
+          <dl aria-label={t.hero.statsLabel} className="sr-only lg:hidden">
+            {stats.map((s) => (
+              <div key={s.label}>
+                <dt>{s.label}</dt>
+                <dd>{s.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div aria-hidden className="marquee -mx-5 overflow-hidden sm:-mx-8 lg:hidden">
+            <div className="marquee-track flex w-max">
+              {[0, 1].map((half) => (
+                <div key={half} className="flex">
+                  {[0, 1, 2].flatMap((rep) =>
+                    stats.map((s) => (
+                      <div key={`${rep}-${s.label}`} className="flex min-w-[7.5rem] flex-col-reverse gap-1 border-s border-[var(--line)] pe-6 ps-5 sm:ps-6">
+                        <span className="t-eyebrow whitespace-nowrap text-[0.6rem] text-fog">{s.label}</span>
+                        <span className="t-display text-[clamp(1.6rem,2.6vw,2.4rem)] leading-none text-chalk" dir="ltr">
+                          {String(s.value).padStart(s.pad ?? 2, "0")}
+                        </span>
+                      </div>
+                    )),
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
 
           <a href="#why" className="group hidden flex-col items-center gap-2 pb-1 text-fog transition-colors hover:text-chalk lg:flex" aria-label={t.hero.scroll}>
             <span className="relative flex h-9 w-[22px] justify-center rounded-full border border-[var(--line-2)]">
