@@ -107,6 +107,7 @@ const T = {
       consent: "Please agree so we can review your application.",
       invalid: "Some answers look wrong. Please check them and try again.",
       busy: "Lots of people are applying right now. Please try again in a minute.",
+      rateLimited: "Too many applications came from this network in the last hour. Please try again later.",
       closed: "Applications are closed right now.",
       network: "We couldn't reach the server. Check your connection and try again.",
     },
@@ -164,6 +165,7 @@ const T = {
       consent: "لازم توافق عشان نقدر نراجع طلبك.",
       invalid: "فيه إجابات شكلها غلط. راجعها وجرّب تاني.",
       busy: "فيه ناس كتير بتقدّم دلوقتي. جرّب تاني بعد دقيقة.",
+      rateLimited: "اتبعت طلبات كتير من نفس الشبكة في آخر ساعة. جرّب تاني بعد شوية.",
       closed: "التقديم مقفول دلوقتي.",
       network: "مقدرناش نوصل للسيرفر. اتأكد من النت وجرّب تاني.",
     },
@@ -321,7 +323,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       if (!res.ok || !out) throw new Error("network");
       if (!out.ok) {
         if (out.error === "closed") setClosed("");
-        setFormError(out.error === "busy" ? t.err.busy : out.error === "closed" ? t.err.closed : t.err.invalid);
+        setFormError(out.error === "busy" ? t.err.busy : out.error === "rate_limited" ? t.err.rateLimited : out.error === "closed" ? t.err.closed : t.err.invalid);
         return;
       }
       setDone({ ref: out.ref ?? "", duplicate: !!out.duplicate });

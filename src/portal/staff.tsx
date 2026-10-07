@@ -6,6 +6,7 @@ import { InstallCard, AppShell, BrandLine, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
+import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./staff-insights";
 import { SiteContentScreen } from "./staff-site";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
@@ -61,6 +62,15 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
       break;
     case "reports":
       screen = <ReportsScreen />;
+      break;
+    case "security":
+      screen = <SecurityScreen me={me} />;
+      break;
+    case "stats":
+      screen = <SiteStatsScreen />;
+      break;
+    case "errors":
+      screen = <ErrorsScreen />;
       break;
     case "more":
       screen = <MoreScreen me={me} />;
@@ -131,6 +141,8 @@ function StaffHome({ me }: { me: StaffRow }) {
         <Icon name="chevron" size={20} className="rotate-180 text-white/80" />
       </button>
 
+      {me.role !== "lead" && <SecurityAlert />}
+
       {!!data?.applications && (
         <Card className="mt-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">
           <Icon name="users" size={22} className="shrink-0 text-cyan" />
@@ -187,7 +199,7 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />
           <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />
           <Shortcut icon="users" label="طلبات الانضمام" to="/staff/applications" />
-          <Shortcut icon="chart" label="التقارير" to="/staff/reports" />
+          <Shortcut icon="chart" label="زيارات الموقع" to="/staff/stats" />
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
         </div>
       </Section>
@@ -215,6 +227,9 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
+    { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
+    { icon: "shield", label: "الأمان والهجمات", to: "/staff/security", show: me.role !== "lead" },
+    { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
     { icon: "user", label: "حسابي وكلمة المرور", to: "/staff/account" },
