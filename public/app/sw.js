@@ -58,3 +58,43 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+/* Push notifications sent from the BuildX App (see supabase/functions/send-push). */
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: event.data ? event.data.text() : "BuildX HUE" };
+  }
+  const title = data.title || "BuildX HUE";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: data.body || "",
+      icon: new URL("../brand/icon-192.png", SCOPE).href,
+      badge: new URL("../brand/favicon-48.png", SCOPE).href,
+      lang: "ar",
+      dir: "auto",
+      data: { url: data.url || SCOPE },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const raw = (event.notification.data && event.notification.data.url) || SCOPE;
+  const target = new URL(raw, self.location.origin);
+  // Only open pages on this site.
+  const url = target.origin === self.location.origin ? target.href : SCOPE;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if (c.url.startsWith(SCOPE) && "focus" in c) {
+          c.navigate(url).catch(() => undefined);
+          return c.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

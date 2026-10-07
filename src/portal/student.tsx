@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentStore, type AttStatus, type StudentSession } from "./core";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard } from "./points";
+import { PushCard } from "./push";
 import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
@@ -168,6 +169,7 @@ function Home({ data, reload, loading }: ScreenProps) {
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
       <PointsCard />
+      <PushCard kind="student" />
 
       <Section title="كويزات متاحة" action={<a href="#/me/quizzes" className="text-sm text-cyan">الكل</a>}>
         {openQuizzes.length ? (

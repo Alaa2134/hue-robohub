@@ -248,3 +248,20 @@ test("a student sees their points, badges, group ranking and certificates", asyn
   await expect(page.getByText("Mona A. (انت)")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("admins send a push notification to one group", async ({ page }) => {
+  RPC.staff_list_students = [{ id: "s1", code: "S1", codeKey: "s1", barcode: null, barcodeKey: null, name: "Mona", group: "Robotics A", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true }];
+  await signInAsOwner(page);
+  let sent: unknown = null;
+  await page.route(/\/functions\/v1\/send-push/, async (route) => {
+    sent = route.request().postDataJSON();
+    await route.fulfill({ json: { ok: true, id: "m1", targets: 12, delivered: 11 } });
+  });
+  await page.goto("/app/#/staff/notify");
+  await page.getByRole("button", { name: "مجموعة", exact: true }).click();
+  await page.getByRole("button", { name: "Robotics A" }).click();
+  await page.getByLabel("العنوان").fill("Quiz is live");
+  await page.getByRole("button", { name: "إرسال", exact: true }).click();
+  await expect(page.getByText("اتبعت لـ 11 من 12 جهاز")).toBeVisible();
+  expect(sent).toEqual({ title: "Quiz is live", body: "", url: "/app/", audience: "group", group: "Robotics A" });
+});
