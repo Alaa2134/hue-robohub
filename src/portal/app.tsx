@@ -6,6 +6,7 @@ import { BrandLine, InstallCard } from "./shell";
 import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
+import { UpdateGate } from "./app-update";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute, type IconKey } from "./ui";
 
 const STAFF_CACHE = "rh-app-staff-row";
@@ -128,7 +129,7 @@ export default function PortalApp() {
   else if (mode === "staff" && !head) screen = <Redirect to={staff ? "/staff" : "/login/staff"} />;
   else if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
   else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login/staff" />;
-  else if (head === "me") screen = student ? <StudentApp session={student} path={rest} /> : <Redirect to="/login/student" />;
+  else if (head === "me") screen = student ? <StudentApp session={student} path={rest} query={route.query} /> : <Redirect to="/login/student" />;
   else if (head === "login" && rest[0] === "staff") screen = staff ? <Redirect to="/staff" /> : <StaffLogin noAccess={noAccess} />;
   else if (head === "login") screen = student ? <Redirect to="/me" /> : <StudentLogin initialCode={route.query.get("c") ?? ""} />;
   else if (head === "setup") screen = staff ? <Redirect to="/staff" /> : <Setup />;
@@ -136,7 +137,7 @@ export default function PortalApp() {
 
   return (
     <>
-      {screen}
+      <UpdateGate>{screen}</UpdateGate>
       <Overlays />
     </>
   );

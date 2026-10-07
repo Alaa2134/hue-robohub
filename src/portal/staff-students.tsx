@@ -1,10 +1,12 @@
 "use client";
 /** Students roster: add one or many, ID-card barcode linking, PIN codes with printable login cards. */
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { APP_PATH, isNative, openInBrowser, publicOrigin, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { imagesReady } from "./certificate";
+import { saveNodesAsPdf } from "./pdf";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -475,8 +477,8 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
-            <Button icon="printer" onClick={() => (isNative() ? openInBrowser() : setPrinting(true))}>
-              طباعة كروت
+            <Button icon="printer" onClick={() => setPrinting(true)}>
+              {isNative() ? "كروت PDF" : "طباعة كروت"}
             </Button>
             <Button icon="copy" onClick={() => copyText(one ? msg : text)}>
               نسخ
@@ -508,9 +510,14 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
   );
 }
 
-/** Printable login slips: name, code, PIN and a real QR code that opens the student login. */
+/**
+ * Printable login slips: name, code, PIN and a real QR code that opens the student login.
+ * On the website they go to the print dialog; in the apps (no printing) they become a PDF to share.
+ */
 function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void }) {
   const [qr, setQr] = useState<Record<string, string> | null>(null);
+  const pagesRef = useRef<HTMLDivElement>(null);
+  const pdf = isNative();
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -525,6 +532,23 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
   }, [items]);
   useEffect(() => {
     if (!qr) return;
+    if (pdf) {
+      let alive = true;
+      (async () => {
+        const pages = Array.from(pagesRef.current?.children ?? []) as HTMLElement[];
+        try {
+          await imagesReady(pages);
+          await saveNodesAsPdf(pages, `buildx-cards-${today()}.pdf`, { widthPx: 1654 });
+        } catch (e) {
+          if (alive) toast.error(e);
+        } finally {
+          if (alive) onDone();
+        }
+      })();
+      return () => {
+        alive = false;
+      };
+    }
     const after = () => onDone();
     window.addEventListener("afterprint", after);
     const t = setTimeout(() => window.print(), 250);
@@ -532,25 +556,39 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
       clearTimeout(t);
       window.removeEventListener("afterprint", after);
     };
-  }, [qr, onDone]);
+  }, [qr, onDone, pdf]);
   const host = `${publicOrigin().replace(/^https?:\/\//, "")}${APP_PATH}`;
+  const card = (p: PinItem) => (
+    <div key={p.id} style={{ border: "1px solid #999", borderRadius: "4mm", padding: "4mm", display: "flex", gap: "4mm", alignItems: "center", breakInside: "avoid", fontFamily: "system-ui, Tahoma, sans-serif", color: "#000", background: "#fff" }}>
+      {qr?.[p.id] && <img src={qr[p.id]} alt="" style={{ width: "30mm", height: "30mm" }} />}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: "8pt", color: "#555" }}>BuildX HUE · تطبيق BuildX HUE</div>
+        <div style={{ fontSize: "12pt", fontWeight: 700, marginTop: "1mm" }}>{p.name}</div>
+        <div style={{ fontSize: "9pt", direction: "ltr", textAlign: "right" }}>رقم الطالب: {p.code}</div>
+        <div style={{ fontSize: "16pt", fontWeight: 800, letterSpacing: "2pt", direction: "ltr", textAlign: "right", marginTop: "1mm" }}>PIN {p.pin}</div>
+        <div style={{ fontSize: "7pt", color: "#555", marginTop: "1mm", direction: "ltr", textAlign: "right" }}>{host}</div>
+      </div>
+    </div>
+  );
+  if (pdf) {
+    // A4 pages (210 × 297 mm at 96 dpi) drawn off screen, ten slips each, then captured.
+    const pages: PinItem[][] = [];
+    for (let i = 0; i < items.length; i += 10) pages.push(items.slice(i, i + 10));
+    return createPortal(
+      <div ref={pagesRef} dir="rtl" aria-hidden style={{ position: "fixed", top: 0, left: "-10000px", width: "794px" }}>
+        {pages.map((page, i) => (
+          <div key={i} style={{ width: "794px", height: "1123px", padding: "34px", boxSizing: "border-box", background: "#fff", display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "min-content", gap: "22px" }}>
+            {page.map(card)}
+          </div>
+        ))}
+      </div>,
+      document.body,
+    );
+  }
   return createPortal(
     <div id="rh-print" dir="rtl">
       <style>{`#rh-print{display:none}@media print{body>*:not(#rh-print){display:none!important}#rh-print{display:block!important;color:#000;background:#fff}@page{margin:9mm}}`}</style>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6mm" }}>
-        {items.map((p) => (
-          <div key={p.id} style={{ border: "1px solid #999", borderRadius: "4mm", padding: "4mm", display: "flex", gap: "4mm", alignItems: "center", breakInside: "avoid", fontFamily: "system-ui, Tahoma, sans-serif" }}>
-            {qr?.[p.id] && <img src={qr[p.id]} alt="" style={{ width: "30mm", height: "30mm" }} />}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: "8pt", color: "#555" }}>BuildX HUE · تطبيق BuildX HUE</div>
-              <div style={{ fontSize: "12pt", fontWeight: 700, marginTop: "1mm" }}>{p.name}</div>
-              <div style={{ fontSize: "9pt", direction: "ltr", textAlign: "right" }}>رقم الطالب: {p.code}</div>
-              <div style={{ fontSize: "16pt", fontWeight: 800, letterSpacing: "2pt", direction: "ltr", textAlign: "right", marginTop: "1mm" }}>PIN {p.pin}</div>
-              <div style={{ fontSize: "7pt", color: "#555", marginTop: "1mm", direction: "ltr", textAlign: "right" }}>{host}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6mm" }}>{items.map(card)}</div>
     </div>,
     document.body,
   );

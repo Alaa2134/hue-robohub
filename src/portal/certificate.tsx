@@ -4,9 +4,10 @@
  * buildxhue.com/verify/?c=<code>. Sizes use container units, so the same page scales on a phone
  * screen and prints at exactly 297 × 210 mm.
  */
-import { useEffect, useState } from "react";
-import { BASE_PATH, isNative, openInBrowser } from "./core";
-import { Button, Icon } from "./ui";
+import { useEffect, useRef, useState } from "react";
+import { BASE_PATH, errorText, isNative } from "./core";
+import { saveNodesAsPdf } from "./pdf";
+import { Button, Icon, toast } from "./ui";
 
 export type Certificate = {
   id: string;
@@ -177,8 +178,31 @@ export function CertificateSheet({ c }: { c: Certificate }) {
   );
 }
 
+/** Waits until every image inside the nodes has loaded (QR codes are drawn asynchronously). */
+export async function imagesReady(nodes: HTMLElement[], timeoutMs = 4000) {
+  const until = Date.now() + timeoutMs;
+  const done = () => nodes.every((n) => Array.from(n.querySelectorAll("img")).every((i) => i.complete && i.naturalWidth > 0));
+  while (!done() && Date.now() < until) await new Promise((r) => setTimeout(r, 100));
+}
+
 /** Full-screen print view for one or more certificates (no app chrome; one page each when printed). */
 export function CertificatePrint({ certs, onBack }: { certs: Certificate[]; onBack: () => void }) {
+  const box = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const native = isNative();
+  const savePdf = async () => {
+    const nodes = Array.from(box.current?.querySelectorAll<HTMLElement>(".cert-page > div") ?? []);
+    if (!nodes.length) return;
+    setBusy(true);
+    try {
+      await imagesReady(nodes);
+      await saveNodesAsPdf(nodes, `certificate-${certs.length === 1 ? certs[0].code : certs.length}.pdf`, { landscape: true, widthPx: 2480 });
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="min-h-dvh bg-abyss px-3 pb-10 pt-[calc(0.75rem+env(safe-area-inset-top))] print:min-h-0 print:bg-white print:p-0">
       <style>
@@ -198,16 +222,19 @@ export function CertificatePrint({ certs, onBack }: { certs: Certificate[]; onBa
         <span className="flex-1 text-center text-sm text-fog">
           {certs.length > 1 ? `${certs.length} شهادة` : certs[0]?.code}
         </span>
-        <Button size="sm" variant="primary" icon="download" onClick={() => (isNative() ? openInBrowser() : window.print())}>
-          {isNative() ? "افتح للطباعة" : "طباعة / PDF"}
+        {!native && (
+          <Button size="sm" icon="printer" onClick={() => window.print()}>
+            طباعة
+          </Button>
+        )}
+        <Button size="sm" variant="primary" icon="download" loading={busy} onClick={savePdf}>
+          {native ? "حفظ / مشاركة PDF" : "تحميل PDF"}
         </Button>
       </div>
       <p className="mx-auto mb-3 max-w-[297mm] text-xs text-fog print:hidden">
-        {isNative()
-          ? "الطباعة وحفظ PDF بتتم من المتصفح: الزرار بيفتح الشهادة دي على buildxhue.com/app (سجّل دخول هناك لو طلب)."
-          : "من نافذة الطباعة اختار «حفظ كـ PDF» عشان تبعتها للطالب، أو اطبعها على A4 بالعرض."}
+        {native ? "الـ PDF بيتعمل على الموبايل، وتقدر تبعته واتساب أو تحفظه في الملفات." : "PDF جاهز تبعته للطالب، أو اطبعها على A4 بالعرض."}
       </p>
-      <div className="grid gap-4 print:block">
+      <div ref={box} className="grid gap-4 print:block">
         {certs.map((c) => (
           <CertificateSheet key={c.id} c={c} />
         ))}

@@ -6,6 +6,8 @@ import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, student
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard } from "./points";
 import { PushCard } from "./push";
+import { DeleteAccountCard } from "./account-deletion";
+import { CheckinCard, StudentCheckin } from "./self-checkin";
 import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
@@ -98,14 +100,15 @@ function useHome() {
   return { data, error, loading, reload };
 }
 
-export function StudentApp({ session, path }: { session: StudentSession; path: string[] }) {
+export function StudentApp({ session, path, query }: { session: StudentSession; path: string[]; query: URLSearchParams }) {
   const home = useHome();
   const [section, id] = path;
   if (section === "certificate" && id) return <MyCertificatePrint id={id} />;
   if (section === "quiz" && id) return <TakeQuiz key={id} id={id} info={home.data?.quizzes.find((q) => q.id === id)} onDone={home.reload} />;
 
   let screen: React.ReactNode;
-  if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
+  if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
+  else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
   else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "attendance") screen = <Attendance data={home.data} reload={home.reload} loading={home.loading} />;
@@ -158,7 +161,8 @@ function Home({ data, reload, loading }: ScreenProps) {
         </p>
       </div>
 
-      <a href="#/me/attendance" className="mt-5 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
+      <CheckinCard />
+      <a href="#/me/attendance" className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
         <Ring value={stats.rate} size={72} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-chalk">نسبة حضورك</p>
@@ -474,6 +478,7 @@ function Account({ session }: { session: StudentSession }) {
       <Button variant="danger" icon="logout" className="mt-6" block onClick={logout}>
         تسجيل الخروج
       </Button>
+      <DeleteAccountCard kind="student" />
     </>
   );
 }

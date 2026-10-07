@@ -20,6 +20,7 @@ import {
   type Session,
   type Student,
 } from "./core";
+import { SelfCheckinScreen } from "./self-checkin";
 import { Scanner } from "./scanner";
 import { GroupSelect, makeFinder, patchStudents, refreshStudents, scanQueue, useGroups, useStudents } from "./staff-data";
 import {
@@ -217,6 +218,7 @@ export function SessionScreen({ id }: { id: string }) {
   const [unknown, setUnknown] = useState<string | null>(null);
   const [editing, setEditing] = useState<Student | null>(null);
   const [editSession, setEditSession] = useState(false);
+  const [projecting, setProjecting] = useState(false);
   const [filter, setFilter] = useState<"all" | AttStatus>("all");
   const [q, setQ] = useState("");
   // The camera keeps seeing a card for a while: one reaction per card every 8 s.
@@ -514,6 +516,30 @@ export function SessionScreen({ id }: { id: string }) {
           <Icon name="wifiOff" size={16} />
           {queued > 0 ? `${queued} مسح محفوظ على الجهاز وسيُرسل تلقائيًا عند عودة الإنترنت.` : "لا يوجد إنترنت. استمر في المسح، وسيُحفظ على الجهاز."}
         </div>
+      )}
+
+      {!session.closed_at && (
+        <button
+          type="button"
+          onClick={() => setProjecting(true)}
+          className="mt-3 flex w-full items-center gap-3 rounded-2xl border border-cyan/30 bg-cyan/[0.06] px-4 py-3 text-start transition hover:border-cyan/50"
+        >
+          <Icon name="qr" size={24} className="shrink-0 text-cyan" />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-chalk">الطلاب يسجّلوا بنفسهم</span>
+            <span className="block text-xs text-fog">اعرض QR على البروجكتور يتغيّر كل 30 ثانية، والطلاب يمسحوه من التطبيق</span>
+          </span>
+          <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+        </button>
+      )}
+      {projecting && (
+        <SelfCheckinScreen
+          session={session}
+          onClose={() => {
+            setProjecting(false);
+            loadRecords().catch(() => undefined);
+          }}
+        />
       )}
 
       <div className="mt-4 flex gap-2 rounded-2xl border border-[var(--line)] bg-panel/50 p-1">

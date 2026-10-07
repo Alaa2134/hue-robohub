@@ -33,9 +33,6 @@ export function appMode(): "student" | "staff" | null {
 export const SITE_ORIGIN = "https://buildxhue.com";
 export const publicOrigin = () => (isNative() ? SITE_ORIGIN : window.location.origin);
 
-/** Apps can't print: open the same screen on the website, where the browser's print / PDF works. */
-export const openInBrowser = () => window.open(`${SITE_ORIGIN}${APP_PATH}index.html${window.location.hash}`, "_blank", "noopener");
-
 type FsPlugin = { writeFile(o: { path: string; data: string; directory: string; recursive?: boolean }): Promise<{ uri: string }> };
 type SharePlugin = { share(o: { title?: string; files?: string[]; dialogTitle?: string }): Promise<unknown> };
 const Filesystem = registerPlugin<FsPlugin>("Filesystem");
