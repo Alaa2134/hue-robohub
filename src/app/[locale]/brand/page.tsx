@@ -183,7 +183,7 @@ export default async function Brand({ params }: Params) {
 
       <Band alt>
         <SectionHead index="06" eyebrow={p.brand.applications} title={p.brand.applications} size="md" />
-        <div className="mt-12 grid gap-10 xl:grid-cols-2">
+        <div className="mt-12 grid gap-10 xl:grid-cols-2 [&>*]:min-w-0">
           <div>
             <p className="t-eyebrow text-fog">{p.brand.idCard}</p>
             <div className="mt-6">
@@ -193,7 +193,7 @@ export default async function Brand({ params }: Params) {
           </div>
           <div>
             <p className="t-eyebrow text-fog">{p.brand.shirt}</p>
-            <div className="mt-6">
+            <div className="mt-6 overflow-x-auto">
               <ShirtFlats />
             </div>
           </div>

@@ -46,3 +46,26 @@ test("an item published after the last build is forwarded to its live page", asy
   await page.goto("/ar/news/brand-new-post/");
   await expect(page).toHaveURL(/\/ar\/news\/post\/\?s=brand-new-post$/);
 });
+
+test("every page fits a 320px phone: no sideways scroll, menu button reachable", async ({ page, request }, info) => {
+  test.skip(info.project.name !== "mobile", "phone layout check");
+  test.setTimeout(180_000);
+  const xml = await (await request.get("/sitemap.xml")).text();
+  const paths = [...xml.matchAll(/<loc>[^<]*?buildxhue\.com([^<]*)<\/loc>/g)].map((m) => m[1]);
+  await page.setViewportSize({ width: 320, height: 700 });
+  const problems: string[] = [];
+  for (const path of [...paths, ...paths.map((p) => `/ar${p}`), "/app/"]) {
+    await page.goto(path);
+    const r = await page.evaluate(() => {
+      const menu = document.querySelector<HTMLElement>('header button[aria-controls="site-menu"]');
+      const box = menu?.getBoundingClientRect();
+      return {
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        menuOff: !!box && (box.right > document.documentElement.clientWidth + 1 || box.left < -1),
+      };
+    });
+    if (r.overflow > 0) problems.push(`${path}: ${r.overflow}px sideways scroll`);
+    if (r.menuOff) problems.push(`${path}: menu button off-screen`);
+  }
+  expect(problems).toEqual([]);
+});

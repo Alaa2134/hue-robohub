@@ -1,4 +1,5 @@
 "use client";
+import { fitLongestWord } from "@/lib/fit-text";
 import Link from "next/link";
 import { useState } from "react";
 import { Icon, TRACK_ICON } from "@/components/brand/icons";
@@ -103,7 +104,9 @@ export function TrackPanels({ tracks, cta }: { tracks: TrackPanel[]; cta: string
               <span className="t-data text-xs" style={{ color: tr.accent }}>
                 {String(i + 1).padStart(2, "0")} · {tr.code}
               </span>
-              <h3 className="t-display mt-2 text-[2rem] text-chalk">{tr.name}</h3>
+              <h3 className="t-display mt-2 text-[2rem] text-chalk" style={fitLongestWord(tr.name, "2rem", "min(78vw, 22rem) - 3rem")}>
+                {tr.name}
+              </h3>
               <p className="mt-2 text-sm text-frost">{tr.tagline}</p>
               <p className="mt-4 line-clamp-1 text-xs text-mist">{tr.tech.slice(0, 4).join(" · ")}</p>
             </div>

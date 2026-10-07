@@ -122,6 +122,9 @@ body {
   text-transform: uppercase;
   letter-spacing: -0.01em;
   line-height: 0.92;
+  /* Long words ("ENTREPRENEURSHIP") hyphenate on narrow phones instead of running off the screen. */
+  hyphens: auto;
+  overflow-wrap: anywhere;
 }
 @utility t-headline {
   font-family: var(--font-display);
@@ -167,8 +170,13 @@ body {
   letter-spacing: 0;
   line-height: 1.25;
 }
-[dir="rtl"] .t-eyebrow {
-  letter-spacing: 0.04em;
+/* Arabic small labels: an Arabic face and no tracking — letter-spacing pulls joined Arabic letters apart.
+   :dir() follows the nearest dir attribute, so Latin labels inside dir="ltr" keep the mono style. */
+.t-eyebrow:dir(rtl) {
+  font-family: var(--font-plex-arabic), var(--font-mono);
+  letter-spacing: 0;
+  /* Arabic needs more size than the tiny Latin caps labels (0.5–0.6rem) to stay readable. */
+  font-size: 0.75rem;
 }
 
 @utility text-chrome {
@@ -471,132 +479,135 @@ html.lenis body {
 
 /* ─── Buttons ───────────────────────────────────────────────────────────── */
 
-.btn {
-  --c: 11px;
-  --b: rgb(120 160 230 / 0.32);
-  --f: rgb(6 12 24 / 0.55);
-  position: relative;
-  isolation: isolate;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.7rem;
-  height: 3.25rem;
-  padding: 0 1.55rem;
-  color: var(--color-chalk);
-  font-family: var(--font-display);
-  font-stretch: 116%;
-  font-weight: 650;
-  font-size: 0.78rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    color 0.35s var(--ease-out-expo),
-    transform 0.35s var(--ease-out-expo),
-    filter 0.5s var(--ease-out-expo);
-}
-.btn::before,
-.btn::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
-  transition: background 0.4s var(--ease-out-expo), opacity 0.4s;
-}
-.btn::before {
-  inset: 0;
-  background: var(--b);
-}
-.btn::after {
-  inset: 1px;
-  --c: 10.6px;
-  background: var(--f);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-}
-.btn:hover {
-  --b: rgb(56 220 255 / 0.75);
-}
-.btn:active {
-  transform: translateY(1px) scale(0.985);
-}
-.btn .btn-arrow {
-  transition: transform 0.45s var(--ease-out-expo);
-}
-.btn:hover .btn-arrow {
-  transform: translateX(4px);
-}
-[dir="rtl"] .btn .btn-arrow {
-  transform: scaleX(-1);
-}
-[dir="rtl"] .btn:hover .btn-arrow {
-  transform: scaleX(-1) translateX(4px);
-}
-.btn-primary {
-  --b: linear-gradient(180deg, #8db4ff, #2b6dff 55%, #1d4fd0);
-  --f: linear-gradient(180deg, #3d7dff 0%, #2563f5 50%, #1b4fd6 100%);
-  color: #fff;
-  filter: drop-shadow(0 10px 26px rgb(43 109 255 / 0.38));
-}
-.btn-primary::after {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-.btn-primary:hover {
-  --b: linear-gradient(180deg, #c4d8ff, #5a90ff 55%, #2b6dff);
-  --f: linear-gradient(180deg, #4d89ff 0%, #2f6dff 50%, #2157e0 100%);
-  filter: drop-shadow(0 12px 34px rgb(43 109 255 / 0.62));
-}
-.btn-primary .btn-sheen {
-  position: absolute;
-  inset: 1px;
-  overflow: hidden;
-  clip-path: polygon(10.6px 0, 100% 0, 100% calc(100% - 10.6px), calc(100% - 10.6px) 100%, 0 100%, 0 10.6px);
-  pointer-events: none;
-}
-.btn-primary .btn-sheen::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 40%;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.32), transparent);
-  transform: translateX(-160%) skewX(-20deg);
-}
-.btn-primary:hover .btn-sheen::before {
-  transition: transform 0.9s var(--ease-out-expo);
-  transform: translateX(330%) skewX(-20deg);
-}
-.btn-gold {
-  --b: linear-gradient(180deg, #ffe2a8, #e8b45c 60%, #a87724);
-  --f: linear-gradient(180deg, rgb(48 34 10 / 0.9), rgb(20 14 4 / 0.92));
-  color: #ffe2a8;
-}
-.btn-sm {
-  height: 2.5rem;
-  padding: 0 1.05rem;
-  font-size: 0.7rem;
-  --c: 8px;
-}
-.btn-sm::after {
-  --c: 7.6px;
-}
-.btn-lg {
-  height: 3.75rem;
-  padding: 0 2rem;
-  font-size: 0.84rem;
-}
-.btn-icon {
-  width: 2.75rem;
-  height: 2.75rem;
-  padding: 0;
-  --c: 8px;
-}
-.btn-icon::after {
-  --c: 7.6px;
+/* In the components layer so utilities (hidden, md:inline-flex, w-full…) can still override them. */
+@layer components {
+  .btn {
+    --c: 11px;
+    --b: rgb(120 160 230 / 0.32);
+    --f: rgb(6 12 24 / 0.55);
+    position: relative;
+    isolation: isolate;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    height: 3.25rem;
+    padding: 0 1.55rem;
+    color: var(--color-chalk);
+    font-family: var(--font-display);
+    font-stretch: 116%;
+    font-weight: 650;
+    font-size: 0.78rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      color 0.35s var(--ease-out-expo),
+      transform 0.35s var(--ease-out-expo),
+      filter 0.5s var(--ease-out-expo);
+  }
+  .btn::before,
+  .btn::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c));
+    transition: background 0.4s var(--ease-out-expo), opacity 0.4s;
+  }
+  .btn::before {
+    inset: 0;
+    background: var(--b);
+  }
+  .btn::after {
+    inset: 1px;
+    --c: 10.6px;
+    background: var(--f);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .btn:hover {
+    --b: rgb(56 220 255 / 0.75);
+  }
+  .btn:active {
+    transform: translateY(1px) scale(0.985);
+  }
+  .btn .btn-arrow {
+    transition: transform 0.45s var(--ease-out-expo);
+  }
+  .btn:hover .btn-arrow {
+    transform: translateX(4px);
+  }
+  [dir="rtl"] .btn .btn-arrow {
+    transform: scaleX(-1);
+  }
+  [dir="rtl"] .btn:hover .btn-arrow {
+    transform: scaleX(-1) translateX(4px);
+  }
+  .btn-primary {
+    --b: linear-gradient(180deg, #8db4ff, #2b6dff 55%, #1d4fd0);
+    --f: linear-gradient(180deg, #3d7dff 0%, #2563f5 50%, #1b4fd6 100%);
+    color: #fff;
+    filter: drop-shadow(0 10px 26px rgb(43 109 255 / 0.38));
+  }
+  .btn-primary::after {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .btn-primary:hover {
+    --b: linear-gradient(180deg, #c4d8ff, #5a90ff 55%, #2b6dff);
+    --f: linear-gradient(180deg, #4d89ff 0%, #2f6dff 50%, #2157e0 100%);
+    filter: drop-shadow(0 12px 34px rgb(43 109 255 / 0.62));
+  }
+  .btn-primary .btn-sheen {
+    position: absolute;
+    inset: 1px;
+    overflow: hidden;
+    clip-path: polygon(10.6px 0, 100% 0, 100% calc(100% - 10.6px), calc(100% - 10.6px) 100%, 0 100%, 0 10.6px);
+    pointer-events: none;
+  }
+  .btn-primary .btn-sheen::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.32), transparent);
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  .btn-primary:hover .btn-sheen::before {
+    transition: transform 0.9s var(--ease-out-expo);
+    transform: translateX(330%) skewX(-20deg);
+  }
+  .btn-gold {
+    --b: linear-gradient(180deg, #ffe2a8, #e8b45c 60%, #a87724);
+    --f: linear-gradient(180deg, rgb(48 34 10 / 0.9), rgb(20 14 4 / 0.92));
+    color: #ffe2a8;
+  }
+  .btn-sm {
+    height: 2.5rem;
+    padding: 0 1.05rem;
+    font-size: 0.7rem;
+    --c: 8px;
+  }
+  .btn-sm::after {
+    --c: 7.6px;
+  }
+  .btn-lg {
+    height: 3.75rem;
+    padding: 0 2rem;
+    font-size: 0.84rem;
+  }
+  .btn-icon {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    --c: 8px;
+  }
+  .btn-icon::after {
+    --c: 7.6px;
+  }
 }
 
 /* Underline link with a sweeping volt bar */
@@ -654,6 +665,11 @@ html.lenis body {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
+  /* Match the rails' side padding (px-5 / sm:px-8), or snapping pulls the first item to the screen edge. */
+  scroll-padding-inline: 1.25rem;
+  @media (width >= 40rem) {
+    scroll-padding-inline: 2rem;
+  }
   scrollbar-width: none;
   overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch;
