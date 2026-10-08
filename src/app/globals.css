@@ -1034,3 +1034,26 @@ html[data-intro="play"] .hero-lock-label {
     animation: none;
   }
 }
+
+/* Baqloz hiding at the edge of a section (hide-and-seek): a little peek in and out. */
+@keyframes mascot-peek {
+  0%,
+  70%,
+  100% {
+    transform: translateX(0);
+  }
+  80% {
+    transform: translateX(6%);
+  }
+  90% {
+    transform: translateX(-4%);
+  }
+}
+.mascot-peek {
+  animation: mascot-peek 3.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-peek {
+    animation: none;
+  }
+}

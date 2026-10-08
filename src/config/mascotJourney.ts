@@ -479,6 +479,43 @@ export const PHYSICS: Record<"grab" | "held" | "shaken" | "flop" | "wall" | "up"
   ],
 };
 
+/** Lines for the games you play with him (menu → Play). {n} = a number, {p} = a page name. */
+export const GAME = {
+  hoopStart: { ar: "يلا! شدّني وارميني في السلة 🏀 عندك ٤٥ ثانية", en: "Go! Grab me and throw me into the hoop 🏀 45 seconds" },
+  goal: [
+    { ar: "جووووول! 🏀", en: "Swish! 🏀" },
+    { ar: "سلة نظيفة! 🔥", en: "Nothing but net! 🔥" },
+    { ar: "إيه الحلاوة دي! 😎", en: "Beautiful shot! 😎" },
+    { ar: "تلاتة! لا استنى… دي اتنين بس 😂", en: "Three points! Wait, two 😂" },
+  ],
+  hoopEnd: { ar: "الوقت خلص ⏱️ جبت {n} سلة!", en: "Time's up ⏱️ You scored {n}!" },
+  hoopBest: { ar: "رقم قياسي جديد! 🏆 {n} سلة", en: "New record! 🏆 {n}" },
+  seekStart: { ar: "غمّض عينك وعدّ لحد ٣… 🙈", en: "Close your eyes and count to three… 🙈" },
+  seekHud: { ar: "دوّر على بقلظ في الصفحة 👀", en: "Find Baqloz on the page 👀" },
+  up: { ar: "أنا فوق! ☝️", en: "I'm up there! ☝️" },
+  down: { ar: "أنا تحت! 👇 كمّل نزول", en: "I'm further down! 👇" },
+  here: { ar: "أنا قدامك أهو! بص على الحرف 👀", en: "I'm right here! Check the edges 👀" },
+  found: { ar: "لقيتني في {n} ثانية! 🎉", en: "Found me in {n} seconds! 🎉" },
+  gaveUp: { ar: "كنت هنا أهو 😄 المرة الجاية هتلاقيني أسرع.", en: "I was here 😄 Faster next time." },
+  quizRight: [
+    { ar: "برافو عليك! 👏", en: "Well done! 👏" },
+    { ar: "صح كده! 🧠", en: "Correct! 🧠" },
+  ],
+  quizWrong: [
+    { ar: "قربت! المرة الجاية 💪", en: "Close! Next one 💪" },
+    { ar: "لأ… بس كده اتعلمت حاجة جديدة 😉", en: "Nope, but now you know 😉" },
+  ],
+  quizDone: { ar: "خلصت الكويز: {n} من ٨!", en: "Quiz done: {n} of 8!" },
+  badge: { ar: "🏅 وسام جديد: {p}!", en: "🏅 New badge: {p}!" },
+  streak: { ar: "🔥 ده يومك رقم {n} ورا بعض معانا! كمّل كده", en: "🔥 Day {n} in a row! Keep it up" },
+  nextPage: { ar: "خلصت الصفحة 👏 تحب تشوف «{p}» بعدها؟", en: "Done with this page 👏 Want to see “{p}” next?" },
+  letsGo: { ar: "يلا بينا", en: "Let's go" },
+  end: { ar: "إنهاء", en: "End" },
+  hint: { ar: "تلميح", en: "Hint" },
+  giveUp: { ar: "استسلمت", en: "Give up" },
+  foundMe: { ar: "لقيتني!", en: "Found me!" },
+} satisfies Record<string, Text | Text[]>;
+
 /**
  * The site tour: Baqloz walks the visitor through the whole site, page by page, says what each page
  * is for, then scrolls down it explaining its sections (their `tour` lines, else `say`). `section`

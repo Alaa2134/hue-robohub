@@ -390,3 +390,93 @@ test("put him down gently and he thanks you", async ({ page }) => {
   await expect(bubble(page)).toContainText(/بالراحة|حلو المكان/, { timeout: 5000 });
   await expect(page.locator("[data-mascot] img.mascot-still")).not.toHaveAttribute("style", /82deg/);
 });
+
+const playTab = (page: Page) => page.getByRole("dialog", { name: "بقلظ" }).getByRole("tab", { name: "العب" });
+
+async function openPlay(page: Page, path = "/bootcamp/") {
+  await withGuide(page);
+  await page.goto(path);
+  await page.mouse.move(500, 400);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  await guideButton(page).click();
+  await playTab(page).click();
+}
+
+test("play with Baqloz: a quiz in his menu, with your score and badges", async ({ page }) => {
+  const errors = collectErrors(page);
+  await openPlay(page);
+  const menu = page.getByRole("dialog", { name: "بقلظ" });
+  await expect(menu.getByText("أوسمتك")).toBeVisible();
+  await expect(menu.getByRole("listitem")).toHaveCount(9);
+  await menu.getByRole("button", { name: /اختبر نفسك/ }).click();
+  for (let i = 1; i <= 8; i++) {
+    await expect(menu.getByText(`سؤال ${i} من 8`)).toBeVisible();
+    await menu.getByRole("group").getByRole("button").first().click();
+    await expect(menu.getByText(/صح ✅|غلط ❌/)).toBeVisible();
+    await menu.getByRole("button", { name: i === 8 ? "النتيجة" : "اللي بعده" }).click();
+  }
+  await expect(menu.getByText(/جبت \d من 8/)).toBeVisible();
+  await expect(menu.getByRole("button", { name: "العب تاني" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("hoop game: throw Baqloz through the hoop to score", async ({ page }) => {
+  const errors = collectErrors(page);
+  await openPlay(page);
+  await page.getByRole("dialog", { name: "بقلظ" }).getByRole("button", { name: /ارميه في السلة/ }).click();
+  const hud = page.locator("[data-mascot-game]");
+  await expect(hud).toContainText("🏀 0");
+  const hoop = page.locator("[data-mascot-hoop]");
+  await expect(hoop).toHaveCount(1);
+  await page.waitForTimeout(500);
+  const h = (await hoop.boundingBox())!;
+  const rimY = h.y + h.height * 0.6;
+  const b = (await guideButton(page).boundingBox())!;
+  // Hold him right above the rim and let go: he drops through it.
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2, rimY - 140, { steps: 12 });
+  await page.waitForTimeout(300);
+  await page.mouse.up();
+  await expect(hud).toContainText("🏀 1", { timeout: 5000 });
+  await expect(bubble(page)).toContainText(/جووووول|سلة نظيفة|الحلاوة|تلاتة/);
+  await hud.getByRole("button", { name: "إنهاء" }).click();
+  await expect(hud).toHaveCount(0);
+  await expect(bubble(page)).toContainText(/جبت 1 سلة|رقم قياسي/);
+  expect(errors).toEqual([]);
+});
+
+test("hide and seek: he hides on the page, gives hints, and is found", async ({ page }) => {
+  const errors = collectErrors(page);
+  await openPlay(page, "/");
+  await page.getByRole("dialog", { name: "بقلظ" }).getByRole("button", { name: /استغماية/ }).click();
+  const hud = page.locator("[data-mascot-game]");
+  await expect(hud).toContainText("دوّر على بقلظ", { timeout: 10_000 });
+  const hiding = page.getByRole("button", { name: "لقيتني!" });
+  await expect(hiding).toHaveCount(1);
+  await hud.getByRole("button", { name: "تلميح" }).click();
+  await expect(hud).toContainText(/أنا فوق|أنا تحت|أنا قدامك/);
+  await hiding.scrollIntoViewIfNeeded();
+  await hiding.click();
+  await expect(hud).toHaveCount(0);
+  await expect(bubble(page)).toContainText(/لقيتني في \d+ ثانية|رقم قياسي|وسام جديد/, { timeout: 5000 });
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("bx-guide-play") ?? "{}"));
+  expect(saved.badges).toContain("seeker");
+  expect(saved.seekBest).toBeGreaterThan(0);
+  expect(errors).toEqual([]);
+});
+
+test("at the end of a page Baqloz suggests where to go next", async ({ page }) => {
+  await withGuide(page);
+  await page.goto("/bootcamp/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  await page.waitForTimeout(800);
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  await page.mouse.wheel(0, 400);
+  await expect(bubble(page)).toContainText("خلصت الصفحة", { timeout: 10_000 });
+  await bubble(page).getByRole("button", { name: "يلا بينا" }).click();
+  await expect(page).not.toHaveURL(/\/bootcamp\/$/, { timeout: 10_000 });
+});

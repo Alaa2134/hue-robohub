@@ -1,11 +1,12 @@
 "use client";
 /**
- * Baqloz's menu (click him), in two tabs:
+ * Baqloz's menu (click him), in three tabs:
  *  - "Talk to me": a chat. He "types", answers appear letter by letter, each answer can be read
  *    aloud and comes with a button to the right page and suggested next questions. The
  *    conversation is kept for the visit, and he remembers what you were talking about.
  *  - "Go to": quick actions (site tour, search, language, back to top), the page's own sections,
  *    every page of the site and how much of it you've explored.
+ *  - "Play": games with him (MascotPlay) and the badges you've collected.
  * Escape closes it and gives focus back; the arrow keys move between options.
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -17,12 +18,14 @@ import { BASE_PATH } from "@/lib/deploy";
 import type { BrainReply } from "@/lib/mascot/brain";
 import { ask, rememberedName, type ChatMsg } from "@/lib/mascot/chat";
 import type { GuideAction } from "@/lib/mascot/guide";
+import { play } from "@/lib/mascot/games";
 import { canSpeak } from "@/lib/mascot/voice";
 import { pageToc } from "@/lib/mascotScenes";
+import { MascotPlay } from "./MascotPlay";
 
 const COPY = {
-  en: { tag: "Your BuildX guide", chat: "Talk to me", explore: "Go to", ask: "Ask Baqloz anything…", send: "Send", here: "On this page", go: "Pages", tour: "Site tour", pagetour: "Tour this page", search: "Search", lang: "عربي", top: "Top", sound: "Baqloz's voice", hide: "Hide Baqloz", close: "Close", on: "On", off: "Off", typing: "Baqloz is typing…", listen: "Read aloud", hello: (n?: string) => `Hi${n ? ` ${n}` : ""}! I'm Baqloz 👋 Ask me anything about BuildX: tracks, competitions, events or joining.`, explored: (a: number, b: number) => `Explored ${a} of ${b} pages` },
-  ar: { tag: "مرشدك في BuildX", chat: "اتكلم معايا", explore: "روح على", ask: "اسأل بقلظ أي حاجة…", send: "ابعت", here: "في الصفحة دي", go: "كل الصفحات", tour: "جولة في الموقع", pagetour: "لفّة في الصفحة دي", search: "البحث", lang: "English", top: "لفوق", sound: "صوت بقلظ", hide: "خبّي بقلظ", close: "اقفل", on: "شغّال", off: "مقفول", typing: "بقلظ بيكتب…", listen: "اسمع الرد", hello: (n?: string) => `أهلاً${n ? ` يا ${n}` : ""}! أنا بقلظ 👋 اسألني عن أي حاجة في BuildX: التراكات، المسابقات، الإيفنتات، أو إزاي تنضم.`, explored: (a: number, b: number) => `لفّيت ${a} من ${b} صفحة` },
+  en: { tag: "Your BuildX guide", chat: "Talk to me", explore: "Go to", play: "Play", ask: "Ask Baqloz anything…", send: "Send", here: "On this page", go: "Pages", tour: "Site tour", pagetour: "Tour this page", search: "Search", lang: "عربي", top: "Top", sound: "Baqloz's voice", hide: "Hide Baqloz", close: "Close", on: "On", off: "Off", typing: "Baqloz is typing…", listen: "Read aloud", hello: (n?: string) => `Hi${n ? ` ${n}` : ""}! I'm Baqloz 👋 Ask me anything about BuildX: tracks, competitions, events or joining.`, explored: (a: number, b: number) => `Explored ${a} of ${b} pages` },
+  ar: { tag: "مرشدك في BuildX", chat: "اتكلم معايا", explore: "روح على", play: "العب", ask: "اسأل بقلظ أي حاجة…", send: "ابعت", here: "في الصفحة دي", go: "كل الصفحات", tour: "جولة في الموقع", pagetour: "لفّة في الصفحة دي", search: "البحث", lang: "English", top: "لفوق", sound: "صوت بقلظ", hide: "خبّي بقلظ", close: "اقفل", on: "شغّال", off: "مقفول", typing: "بقلظ بيكتب…", listen: "اسمع الرد", hello: (n?: string) => `أهلاً${n ? ` يا ${n}` : ""}! أنا بقلظ 👋 اسألني عن أي حاجة في BuildX: التراكات، المسابقات، الإيفنتات، أو إزاي تنضم.`, explored: (a: number, b: number) => `لفّيت ${a} من ${b} صفحة` },
 };
 
 const CHAT_KEY = "bx-guide-chat";
@@ -78,6 +81,8 @@ export function MascotGuide({
   onClose,
   onHide,
   onSound,
+  onGame,
+  onQuiz,
 }: {
   locale: "en" | "ar";
   path: string;
@@ -92,13 +97,15 @@ export function MascotGuide({
   onClose: () => void;
   onHide: () => void;
   onSound: () => void;
+  onGame: (g: "hoop" | "seek") => void;
+  onQuiz: (r: "right" | "wrong" | "done", score?: number) => void;
 }) {
   const t = COPY[locale];
   const sound = useMascot((s) => s.sound);
   const panel = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const thread = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<"chat" | "explore">("chat");
+  const [tab, setTab] = useState<"chat" | "explore" | "play">("chat");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [msgs, setMsgs] = useState<ChatMsg[]>(loadChat);
@@ -142,6 +149,7 @@ export function MascotGuide({
     const mine: ChatMsg = { id: ++msgId, role: "user", text };
     setMsgs((m) => [...m, mine]);
     setBusy(true);
+    if (play.update((p) => ({ asked: p.asked + 1 })).asked >= 5) play.award("chatter");
     const started = performance.now();
     try {
       const r = await ask(text, [...msgs, mine], path);
@@ -219,11 +227,12 @@ export function MascotGuide({
       </div>
 
       {/* Tabs */}
-      <div role="tablist" className="grid grid-cols-2 gap-1 p-2">
+      <div role="tablist" className="grid grid-cols-3 gap-1 p-2">
         {(
           [
             ["chat", t.chat],
             ["explore", t.explore],
+            ["play", t.play],
           ] as const
         ).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={cn("rounded-xl py-2 text-sm font-semibold transition", tab === k ? "bg-white/[0.08] text-chalk" : "text-fog hover:text-mist")}>
@@ -305,6 +314,10 @@ export function MascotGuide({
               {t.send}
             </button>
           </form>
+        </div>
+      ) : tab === "play" ? (
+        <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2" style={{ maxHeight: anchor.phone ? "52dvh" : "min(56dvh, 30rem)" }}>
+          <MascotPlay locale={locale} onGame={onGame} onQuiz={onQuiz} />
         </div>
       ) : (
         <div role="tabpanel" className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-2">

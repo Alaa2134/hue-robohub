@@ -8,16 +8,19 @@
  * the cards you rest the cursor on, helps with forms, celebrates a click on Join, keeps count of the
  * pages you've explored, sits down and falls asleep when left alone, and has a couple of easter eggs.
  * The visitor can pick him up (mouse or finger), swing him around and throw him: he bounces off the
- * screen edges, lands flat on his belly with a complaint, and gets back up.
+ * screen edges, lands flat on his belly with a complaint, and gets back up. And games (menu → Play):
+ * throw him into a hoop, hide-and-seek on the page, a quiz, badges to collect and a daily streak.
+ * At the end of a page he suggests where to go next.
  *
  * Only the mascot's own body takes clicks; everything else on the stage lets them through.
  */
 import { gsap } from "gsap";
 import dynamic from "next/dynamic";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -28,6 +31,7 @@ import { ONE_SHOT, type ClipName } from "@/lib/mascot/clip-names";
 import { confetti, playSound, type Sound } from "@/lib/mascot/fx";
 import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
+import { BADGES, play, visitToday } from "@/lib/mascot/games";
 import { activated, hush, speak as speakAloud } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
@@ -181,7 +185,22 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   useEffect(() => {
     here.current = { path, pathname };
   }, [path, pathname]);
-  const visible = !hidden && !siteMenu && !search && !keyboard;
+  /** A game on the page: the hoop (score, ends at) or hide-and-seek (started at). */
+  const [game, setGame] = useState<{ kind: "hoop" | "seek"; score: number; started: number; ends: number } | null>(null);
+  const gameRef = useRef(game);
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
+  const [hoop, setHoop] = useState<{ x: number; y: number; w: number } | null>(null);
+  const hoopRef = useRef(hoop);
+  useEffect(() => {
+    hoopRef.current = hoop;
+  }, [hoop]);
+  /** Hide-and-seek: where he's hiding (page coordinates), and the hint under the timer. */
+  const [hideSpot, setHideSpot] = useState<{ top: number; left: number; side: "left" | "right"; size: number } | null>(null);
+  const [hint, setHint] = useState<Text | null>(null);
+  const [clock, setClock] = useState(0);
+  const visible = !hidden && !siteMenu && !search && !keyboard && !hideSpot;
 
   const sfx = useCallback((s: Sound) => soundOn.current && activated() && playSound(s), []);
   /** Say a line out loud when his voice is on (and the browser lets the page speak yet). */
@@ -298,7 +317,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const brief = useCallback<Brief>(
     (line, o) => {
       const s = mascot.get();
-      if (s.hidden || s.menu || touring.current || resting.current || physical.current) return false;
+      if (s.hidden || s.menu || touring.current || resting.current || physical.current || gameRef.current) return false;
       if ((s.speech && prio.current > o.prio) || (sceneBusy() && o.prio < 2)) return false;
       if (o.interrupt && sceneBusy()) {
         seq.current++;
@@ -384,7 +403,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
 
   const onScene = useCallback(
     (scene: Scene) => {
-      if (touring.current || physical.current || mascot.get().menu || mascot.get().hidden) return;
+      if (touring.current || physical.current || gameRef.current || mascot.get().menu || mascot.get().hidden) return;
       // Sections found on the page wait for a configured scene to finish.
       if (scene.id.startsWith("auto-") && sceneBusy()) {
         pending.current = scene;
@@ -570,6 +589,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       mascot.set({ props: [], goggles: false, drone: false });
       mascot.play("Celebrate", "Happy");
       sfx("tada");
+      play.award("tourist");
       await speak([{ ...LINES.tourEnd, actions: [{ kind: "menu", label: LINES.askMe }] }], id);
       if (seq.current === id) mascot.play("Idle");
     }
@@ -692,6 +712,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       storage.set("bx-guide-pages", JSON.stringify(next));
       if (next.length >= PAGES.length && storage.get("bx-guide-explored") !== "1") {
         storage.set("bx-guide-explored", "1");
+        play.award("explorer");
         setTimeout(() => {
           const id = ++seq.current;
           mascot.play("Celebrate", "Happy");
@@ -1004,6 +1025,15 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       const maxX = window.innerWidth - s.w + s.w * BODY.x * 0.6;
       const land = () => {
         tilt.current = 0;
+        if (gameRef.current?.kind === "hoop" || performance.now() - hoopEnded.current < 4000) {
+          // In the hoop game (or the shot that was flying when it ended): straight back on his feet.
+          pos.current.y = floor;
+          apply();
+          setOnRight(pos.current.x + s.w / 2 > window.innerWidth / 2);
+          mascot.play("Jump", "Idle");
+          physical.current = false;
+          return;
+        }
         pos.current.y = floor;
         apply();
         setOnRight(pos.current.x + s.w / 2 > window.innerWidth / 2);
@@ -1011,6 +1041,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         if (thrown || fell) {
           // Splat: flat on his belly, a complaint, then up again.
           throws.current++;
+          if (play.update((p) => ({ throws: p.throws + 1 })).throws >= 5) play.award("thrower");
           const side = Math.abs(vx) > 60 ? Math.sign(vx) : pos.current.x + s.w / 2 > window.innerWidth / 2 ? 1 : -1;
           mascot.set({ flop: side, facing: 0, look: null });
           mascot.play("Idle");
@@ -1028,8 +1059,16 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         const dt = Math.min(0.033, (now - last) / 1000);
         last = now;
         vy += 2600 * dt;
+        const prevY = pos.current.y;
         pos.current.x += vx * dt;
         pos.current.y += vy * dt;
+        // Through the hoop: his middle crosses the rim going down, inside its width.
+        const h = hoopRef.current;
+        if (h && vy > 0 && gameRef.current?.kind === "hoop") {
+          const mid = s.h * 0.5;
+          const cx = pos.current.x + s.w / 2;
+          if (prevY + mid < h.y && pos.current.y + mid >= h.y && Math.abs(cx - h.x) < h.w * 0.5) scoredRef.current?.();
+        }
         if (pos.current.x < minX || pos.current.x > maxX) {
           pos.current.x = clamp(pos.current.x, minX, maxX);
           if (Math.abs(vx) > 700 && !hitWall) {
@@ -1108,6 +1147,256 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     },
     [],
   );
+
+  // ── Games (menu → Play) ──
+  const fill = (x: Text, v: string | number): Text => ({ ar: x.ar.replace(/\{[np]\}/, String(v)), en: x.en.replace(/\{[np]\}/, String(v)) });
+
+  const placeHoop = useCallback(() => {
+    const s = sizeRef.current;
+    const w = Math.round(s.w * 1.15);
+    const vw = window.innerWidth;
+    const right = pos.current.x + s.w / 2 > vw / 2;
+    const x = clamp(vw * (right ? 0.14 + Math.random() * 0.28 : 0.58 + Math.random() * 0.28), w / 2 + 8, vw - w / 2 - 8);
+    const y = window.innerHeight * (0.3 + Math.random() * 0.2);
+    setHoop({ x, y, w });
+  }, []);
+
+  const scoredRef = useRef<(() => void) | null>(null);
+  const hoopEnded = useRef(-Infinity);
+  scoredRef.current = () => {
+    const h = hoopRef.current;
+    const g = gameRef.current;
+    if (!h || !g) return;
+    hoopRef.current = null;
+    setGame({ ...g, score: g.score + 1 });
+    gameRef.current = { ...g, score: g.score + 1 };
+    sfx("tada");
+    confetti({ x: h.x, y: h.y }, 60);
+    quip(pick(GAME.goal), 1600);
+    setTimeout(() => gameRef.current?.kind === "hoop" && placeHoop(), 700);
+  };
+
+  const endGame = useCallback(
+    (how: "time" | "stop") => {
+      const g = gameRef.current;
+      if (!g) return;
+      setGame(null);
+      gameRef.current = null;
+      setHoop(null);
+      setHint(null);
+      if (g.kind === "hoop") hoopEnded.current = performance.now();
+      if (g.kind === "hoop" && how === "time") {
+        const best = play.get().hoopBest;
+        play.update((p) => ({ hoopBest: Math.max(p.hoopBest, g.score) }));
+        if (g.score >= 5) play.award("hooper");
+        mascot.play(g.score ? "Celebrate" : "Wave", "Idle");
+        quip(g.score > best && g.score > 0 ? fill(GAME.hoopBest, g.score) : fill(GAME.hoopEnd, g.score), 3600);
+      }
+    },
+    [quip],
+  );
+
+  const startHoop = useCallback(() => {
+    seq.current++;
+    touring.current = false;
+    nextStep.current?.();
+    mascot.set({ menu: false, props: [], goggles: false, drone: false });
+    const now = Date.now();
+    const g = { kind: "hoop" as const, score: 0, started: now, ends: now + 45_000 };
+    setGame(g);
+    gameRef.current = g;
+    placeHoop();
+    mascot.play("Happy", "Idle");
+    quip(GAME.hoopStart, 3200);
+  }, [placeHoop, quip]);
+
+  /** Hide-and-seek: he walks off and hides at the edge of a section somewhere else on the page. */
+  const startSeek = useCallback(async () => {
+    const id = ++seq.current;
+    touring.current = false;
+    nextStep.current?.();
+    mascot.set({ menu: false, props: [], goggles: false, drone: false });
+    mascot.play("Happy", "Idle");
+    quip(GAME.seekStart, 1800);
+    await sleep(1600);
+    if (seq.current !== id) return;
+    const s = sizeRef.current;
+    await moveTo({ x: pos.current.x + s.w / 2 > window.innerWidth / 2 ? window.innerWidth + 20 : -s.w - 20, y: pos.current.y });
+    if (seq.current !== id) return;
+    const vh = window.innerHeight;
+    const sections = [...document.querySelectorAll<HTMLElement>("main section, main > div > section, footer")].filter((el) => el.getBoundingClientRect().height > 160);
+    const away = sections.filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.bottom < 0 || r.top > vh;
+    });
+    const pool = away.length ? away : sections;
+    const el = pool[Math.floor(Math.random() * pool.length)];
+    const r = el?.getBoundingClientRect();
+    const size = isPhoneWidth() ? 64 : 84;
+    const docH = document.documentElement.scrollHeight;
+    const top = r ? clamp(r.top + window.scrollY + 40 + Math.random() * Math.max(10, r.height - size - 80), 80, docH - size - 10) : Math.max(80, docH * Math.random() - size);
+    const side = Math.random() < 0.5 ? "left" : "right";
+    const now = Date.now();
+    const g = { kind: "seek" as const, score: 0, started: now, ends: 0 };
+    setGame(g);
+    gameRef.current = g;
+    setHint(GAME.seekHud);
+    setHideSpot({ top, left: side === "left" ? 0 : document.documentElement.clientWidth - size, side, size });
+  }, [moveTo, quip]);
+
+  const foundHim = useCallback(
+    (gaveUp = false) => {
+      const g = gameRef.current;
+      const spot = hideSpot;
+      if (!g || g.kind !== "seek" || !spot) return;
+      const secs = Math.max(1, Math.round((Date.now() - g.started) / 1000));
+      endGame("stop");
+      setHideSpot(null);
+      // Pops out right where he was hiding.
+      const s = sizeRef.current;
+      const y = spot.top - window.scrollY;
+      pos.current = { x: clamp(spot.side === "left" ? 0 : window.innerWidth - s.w, 0, window.innerWidth - s.w), y: clamp(y - s.h * 0.4, 0, window.innerHeight - s.h) };
+      apply();
+      setOnRight(spot.side === "right");
+      if (gaveUp) {
+        mascot.play("Wave", "Idle");
+        quip(GAME.gaveUp, 3200);
+      } else {
+        mascot.play("Celebrate", "Happy");
+        sfx("tada");
+        confetti({ x: pos.current.x + s.w / 2, y: pos.current.y + s.h * 0.3 });
+        const best = play.get().seekBest;
+        play.update((p) => ({ seekBest: p.seekBest ? Math.min(p.seekBest, secs) : secs }));
+        play.award("seeker");
+        if (secs < 15) play.award("quick");
+        quip(best && secs < best ? fill(GAME.hoopBest, `${secs}s`) : fill(GAME.found, secs), 3600);
+      }
+      setTimeout(() => !gameRef.current && !physical.current && overlap(pos.current, sizeRef.current, stage.current) > 0.12 && void place(), 3800);
+    },
+    [hideSpot, endGame, apply, quip, sfx, place],
+  );
+
+  const seekHint = useCallback(() => {
+    const el = document.querySelector("[data-mascot-hiding]");
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setHint(r.bottom < 0 ? GAME.up : r.top > window.innerHeight ? GAME.down : GAME.here);
+  }, []);
+
+  const giveUp = useCallback(() => {
+    const el = document.querySelector("[data-mascot-hiding]");
+    el?.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "center" });
+    setTimeout(() => foundHim(true), reducedMotion() ? 100 : 900);
+  }, [foundHim]);
+
+  // The game clock: the hoop runs out after 45 s; hide-and-seek counts up.
+  useEffect(() => {
+    if (!game) return;
+    const tick = () => {
+      const g = gameRef.current;
+      if (!g) return;
+      setClock(g.kind === "hoop" ? Math.max(0, Math.ceil((g.ends - Date.now()) / 1000)) : Math.floor((Date.now() - g.started) / 1000));
+      if (g.kind === "hoop" && Date.now() >= g.ends && !physical.current) endGame("time");
+    };
+    tick();
+    const t = window.setInterval(tick, 250);
+    return () => clearInterval(t);
+  }, [game, endGame]);
+
+  // Leaving the page ends a game.
+  useEffect(() => {
+    if (!gameRef.current) return;
+    setHideSpot(null);
+    endGame("stop");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  /** The quiz (in his menu): he reacts to each answer. */
+  const onQuiz = useCallback(
+    (r: "right" | "wrong" | "done", score?: number) => {
+      if (r === "right") {
+        mascot.play("Jump", "Listening");
+        sfx("pop");
+      } else if (r === "wrong") {
+        mascot.play("Think");
+        setTimeout(() => mascot.get().clip === "Think" && mascot.play("Listening"), 1400);
+      } else {
+        mascot.play((score ?? 0) >= 6 ? "Celebrate" : "Happy", "Listening");
+        if ((score ?? 0) >= 7) {
+          sfx("tada");
+          const b = mascot.get().box;
+          confetti({ x: b.x + b.w / 2, y: b.y + b.h * 0.3 }, 80);
+        }
+      }
+    },
+    [sfx],
+  );
+
+  const onGame = useCallback((g: "hoop" | "seek") => (g === "hoop" ? startHoop() : void startSeek()), [startHoop, startSeek]);
+
+  // A new badge: he celebrates it.
+  useEffect(
+    () =>
+      play.onBadge((id) => {
+        const b = BADGES.find((x) => x.id === id);
+        if (!b) return;
+        setTimeout(() => {
+          sfx("tada");
+          const box = mascot.get().box;
+          if (box.w) confetti({ x: box.x + box.w / 2, y: box.y + box.h * 0.3 }, 50);
+          quip(fill(GAME.badge, `${b.name[voice]} ${b.icon}`), 3400);
+        }, 900);
+      }),
+    [quip, sfx, voice],
+  );
+
+  // Days in a row: counted once a day; from the second day he says so.
+  useEffect(() => {
+    if (!placed) return;
+    const { streak, fresh } = visitToday();
+    if (!fresh || streak < 2) return;
+    const t = window.setTimeout(() => brief(fill(GAME.streak, streak), { prio: 1, clip: "Happy", ms: 5000 }), 9000);
+    return () => clearTimeout(t);
+  }, [placed, brief]);
+
+  // The end of a page: he suggests the next one to see (a page not explored yet, else the next tour
+  // stop). Once per page per visit; if he's busy talking it waits for a quiet moment.
+  useEffect(() => {
+    let timer = 0;
+    const check = () => {
+      const doc = document.documentElement;
+      if (window.scrollY + window.innerHeight < doc.scrollHeight - 220 || doc.scrollHeight < window.innerHeight * 1.6) return;
+      if (gameRef.current || touring.current || physical.current) return;
+      const cur = here.current.path;
+      let shown = false;
+      try {
+        shown = !!sessionStorage.getItem(`bx-guide-next:${cur}`);
+      } catch {}
+      if (shown) return;
+      const unseen = PAGES.find((p) => p.href !== cur && !explored.includes(p.id) && p.id !== "join");
+      const at = SITE_TOUR.findIndex((st) => st.href === cur);
+      const href = unseen?.href ?? SITE_TOUR[(at + 1) % SITE_TOUR.length]?.href;
+      const page = PAGES.find((p) => p.href === href);
+      if (!page || page.href === cur) return;
+      const said = brief(
+        { ...fill(GAME.nextPage, page.label[voice]), actions: [{ kind: "go", href: page.href, section: page.section, label: GAME.letsGo }, NOT_NOW] },
+        { prio: 1, clip: "PointLeft", ms: 9000 },
+      );
+      if (said) once(`bx-guide-next:${cur}`);
+    };
+    const onScroll = () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(check, 700);
+    };
+    // Also every few seconds while at the bottom (he may have been busy when they got there).
+    const poll = window.setInterval(check, 3000);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      clearInterval(poll);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [explored, brief, voice]);
 
   // ── Clicking the mascot: open the guide; five quick clicks: a dance. ──
   const clicks = useRef<number[]>([]);
@@ -1243,9 +1532,69 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             onClose={closeGuide}
             onHide={hide}
             onSound={toggleSound}
+            onGame={onGame}
+            onQuiz={onQuiz}
           />
         </div>
       )}
+
+      {hoop && (
+        <div aria-hidden className="pointer-events-none fixed left-0 top-0 z-[29]" style={{ transform: `translate3d(${Math.round(hoop.x - hoop.w / 2)}px, ${Math.round(hoop.y - hoop.w * 0.75)}px, 0)`, width: hoop.w, height: hoop.w * 1.25 }} data-mascot-hoop>
+          <div className="absolute inset-x-[14%] top-0 h-[46%] rounded-md border-2 border-white/70 bg-white/10 backdrop-blur-[2px]">
+            <div className="absolute inset-x-[30%] bottom-[12%] h-[38%] border-2 border-white/60" />
+          </div>
+          <div className="absolute inset-x-0 top-[60%] h-2.5 -translate-y-1/2 rounded-full border-[3px] border-orange-500 bg-orange-500/20 shadow-[0_0_12px_rgb(249_115_22/0.6)]" />
+          <div className="absolute inset-x-[8%] top-[62%] h-[30%] [clip-path:polygon(0_0,100%_0,82%_100%,18%_100%)] [background:repeating-linear-gradient(45deg,rgb(255_255_255/0.55)_0_2px,transparent_2px_10px),repeating-linear-gradient(-45deg,rgb(255_255_255/0.55)_0_2px,transparent_2px_10px)]" />
+        </div>
+      )}
+
+      {game && (
+        <div lang={voice} dir={voice === "ar" ? "rtl" : "ltr"} role="status" className="fixed inset-x-0 top-[calc(4.6rem+env(safe-area-inset-top))] z-40 mx-auto flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.94)] px-4 py-2 text-sm text-chalk shadow-lg backdrop-blur" data-mascot-game>
+          {game.kind === "hoop" ? (
+            <>
+              <span>🏀 {game.score}</span>
+              <span className="tabular-nums text-mist">⏱ {clock}</span>
+            </>
+          ) : (
+            <>
+              <span className="truncate">{(hint ?? GAME.seekHud)[voice]}</span>
+              <span className="tabular-nums text-mist">⏱ {clock}</span>
+              <button type="button" onClick={seekHint} className="rounded-full border border-cyan/40 px-2.5 py-0.5 text-xs text-cyan hover:bg-cyan/10">
+                {GAME.hint[voice]}
+              </button>
+              <button type="button" onClick={giveUp} className="rounded-full px-2 py-0.5 text-xs text-fog hover:text-chalk">
+                {GAME.giveUp[voice]}
+              </button>
+            </>
+          )}
+          {game.kind === "hoop" && (
+            <button type="button" onClick={() => endGame("time")} className="rounded-full px-2 py-0.5 text-xs text-fog hover:text-chalk">
+              {GAME.end[voice]}
+            </button>
+          )}
+        </div>
+      )}
+
+      {hideSpot &&
+        createPortal(
+          <button
+            type="button"
+            data-mascot-hiding
+            onClick={() => foundHim(false)}
+            aria-label={GAME.foundMe[voice]}
+            className="mascot-peek absolute z-30 cursor-pointer overflow-hidden"
+            style={{ top: hideSpot.top, left: hideSpot.left, width: hideSpot.size, height: hideSpot.size }}
+          >
+            <img
+              src={POSTER}
+              alt=""
+              draggable={false}
+              className="pointer-events-none size-full select-none object-contain"
+              style={{ transform: `translateX(${hideSpot.side === "left" ? "-38%" : "38%"}) rotate(${hideSpot.side === "left" ? 18 : -18}deg)` }}
+            />
+          </button>,
+          document.body,
+        )}
 
       {hidden && !siteMenu && !search && (
         <button
