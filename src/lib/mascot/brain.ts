@@ -14,7 +14,8 @@ import { eventLine, type Live } from "./live";
 
 export type Topic = { kind: "track"; slug: string } | { kind: "team"; slug: string } | { kind: "bootcamp" } | { kind: "events" } | { kind: "join" } | { kind: "about" };
 export type Memory = { topic?: Topic; name?: string; turns: number };
-export type BrainReply = { text: string; href?: string; section?: string; label?: string; action?: GuideAction; followups: string[]; topic?: Topic };
+/** `unsure`: he only guessed (a page to look at, or "I don't know"); the AI may answer instead. */
+export type BrainReply = { text: string; href?: string; section?: string; label?: string; action?: GuideAction; followups: string[]; topic?: Topic; unsure?: boolean };
 
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
 const has = (q: string, keys: string[]) => keys.some((k) => {
@@ -195,8 +196,9 @@ export function think(question: string, mem: Memory, path: string, live?: Live |
 
   // ── Navigation answers, then honesty ──
   const nav = matchIntent(question);
-  if (nav.href || nav.action) return { text: nav.text.ar, href: nav.href, section: nav.section, label: nav.label?.ar, action: nav.action, followups: [] };
+  if (nav.href || nav.action) return { text: nav.text.ar, href: nav.href, section: nav.section, label: nav.label?.ar, action: nav.action, followups: [], unsure: true };
   return {
+    unsure: true,
     text: pick([`دي مش عارفها بصراحة${name} 😅 بس ممكن أساعدك في التراكات أو المسابقات أو الإيفنتات أو الانضمام.`, "سؤال حلو بس معنديش إجابته 🙈 جرّب البحث أو اسأل الفريق من صفحة التواصل."]),
     action: "search",
     label: "افتح البحث",
