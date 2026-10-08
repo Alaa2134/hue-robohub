@@ -1018,3 +1018,44 @@ test("content staff publish a student's project on the website or decline it", a
   await expect.poll(() => calls.filter((c) => c.fn === "staff_review_project").map((c) => c.body)).toContainEqual({ p_id: "sp2", p_status: "declined", p_note: "مش مشروع", p_site: null });
   delete RPC.staff_student_projects;
 });
+
+test("coaches see who needs a word, with a WhatsApp nudge ready", async ({ page }) => {
+  RPC.staff_at_risk = [
+    { id: "s1", name: "Mona Adel", group: "G1", phone: "01001234567", missed: 2, lastSeen: at(60 * 24 * 9), reasons: ["missed_two"] },
+    { id: "s2", name: "Omar Ali", group: "G1", phone: null, missed: 0, lastSeen: null, reasons: ["inactive"] },
+  ];
+  await signInAsOwner(page);
+  await page.goto("/app/#/staff");
+  await page.getByText("فيه 2 طلاب محتاجين متابعة (غابوا أو اختفوا).").locator("..").getByRole("button", { name: "شوفهم" }).click();
+  await expect(page).toHaveURL(/#\/staff\/at-risk$/);
+  await expect(page.getByText("غاب آخر سيشنين")).toBeVisible();
+  await expect(page.getByText("مختفي من أسبوعين")).toBeVisible();
+  const wa = await page.getByRole("link", { name: "واتساب Mona Adel" }).getAttribute("href");
+  expect(wa).toMatch(/^https:\/\/wa\.me\/201001234567\?text=/);
+  await expect(page.getByRole("link", { name: "واتساب Omar Ali" })).toHaveCount(0);
+  delete RPC.staff_at_risk;
+});
+
+test("a lecture can be scheduled: hidden until its time, then it publishes itself", async ({ page }) => {
+  await signInAsOwner(page);
+  const inserted: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/materials/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "m9" }] });
+    }
+    const later = new Date(Date.now() + 864e5).toISOString();
+    return route.fulfill({ json: [{ id: "m1", title: "Lecture 6", description: "", kind: "link", storage_path: null, url: "https://x.y", file_name: null, mime: null, size_bytes: null, group_name: "", published: false, publish_at: later, pinned: false, created_by: "u1", created_at: at(5) }] });
+  });
+  await page.goto("/app/#/staff/content");
+  await expect(page.getByText(/^ينزل /)).toBeVisible();
+  await page.getByRole("button", { name: "إضافة رابط" }).click();
+  await page.getByLabel("العنوان").fill("Lecture 7");
+  await page.getByLabel("الرابط").fill("youtube.com/watch?v=1");
+  const when = new Date(Date.now() + 2 * 864e5);
+  const local = new Date(when.getTime() - when.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+  await page.getByLabel("انشره في (اختياري)").fill(local);
+  await page.getByRole("dialog").getByRole("button", { name: "إضافة", exact: true }).click();
+  await expect.poll(() => inserted[0]).toMatchObject({ title: "Lecture 7", published: false });
+  expect(new Date(String(inserted[0]?.publish_at)).getTime()).toBeGreaterThan(Date.now() + 864e5);
+});

@@ -23,6 +23,7 @@ import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-t
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
+import { AtRiskScreen, atRiskCount } from "./at-risk";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -62,10 +63,12 @@ const AREA_OF: Record<string, Area> = {
   announcements: "students",
   leaderboard: "students",
   reports: "students",
+  "at-risk": "students",
   applications: "applications",
   events: "events",
   site: "content",
   forms: "content",
+  projects: "content",
   inbox: "inbox",
   certificates: "certificates",
   settings: "settings",
@@ -204,8 +207,11 @@ export function StaffApp({
     case "apps":
       screen = <AppsSettingsScreen me={me} />;
       break;
+    case "at-risk":
+      screen = <AtRiskScreen />;
+      break;
     case "projects":
-      screen = can(me, "content") ? <StudentProjectsReview me={me} /> : <NotAllowed />;
+      screen = <StudentProjectsReview me={me} />;
       break;
     case "access":
       screen = <AccessRequestsScreen me={me} />;
@@ -269,6 +275,7 @@ function StaffHome({ me }: { me: StaffRow }) {
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
     const access = can(me, "students") || me.role !== "lead" ? await pendingAccessRequests().catch(() => 0) : 0;
     const projects = can(me, "content") ? await pendingStudentProjects().catch(() => 0) : 0;
+    const atRisk = can(me, "students") ? await atRiskCount().catch(() => 0) : 0;
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -279,6 +286,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       deletions,
       access,
       projects,
+      atRisk,
     };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
@@ -361,6 +369,16 @@ function StaffHome({ me }: { me: StaffRow }) {
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/access")}>
             افتح
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.atRisk && (
+        <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
+          <Icon name="users" size={22} className="shrink-0 text-warn" />
+          <p className="flex-1 text-sm text-mist">{data.atRisk === 1 ? "فيه طالب محتاج متابعة (غاب أو اختفى)." : `فيه ${data.atRisk} طلاب محتاجين متابعة (غابوا أو اختفوا).`}</p>
+          <Button size="sm" onClick={() => go("/staff/at-risk")}>
+            شوفهم
           </Button>
         </Card>
       )}
@@ -490,6 +508,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
+    { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk", show: can(me, "students") },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security", show: me.role !== "lead" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },

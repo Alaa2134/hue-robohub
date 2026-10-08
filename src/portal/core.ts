@@ -131,6 +131,8 @@ export type Material = {
   size_bytes: number | null;
   group_name: string;
   published: boolean;
+  /** Hidden until this time, then it publishes itself (and the group is notified). */
+  publish_at?: string | null;
   pinned: boolean;
   created_by: string | null;
   created_at: string;

@@ -2,7 +2,7 @@
 /** Content library: upload files (PDF, slides, video, code…) or add links, per group. */
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { MAX_UPLOAD, fileUrl, fmt, must, removeObjects, safeName, sb, uid, uploadObject, type Material, type StaffRow } from "./core";
+import { MAX_UPLOAD, fileUrl, fmt, fromLocalInput, must, removeObjects, safeName, sb, uid, uploadObject, type Material, type StaffRow } from "./core";
 import { GroupSelect, useGroups } from "./staff-data";
 import {
   Badge,
@@ -144,7 +144,7 @@ export function StaffContent({ me }: { me: StaffRow }) {
                     </p>
                   </div>
                   {m.pinned && <Icon name="pin" size={16} className="text-cyan" />}
-                  {!m.published && <Badge>مخفي</Badge>}
+                  {!m.published && (m.publish_at ? <Badge tone="info">ينزل {fmt.dateTime(m.publish_at)}</Badge> : <Badge>مخفي</Badge>)}
                 </div>
               </Row>
             ))}
@@ -255,6 +255,7 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
   const [items, setItems] = useState<Pending[]>([]);
   const [group, setGroup] = useState("");
   const [description, setDescription] = useState("");
+  const [later, setLater] = useState("");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -284,7 +285,7 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
         must(
           await sb()
             .from("materials")
-            .insert({ title: it.title.trim() || it.file.name, description: description.trim(), kind: "file", storage_path: path, file_name: it.file.name.slice(0, 200), mime: it.file.type || null, size_bytes: it.file.size, group_name: group })
+            .insert({ title: it.title.trim() || it.file.name, description: description.trim(), kind: "file", storage_path: path, file_name: it.file.name.slice(0, 200), mime: it.file.type || null, size_bytes: it.file.size, group_name: group, ...schedule(later) })
             .select("id"),
         );
         patch(it.id, { state: "done", progress: 1 });
@@ -362,6 +363,7 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
         <Field label="وصف (اختياري)">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={2000} />
         </Field>
+        <LaterField value={later} onChange={setLater} />
         {finished ? (
           <Button variant="primary" size="lg" icon="check" onClick={close} block>
             تم
@@ -376,8 +378,23 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
   );
 }
 
+/** Publish now, or hidden until a time (it publishes itself then and the group gets a notification). */
+const schedule = (later: string) => {
+  const at = fromLocalInput(later);
+  return at && new Date(at).getTime() > Date.now() ? { published: false, publish_at: at } : {};
+};
+
+function LaterField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Field label="انشره في (اختياري)" hint="سيبه فاضي عشان يظهر للطلاب دلوقتي. لو حددت ميعاد، بيستخبى لحد الميعاد وبعدين ينزل لوحده ويوصل الطلاب إشعار.">
+      <Input type="datetime-local" value={value} onChange={(e) => onChange(e.target.value)} dir="ltr" />
+    </Field>
+  );
+}
+
 function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: () => void; groups: string[]; onDone: () => void }) {
   const [form, setForm] = useState({ title: "", url: "", description: "", group: "" });
+  const [later, setLater] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -386,9 +403,10 @@ function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: 
     url = url.replace(/^http:\/\//i, "https://");
     setBusy(true);
     try {
-      must(await sb().from("materials").insert({ title: form.title.trim(), url, description: form.description.trim(), kind: "link", group_name: form.group }).select("id"));
+      must(await sb().from("materials").insert({ title: form.title.trim(), url, description: form.description.trim(), kind: "link", group_name: form.group, ...schedule(later) }).select("id"));
       toast("تمت إضافة الرابط");
       setForm({ title: "", url: "", description: "", group: "" });
+      setLater("");
       onDone();
       onClose();
     } catch (e2) {
@@ -412,6 +430,7 @@ function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: 
         <Field label="وصف (اختياري)">
           <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} maxLength={2000} />
         </Field>
+        <LaterField value={later} onChange={setLater} />
         <Button type="submit" variant="primary" size="lg" icon="plus" loading={busy} block>
           إضافة
         </Button>
