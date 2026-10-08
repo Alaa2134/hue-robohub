@@ -2,6 +2,7 @@ import "../../globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { portalFontVariables } from "@/lib/fonts";
+import { FRAME_GUARD } from "@/components/motion/js-gate";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SUPABASE = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zrtfupdnfxxnguznphis.supabase.co").replace(/\/+$/, "");
@@ -53,6 +54,8 @@ export default function PortalRoot({ children }: { children: ReactNode }) {
     <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD }} />
       </head>
       <body className="bg-abyss text-frost antialiased">{children}</body>
     </html>

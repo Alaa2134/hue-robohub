@@ -133,6 +133,15 @@ const C = {
 };
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Milliseconds since the form appeared: the server ignores forms sent faster than a person types. */
+function useElapsed() {
+  const shown = useRef(0);
+  useEffect(() => {
+    shown.current = Date.now();
+  }, []);
+  return () => (shown.current ? Date.now() - shown.current : 0);
+}
 const PHONE = /^\+?[0-9]{7,16}$/;
 const cleanPhone = (s: string) => s.replace(/[^0-9+]/g, "");
 const fmtWhen = (iso: string, l: Locale) => new Date(iso).toLocaleString(l === "ar" ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -201,6 +210,7 @@ export function MessageForm({ locale, kind = "contact", defaultTopic, deckUrl }:
   const t = C[l];
   const honey = useRef<HTMLInputElement>(null);
   const sponsor = kind === "sponsor";
+  const elapsed = useElapsed();
   const [d, setD] = useState({ name: "", email: "", phone: "", organization: "", topic: defaultTopic && defaultTopic in t.topics ? defaultTopic : "general", message: "", tier: "", site: "", interest: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
@@ -232,7 +242,7 @@ export function MessageForm({ locale, kind = "contact", defaultTopic, deckUrl }:
     setFormError("");
     try {
       const out = await rpc<{ ok: boolean; error?: keyof typeof t.errors }>("submit_message", {
-        p: { ...d, phone: cleanPhone(d.phone), kind, locale: l, website: honey.current?.value ?? "" },
+        p: { ...d, phone: cleanPhone(d.phone), kind, locale: l, website: honey.current?.value ?? "", elapsed: elapsed() },
       });
       if (!out.ok) setFormError(t.errors[out.error ?? "invalid"] ?? t.errors.invalid);
       else setDone(true);
@@ -359,6 +369,7 @@ export function WaitlistForm({ locale }: { locale: string }) {
   const t = C[l];
   const honey = useRef<HTMLInputElement>(null);
   const [d, setD] = useState({ name: "", contact: "" });
+  const elapsed = useElapsed();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "ok" | "dup">("");
@@ -376,7 +387,7 @@ export function WaitlistForm({ locale }: { locale: string }) {
     setBusy(true);
     setError("");
     try {
-      const out = await rpc<{ ok: boolean; duplicate?: boolean; error?: keyof typeof t.errors }>("join_waitlist", { p: { name: d.name, email, phone, locale: l, website: honey.current?.value ?? "" } });
+      const out = await rpc<{ ok: boolean; duplicate?: boolean; error?: keyof typeof t.errors }>("join_waitlist", { p: { name: d.name, email, phone, locale: l, website: honey.current?.value ?? "", elapsed: elapsed() } });
       if (!out.ok) setError(t.errors[out.error ?? "invalid"] ?? t.errors.invalid);
       else setDone(out.duplicate ? "dup" : "ok");
     } catch {
@@ -525,6 +536,7 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "ok" | "dup">("");
+  const elapsed = useElapsed();
 
   useEffect(() => {
     const s = new URLSearchParams(location.search).get("f") ?? "";
@@ -610,7 +622,7 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
     setBusy(true);
     setFormError("");
     try {
-      const answers = Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]));
+      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), __t: elapsed() };
       const out = await rpc<{ ok: boolean; duplicate?: boolean; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) setDone(out.duplicate ? "dup" : "ok");
       else if (out.error === "fields" && out.fields) {

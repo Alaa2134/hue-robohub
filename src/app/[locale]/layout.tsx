@@ -2,7 +2,7 @@ import "../globals.css";
 import type { Metadata, Viewport } from "next";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { Hydrated, JS_GATE } from "@/components/motion/js-gate";
+import { FRAME_GUARD, Hydrated, JS_GATE } from "@/components/motion/js-gate";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
 import { Footer } from "@/components/site/footer";
 import { Header } from "@/components/site/header";
@@ -116,6 +116,7 @@ export default async function SiteLayout({ children, params }: { children: React
       <head>
         {STATIC_SITE && <meta httpEquiv="Content-Security-Policy" content={staticSiteCsp(SUPABASE_URL)} />}
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {STATIC_SITE && <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD }} />}
         <script dangerouslySetInnerHTML={{ __html: JS_GATE }} />
         <JsonLd data={[org, website]} />
       </head>
