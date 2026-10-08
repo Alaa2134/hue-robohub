@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mascot } from "@/hooks/useMascotState";
-import { NODES } from "@/lib/mascot/model";
+import { NODES, OUTFITS } from "@/lib/mascot/model";
 import { addFur, FUR_DESKTOP, FUR_MOBILE } from "./fur";
 import { bindAnimations } from "./MascotAnimations";
 import { buildProps } from "./props";
@@ -94,6 +94,10 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
       look: get(NODES.look),
       eyes: eyes.map((e) => ({ node: e, sy: e.scale.y, x: e.position.x, y: e.position.y })),
       goggles: get(NODES.goggles),
+      headphones: get(NODES.headphones),
+      mouth: get(NODES.mouth),
+      brows: [get(NODES.browL), get(NODES.browR)].map((b) => b && { node: b, rz: b.rotation.z, y: b.position.y }),
+      outfits: OUTFITS.map((name) => ({ name, node: get(name), w: 0 })),
       drone: get(NODES.drone),
       rotors: (() => {
         const r: THREE.Object3D[] = [];
@@ -178,6 +182,31 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
       e.node.position.y = e.y - pitch * 0.01;
     }
 
+    // Outfits pop on and off (a quick scale), the nightcap replaces the headphones.
+    for (const o of parts.outfits) {
+      if (!o.node) continue;
+      o.w = damp(o.w, s.outfit.includes(o.name) ? 1 : 0, 9, dt);
+      o.node.visible = o.w > 0.02;
+      o.node.scale.setScalar(Math.max(0.001, o.w));
+    }
+    if (parts.headphones) parts.headphones.visible = !s.outfit.includes("Nightcap");
+
+    // Face: eyebrows for the mood, and the mouth moves while he talks.
+    const brow = { neutral: [0, 0], happy: [0.08, 0.006], angry: [-0.42, -0.008], sad: [0.38, 0.004], surprised: [0, 0.022] }[s.mood] ?? [0, 0];
+    parts.brows.forEach((b, i) => {
+      if (!b) return;
+      const side = i === 0 ? 1 : -1;
+      b.node.rotation.z = damp(b.node.rotation.z, b.rz + side * brow[0], 12, dt);
+      b.node.position.y = damp(b.node.position.y, b.y + brow[1], 12, dt);
+    });
+    if (parts.mouth) {
+      const talk = s.speech && !s.eyesClosed ? 0.55 + 0.45 * Math.abs(Math.sin(t * 13)) * Math.abs(Math.sin(t * 5.3)) : 0;
+      const sy = s.mood === "sad" ? -0.8 : s.mood === "surprised" ? 2 : 1 + talk * 1.6;
+      const sx = s.mood === "surprised" ? 0.55 : 1 - talk * 0.15;
+      parts.mouth.scale.y = damp(parts.mouth.scale.y, sy, 18, dt);
+      parts.mouth.scale.x = damp(parts.mouth.scale.x, sx, 18, dt);
+    }
+
     // Robotics extras: goggles and the drone companion.
     goggleW.current = damp(goggleW.current, s.goggles ? 1 : 0, 7, dt);
     if (parts.goggles) {
@@ -246,8 +275,9 @@ export default function Mascot3D({ url, quality, paused, onProgress, onError }: 
   return (
     <Canvas
       frameloop="demand"
-      dpr={quality === "high" ? [1, 2] : [1, 1.5]}
-      gl={{ antialias: quality === "high", alpha: true, powerPreference: "low-power", preserveDrawingBuffer: false }}
+      // The canvas is small (his size on the page), so full sharpness on phones costs little.
+      dpr={[1, 2]}
+      gl={{ antialias: true, alpha: true, powerPreference: "low-power", preserveDrawingBuffer: false }}
       camera={{ fov: 24, position: [0, 0.82, 4.3], near: 0.1, far: 20 }}
       onCreated={({ gl, camera }) => {
         gl.toneMapping = THREE.NeutralToneMapping;
@@ -266,6 +296,8 @@ export default function Mascot3D({ url, quality, paused, onProgress, onError }: 
       <directionalLight color="#fff4e8" intensity={2.2} position={[-2, 3, 3]} />
       <directionalLight color="#9cc4ff" intensity={1.6} position={[2.5, 2, -2]} />
       <hemisphereLight args={["#ffffff", "#c8b49c", 0.6]} />
+      {/* Rim light from behind: a bright edge that keeps his outline clear on the dark site. */}
+      <directionalLight color="#bfe0ff" intensity={2.4} position={[0, 2.2, -3]} />
       {gltf && <Rig gltf={gltf} quality={quality} />}
     </Canvas>
   );

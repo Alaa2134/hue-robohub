@@ -2,7 +2,10 @@
  * The BuildX HUE mascot, built from three.js primitives: a soft cream body and head (fur is added at
  * runtime, see components/mascot/fur.ts), a smooth face plate with black oval eyes, a small smile and
  * blush, black over-ear headphones with the BuildX X on one cup, short arms with a wrist device, and
- * little feet. Hidden extras for some sections: robotics goggles and a tiny drone companion.
+ * little feet, eyebrows that show his mood, a small nose and the BuildX X on his chest. Hidden
+ * extras for some sections (robotics goggles, a tiny drone companion) and his outfits for the time
+ * and the occasion (a nightcap, a scarf, sunglasses, a party hat, a Ramadan lantern, a tea cup, a
+ * book). The runtime shows them; the names are in NODES / OUTFITS.
  *
  * scripts/build-mascot.ts exports this (with the clips from ./clips) to public/mascot/buildx-mascot.glb.
  * A hand-made model can replace that file as long as it keeps the node and clip names below.
@@ -24,7 +27,15 @@ export const NODES = {
   legR: "LegR",
   goggles: "Goggles",
   drone: "Drone",
+  browL: "BrowL",
+  browR: "BrowR",
+  mouth: "Mouth",
+  headphones: "Headphones",
 } as const;
+
+/** Outfit and hand-prop nodes (hidden in the file; the guide shows them by time and occasion). */
+export const OUTFITS = ["Nightcap", "Scarf", "Sunglasses", "PartyHat", "Lantern", "TeaCup", "Book"] as const;
+export type Outfit = (typeof OUTFITS)[number];
 
 export const COLORS = {
   fur: "#e4cdab",
@@ -124,7 +135,17 @@ export function buildMascot(): THREE.Group {
   profile[profile.length - 1].x = 0;
   const body = new THREE.LatheGeometry(profile, 56);
   body.computeVertexNormals();
-  hips.add(mesh("BodyFur", furMask(body), fur));
+  // The chest stays bald where the BuildX badge sits, so the fur doesn't grow through it.
+  hips.add(mesh("BodyFur", furMask(body, (n, p) => (1 - smooth(0.075, 0.1, Math.hypot(p.x, p.y - 0.42))) * smooth(0.3, 0.6, n.z)), fur));
+  // BuildX badge on the chest: a blue disc with a white X.
+  const badge = group("ChestBadge", [0, 0.42, 0.376], [-0.08, 0, 0]);
+  hips.add(badge);
+  badge.add(mesh("BadgeDisc", new THREE.CylinderGeometry(0.068, 0.068, 0.014, 40), brand, [0, 0, 0], [Math.PI / 2, 0, 0]));
+  badge.add(mesh("BadgeRing", new THREE.TorusGeometry(0.068, 0.007, 10, 40), metal));
+  const xBar = new THREE.BoxGeometry(0.014, 0.085, 0.008);
+  const xWhite = new THREE.MeshBasicMaterial({ name: "BadgeX", color: "#ffffff" });
+  badge.add(mesh("BadgeXA", xBar, xWhite, [0, 0, 0.009], [0, 0, 0.72]));
+  badge.add(mesh("BadgeXB", xBar, xWhite, [0, 0, 0.009], [0, 0, -0.72]));
 
   // ── Head (turns as one piece: fur, face, headphones) ──
   const head = group(NODES.head, [0, 0.7, 0]);
@@ -158,7 +179,24 @@ export function buildMascot(): THREE.Group {
 
   // Small smile.
   const smile = new THREE.QuadraticBezierCurve3(new THREE.Vector3(-0.036, 0.012, onFace(-0.036, 0.012, 0.002)), new THREE.Vector3(0, -0.024, onFace(0, -0.006, 0.004)), new THREE.Vector3(0.036, 0.012, onFace(0.036, 0.012, 0.002)));
-  look.add(mesh("Mouth", new THREE.TubeGeometry(smile, 24, 0.0068, 8, false), mouth));
+  // The mouth's pivot sits at its middle, so the runtime can open it (talking) or turn it down (sad).
+  const mouthGeo = new THREE.TubeGeometry(smile, 24, 0.0068, 8, false);
+  mouthGeo.computeBoundingBox();
+  const mouthAt = mouthGeo.boundingBox!.getCenter(new THREE.Vector3());
+  mouthGeo.translate(-mouthAt.x, -mouthAt.y, -mouthAt.z);
+  look.add(mesh(NODES.mouth, mouthGeo, mouth, [mouthAt.x, mouthAt.y, mouthAt.z]));
+
+  // Eyebrows: short soft strokes; the runtime tilts and lifts them for his mood.
+  const browGeo = new THREE.CapsuleGeometry(0.0085, 0.046, 4, 10);
+  browGeo.rotateZ(Math.PI / 2);
+  for (const [name, x] of [
+    [NODES.browL, -0.092],
+    [NODES.browR, 0.092],
+  ] as const)
+    look.add(mesh(name, browGeo, mouth, [x, 0.158, onFace(x, 0.158, 0.003)], [-0.25, x * 1.6, 0]));
+
+  // A small nose.
+  look.add(mesh("Nose", new THREE.SphereGeometry(0.014, 16, 12), std("Nose", "#d98f7a", { roughness: 0.45 }), [0, 0.048, onFace(0, 0.048, 0.006)], [0, 0, 0], [1.35, 0.9, 0.8]));
 
   // Blush.
   const blushGeo = new THREE.SphereGeometry(0.042, 24, 16);
@@ -166,7 +204,7 @@ export function buildMascot(): THREE.Group {
   look.add(mesh("BlushR", blushGeo, blush, [0.158, 0.012, onFace(0.158, 0.012, -0.004)], [0, 0.42, 0], [1, 0.62, 0.22]));
 
   // ── Headphones ──
-  const phones = group("Headphones");
+  const phones = group(NODES.headphones);
   look.add(phones);
   const band = new THREE.TorusGeometry(0.39, 0.03, 16, 64, Math.PI);
   phones.add(mesh("Band", band, plastic, [0, 0.045, 0]));
@@ -245,6 +283,90 @@ export function buildMascot(): THREE.Group {
     [0, -0.085],
   ])
     drone.add(mesh("Rotor", new THREE.CylinderGeometry(0.03, 0.03, 0.004, 16), metal, [x, 0.022, z]));
+
+  // ── Outfits (all hidden; the guide picks them by time and occasion) ──
+  const fabric = (n: string, c: string) => std(n, c, { roughness: 0.9, sheen: 0.6, sheenColor: new THREE.Color("#ffffff"), sheenRoughness: 0.8 });
+  const capBlue = fabric("CapBlue", "#2f6bf0");
+  const capWhite = fabric("CapWhite", "#f4f6fb");
+  const gold = std("Gold", "#d9a531", { metalness: 0.9, roughness: 0.3 });
+  const glow = std("LanternGlow", "#ffd36a", { emissive: new THREE.Color("#ffb02e"), emissiveIntensity: 1.4, roughness: 0.4, transparent: true, opacity: 0.92 });
+  const hide = (g: THREE.Object3D) => ((g.visible = false), g);
+
+  // Nightcap (replaces the headphones at night): a floppy cone with a pompom.
+  const night = hide(group("Nightcap", [0, 0.27, -0.01], [0, 0, -0.12]));
+  look.add(night);
+  night.add(mesh("NightcapBrim", new THREE.TorusGeometry(0.315, 0.05, 14, 48), capWhite, [0, 0, 0], [Math.PI / 2, 0, 0]));
+  const coneGeo = new THREE.ConeGeometry(0.31, 0.5, 40, 6, true);
+  coneGeo.translate(0, 0.25, 0);
+  const pos = coneGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    // Droop the tip to one side.
+    const y = pos.getY(i);
+    pos.setX(i, pos.getX(i) + 0.42 * (y / 0.5) ** 2);
+    pos.setY(i, y * (1 - 0.28 * (y / 0.5) ** 2));
+  }
+  coneGeo.computeVertexNormals();
+  night.add(mesh("NightcapCone", coneGeo, capBlue));
+  night.add(mesh("NightcapPom", new THREE.SphereGeometry(0.06, 20, 14), capWhite, [0.42, 0.36, 0]));
+
+  // Winter scarf: BuildX blue with a white stripe, one end hanging in front.
+  // It sits outside the fur (body radius + fur length), or the shells would swallow it.
+  const scarf = hide(group("Scarf", [0, 0.6, 0]));
+  hips.add(scarf);
+  scarf.add(mesh("ScarfWrap", new THREE.TorusGeometry(0.335, 0.075, 16, 56), capBlue, [0, 0, 0], [Math.PI / 2, 0, 0]));
+  scarf.add(mesh("ScarfStripe", new THREE.TorusGeometry(0.398, 0.02, 8, 56), capWhite, [0, 0, 0], [Math.PI / 2, 0, 0]));
+  scarf.add(mesh("ScarfEnd", new THREE.BoxGeometry(0.12, 0.26, 0.045), capBlue, [-0.14, -0.15, 0.39], [-0.18, 0, 0.16]));
+  scarf.add(mesh("ScarfFringe", new THREE.BoxGeometry(0.12, 0.035, 0.047), capWhite, [-0.12, -0.27, 0.41], [-0.18, 0, 0.16]));
+
+  // Sunglasses (Fridays).
+  const shades = hide(group("Sunglasses"));
+  look.add(shades);
+  // Not too glossy: a flat mirror would reflect the studio light and read as white.
+  const shadeLens = std("ShadeLens", "#0d111a", { roughness: 0.42, specularIntensity: 0.4 });
+  for (const x of [-0.09, 0.09]) {
+    shades.add(mesh("ShadeLens", new THREE.CylinderGeometry(0.064, 0.058, 0.016, 32), shadeLens, [x, 0.095, onFace(x, 0.095, 0.03)], [Math.PI / 2, x * 1.2, 0], [1.15, 1, 0.92]));
+    shades.add(mesh("ShadeRim", new THREE.TorusGeometry(0.064, 0.008, 8, 32), plastic, [x, 0.095, onFace(x, 0.095, 0.038)], [0, x * 1.2, 0], [1.15, 0.92, 1]));
+    shades.add(mesh("ShadeArm", new THREE.BoxGeometry(0.2, 0.012, 0.012), plastic, [x * 2.3, 0.1, onFace(x, 0.1, -0.06)], [0, -x * 7.5, 0]));
+  }
+  shades.add(mesh("ShadeBridge", new THREE.BoxGeometry(0.06, 0.012, 0.012), plastic, [0, 0.11, onFace(0, 0.11, 0.034)]));
+
+  // Party hat (Eid and celebrations): a striped cone with a pompom, worn at an angle.
+  const party = hide(group("PartyHat", [-0.16, 0.4, 0.06], [0.1, 0, 0.42]));
+  look.add(party);
+  party.add(mesh("PartyCone", new THREE.ConeGeometry(0.1, 0.26, 32), std("PartyPink", "#ff5fa2", { roughness: 0.5 }), [0, 0.13, 0]));
+  for (const y of [0.06, 0.13]) party.add(mesh("PartyStripe", new THREE.TorusGeometry(0.1 - y * 0.38, 0.011, 8, 32), std("PartyYellow", "#ffd84a", { roughness: 0.5 }), [0, y, 0], [Math.PI / 2, 0, 0]));
+  party.add(mesh("PartyPom", new THREE.SphereGeometry(0.035, 16, 12), std("PartyYellow", "#ffd84a", { roughness: 0.6 }), [0, 0.27, 0]));
+
+  // Hand props hang from the hands (the end of each arm).
+  const armL = hips.getObjectByName(NODES.armL)!;
+  const armR = hips.getObjectByName(NODES.armR)!;
+
+  // Ramadan lantern (fanoos) in the left hand, glowing.
+  const lantern = hide(group("Lantern", [0, -0.32, 0.07]));
+  lantern.scale.setScalar(1.4);
+  armL.add(lantern);
+  lantern.add(mesh("LanternHandle", new THREE.TorusGeometry(0.026, 0.006, 8, 20, Math.PI), gold, [0, 0.03, 0]));
+  lantern.add(mesh("LanternCap", new THREE.ConeGeometry(0.06, 0.05, 6), gold, [0, 0.005, 0]));
+  lantern.add(mesh("LanternGlass", new THREE.CylinderGeometry(0.05, 0.04, 0.1, 6), glow, [0, -0.07, 0]));
+  lantern.add(mesh("LanternFrame", new THREE.CylinderGeometry(0.053, 0.043, 0.1, 6, 1, true), std("GoldFrame", "#d9a531", { metalness: 0.9, roughness: 0.3, wireframe: true }), [0, -0.07, 0]));
+  lantern.add(mesh("LanternBase", new THREE.CylinderGeometry(0.03, 0.045, 0.025, 6), gold, [0, -0.13, 0]));
+
+  // Morning tea cup in the right hand.
+  const cup = hide(group("TeaCup", [0, -0.28, 0.09]));
+  cup.scale.setScalar(1.6);
+  armR.add(cup);
+  cup.add(mesh("CupBody", new THREE.CylinderGeometry(0.042, 0.034, 0.07, 28), capWhite));
+  cup.add(mesh("CupBand", new THREE.CylinderGeometry(0.0425, 0.04, 0.016, 28), brand, [0, 0.008, 0]));
+  cup.add(mesh("CupTea", new THREE.CylinderGeometry(0.037, 0.037, 0.004, 24), std("Tea", "#8a4b1e", { roughness: 0.2 }), [0, 0.03, 0]));
+  cup.add(mesh("CupHandle", new THREE.TorusGeometry(0.02, 0.006, 8, 16), capWhite, [0.046, 0, 0], [0, 0, Math.PI / 2]));
+
+  // A book in the left hand (reading), BuildX blue with the X on the cover.
+  const book = hide(group("Book", [0.06, -0.27, 0.08], [-0.5, 0, 0]));
+  armL.add(book);
+  book.add(mesh("BookCover", new THREE.BoxGeometry(0.15, 0.2, 0.03), capBlue));
+  book.add(mesh("BookPages", new THREE.BoxGeometry(0.14, 0.19, 0.031), capWhite, [0.004, 0, 0]));
+  book.add(mesh("BookXA", new THREE.BoxGeometry(0.012, 0.08, 0.004), xWhite, [0, 0.02, -0.017], [0, 0, 0.7]));
+  book.add(mesh("BookXB", new THREE.BoxGeometry(0.012, 0.08, 0.004), xWhite, [0, 0.02, -0.017], [0, 0, -0.7]));
 
   return root;
 }

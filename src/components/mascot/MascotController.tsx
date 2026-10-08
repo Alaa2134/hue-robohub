@@ -10,7 +10,9 @@
  * The visitor can pick him up (mouse or finger), swing him around and throw him: he bounces off the
  * screen edges, lands flat on his belly with a complaint, and gets back up. And games (menu → Play):
  * throw him into a hoop, hide-and-seek on the page, a quiz, badges to collect and a daily streak.
- * At the end of a page he suggests where to go next.
+ * At the end of a page he suggests where to go next. He dresses for the time and the occasion
+ * (lib/mascot/wardrobe.ts) and keeps himself busy when nobody needs him (push-ups, reading, coding…);
+ * click him then and he tells you what you interrupted.
  *
  * Only the mascot's own body takes clicks; everything else on the stage lets them through.
  */
@@ -20,7 +22,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { ACTIVITIES, GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, TEA, type Activity, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -32,6 +34,7 @@ import { confetti, playSound, type Sound } from "@/lib/mascot/fx";
 import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
 import { BADGES, play, visitToday } from "@/lib/mascot/games";
+import { OCCASION_LINES, wardrobe } from "@/lib/mascot/wardrobe";
 import { activated, hush, speak as speakAloud } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
@@ -58,6 +61,8 @@ class Fallback extends Component<{ onError: () => void; children: ReactNode }, {
 const MODEL = `${BASE_PATH}/mascot/buildx-mascot.glb`;
 const POSTER = `${BASE_PATH}/mascot/poster.webp`;
 const POSTER_WAVE = `${BASE_PATH}/mascot/poster-wave.webp`;
+const OUTFIT_EMOJI: Record<string, string> = { Nightcap: "😴", Scarf: "🧣", Sunglasses: "😎", PartyHat: "🥳", Lantern: "🏮", TeaCup: "☕", Book: "" };
+const ACTIVITY_EMOJI: Record<string, string> = { pushups: "💪", stretch: "🧘", read: "📚", code: "💻", think: "💡", dance: "🕺", tea: "" };
 /** Swings around his head while held or flying (the stage sets --tilt). */
 const SWING = { transform: "rotate(var(--tilt, 0deg))", transformOrigin: "50% 26%" } as const;
 const CHEERFUL: ReadonlySet<ClipName> = new Set(["Wave", "Happy", "Celebrate", "Dance", "Jump"]);
@@ -127,6 +132,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const { menu: siteMenu, search } = useUi();
   const hidden = useMascot((s) => s.hidden);
   const flop = useMascot((s) => s.flop);
+  const outfit = useMascot((s) => s.outfit);
+  const [doing, setDoing] = useState<string | null>(null);
   const guideOpen = useMascot((s) => s.menu);
   const ready = useMascot((s) => s.ready);
   const clip = useMascot((s) => s.clip);
@@ -167,6 +174,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   /** A found section that had to wait for a scene to finish. */
   const pending = useRef<Scene | null>(null);
   const [focusAsk, setFocusAsk] = useState(false);
+  /** Ends whatever he's busy with (set below, once the activity code exists). */
+  const stopRef = useRef<() => void>(() => undefined);
+  /** Starts something to keep him busy; true when it did (set below too). */
+  const busyRef = useRef<() => boolean>(() => false);
   /** Picked up, flying or lying on his belly: nothing else moves him or makes him talk meanwhile. */
   const physical = useRef(false);
   /** Swing while held and spin while flying, in degrees (around his head). */
@@ -326,6 +337,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         seq.current++;
         activeScene.current = 0;
       }
+      stopRef.current();
       prio.current = o.prio;
       const id = mascot.say(line);
       // Reactions are said out loud too; small talk only shows.
@@ -350,6 +362,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
 
   const runScene = useCallback(
     async (scene: Scene, o: { force?: boolean; actions?: SceneAction[] } = {}) => {
+      stopRef.current();
       const id = ++seq.current;
       if (!scene.id.startsWith("auto-")) activeScene.current = id;
       const target = visibleTarget(scene.point);
@@ -860,7 +873,9 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       clearTimeout(doze);
       sit = window.setTimeout(() => {
         const s = mascot.get();
-        if (s.menu || s.speech || moving.current || touring.current || physical.current) return arm();
+        if (s.menu || s.speech || moving.current || touring.current || physical.current || activity.current) return arm();
+        // Half the time he finds something to do instead (push-ups, a book…), then sits later.
+        if (Math.random() < 0.5 && busyRef.current()) return arm();
         resting.current = "Sit";
         mascot.play("Sit");
       }, 25000);
@@ -884,7 +899,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       arm();
     };
     let lastWake = 0;
-    const activity = () => {
+    const onInput = () => {
       const now = performance.now();
       if (now - lastWake < 400 && !resting.current) return;
       lastWake = now;
@@ -892,13 +907,86 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     };
     arm();
     const events = ["pointermove", "pointerdown", "keydown", "scroll", "touchstart"] as const;
-    events.forEach((e) => window.addEventListener(e, activity, { passive: true }));
+    events.forEach((e) => window.addEventListener(e, onInput, { passive: true }));
     return () => {
       clearTimeout(sit);
       clearTimeout(doze);
-      events.forEach((e) => window.removeEventListener(e, activity));
+      events.forEach((e) => window.removeEventListener(e, onInput));
     };
   }, [speak]);
+
+  // ── Wardrobe: dressed for the visitor's time, day, season and occasion (checked every 5 minutes). ──
+  const baseOutfit = useRef<ReturnType<typeof wardrobe>["outfit"]>([]);
+  const activity = useRef<{ def: Activity; id: number; timer: number } | null>(null);
+  const dress = useCallback(() => {
+    const extra = activity.current?.def.hold ? [activity.current.def.hold] : [];
+    mascot.set({ outfit: [...baseOutfit.current, ...extra] });
+  }, []);
+  useEffect(() => {
+    const update = () => {
+      baseOutfit.current = wardrobe().outfit;
+      dress();
+    };
+    update();
+    const t = window.setInterval(update, 5 * 60_000);
+    return () => clearInterval(t);
+  }, [dress]);
+  // Once a visit he mentions it ("Ramadan Kareem 🌙", "it's cold, scarf on 🧣"…).
+  useEffect(() => {
+    if (!placed) return;
+    const { occasion } = wardrobe();
+    if (!occasion) return;
+    // Tries every few seconds until the bubble is free (the tour invite waits for an answer first).
+    let t = 0;
+    const attempt = () => {
+      try {
+        if (sessionStorage.getItem("bx-guide-occasion")) return;
+      } catch {}
+      if (brief(OCCASION_LINES[occasion], { prio: 1, clip: "Happy", ms: 5200 })) once("bx-guide-occasion");
+      else t = window.setTimeout(attempt, 3000);
+    };
+    t = window.setTimeout(attempt, 6500);
+    return () => clearTimeout(t);
+  }, [placed, brief]);
+
+  // ── Keeping busy: push-ups, stretching, reading, coding, his tea… for a few seconds at a time. ──
+  const stopActivity = useCallback(() => {
+    const a = activity.current;
+    if (!a) return;
+    clearTimeout(a.timer);
+    activity.current = null;
+    setDoing(null);
+    dress();
+    if (seq.current === a.id) {
+      mascot.set({ props: [], facing: 0 });
+      mascot.play("Idle");
+    }
+  }, [dress]);
+  useEffect(() => {
+    stopRef.current = stopActivity;
+  }, [stopActivity]);
+  const startActivity = useCallback(
+    (def: Activity) => {
+      const id = ++seq.current;
+      activity.current = { def, id, timer: window.setTimeout(() => activity.current?.id === id && stopActivity(), def.clip === "PushUp" ? 9600 : 11000) };
+      setDoing(def.id);
+      dress();
+      mascot.set({ props: def.props ?? [], facing: def.side ? (pos.current.x + sizeRef.current.w / 2 > window.innerWidth / 2 ? -1 : 1) : 0, look: null });
+      mascot.play(def.clip);
+    },
+    [dress, stopActivity],
+  );
+  /** Picks something to do for the hour (his tea counts double in the morning). */
+  const keepBusy = useCallback(() => {
+    const s = mascot.get();
+    if (activity.current || s.eyesClosed || s.hidden || s.menu || s.speech || physical.current || gameRef.current) return false;
+    const h = new Date().getHours();
+    startActivity(pick([...ACTIVITIES.filter((a) => !a.when || a.when(h)), ...(s.outfit.includes("TeaCup") ? [TEA, TEA] : [])]));
+    return true;
+  }, [startActivity]);
+  useEffect(() => {
+    busyRef.current = keepBusy;
+  }, [keepBusy]);
 
   // ── Strolling: when nothing's going on he doesn't stand frozen. Every so often he walks to another
   // clear spot (the other side, or along the bottom on phones) or does a little something.
@@ -908,9 +996,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const tick = () => {
       const s = mascot.get();
       if (s.hidden || s.menu || s.speech || moving.current || touring.current || physical.current || gameRef.current || resting.current || document.hidden) return;
-      if (performance.now() - lastMove.current < 12000) return;
+      if (activity.current || performance.now() - lastMove.current < 12000) return;
       n++;
-      if (n % 2 === 1 && !reducedMotion()) {
+      if (n % 3 === 2 && keepBusy()) return;
+      if (n % 3 === 1 && !reducedMotion()) {
         const right = pos.current.x + sizeRef.current.w / 2 > window.innerWidth / 2;
         const side = right === (document.documentElement.dir !== "rtl") ? "start" : "end";
         void place({ side: Math.random() < 0.7 ? side : undefined, roam: true });
@@ -918,7 +1007,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     };
     const t = window.setInterval(tick, isPhoneWidth() ? 14000 : 20000);
     return () => clearInterval(t);
-  }, [placed, place]);
+  }, [placed, place, keepBusy]);
 
   // ── Phones: step out of the way while typing (the keyboard covers half the screen). ──
   useEffect(() => {
@@ -993,6 +1082,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   };
 
   const grab = useCallback(() => {
+    stopRef.current();
     const gen = ++throwGen.current;
     physical.current = true;
     seq.current++;
@@ -1004,7 +1094,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     hush();
     setPeek(false);
     document.body.style.userSelect = "none";
-    mascot.set({ held: true, flop: 0, facing: 0, menu: false, props: [], drone: false });
+    mascot.set({ held: true, flop: 0, facing: 0, menu: false, props: [], drone: false, mood: "surprised" });
     mascot.play("Jump", "LookDown");
     sfx("boing");
     quip(pick(PHYSICS.grab));
@@ -1016,7 +1106,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const standUp = useCallback(
     (gen: number, line: Text) => {
       if (throwGen.current !== gen) return;
-      mascot.set({ flop: 0 });
+      mascot.set({ flop: 0, mood: "neutral" });
       mascot.play("Jump", "Idle");
       sfx("boing");
       setTimeout(() => {
@@ -1066,13 +1156,15 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           throws.current++;
           if (play.update((p) => ({ throws: p.throws + 1 })).throws >= 5) play.award("thrower");
           const side = Math.abs(vx) > 60 ? Math.sign(vx) : pos.current.x + s.w / 2 > window.innerWidth / 2 ? 1 : -1;
-          mascot.set({ flop: side, facing: 0, look: null });
+          mascot.set({ flop: side, facing: 0, look: null, mood: "sad" });
           mascot.play("Idle");
           sfx("thud");
           quip(throws.current % 3 === 0 ? pick(PHYSICS.again) : pick(PHYSICS.flop), 2600);
           setTimeout(() => standUp(gen, pick(PHYSICS.up)), 2700);
         } else {
           mascot.play("Jump", "Idle");
+          mascot.set({ mood: "happy" });
+          setTimeout(() => mascot.get().mood === "happy" && mascot.set({ mood: "neutral" }), 2500);
           physical.current = false;
           quip(pick(PHYSICS.gentle));
         }
@@ -1427,6 +1519,21 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const now = performance.now();
     // The end of a drag isn't a click; nor is a click while he's flat on the floor.
     if (now < noClickUntil.current || physical.current) return;
+    // Busy with something: he says what you interrupted (a bit grumpy), then opens his menu.
+    const busyWith = activity.current;
+    if (busyWith && busyWith.id === seq.current) {
+      stopActivity();
+      const id = seq.current;
+      mascot.set({ mood: "angry" });
+      mascot.play("Jump", "Idle");
+      sfx("boing");
+      quip(pick(busyWith.def.interrupted), 2200);
+      setTimeout(() => {
+        mascot.set({ mood: "neutral" });
+        if (seq.current === id && !physical.current) openMenu(false);
+      }, 2000);
+      return;
+    }
     clicks.current = [...clicks.current.filter((t) => now - t < 2500), now];
     if (clicks.current.length >= 5) {
       clicks.current = [];
@@ -1479,6 +1586,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       <div
         ref={stage}
         data-mascot
+        data-activity={doing ?? undefined}
+        data-outfit={outfit.join(" ") || undefined}
         className={cn("pointer-events-none fixed left-0 top-0 z-30 transition-opacity duration-500", visible && placed ? "opacity-100" : "opacity-0")}
         style={{ width: size.w, height: size.h, visibility: visible && placed ? "visible" : "hidden", transform: "translate3d(-1000px, 0, 0)" }}
       >
@@ -1493,13 +1602,21 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             {!ready && <MascotLoader locale={voice} progress={progress} />}
           </>
         ) : (
-          <img
-            src={CHEERFUL.has(clip) ? POSTER_WAVE : POSTER}
+          <>
+            <img
+              src={CHEERFUL.has(clip) ? POSTER_WAVE : POSTER}
             alt=""
             draggable={false}
             className="mascot-still absolute inset-0 size-full select-none transition-transform duration-300"
-            style={flop ? { transform: `translateY(30%) rotate(${flop * 82}deg) scale(0.8)` } : SWING}
-          />
+              style={flop ? { transform: `translateY(30%) rotate(${flop * 82}deg) scale(0.8)` } : SWING}
+            />
+            {/* The still guide can't wear his outfit, so a small badge shows it (and what he's busy with). */}
+            {(outfit.length > 0 || doing) && (
+              <span aria-hidden className="pointer-events-none absolute end-[14%] top-[16%] flex gap-0.5 text-[clamp(0.9rem,2.4vw,1.25rem)] drop-shadow">
+                {[...outfit.map((o) => OUTFIT_EMOJI[o]), doing ? ACTIVITY_EMOJI[doing] : ""].filter(Boolean).slice(0, 3).join("")}
+              </span>
+            )}
+          </>
         )}
         <button
           ref={hit}

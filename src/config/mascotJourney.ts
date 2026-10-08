@@ -479,6 +479,67 @@ export const PHYSICS: Record<"grab" | "held" | "shaken" | "flop" | "wall" | "up"
   ],
 };
 
+/**
+ * What he gets up to when nobody needs him (every so often, in his spot). Interrupt him (click) and
+ * he lets you know what you interrupted, then opens his menu.
+ */
+export type Activity = { id: string; clip: ClipName; props?: PropName[]; hold?: "Book"; side?: boolean; when?: (h: number) => boolean; interrupted: Text[] };
+export const ACTIVITIES: Activity[] = [
+  {
+    id: "pushups",
+    clip: "PushUp",
+    side: true,
+    when: (h) => h >= 7 && h < 23,
+    interrupted: [
+      { ar: "عايز إيه؟ 😤 أنا كنت بلعب ضغط!", en: "What is it? 😤 I was doing push-ups!" },
+      { ar: "استنى… فاضلي ١٠ ضغط 💪 طيب قول عايز إيه.", en: "Hold on, ten more push-ups 💪 Okay, what's up?" },
+    ],
+  },
+  {
+    id: "stretch",
+    clip: "Stretch",
+    interrupted: [
+      { ar: "آه يا ضهري… كنت بعمل إطالة 🧘 خير؟", en: "Ow, my back… I was stretching 🧘 What's up?" },
+      { ar: "قطعت عليا التمرين 😅 قول عايز إيه.", en: "You interrupted my workout 😅 What do you need?" },
+    ],
+  },
+  {
+    id: "read",
+    clip: "Read",
+    hold: "Book",
+    interrupted: [
+      { ar: "شششش… كنت بذاكر 📚 قول عايز إيه بسرعة.", en: "Shh… I was studying 📚 Quick, what is it?" },
+      { ar: "كنت وصلت لأحلى جزء في الكتاب 😩 خير؟", en: "I'd just reached the best part of the book 😩 What's up?" },
+    ],
+  },
+  {
+    id: "code",
+    clip: "Typing",
+    props: ["code"],
+    interrupted: [
+      { ar: "لحظة… كنت بكتب كود لروبوت جديد 💻 عايز إيه؟", en: "One sec, I was coding a new robot 💻 What's up?" },
+      { ar: "ضيّعتلي السطر اللي كنت بكتبه 😤 هزار… قول.", en: "You made me lose my line 😤 Kidding, go on." },
+    ],
+  },
+  {
+    id: "think",
+    clip: "Think",
+    props: ["gears"],
+    interrupted: [
+      { ar: "كنت بفكر في فكرة مشروع جامدة… قطعت حبل أفكاري 🤔", en: "I was thinking up a great project… you broke my train of thought 🤔" },
+    ],
+  },
+  {
+    id: "dance",
+    clip: "Dance",
+    interrupted: [
+      { ar: "مسكتني وأنا برقص 😳🕺 محدش يعرف… عايز إيه؟", en: "You caught me dancing 😳🕺 Our secret. What's up?" },
+    ],
+  },
+];
+/** The morning cup: he sips it now and then. */
+export const TEA: Activity = { id: "tea", clip: "Drink", interrupted: [{ ar: "ثانية… كنت بشرب الشاي بتاعي ☕ اتفضل.", en: "Hold on, I was having my tea ☕ Go ahead." }] };
+
 /** Lines for the games you play with him (menu → Play). {n} = a number, {p} = a page name. */
 export const GAME = {
   hoopStart: { ar: "يلا! شدّني وارميني في السلة 🏀 عندك ٤٥ ثانية", en: "Go! Grab me and throw me into the hoop 🏀 45 seconds" },

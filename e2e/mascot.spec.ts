@@ -10,6 +10,8 @@ async function withGuide(page: Page, mode: "3d" | "poster" = "poster") {
   await page.addInitScript((m) => {
     localStorage.setItem("bx-guide-test", "1");
     localStorage.setItem("bx-guide-mode", m);
+    // His once-a-visit line about his outfit depends on the clock; only the wardrobe test wants it.
+    sessionStorage.setItem("bx-guide-occasion", "1");
   }, mode);
   await page.route(/supabase\.co/, (route) => route.abort());
 }
@@ -494,4 +496,45 @@ test("phones: Baqloz stands in full view above the tab bar (not hidden behind it
   const body = (await guideButton(page).boundingBox())!;
   expect(body.y + body.height).toBeLessThanOrEqual(bar.y + 2);
   expect(body.height).toBeGreaterThan(40);
+});
+
+test("Baqloz dresses for the visitor's time: a nightcap late at night, his tea in the morning", async ({ page }) => {
+  await withGuide(page);
+  await page.addInitScript(() => sessionStorage.removeItem("bx-guide-occasion"));
+  await page.clock.install({ time: new Date("2026-10-08T23:30:00") });
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await expect(page.locator("[data-mascot]")).toHaveAttribute("data-outfit", /Nightcap/, { timeout: 15_000 });
+  // He mentions it once a visit, after the tour invite is answered.
+  await bubble(page).getByRole("button", { name: "بعدين" }).click({ timeout: 15_000 });
+  await expect(bubble(page)).toContainText("طاقية النوم", { timeout: 15_000 });
+
+  await page.clock.setSystemTime(new Date("2026-10-09T08:00:00"));
+  await page.reload();
+  await expect(page.locator("[data-mascot]")).toHaveAttribute("data-outfit", /TeaCup/, { timeout: 15_000 });
+  await expect(page.locator("[data-mascot]")).not.toHaveAttribute("data-outfit", /Nightcap/);
+});
+
+test("left alone he keeps busy (push-ups, reading, coding…); click him and he says what you interrupted", async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await withGuide(page);
+  // An afternoon with no occasion, so nothing else is said meanwhile.
+  await page.clock.install({ time: new Date("2026-10-08T14:00:00") });
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  const stage = page.locator("[data-mascot]");
+  for (let i = 0; i < 12 && !(await stage.getAttribute("data-activity")); i++) {
+    await page.clock.fastForward(20_000);
+    await page.waitForTimeout(600);
+  }
+  await expect(stage).toHaveAttribute("data-activity", /.+/);
+  await guideButton(page).click();
+  await expect(bubble(page)).toContainText(/كنت|قطعت|ضيّعتلي|مسكتني/);
+  await expect(stage).not.toHaveAttribute("data-activity", /.+/);
+  // Then he's all yours: the menu opens.
+  await expect(page.getByRole("dialog", { name: "بقلظ" })).toBeVisible({ timeout: 5_000 });
+  expect(errors).toEqual([]);
 });
