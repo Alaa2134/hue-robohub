@@ -2,7 +2,7 @@
 /** Team accounts, my account, activity log and attendance reports. */
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { APP_PATH, publicOrigin, ROLE_LABEL, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type AttStatus, type Role, type StaffRow, type Student } from "./core";
+import { APP_PATH, AREAS, POSITIONS, publicOrigin, ROLE_LABEL, can, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type Area, type AttStatus, type Role, type StaffRow, type Student } from "./core";
 import { DeleteAccountCard } from "./account-deletion";
 import { BiometricToggle } from "./biometric";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
@@ -100,6 +100,13 @@ export function TeamScreen({ me }: { me: StaffRow }) {
                   <p className="truncate font-mono text-xs text-fog" dir="ltr">
                     {s.email}
                   </p>
+                  {(s.title || (s.role === "lead" && s.permissions)) && (
+                    <p className="mt-0.5 truncate text-xs text-mist">
+                      {s.title}
+                      {s.title && s.role === "lead" && s.permissions ? " · " : ""}
+                      {s.role === "lead" && s.permissions ? AREAS.filter((a) => can(s, a.key)).map((a) => a.label).join("، ") || "بدون صلاحيات" : ""}
+                    </p>
+                  )}
                 </div>
                 {!s.active && <Badge tone="danger">موقوف</Badge>}
                 <Badge tone={s.role === "owner" ? "volt" : s.role === "admin" ? "info" : "muted"}>{ROLE_LABEL[s.role]}</Badge>
@@ -158,6 +165,60 @@ function AddMember({ open, me, onClose, onCreated }: { open: boolean; me: StaffR
         </Button>
       </form>
     </Sheet>
+  );
+}
+
+/**
+ * The owner sets each person's position (shown in the team list and on their home screen) and, for
+ * trainers, exactly which areas they work in. The database enforces the same areas.
+ */
+function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: boolean; onSave: (patch: Partial<StaffRow>) => void }) {
+  const [title, setTitle] = useState(m.title ?? "");
+  const [areas, setAreas] = useState<Area[]>(m.permissions ?? AREAS.map((a) => a.key));
+  const lead = m.role === "lead";
+  const pickTitle = (t: string) => {
+    setTitle(t);
+    const p = POSITIONS.find((x) => x.title === t);
+    if (p && lead) setAreas(p.areas);
+  };
+  const toggle = (a: Area) => setAreas((list) => (list.includes(a) ? list.filter((x) => x !== a) : [...list, a]));
+  const changed = title.trim() !== (m.title ?? "") || (lead && [...areas].sort().join() !== [...(m.permissions ?? AREAS.map((a) => a.key))].sort().join());
+  return (
+    <Card className="grid gap-3">
+      <Field label="المنصب" hint="بيظهر في قائمة الفريق وعلى الصفحة الرئيسية بتاعته. اختيار منصب بيقترح صلاحياته.">
+        <Input value={title} onChange={(e) => pickTitle(e.target.value)} list="bx-positions" maxLength={80} placeholder="مثلاً: مسؤول الإعلام والتصميم" />
+        <datalist id="bx-positions">
+          {POSITIONS.map((p) => (
+            <option key={p.title} value={p.title} />
+          ))}
+        </datalist>
+      </Field>
+      {lead ? (
+        <fieldset className="grid gap-1.5">
+          <legend className="mb-1 text-sm font-semibold text-chalk">الصلاحيات: يقدر يشتغل في</legend>
+          {AREAS.map((a) => (
+            <label key={a.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] px-3 py-2.5 transition hover:border-cyan/40">
+              <input type="checkbox" checked={areas.includes(a.key)} onChange={() => toggle(a.key)} className="mt-1 size-4 accent-[#2f7bff]" />
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-chalk">{a.label}</span>
+                <span className="block text-xs text-fog">{a.hint}</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-xs text-fog">البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.</p>
+        </fieldset>
+      ) : (
+        <p className="text-xs text-fog">{ROLE_LABEL[m.role]}: كل الصلاحيات. الصلاحيات المحددة للمدرّبين بس.</p>
+      )}
+      <Button
+        variant="primary"
+        disabled={!changed}
+        loading={busy}
+        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: areas.length === AREAS.length ? null : areas } : {}) })}
+      >
+        احفظ المنصب والصلاحيات
+      </Button>
+    </Card>
   );
 }
 
@@ -224,6 +285,7 @@ function MemberSheet({ member: m, me, onClose, onChanged, onCredentials }: { mem
             </Select>
           </Field>
         )}
+        {owner && <PositionEditor member={m} busy={busy} onSave={update} />}
         {owner && !self && <Toggle checked={m.active} onChange={(active) => update({ active })} label="الحساب نشط" hint="إيقاف الحساب يمنع الدخول فورًا." disabled={busy} />}
         {canReset && (
           <Button icon="key" onClick={reset} loading={busy} block>

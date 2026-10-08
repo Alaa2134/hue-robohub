@@ -61,7 +61,39 @@ export function sb(): SupabaseClient {
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
 export type Role = "owner" | "admin" | "lead";
-export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string };
+export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string; title?: string | null; permissions?: Area[] | null };
+
+/**
+ * What a trainer (role lead) may work in. Owners and admins have every area; a trainer with no list
+ * has every area too (as before). The database enforces the same areas (private.can).
+ */
+export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates";
+export const AREAS: { key: Area; label: string; hint: string }[] = [
+  { key: "students", label: "الطلاب والتدريب", hint: "الطلاب، الحضور، التاسكات، الكويزات، الملفات، الإعلانات والنقاط" },
+  { key: "applications", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
+  { key: "events", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
+  { key: "content", label: "محتوى الموقع والفورمات", hint: "الأخبار والفعاليات والجاليري، والفورمات وردودها" },
+  { key: "inbox", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
+  { key: "certificates", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
+];
+export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => me.role !== "lead" || !me.permissions || me.permissions.includes(area);
+
+/** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
+export const POSITIONS: { title: string; areas: Area[] }[] = [
+  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "inbox", "certificates"] },
+  { title: "المدير التقني", areas: ["students", "events", "certificates"] },
+  { title: "مسؤول الروبوتكس", areas: ["students"] },
+  { title: "مسؤول Embedded وIoT", areas: ["students"] },
+  { title: "مسؤول الذكاء الاصطناعي", areas: ["students"] },
+  { title: "مسؤول البرمجة", areas: ["students"] },
+  { title: "مسؤول الطباعة والتصميم ثلاثي الأبعاد", areas: ["students"] },
+  { title: "مسؤول التنظيم والعمليات", areas: ["events"] },
+  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "students"] },
+  { title: "مسؤول الإعلام والتصميم", areas: ["content"] },
+  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "content"] },
+  { title: "منظّم", areas: ["events"] },
+  { title: "متطوع", areas: ["events"] },
+];
 export type Student = {
   id: string;
   code: string;
