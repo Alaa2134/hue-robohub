@@ -2,7 +2,7 @@
 /** BuildX App → certificates: issue (one name, a list of names, or students picked from the app), print, revoke. */
 import { useMemo, useState } from "react";
 import { CERT_DESIGNS, CERT_KINDS, CertificatePrint, certArt, designKeyFor, verifyUrl, type Certificate } from "./certificate";
-import { errorText, fmt, must, sb, today, type StaffRow } from "./core";
+import { errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, IconButton, Input, List, Loading, Row, SearchBox, Sheet, Textarea, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
@@ -126,6 +126,17 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
   const groups = useMemo(() => [...new Set(active.map((s) => s.group).filter(Boolean))].sort(), [active]);
   const shown = active.filter((s) => !group || s.group === group);
   const toggle = (id: string) => setPicked((p) => (p.has(id) ? new Set([...p].filter((x) => x !== id)) : new Set([...p, id])));
+  // Attendance so far, to pick everyone who came to enough sessions in one tap.
+  const [minRate, setMinRate] = useState("75");
+  const rates = useAsync(async () => {
+    const rows = await rpc<{ student_id: string; attended: number; sessions: number }[]>("staff_attendance_rates", { p_group: null });
+    return new Map(rows.map((r) => [r.student_id, r]));
+  }, []);
+  const rateOf = (id: string) => {
+    const r = rates.data?.get(id);
+    return r && r.sessions ? Math.round((r.attended / r.sessions) * 100) : null;
+  };
+  const eligible = shown.filter((s) => (rateOf(s.id) ?? -1) >= Number(minRate || 0));
 
   const recipients =
     mode === "students"
@@ -268,12 +279,23 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
                 اختار كل اللي ظاهرين ({shown.length})
               </button>
             </div>
+            {rates.data && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-sm">
+                <span className="text-mist">اللي حضروا</span>
+                <Input value={minRate} onChange={(e) => setMinRate(e.target.value.replace(/\D/g, "").slice(0, 3))} inputMode="numeric" dir="ltr" className="h-9 w-16 text-center" aria-label="أقل نسبة حضور" />
+                <span className="text-mist">% أو أكتر: {eligible.length}</span>
+                <button type="button" className="ms-auto font-semibold text-cyan" onClick={() => setPicked(new Set(eligible.map((s) => s.id)))}>
+                  اختارهم
+                </button>
+              </div>
+            )}
             <ul className="grid max-h-72 gap-1 overflow-y-auto">
               {shown.map((s) => (
                 <li key={s.id}>
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/[0.04]">
                     <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} className="size-5 accent-[#2b6dff]" />
                     <span className="min-w-0 flex-1 truncate text-chalk">{s.name}</span>
+                    {rateOf(s.id) !== null && <span className="text-xs text-mist" dir="ltr">{rateOf(s.id)}%</span>}
                     <span className="text-xs text-fog">{s.group}</span>
                   </label>
                 </li>

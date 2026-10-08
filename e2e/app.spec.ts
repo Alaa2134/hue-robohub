@@ -737,3 +737,30 @@ test("drafts the team wrote wait at the top of the content screen for whoever pu
   await page.getByText("يوم الروبوت").first().click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
+
+test("certificates go in one tap to every student who attended enough sessions", async ({ page }) => {
+  await signInAsOwner(page);
+  const s = (id: string, name: string) => ({ id, code: id, codeKey: id, barcode: null, barcodeKey: null, name, group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true });
+  RPC.staff_list_students = [s("s1", "Mona"), s("s2", "Omar"), s("s3", "Laila")];
+  RPC.staff_attendance_rates = [
+    { student_id: "s1", attended: 9, sessions: 10 },
+    { student_id: "s2", attended: 5, sessions: 10 },
+    { student_id: "s3", attended: 8, sessions: 10 },
+  ];
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }, { id: "c2" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Robotics Bootcamp 2026");
+  await expect(page.getByText("% أو أكتر: 2")).toBeVisible();
+  await page.getByRole("button", { name: "اختارهم" }).click();
+  await page.getByRole("button", { name: "إصدار 2 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.map((r) => r.recipient_name)).toEqual(["Mona", "Laila"]);
+  delete RPC.staff_attendance_rates;
+});
