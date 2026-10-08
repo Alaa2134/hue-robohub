@@ -3,7 +3,7 @@
  * The mascot in 3D: a small transparent canvas (React Three Fiber) inside the guide's stage. It loads
  * public/mascot/buildx-mascot.glb, adds the fur, and every frame blends the clips, turns the body
  * towards where it walks, turns the head and eyes towards what it looks at, blinks, and shows the
- * goggles, the drone and the section props. It renders only as often as needed (30 fps on phones,
+ * goggles, the drone and the section props. Thrown by the visitor, he falls flat on his belly (and gets up). It renders only as often as needed (30 fps on phones,
  * slower when asleep, not at all when hidden or in a background tab).
  */
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
@@ -106,6 +106,9 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
   const blink = useRef({ next: 2, t: -1 });
   const goggleW = useRef(0);
   const droneW = useRef(0);
+  const fall = useRef<THREE.Group>(null);
+  const fallW = useRef(0);
+  const fallSide = useRef(1);
 
   useEffect(() => {
     anim.current = bindAnimations(model, gltf.animations, invalidate);
@@ -122,6 +125,19 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
     anim.current?.mixer.update(dt);
     const s = mascot.get();
 
+    // Belly flop: tips forward onto his front with his head towards the side he was thrown, lifted
+    // by his tummy's thickness, a bit smaller and centred so all of him stays in the frame.
+    if (s.flop) fallSide.current = Math.sign(s.flop);
+    fallW.current = damp(fallW.current, s.flop ? 1 : 0, s.flop ? 10 : 4.5, dt);
+    if (fall.current) {
+      const w = fallW.current;
+      const side = fallSide.current;
+      fall.current.rotation.set(0, side * (Math.PI / 2) * w, 0);
+      fall.current.children[0].rotation.x = (Math.PI / 2) * w;
+      fall.current.position.set(-side * 0.6 * w, 0.2 * w, 0);
+      fall.current.scale.setScalar(1 - 0.2 * w);
+    }
+
     // Body turns towards where it walks (three-quarter, so the face stays visible).
     if (parts.root) parts.root.rotation.y = damp(parts.root.rotation.y, s.facing * 1.05, 8, dt);
 
@@ -136,7 +152,7 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
       yaw = THREE.MathUtils.clamp(dx, -1, 1) * 0.55;
       pitch = THREE.MathUtils.clamp(dy, -1, 1) * 0.32;
     }
-    if (s.eyesClosed) yaw = pitch = 0;
+    if (s.eyesClosed || s.flop) yaw = pitch = 0;
     if (parts.look) {
       parts.look.rotation.y = damp(parts.look.rotation.y, yaw - s.facing * 0.35, 6, dt);
       parts.look.rotation.x = damp(parts.look.rotation.x, pitch, 6, dt);
@@ -184,7 +200,11 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
 
   return (
     <>
-      <primitive object={model} />
+      <group ref={fall}>
+        <group>
+          <primitive object={model} />
+        </group>
+      </group>
       <primitive object={props.root} />
       <Shadow />
     </>

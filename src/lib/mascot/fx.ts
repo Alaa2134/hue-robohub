@@ -4,7 +4,7 @@
  */
 let ctx: AudioContext | null = null;
 
-export type Sound = "pop" | "click" | "tada" | "whoosh";
+export type Sound = "pop" | "click" | "tada" | "whoosh" | "thud" | "boing";
 
 /** Plays only when the visitor turned sound on (that toggle is the user gesture audio needs). */
 export function playSound(kind: Sound) {
@@ -13,16 +13,27 @@ export function playSound(kind: Sound) {
     if (ctx.state === "suspended") void ctx.resume();
     const now = ctx.currentTime;
     const notes: [number, number, number][] =
-      kind === "pop" ? [[880, 0, 0.09]] : kind === "click" ? [[660, 0, 0.06], [990, 0.05, 0.07]] : kind === "whoosh" ? [[320, 0, 0.18]] : [[523, 0, 0.12], [659, 0.1, 0.12], [784, 0.2, 0.12], [1047, 0.3, 0.28]];
+      kind === "pop"
+        ? [[880, 0, 0.09]]
+        : kind === "click"
+          ? [[660, 0, 0.06], [990, 0.05, 0.07]]
+          : kind === "whoosh"
+            ? [[320, 0, 0.18]]
+            : kind === "thud"
+              ? [[140, 0, 0.22]]
+              : kind === "boing"
+                ? [[300, 0, 0.25]]
+                : [[523, 0, 0.12], [659, 0.1, 0.12], [784, 0.2, 0.12], [1047, 0.3, 0.28]];
     for (const [freq, at, dur] of notes) {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = kind === "whoosh" ? "triangle" : "sine";
       osc.frequency.setValueAtTime(freq, now + at);
       if (kind === "pop") osc.frequency.exponentialRampToValueAtTime(freq * 1.6, now + at + dur);
-      if (kind === "whoosh") osc.frequency.exponentialRampToValueAtTime(freq * 0.5, now + at + dur);
+      if (kind === "whoosh" || kind === "thud") osc.frequency.exponentialRampToValueAtTime(freq * (kind === "thud" ? 0.35 : 0.5), now + at + dur);
+      if (kind === "boing") osc.frequency.exponentialRampToValueAtTime(freq * 2.4, now + at + dur);
       gain.gain.setValueAtTime(0.0001, now + at);
-      gain.gain.exponentialRampToValueAtTime(0.06, now + at + 0.012);
+      gain.gain.exponentialRampToValueAtTime(kind === "thud" ? 0.14 : 0.06, now + at + 0.012);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + at + dur);
       osc.connect(gain).connect(ctx.destination);
       osc.start(now + at);

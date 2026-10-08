@@ -7,15 +7,17 @@
  * and walks them through it page by page, opens his chat when clicked, and reacts to the visitor: he looks at the cursor and at big buttons, talks about
  * the cards you rest the cursor on, helps with forms, celebrates a click on Join, keeps count of the
  * pages you've explored, sits down and falls asleep when left alone, and has a couple of easter eggs.
+ * The visitor can pick him up (mouse or finger), swing him around and throw him: he bounces off the
+ * screen edges, lands flat on his belly with a complaint, and gets back up.
  *
  * Only the mascot's own body takes clicks; everything else on the stage lets them through.
  */
 import { gsap } from "gsap";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -52,6 +54,8 @@ class Fallback extends Component<{ onError: () => void; children: ReactNode }, {
 const MODEL = `${BASE_PATH}/mascot/buildx-mascot.glb`;
 const POSTER = `${BASE_PATH}/mascot/poster.webp`;
 const POSTER_WAVE = `${BASE_PATH}/mascot/poster-wave.webp`;
+/** Swings around his head while held or flying (the stage sets --tilt). */
+const SWING = { transform: "rotate(var(--tilt, 0deg))", transformOrigin: "50% 26%" } as const;
 const CHEERFUL: ReadonlySet<ClipName> = new Set(["Wave", "Happy", "Celebrate", "Dance", "Jump"]);
 const CTA = ".btn-primary, a[href$='/join'], a[href$='/join/'], [data-mascot-cta]";
 
@@ -98,6 +102,8 @@ function once(key: string) {
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const pick = <T,>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const SITE_TOUR_ACTION: SceneAction = { kind: "sitetour", label: LINES.letsGo };
 const NOT_NOW: SceneAction = { kind: "dismiss", label: LINES.notNow };
 
@@ -116,6 +122,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const voice: Locale = GUIDE_VOICE === "ar" ? "ar" : locale;
   const { menu: siteMenu, search } = useUi();
   const hidden = useMascot((s) => s.hidden);
+  const flop = useMascot((s) => s.flop);
   const guideOpen = useMascot((s) => s.menu);
   const ready = useMascot((s) => s.ready);
   const clip = useMascot((s) => s.clip);
@@ -156,6 +163,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   /** A found section that had to wait for a scene to finish. */
   const pending = useRef<Scene | null>(null);
   const [focusAsk, setFocusAsk] = useState(false);
+  /** Picked up, flying or lying on his belly: nothing else moves him or makes him talk meanwhile. */
+  const physical = useRef(false);
+  /** Swing while held and spin while flying, in degrees (around his head). */
+  const tilt = useRef(0);
   const [explored, setExplored] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("bx-guide-pages") ?? "[]") as string[];
@@ -195,6 +206,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const el = stage.current;
     if (!el) return;
     el.style.transform = `translate3d(${Math.round(pos.current.x)}px, ${Math.round(pos.current.y)}px, 0)`;
+    // Only his body swings (the bubble stays level and readable).
+    el.style.setProperty("--tilt", `${tilt.current.toFixed(1)}deg`);
     mascot.patch({ box: { x: pos.current.x, y: pos.current.y, w: sizeRef.current.w, h: sizeRef.current.h } });
   }, []);
 
@@ -202,6 +215,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     (to: Spot, o: { instant?: boolean } = {}) =>
       new Promise<void>((done) => {
         tween.current?.kill();
+        // In the visitor's hands (or flat on the floor): he can't walk anywhere just now.
+        if (physical.current) return done();
         const from = pos.current;
         const dx = to.x - from.x;
         const dist = Math.hypot(dx, to.y - from.y);
@@ -283,7 +298,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const brief = useCallback<Brief>(
     (line, o) => {
       const s = mascot.get();
-      if (s.hidden || s.menu || touring.current || resting.current) return false;
+      if (s.hidden || s.menu || touring.current || resting.current || physical.current) return false;
       if ((s.speech && prio.current > o.prio) || (sceneBusy() && o.prio < 2)) return false;
       if (o.interrupt && sceneBusy()) {
         seq.current++;
@@ -369,7 +384,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
 
   const onScene = useCallback(
     (scene: Scene) => {
-      if (touring.current || mascot.get().menu || mascot.get().hidden) return;
+      if (touring.current || physical.current || mascot.get().menu || mascot.get().hidden) return;
       // Sections found on the page wait for a configured scene to finish.
       if (scene.id.startsWith("auto-") && sceneBusy()) {
         pending.current = scene;
@@ -399,33 +414,97 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     [sfx],
   );
 
+  /**
+   * One line on a tour, said out loud when his voice is on, with Next / End tour under it. It moves on
+   * by itself once it has been said (or had time to be read); Next skips ahead. While the visitor is
+   * holding him (or he's picking himself up after a throw) the tour waits.
+   */
+  const tourLine = useCallback(
+    async (line: Text, actions: SceneAction[]) => {
+      prio.current = 2;
+      mascot.say({ ...line, actions });
+      const said = voiceLine(line[voice]);
+      let skipped = false;
+      const skip = new Promise<void>(
+        (r) =>
+          (nextStep.current = () => {
+            skipped = true;
+            r();
+          }),
+      );
+      await Promise.race([Promise.all([sleep(2200 + line[voice].length * 50), said]), skip]);
+      nextStep.current = null;
+      if (skipped) hush();
+      while (physical.current && touring.current) await sleep(250);
+      return skipped;
+    },
+    [voice, voiceLine],
+  );
+
+  /**
+   * On a tour: scroll the page down section by section (at most `max`), walk up to each one, point at
+   * it and explain it in his own (scripted) words. Returns false when the visitor ended the tour.
+   */
+  const walkSections = useCallback(
+    async (max: number, actions: SceneAction[]) => {
+      if (max <= 0) return touring.current;
+      const configured = scenesFor(here.current.pathname);
+      const top = (sel: string) => (document.querySelector(sel)?.getBoundingClientRect().top ?? 0) + window.scrollY;
+      const steps = [...configured, ...discoverSections(configured)]
+        .filter((sc) => sc.selector !== "main" && sc.id !== "hero" && (sc.tour ?? sc.say)?.length && document.querySelector(sc.selector))
+        .sort((a, b) => top(a.selector) - top(b.selector))
+        .slice(0, max);
+      for (const step of steps) {
+        if (!touring.current) return false;
+        if (!scrollToSection(step.selector)) continue;
+        await sleep(reducedMotion() ? 250 : 1300);
+        while (physical.current && touring.current) await sleep(250);
+        if (!touring.current) return false;
+        const id = ++seq.current;
+        const section = document.querySelector(step.selector);
+        const target = visibleTarget(step.point) ?? section?.querySelector("h2, h3") ?? section;
+        sceneTarget.current = target;
+        mascot.set({ props: step.props ?? [], goggles: !!step.goggles, drone: !!step.drone, look: target ? center(target) : null });
+        await place({ side: step.side, near: target });
+        if (!touring.current) return false;
+        if (seq.current !== id) continue;
+        const c: ClipName = step.clip === "Point" ? pointClip({ ...pos.current, ...sizeRef.current }, target) : step.clip;
+        mascot.play(c, "Idle");
+        for (const line of step.tour ?? step.say ?? []) {
+          await tourLine(line, actions);
+          if (!touring.current) return false;
+        }
+        if (c === "PointLeft" || c === "PointRight") mascot.play("Idle");
+      }
+      return touring.current;
+    },
+    [place, tourLine],
+  );
+
+  /** "Tour this page" from his menu: down the page, section by section. */
   const tour = useCallback(async () => {
-    const steps = [...scenes, ...discoverSections(scenes)]
-      .filter((s) => s.selector !== "main" && s.id !== "hero" && document.querySelector(s.selector))
-      .sort((a, b) => document.querySelector(a.selector)!.getBoundingClientRect().top - document.querySelector(b.selector)!.getBoundingClientRect().top);
-    if (!steps.length) return;
+    if (touring.current) return;
     touring.current = true;
-    const next: SceneAction = { kind: "next", label: LINES.next };
-    const stop: SceneAction = { kind: "stop", label: LINES.stop };
-    for (let i = 0; i < steps.length && touring.current; i++) {
-      scrollToSection(steps[i].selector);
-      await sleep(reducedMotion() ? 250 : 1350);
-      if (!touring.current) break;
-      const waiting = new Promise<void>((r) => (nextStep.current = r));
-      void runScene(steps[i], { force: true, actions: i < steps.length - 1 ? [next, stop] : [stop] });
-      await Promise.race([waiting, sleep(14000)]);
-    }
-    const wasTouring = touring.current;
+    const done = await walkSections(14, [
+      { kind: "next", label: LINES.next },
+      { kind: "stop", label: LINES.stop },
+    ]);
     touring.current = false;
     nextStep.current = null;
-    if (wasTouring) {
+    sceneTarget.current = null;
+    if (done) {
       const id = ++seq.current;
+      mascot.set({ props: [], goggles: false, drone: false });
       mascot.play("Wave", "Idle");
       await speak([LINES.tourDone], id);
     }
-  }, [scenes, runScene, speak]);
+  }, [walkSections, speak]);
 
-  /** The site tour: page by page through SITE_TOUR, saying what each page is for, with Next / End tour. */
+  /**
+   * The site tour: page by page through SITE_TOUR. On each page he says what it's for, then scrolls
+   * down it explaining its sections, and walks on to the next page by himself (Next skips ahead,
+   * End tour stops).
+   */
   const siteTour = useCallback(async () => {
     if (touring.current) return;
     touring.current = true;
@@ -443,6 +522,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       }
       return here.current.path === p;
     };
+    const acts: SceneAction[] = [
+      { kind: "next", label: LINES.next },
+      { kind: "stop", label: LINES.stop },
+    ];
     for (let i = 0; i < SITE_TOUR.length && touring.current; i++) {
       const stop = SITE_TOUR[i];
       tourPath.current = stop.href;
@@ -451,7 +534,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         seq.current++;
         mascot.say(null);
         const s = sizeRef.current;
-        if (!reducedMotion()) void moveTo({ x: pos.current.x + s.w / 2 > window.innerWidth / 2 ? window.innerWidth + 20 : -s.w - 20, y: pos.current.y });
+        if (!reducedMotion() && !physical.current) void moveTo({ x: pos.current.x + s.w / 2 > window.innerWidth / 2 ? window.innerWidth + 20 : -s.w - 20, y: pos.current.y });
         goTo({ href: stop.href }, { locale, pathname: here.current.pathname, router });
         if (!(await arrived(stop.href))) break;
         await sleep(reducedMotion() ? 300 : 800);
@@ -459,30 +542,23 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       if (!touring.current) break;
       if (!(stop.section && scrollToSection(stop.section))) window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
       await sleep(reducedMotion() ? 200 : 700);
+      while (physical.current && touring.current) await sleep(250);
       if (!touring.current) break;
       id = ++seq.current;
       const target = (stop.point && visibleTarget(stop.point)) || document.querySelector("main h1");
       sceneTarget.current = target;
       mascot.set({ props: stop.props ?? [], goggles: !!stop.goggles, drone: false, look: target ? center(target) : null });
       await place({ near: target });
-      if (!touring.current || seq.current !== id) break;
+      if (!touring.current) break;
       const c: ClipName = stop.clip === "Point" ? pointClip({ ...pos.current, ...sizeRef.current }, target) : (stop.clip ?? "Idle");
       mascot.play(c, "Idle");
-      const last = i === SITE_TOUR.length - 1;
-      const acts: SceneAction[] = last ? [{ kind: "next", label: LINES.next }] : [{ kind: "next", label: LINES.next }, { kind: "stop", label: LINES.stop }];
-      const lines: Line[] = stop.say.map((l, j) => (j === stop.say.length - 1 ? { ...l, actions: acts } : l));
-      for (const line of lines) {
-        if (!touring.current || seq.current !== id) break;
-        prio.current = 2;
-        mascot.say(line);
-        const said = voiceLine(line[voice]);
-        if (line.actions) {
-          // The last line stays up until the visitor moves on.
-          await new Promise<void>((r) => (nextStep.current = r));
-          nextStep.current = null;
-        } else await Promise.all([sleep(2400 + line[voice].length * 45), said]);
+      for (const line of stop.say) {
+        await tourLine(line, acts);
+        if (!touring.current) break;
       }
       if (c === "PointLeft" || c === "PointRight") mascot.play("Idle");
+      // Then down the page, section by section.
+      if (touring.current && !(await walkSections(stop.sections ?? 3, acts))) break;
     }
     const finished = touring.current;
     touring.current = false;
@@ -491,13 +567,13 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     sceneTarget.current = null;
     if (finished) {
       id = ++seq.current;
-      mascot.set({ props: [], goggles: false });
+      mascot.set({ props: [], goggles: false, drone: false });
       mascot.play("Celebrate", "Happy");
       sfx("tada");
       await speak([{ ...LINES.tourEnd, actions: [{ kind: "menu", label: LINES.askMe }] }], id);
       if (seq.current === id) mascot.play("Idle");
     }
-  }, [speak, moveTo, place, locale, router, voice, voiceLine, sfx]);
+  }, [speak, moveTo, place, locale, router, sfx, tourLine, walkSections]);
 
   /** Ends whichever tour is on. */
   const endTour = useCallback(() => {
@@ -604,7 +680,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   }, [pathname, endTour]);
   // After the reset above (effects run in order), so the new page's first scene isn't cancelled.
   useScrollScenes(scenes, onScene, pathname, !hidden, discover);
-  useMascotReactions({ brief, busy: () => moving.current || touring.current || !!resting.current || mascot.get().menu || mascot.get().hidden }, pathname, !hidden && placed);
+  useMascotReactions({ brief, busy: () => moving.current || touring.current || physical.current || !!resting.current || mascot.get().menu || mascot.get().hidden }, pathname, !hidden && placed);
 
   // ── Exploring: count the site's pages he's seen; celebrate when it's all of them. ──
   useEffect(() => {
@@ -685,7 +761,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       cursor.current = { x: e.clientX, y: e.clientY };
       queue();
       const s = mascot.get();
-      if (!s.box.w || s.menu || s.speech || moving.current || touring.current || resting.current) return;
+      if (!s.box.w || s.menu || s.speech || moving.current || touring.current || resting.current || physical.current) return;
       const b = s.box;
       // Notices a cursor that comes close.
       const near = Math.hypot(e.clientX - (b.x + b.w / 2), e.clientY - (b.y + b.h * 0.5)) < b.h * 0.75;
@@ -739,7 +815,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       clearTimeout(timer);
       timer = window.setTimeout(() => {
         const s = mascot.get();
-        if (moving.current || touring.current || s.menu || s.hidden || !placed) return;
+        if (moving.current || touring.current || physical.current || s.menu || s.hidden || !placed) return;
         if (performance.now() - lastMove.current < 2500) return;
         if (overlap(pos.current, sizeRef.current, stage.current) > 0.12 || peek) void place({ side: onRight === (document.documentElement.dir !== "rtl") ? "end" : "start" });
       }, 500);
@@ -760,7 +836,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       clearTimeout(doze);
       sit = window.setTimeout(() => {
         const s = mascot.get();
-        if (s.menu || s.speech || moving.current || touring.current) return arm();
+        if (s.menu || s.speech || moving.current || touring.current || physical.current) return arm();
         resting.current = "Sit";
         mascot.play("Sit");
       }, 25000);
@@ -838,10 +914,207 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     if (siteMenu || search) mascot.set({ menu: false });
   }, [siteMenu, search]);
 
+  // ── Picking him up and throwing him (mouse or finger). ──
+  const drag = useRef<{ id: number; dx: number; dy: number; sx: number; sy: number; moved: boolean; samples: { x: number; y: number; t: number }[]; turns: number; dir: number; dizzy: boolean } | null>(null);
+  const noClickUntil = useRef(0);
+  const throwGen = useRef(0);
+  const throws = useRef(0);
+  const flight = useRef(0);
+  const heldTimer = useRef(0);
+
+  /** A quick line while he's being handled (said out loud too). */
+  const quip = useCallback(
+    (line: Text, ms?: number) => {
+      prio.current = 1;
+      const sid = mascot.say(line);
+      if (!voiceLine(line[voice])) sfx("pop");
+      setTimeout(
+        () => {
+          if (mascot.get().speech?.id !== sid) return;
+          mascot.say(null);
+          prio.current = 0;
+        },
+        ms ?? 1800 + line[voice].length * 45,
+      );
+    },
+    [voice, voiceLine, sfx],
+  );
+
+  /** Speed of the pointer over the last ~0.1 s, in px/s. */
+  const velocity = (samples: { x: number; y: number; t: number }[]) => {
+    const a = samples[0];
+    const b = samples[samples.length - 1];
+    const dt = (b.t - a.t) / 1000;
+    return dt > 0.008 ? { x: (b.x - a.x) / dt, y: (b.y - a.y) / dt } : { x: 0, y: 0 };
+  };
+
+  const grab = useCallback(() => {
+    const gen = ++throwGen.current;
+    physical.current = true;
+    seq.current++;
+    activeScene.current = 0;
+    tween.current?.kill();
+    moving.current = false;
+    cancelAnimationFrame(flight.current);
+    resting.current = "";
+    hush();
+    setPeek(false);
+    document.body.style.userSelect = "none";
+    mascot.set({ held: true, flop: 0, facing: 0, menu: false, props: [], drone: false });
+    mascot.play("Jump", "LookDown");
+    sfx("boing");
+    quip(pick(PHYSICS.grab));
+    clearTimeout(heldTimer.current);
+    heldTimer.current = window.setTimeout(() => throwGen.current === gen && mascot.get().held && quip(pick(PHYSICS.held)), 4500);
+  }, [quip, sfx]);
+
+  /** Back on his feet: off to a clear spot, and the guide carries on. */
+  const standUp = useCallback(
+    (gen: number, line: Text) => {
+      if (throwGen.current !== gen) return;
+      mascot.set({ flop: 0 });
+      mascot.play("Jump", "Idle");
+      sfx("boing");
+      setTimeout(() => {
+        if (throwGen.current !== gen) return;
+        physical.current = false;
+        quip(line);
+        setTimeout(() => throwGen.current === gen && !physical.current && overlap(pos.current, sizeRef.current, stage.current) > 0.12 && void place(), 1600);
+      }, 650);
+    },
+    [place, quip, sfx],
+  );
+
+  /** Let go: he flies with the hand's speed, bounces off the edges and lands at the bottom. */
+  const release = useCallback(
+    (v: { x: number; y: number }) => {
+      clearTimeout(heldTimer.current);
+      document.body.style.userSelect = "";
+      mascot.set({ held: false });
+      const gen = throwGen.current;
+      const s = sizeRef.current;
+      const floor = window.innerHeight - insetBottom() - s.h;
+      const fromY = pos.current.y;
+      const thrown = Math.hypot(v.x, v.y) > 900;
+      let vx = clamp(v.x, -4200, 4200);
+      let vy = clamp(v.y, -4200, 4200);
+      let hitWall = false;
+      let last = performance.now();
+      const minX = -s.w * BODY.x * 0.6;
+      const maxX = window.innerWidth - s.w + s.w * BODY.x * 0.6;
+      const land = () => {
+        tilt.current = 0;
+        pos.current.y = floor;
+        apply();
+        setOnRight(pos.current.x + s.w / 2 > window.innerWidth / 2);
+        const fell = floor - fromY > window.innerHeight * 0.3;
+        if (thrown || fell) {
+          // Splat: flat on his belly, a complaint, then up again.
+          throws.current++;
+          const side = Math.abs(vx) > 60 ? Math.sign(vx) : pos.current.x + s.w / 2 > window.innerWidth / 2 ? 1 : -1;
+          mascot.set({ flop: side, facing: 0, look: null });
+          mascot.play("Idle");
+          sfx("thud");
+          quip(throws.current % 3 === 0 ? pick(PHYSICS.again) : pick(PHYSICS.flop), 2600);
+          setTimeout(() => standUp(gen, pick(PHYSICS.up)), 2700);
+        } else {
+          mascot.play("Jump", "Idle");
+          physical.current = false;
+          quip(pick(PHYSICS.gentle));
+        }
+      };
+      const step = (now: number) => {
+        if (throwGen.current !== gen) return;
+        const dt = Math.min(0.033, (now - last) / 1000);
+        last = now;
+        vy += 2600 * dt;
+        pos.current.x += vx * dt;
+        pos.current.y += vy * dt;
+        if (pos.current.x < minX || pos.current.x > maxX) {
+          pos.current.x = clamp(pos.current.x, minX, maxX);
+          if (Math.abs(vx) > 700 && !hitWall) {
+            hitWall = true;
+            sfx("thud");
+            quip(pick(PHYSICS.wall), 1300);
+          }
+          vx = -vx * 0.45;
+        }
+        if (pos.current.y < -s.h * 0.4) {
+          pos.current.y = -s.h * 0.4;
+          vy = Math.abs(vy) * 0.3;
+        }
+        tilt.current = clamp(tilt.current * 0.9 + vx * 0.004, -45, 45);
+        if (pos.current.y >= floor) return land();
+        apply();
+        flight.current = requestAnimationFrame(step);
+      };
+      if (reducedMotion()) {
+        pos.current.y = Math.min(pos.current.y, floor);
+        return land();
+      }
+      flight.current = requestAnimationFrame(step);
+    },
+    [apply, quip, sfx, standUp],
+  );
+
+  const onGrab = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 || !e.isPrimary || mascot.get().hidden) return;
+    drag.current = { id: e.pointerId, dx: e.clientX - pos.current.x, dy: e.clientY - pos.current.y, sx: e.clientX, sy: e.clientY, moved: false, samples: [{ x: e.clientX, y: e.clientY, t: performance.now() }], turns: 0, dir: 0, dizzy: false };
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {}
+  };
+  const onDrag = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    if (!d.moved) {
+      if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 8) return;
+      d.moved = true;
+      grab();
+    }
+    const now = performance.now();
+    d.samples = [...d.samples.filter((p) => now - p.t < 110), { x: e.clientX, y: e.clientY, t: now }];
+    const v = velocity(d.samples);
+    // Shaken hard from side to side: he gets dizzy.
+    const dir = Math.abs(v.x) > 1500 ? Math.sign(v.x) : 0;
+    if (dir && dir !== d.dir) {
+      if (d.dir) d.turns++;
+      d.dir = dir;
+      if (d.turns >= 5 && !d.dizzy) {
+        d.dizzy = true;
+        quip(pick(PHYSICS.shaken));
+      }
+    }
+    pos.current = { x: e.clientX - d.dx, y: e.clientY - d.dy };
+    // Dangles from where he's held, swinging against the movement.
+    tilt.current = clamp(-v.x * 0.012, -38, 38);
+    apply();
+  };
+  const onDrop = (e: ReactPointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    if (!d.moved) return;
+    noClickUntil.current = performance.now() + 400;
+    const now = performance.now();
+    const recent = d.samples.filter((p) => now - p.t < 110);
+    release(e.type === "pointercancel" || recent.length < 2 ? { x: 0, y: 0 } : velocity(recent));
+  };
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(flight.current);
+      clearTimeout(heldTimer.current);
+      document.body.style.userSelect = "";
+    },
+    [],
+  );
+
   // ── Clicking the mascot: open the guide; five quick clicks: a dance. ──
   const clicks = useRef<number[]>([]);
   const onMascotClick = () => {
     const now = performance.now();
+    // The end of a drag isn't a click; nor is a click while he's flat on the floor.
+    if (now < noClickUntil.current || physical.current) return;
     clicks.current = [...clicks.current.filter((t) => now - t < 2500), now];
     if (clicks.current.length >= 5) {
       clicks.current = [];
@@ -900,7 +1173,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         {three ? (
           <>
             {!ready && <img src={POSTER} alt="" draggable={false} className="absolute inset-0 size-full select-none" />}
-            <div className={cn("absolute inset-0 transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")}>
+            <div className={cn("absolute inset-0 transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")} style={SWING}>
               <Fallback onError={() => setFailed3d(true)}>
                 <Mascot3D url={MODEL} quality={phone || (navigator.hardwareConcurrency ?? 8) <= 4 ? "low" : "high"} paused={!visible} onProgress={setProgress} onError={() => setFailed3d(true)} />
               </Fallback>
@@ -908,16 +1181,26 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             {!ready && <MascotLoader locale={voice} progress={progress} />}
           </>
         ) : (
-          <img src={CHEERFUL.has(clip) ? POSTER_WAVE : POSTER} alt="" draggable={false} className="mascot-still absolute inset-0 size-full select-none" />
+          <img
+            src={CHEERFUL.has(clip) ? POSTER_WAVE : POSTER}
+            alt=""
+            draggable={false}
+            className="mascot-still absolute inset-0 size-full select-none transition-transform duration-300"
+            style={flop ? { transform: `translateY(30%) rotate(${flop * 82}deg) scale(0.8)` } : SWING}
+          />
         )}
         <button
           ref={hit}
           type="button"
           onClick={onMascotClick}
+          onPointerDown={onGrab}
+          onPointerMove={onDrag}
+          onPointerUp={onDrop}
+          onPointerCancel={onDrop}
           aria-label={label}
           aria-haspopup="dialog"
           aria-expanded={guideOpen}
-          className="peer pointer-events-auto absolute cursor-pointer rounded-[42%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan"
+          className="peer pointer-events-auto absolute cursor-grab touch-none rounded-[42%] active:cursor-grabbing focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan"
           style={{ left: `${BODY.x * 100}%`, top: `${BODY.y * 100}%`, width: `${BODY.w * 100}%`, height: `${(peek ? 0.5 - BODY.y : BODY.h) * 100}%` }}
         />
         {/* Name tag on hover / keyboard focus. */}

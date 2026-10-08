@@ -31,6 +31,10 @@ export type MascotState = {
   goggles: boolean;
   drone: boolean;
   speech: (Line & { id: number }) | null;
+  /** Picked up by the visitor (dangling from the cursor or finger). */
+  held: boolean;
+  /** Lying on his belly after a throw, head towards screen-left (-1) or screen-right (1); 0 standing. */
+  flop: number;
   /** Mascot box on screen (for the bubble, menu and look direction). */
   box: { x: number; y: number; w: number; h: number };
 };
@@ -51,6 +55,8 @@ const initial: MascotState = {
   goggles: false,
   drone: false,
   speech: null,
+  held: false,
+  flop: 0,
   box: { x: 0, y: 0, w: 0, h: 0 },
 };
 

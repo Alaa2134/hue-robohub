@@ -42,6 +42,8 @@ export type Scene = {
   side?: "start" | "end";
   /** Enter by walking in from the edge (the first scene of a page). */
   enter?: boolean;
+  /** What he says about this section on a tour (a fuller explanation than `say`). */
+  tour?: Text[];
 };
 
 export type Route = { match: RegExp; scenes: Scene[] };
@@ -78,13 +80,13 @@ export const JOURNEY: Route[] = [
         ],
       },
       {
-        id: "latest",
+        id: "latest", tour: [{ en: "Fresh news and events land here first. If an event is close, its countdown is right here ⏳", ar: "ده شريط آخر الأخبار والإيفنتات… أي حاجة جديدة بتنزل هنا الأول، ولو في إيفنت قريب هتلاقي العدّاد بيعدّ لحد ما يبدأ ⏳" }],
         selector: "section[aria-labelledby='latest-title']",
         clip: "LookAround",
         say: [{ en: "Fresh news and events. Don't miss a thing.", ar: "آخر الأخبار والإيفنتات هنا… متفوّتش حاجة 👀" }],
       },
       {
-        id: "about",
+        id: "about", tour: [{ en: "Why BuildX? Instead of only theory, you work on real projects with people like you.", ar: "هنا بنقولك ليه BuildX مختلف: بدل النظري وبس، بتشتغل على مشاريع حقيقية مع ناس شبهك." }, { en: "Learn, build, compete, and leave with a real portfolio.", ar: "يعني تتعلم، وتبني، وتنافس… وفي الآخر يطلع معاك بورتفوليو بجد 💼" }],
         selector: "#why",
         clip: "Think",
         props: ["gears"],
@@ -95,7 +97,7 @@ export const JOURNEY: Route[] = [
         ],
       },
       {
-        id: "tracks",
+        id: "tracks", tour: [{ en: "These are the seven tracks. Each card says what you'll learn; click one for the details.", ar: "دي التراكات السبعة. كل كارت مكتوب فيه هتتعلم إيه… دوس على أي واحد تشوف تفاصيله." }, { en: "Can't decide? Ask me and I'll suggest one that fits what you like 😉", ar: "ولو محتار، اسألني وأنا أرشحلك تراك على حسب اللي بتحبه 😉" }],
         selector: "#tracks",
         clip: "Point",
         point: "#tracks a[href*='/tracks/']",
@@ -107,9 +109,9 @@ export const JOURNEY: Route[] = [
           { en: "Hover a card and I'll tell you about it.", ar: "قرّب الماوس من أي كارت وأنا أحكيلك عنه." },
         ],
       },
-      { id: "activities", selector: "#activities", clip: "Typing", props: ["code"], say: [{ en: "Workshops, hackathons, build nights. Always something on.", ar: "ورش وهاكاثونات وسهرات بناء… هنا دايماً في حاجة شغّالة." }] },
+      { id: "activities", tour: [{ en: "Our activities: weekly workshops, hackathons, and build nights where we work on projects together.", ar: "دي أنشطتنا: ورش كل أسبوع، هاكاثونات، وسهرات بناء بنقعد نشتغل فيها على المشاريع سوا 🔧" }], selector: "#activities", clip: "Typing", props: ["code"], say: [{ en: "Workshops, hackathons, build nights. Always something on.", ar: "ورش وهاكاثونات وسهرات بناء… هنا دايماً في حاجة شغّالة." }] },
       {
-        id: "compete",
+        id: "compete", tour: [{ en: "The competition teams 🏁 Each has its own robot or project; pick one from the list to see it and its specs.", ar: "وده جزء المسابقات 🏁 كل فريق ليه روبوت أو مشروع… اختار فريق من القايمة وشوف الروبوت بتاعه ومواصفاته." }],
         selector: "#compete",
         clip: "Happy",
         props: ["sensors"],
@@ -118,18 +120,18 @@ export const JOURNEY: Route[] = [
           { en: "Pick a team on the left to see its robot.", ar: "اختار فريق من القايمة وشوف الروبوت بتاعه." },
         ],
       },
-      { id: "events", selector: "#roadmap", clip: "Point", point: "#roadmap h2", say: [{ en: "Here's what we're building next.", ar: "بص، ده اللي بنحضّره الفترة الجاية." }] },
-      { id: "goals", selector: "#goals", clip: "Happy", say: [{ en: "Our goals for the year. We'll hit them together 💪", ar: "دي أهدافنا للسنة… ومع بعض هنحققها 💪" }] },
-      { id: "voices", selector: "section[aria-labelledby='voices-title']", clip: "Listening", say: [{ en: "Hear it from the students themselves.", ar: "اسمع من الطلبة نفسهم… كلامهم أحلى من أي إعلان." }] },
+      { id: "events", tour: [{ en: "The year's plan: every stage and what happens in it, so you know when to start and where it leads.", ar: "دي خطة السنة… كل مرحلة وإيه اللي بيحصل فيها، عشان تعرف تبدأ إمتى وهتوصل لفين." }], selector: "#roadmap", clip: "Point", point: "#roadmap h2", say: [{ en: "Here's what we're building next.", ar: "بص، ده اللي بنحضّره الفترة الجاية." }] },
+      { id: "goals", tour: [{ en: "Our goals for this season. Goals we're working towards, not done yet, and we'll get there together 💪", ar: "ودي أهدافنا للموسم ده… أهداف لسه بنشتغل عليها مش حاجة خلصت، ومع بعض هنوصلها 💪" }], selector: "#goals", clip: "Happy", say: [{ en: "Our goals for the year. We'll hit them together 💪", ar: "دي أهدافنا للسنة… ومع بعض هنحققها 💪" }] },
+      { id: "voices", tour: [{ en: "What students who tried BuildX say. Hear it from them, not from me 😄", ar: "هنا آراء الطلبة اللي جرّبوا BuildX… اسمع منهم هما مش مني أنا 😄" }], selector: "section[aria-labelledby='voices-title']", clip: "Listening", say: [{ en: "Hear it from the students themselves.", ar: "اسمع من الطلبة نفسهم… كلامهم أحلى من أي إعلان." }] },
       {
-        id: "team",
+        id: "team", tour: [{ en: "The founders and the team behind BuildX. Click anyone to see their profile and work.", ar: "ودول المؤسسين والفريق اللي ورا BuildX… دوس على أي حد تشوف بروفايله وشغله." }],
         selector: "#founders",
         clip: "Wave",
         say: [{ en: "Meet the people building BuildX.", ar: "تعالى أعرّفك على الناس اللي بيبنوا BuildX.", actions: [go("/team", "شوف الفريق كله", "Whole team")] }],
       },
-      { id: "sponsors", selector: "#partners", clip: "Idle", say: [{ en: "Our partners help turn ideas into reality.", ar: "شركاؤنا هم اللي بيساعدونا نحوّل الأفكار لحاجة حقيقية." }] },
+      { id: "sponsors", tour: [{ en: "Our partners and sponsors. If your company wants to back students, there's a page for that.", ar: "وده مكان شركاءنا ورعاتنا… لو شركتك عايزة تدعم الطلبة، في صفحة مخصوص للرعاية." }], selector: "#partners", clip: "Idle", say: [{ en: "Our partners help turn ideas into reality.", ar: "شركاؤنا هم اللي بيساعدونا نحوّل الأفكار لحاجة حقيقية." }] },
       {
-        id: "join",
+        id: "join", tour: [{ en: "And at the very end, the Join button 😄 When you're ready, click it and apply in three minutes.", ar: "وفي الآخر خالص… زرار الانضمام 😄 لما تكون جاهز دوس عليه وقدّم في ٣ دقايق بس." }],
         selector: "section[aria-labelledby='footer-cta']",
         clip: "Happy",
         point: "section[aria-labelledby='footer-cta'] a[href$='/join'], section[aria-labelledby='footer-cta'] a[href*='/join/']",
@@ -432,15 +434,73 @@ export const LINES = {
 } satisfies Record<string, Text>;
 
 /**
- * The site tour: Baqloz walks the visitor through the whole site, page by page, and says what each
- * page is for. `section` scrolls to a part of the page; `point` is what he looks and points at.
+ * Picking him up and throwing him (drag with the mouse or a finger). He complains, but he's a good
+ * sport about it. One line is picked at random from each list.
  */
-export type TourStop = { href: string; section?: string; point?: string; clip?: SceneClip; props?: PropName[]; goggles?: boolean; say: Text[] };
+export const PHYSICS: Record<"grab" | "held" | "shaken" | "flop" | "wall" | "up" | "gentle" | "again", Text[]> = {
+  grab: [
+    { ar: "إيه ده! نزّلني يا عم 😱", en: "Whoa! Put me down 😱" },
+    { ar: "أنا مش شنطة على فكرة 😤", en: "I'm not a bag, you know 😤" },
+    { ar: "براحة براحة… أنا بخاف من المرتفعات 😰", en: "Easy, easy… I'm scared of heights 😰" },
+    { ar: "هوووب! على فين كده؟ 😳", en: "Hup! Where are we going? 😳" },
+  ],
+  held: [
+    { ar: "طب ممكن تنزّلني بقى؟ 🥺", en: "Can you put me down now? 🥺" },
+    { ar: "رجليا مش لامسة الأرض… مش مريح خالص 😅", en: "My feet aren't touching the ground… not comfy 😅" },
+  ],
+  shaken: [
+    { ar: "دوّختني! الدنيا بتلف 😵‍💫", en: "I'm dizzy! Everything's spinning 😵‍💫" },
+    { ar: "بطّل هز! أنا مش عصير 🥤", en: "Stop shaking me! I'm not a smoothie 🥤" },
+  ],
+  flop: [
+    { ar: "حرام عليك! بتعمل فيا ليه كده 😭", en: "Why would you do that to me?! 😭" },
+    { ar: "آآآه بطني! 🤕", en: "Ow, my tummy! 🤕" },
+    { ar: "يا بني آدم! ده أنا مرشدك 😭", en: "Hey! I'm your guide! 😭" },
+    { ar: "كده؟ ماشي… هفتكرهالك 😤", en: "Oh, like that? I'll remember this 😤" },
+    { ar: "مش هكلمك تاني… هزار هزار 😅", en: "Not talking to you anymore… kidding 😅" },
+  ],
+  wall: [
+    { ar: "أيييي الحيطة! 🫠", en: "Ouch, the wall! 🫠" },
+    { ar: "مين حط الحيطة دي هنا؟! 😵", en: "Who put that wall there?! 😵" },
+  ],
+  up: [
+    { ar: "أنا كويس… أنا كويس 😅", en: "I'm fine… I'm fine 😅" },
+    { ar: "محدش شاف حاجة… تمام؟ 😳", en: "Nobody saw that… okay? 😳" },
+    { ar: "ولا يهمني، أنا متعوّد 💪", en: "No big deal, I'm used to it 💪" },
+    { ar: "طب يلا نكمّل… بس من غير رمي المرة دي 😒", en: "Let's carry on… without the throwing this time 😒" },
+  ],
+  gentle: [
+    { ar: "شكراً إنك نزّلتني بالراحة 😌", en: "Thanks for the soft landing 😌" },
+    { ar: "حلو المكان ده… هقعد هنا شوية 😎", en: "Nice spot, I'll stay here a bit 😎" },
+  ],
+  again: [
+    { ar: "تالت مرة؟! أنا هبلّغ عنك 😂", en: "Third time?! I'm reporting you 😂" },
+    { ar: "إنت مستمتع أوي كده ليه؟ 😂", en: "Why are you enjoying this so much? 😂" },
+  ],
+};
+
+/**
+ * The site tour: Baqloz walks the visitor through the whole site, page by page, says what each page
+ * is for, then scrolls down it explaining its sections (their `tour` lines, else `say`). `section`
+ * scrolls to a part of the page; `point` is what he looks and points at.
+ */
+export type TourStop = {
+  href: string;
+  section?: string;
+  point?: string;
+  clip?: SceneClip;
+  props?: PropName[];
+  goggles?: boolean;
+  say: Text[];
+  /** How many of the page's sections he scrolls to and explains after that (default 3). */
+  sections?: number;
+};
 export const SITE_TOUR: TourStop[] = [
   {
     href: "/",
     section: "#hero",
     clip: "Wave",
+    sections: 12,
     say: [
       { ar: "دي الصفحة الرئيسية… منها توصل لأي حاجة في BuildX على طول.", en: "This is the home page. Everything at BuildX starts here." },
       { ar: "فوق في الهيدر هتلاقي كل الصفحات، وزرار البحث لو مستعجل.", en: "Every page is in the header up top, plus search if you're in a hurry." },
@@ -502,16 +562,19 @@ export const SITE_TOUR: TourStop[] = [
   },
   {
     href: "/verify",
+    sections: 0,
     clip: "Think",
     say: [{ ar: "معاك شهادة من عندنا؟ هنا تتأكد إنها أصلية بالكود أو بالـ QR اللي عليها.", en: "Got a BuildX certificate? Check it's genuine here with its code or QR." }],
   },
   {
     href: "/faq",
+    sections: 0,
     clip: "Think",
     say: [{ ar: "عندك سؤال؟ أغلب الإجابات هنا… ولو ملقتهاش، اسألني أنا 😄", en: "Got a question? Most answers are here. And if not, ask me 😄" }],
   },
   {
     href: "/join",
+    sections: 0,
     clip: "Celebrate",
     say: [
       { ar: "وآخر محطة… وأهم محطة 😄 هنا تقدّم وتبقى واحد مننا.", en: "Last stop, and the best one 😄 Apply here and become one of us." },
