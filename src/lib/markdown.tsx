@@ -10,7 +10,8 @@ import { Fragment, type ReactNode } from "react";
 function safeUrl(url: string): string | null {
   const u = url.trim();
   if (/^(https?:|mailto:)/i.test(u)) return u;
-  if (u.startsWith("/") && !u.startsWith("//")) return u;
+  // "//evil.com" and "/\evil.com" both leave the site in a browser.
+  if (u.startsWith("/") && !/^\/[\/\\]/.test(u)) return u;
   if (u.startsWith("#")) return u;
   return null;
 }

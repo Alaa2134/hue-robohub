@@ -114,7 +114,7 @@ const T = {
     },
     done: "Application received!",
     doneBody: "Thank you for applying to BuildX HUE. Our team will review your answers and contact you on WhatsApp with the next steps.",
-    dupBody: "You already applied in the last few days — your application is with our team. Here is its reference again.",
+    dupBody: "You already applied in the last few days — your application is with our team. Its reference was shown when you applied (and saved on that device); we'll contact you on your phone.",
     refLabel: "Your reference",
     trackIt: "Track your application",
     saveRef: "Save this number — you'll use it with your phone number to check your application's status.",
@@ -174,7 +174,7 @@ const T = {
     },
     done: "طلبك وصل!",
     doneBody: "شكراً إنك قدّمت في BuildX HUE. فريقنا هيراجع إجاباتك وهيتواصل معاك على واتساب بالخطوات الجاية.",
-    dupBody: "انت قدّمت قبل كده من كام يوم — طلبك عند الفريق. ده رقمه المرجعي تاني.",
+    dupBody: "انت قدّمت قبل كده من كام يوم — طلبك عند الفريق. رقمه المرجعي ظهرلك وقت التقديم (ومتسجّل على الجهاز اللي قدّمت منه)، وهنكلمك على رقمك.",
     refLabel: "رقم طلبك",
     trackIt: "تابع حالة طلبك",
     saveRef: "احتفظ بالرقم ده — هتستخدمه مع رقم موبايلك عشان تعرف حالة طلبك.",
@@ -331,7 +331,14 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
         setFormError(out.error === "busy" ? t.err.busy : out.error === "rate_limited" ? t.err.rateLimited : out.error === "closed" ? t.err.closed : t.err.invalid);
         return;
       }
-      setDone({ ref: out.ref ?? "", duplicate: !!out.duplicate });
+      // A repeat no longer gets the reference back from the server (anyone could ask with a phone
+      // number); the device that applied still has it.
+      let ref = out.ref ?? "";
+      if (!ref && out.duplicate)
+        try {
+          ref = localStorage.getItem("bx-last-ref") ?? "";
+        } catch {}
+      setDone({ ref, duplicate: !!out.duplicate });
       try {
         localStorage.removeItem(DRAFT_KEY);
         if (out.ref && out.ref !== "BX-000000") localStorage.setItem("bx-last-ref", out.ref);
@@ -370,13 +377,15 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
         </span>
         <p className="t-headline text-3xl text-chalk">{t.done}</p>
         <p className="max-w-xl text-lg leading-relaxed text-mist">{done.duplicate ? t.dupBody : t.doneBody}</p>
-        <div className="rounded-xl border border-[var(--line-2)] bg-void/50 px-5 py-3">
-          <p className="text-sm text-fog">{t.refLabel}</p>
-          <p className="t-display text-3xl text-cyan" dir="ltr">
-            {done.ref}
-          </p>
-          <p className="mt-2 max-w-sm text-sm text-mist">{t.saveRef}</p>
-        </div>
+        {done.ref && (
+          <div className="rounded-xl border border-[var(--line-2)] bg-void/50 px-5 py-3">
+            <p className="text-sm text-fog">{t.refLabel}</p>
+            <p className="t-display text-3xl text-cyan" dir="ltr">
+              {done.ref}
+            </p>
+            <p className="mt-2 max-w-sm text-sm text-mist">{t.saveRef}</p>
+          </div>
+        )}
         <div className="flex flex-wrap gap-3">
           <a href={`${locale === "ar" ? "/ar" : ""}/join/status/?ref=${encodeURIComponent(done.ref)}`} className="btn btn-primary">
             <span>{t.trackIt}</span>

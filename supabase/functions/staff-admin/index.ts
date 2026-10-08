@@ -37,14 +37,34 @@ const isPassword = (v: unknown): v is string => typeof v === "string" && v.lengt
 const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const email = (v: unknown) => (typeof v === "string" ? v.trim().toLowerCase() : "");
 
+/** The project's public (anon / publishable) key, to act as the caller with their own session. */
+function publicKey(): string {
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}") as Record<string, string>;
+    if (keys.default) return keys.default;
+  } catch {
+    /* not set */
+  }
+  return Deno.env.get("SUPABASE_ANON_KEY")!;
+}
+
 async function caller(req: Request): Promise<Caller | null> {
   const jwt = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
   if (!jwt) return null;
   const { data, error } = await admin.auth.getUser(jwt);
   if (error || !data.user) return null;
-  const { data: row } = await admin.from("staff").select("role, active, email").eq("user_id", data.user.id).maybeSingle();
-  if (!row?.active) return null;
-  return { id: data.user.id, email: row.email, role: row.role };
+  // The database decides, with the caller's own session: active staff who passed two-factor
+  // (aal2) when they have it, exactly like every other staff action. A stolen password alone
+  // (an aal1 session) can't create, reset or remove staff accounts.
+  const asCaller = createClient(Deno.env.get("SUPABASE_URL")!, publicKey(), {
+    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: role, error: roleError } = await asCaller.rpc("staff_whoami");
+  if (roleError || (role !== "owner" && role !== "admin" && role !== "lead")) return null;
+  const { data: row } = await admin.from("staff").select("email").eq("user_id", data.user.id).maybeSingle();
+  if (!row) return null;
+  return { id: data.user.id, email: row.email, role };
 }
 
 async function audit(me: Caller, action: string, entityId: string, detail: Record<string, unknown> = {}) {

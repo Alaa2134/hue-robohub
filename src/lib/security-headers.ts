@@ -19,6 +19,8 @@ function common(dev: boolean, mediaBase?: string) {
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "object-src 'none'",
+    // No inline event-handler attributes anywhere (blocks <img onerror=…>-style injections).
+    "script-src-attr 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",

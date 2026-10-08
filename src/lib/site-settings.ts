@@ -48,7 +48,7 @@ export const announcementOf = (s: SiteSettings | null | undefined, locale: strin
   const a = s?.announcement;
   if (!a?.on) return null;
   const text = (locale === "ar" ? t(a.text_ar) || t(a.text_en) : t(a.text_en) || t(a.text_ar)).slice(0, 220);
-  return text ? { text, url: safeUrl(a.url) || (a.url?.startsWith("/") ? a.url : "") } : null;
+  return text ? { text, url: safeUrl(a.url) || (a.url && /^\/(?![\/\\])/.test(a.url) ? a.url : "") } : null;
 };
 
 export const goalsOf = (s: SiteSettings | null | undefined) => (s?.goals ?? []).filter((g) => t(g.value) && (t(g.label_en) || t(g.label_ar))).slice(0, 8);

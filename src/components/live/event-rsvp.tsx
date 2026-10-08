@@ -28,6 +28,7 @@ const T = {
     doneBody: "Show this ticket's QR code at the door. Save it or take a screenshot.",
     ticket: "Open my ticket",
     again: "Already registered with this phone — here's your ticket again.",
+    againNoTicket: "You're already registered with this phone. Your ticket is on the device you registered from; if you lost it, contact us.",
     yours: "You registered for this event",
     err: {
       invalid: "Check your name (3+ letters) and phone number, then try again.",
@@ -52,6 +53,7 @@ const T = {
     doneBody: "ورّي الـ QR اللي في التذكرة على الباب. احفظها أو خد سكرين شوت.",
     ticket: "افتح تذكرتي",
     again: "انت متسجل قبل كده بالرقم ده — دي تذكرتك تاني.",
+    againNoTicket: "انت متسجل قبل كده بالرقم ده. تذكرتك على الجهاز اللي سجّلت منه، ولو ضاعت كلّمنا.",
     yours: "انت متسجل في الفعالية دي",
     err: {
       invalid: "اتأكد من اسمك (3 حروف على الأقل) ورقم الموبايل وجرّب تاني.",
@@ -98,10 +100,12 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
           <Icon name={wait ? "clock" : "check"} size={24} />
         </span>
         <p className="t-headline text-2xl text-chalk">{wait ? t.waitlist : t.done}</p>
-        <p className="text-mist">{done.duplicate ? t.again : wait ? t.waitBody : t.doneBody}</p>
-        <a href={ticketHref(locale, done.ticket)} className="btn btn-primary">
-          <span>{t.ticket}</span>
-        </a>
+        <p className="text-mist">{done.duplicate ? (done.ticket ? t.again : t.againNoTicket) : wait ? t.waitBody : t.doneBody}</p>
+        {done.ticket && (
+          <a href={ticketHref(locale, done.ticket)} className="btn btn-primary">
+            <span>{t.ticket}</span>
+          </a>
+        )}
       </div>
     );
   }
@@ -127,7 +131,10 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
     setError("");
     try {
       const out = await rpc<{ ok: boolean; ticket?: string; status?: string; duplicate?: boolean; error?: string }>("register_event", { p_event: eventId, p: { ...d, website: honey.current?.value ?? "" } });
-      if (!out.ok || !out.ticket) return setError(t.err[out.error ?? "invalid"] ?? t.err.invalid);
+      if (!out.ok) return setError(t.err[out.error ?? "invalid"] ?? t.err.invalid);
+      // A repeat no longer gets the ticket back from the server (anyone could ask with a phone
+      // number); this device may still have it.
+      if (!out.ticket) return setDone({ ticket: saved()[eventId] ?? "", status: "going", duplicate: true });
       try {
         if (out.ticket !== "BXT-00000000") localStorage.setItem(STORE, JSON.stringify({ ...saved(), [eventId]: out.ticket }));
       } catch {}

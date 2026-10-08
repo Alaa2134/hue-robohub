@@ -16,7 +16,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import Anthropic from "npm:@anthropic-ai/sdk@0.132.0";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://buildxhue.com", "http://localhost:4173", "http://localhost:3000", "https://localhost", "capacitor://localhost"];
+const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://localhost:4173", "http://localhost:3000", "https://localhost", "capacitor://localhost"];
 
 const allowedOrigin = (req: Request) => ORIGINS.includes(req.headers.get("origin") ?? "");
 
@@ -162,7 +162,8 @@ Deno.serve(async (req) => {
     .filter((t): t is Turn => !!t && typeof t === "object" && (t.role === "user" || t.role === "bot") && typeof t.text === "string");
 
   // Rate limits, by the visitor's address.
-  const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
+  // The edge sets these two; X-Forwarded-For can carry whatever the visitor sent, so it's the last resort.
+  const ip = req.headers.get("cf-connecting-ip") || req.headers.get("x-real-ip") || (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   const allowed = await admin.rpc("guide_chat_allow", { p_ip: ip });
   if (allowed.error) return reply({ error: "unavailable" }, 503);
