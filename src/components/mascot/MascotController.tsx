@@ -13,7 +13,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useUi } from "@/components/site/ui-state";
-import { LINES, type Line, type Scene, type SceneAction } from "@/config/mascotJourney";
+import { GUIDE_VOICE, LINES, type Line, type Scene, type SceneAction } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
 import type { Locale } from "@/i18n/config";
@@ -92,6 +92,8 @@ function insetBottom() {
 export default function MascotController({ locale, mode }: { locale: Locale; mode: MascotMode }) {
   const pathname = usePathname();
   const router = useRouter();
+  // The language it speaks (Egyptian Arabic everywhere by default); links still follow the page's language.
+  const voice: Locale = GUIDE_VOICE === "ar" ? "ar" : locale;
   const { menu: siteMenu, search } = useUi();
   const hidden = useMascot((s) => s.hidden);
   const guideOpen = useMascot((s) => s.menu);
@@ -221,11 +223,11 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         if (seq.current !== id) return;
         mascot.say(line);
         sfx("pop");
-        await sleep(line.actions?.length ? (isPhoneWidth() ? 7000 : 12000) : 2400 + line[locale].length * 45);
+        await sleep(line.actions?.length ? (isPhoneWidth() ? 7000 : 12000) : 2400 + line[voice].length * 45);
       }
       if (seq.current === id) mascot.say(null);
     },
-    [locale, sfx],
+    [voice, sfx],
   );
 
   const runScene = useCallback(
@@ -606,7 +608,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   }, []);
 
   const three = mode === "3d" && !failed3d;
-  const label = locale === "ar" ? "مرشد BuildX: افتح القائمة" : "BuildX guide: open the menu";
+  const label = voice === "ar" ? "مرشد BuildX: افتح القائمة" : "BuildX guide: open the menu";
   const box = { ...pos.current, ...size, phone };
 
   return (
@@ -625,7 +627,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
                 <Mascot3D url={MODEL} quality={phone || (navigator.hardwareConcurrency ?? 8) <= 4 ? "low" : "high"} paused={!visible} onProgress={setProgress} onError={() => setFailed3d(true)} />
               </Fallback>
             </div>
-            {!ready && <MascotLoader locale={locale} progress={progress} />}
+            {!ready && <MascotLoader locale={voice} progress={progress} />}
           </>
         ) : (
           <img src={CHEERFUL.has(clip) ? POSTER_WAVE : POSTER} alt="" draggable={false} className="mascot-still absolute inset-0 size-full select-none" />
@@ -641,7 +643,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           style={{ left: `${BODY.x * 100}%`, top: `${BODY.y * 100}%`, width: `${BODY.w * 100}%`, height: `${(peek ? 0.5 - BODY.y : BODY.h) * 100}%` }}
         />
         <MascotSpeech
-          locale={locale}
+          locale={voice}
           side={onRight ? "left" : "right"}
           above={peek}
           compact={phone}
@@ -658,7 +660,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       {guideOpen && visible && (
         <div data-mascot-menu>
           <MascotGuide
-            locale={locale}
+            locale={voice}
             path={path}
             anchor={box}
             onGo={go}
@@ -674,10 +676,12 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         <button
           type="button"
           onClick={show}
-          className="fixed bottom-[calc(5.4rem+env(safe-area-inset-bottom))] end-3 z-30 flex items-center gap-2 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.9)] py-1 pe-3.5 ps-1 text-xs font-medium text-mist shadow-lg backdrop-blur transition hover:text-chalk lg:bottom-5 lg:end-5"
+          lang={voice}
+          dir={voice === "ar" ? "rtl" : "ltr"}
+          className="mascot-pill fixed bottom-[calc(5.4rem+env(safe-area-inset-bottom))] end-3 z-30 flex items-center gap-2 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.9)] py-1 pe-3.5 ps-1 text-xs font-medium text-mist shadow-lg backdrop-blur transition hover:text-chalk lg:bottom-5 lg:end-5"
         >
           <img src={POSTER} alt="" className="size-8 rounded-full bg-white/5 object-cover object-top" />
-          {locale === "ar" ? "إظهار المرشد" : "Show guide"}
+          {voice === "ar" ? "رجّع المرشد" : "Show guide"}
         </button>
       )}
     </>

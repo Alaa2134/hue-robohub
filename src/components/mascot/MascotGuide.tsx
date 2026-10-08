@@ -13,7 +13,7 @@ import { guideProvider, type GuideAnswer } from "@/lib/mascot/guide";
 
 const COPY = {
   en: { title: "BuildX guide", lead: "Where do you want to go?", ask: "Ask me anything about BuildX", send: "Ask", sound: "Sound", hide: "Hide guide", close: "Close guide", on: "On", off: "Off", thinking: "Thinking…" },
-  ar: { title: "مرشد BuildX", lead: "عايز تروح فين؟", ask: "اسألني أي حاجة عن BuildX", send: "اسأل", sound: "الصوت", hide: "إخفاء المرشد", close: "إغلاق المرشد", on: "شغال", off: "مقفول", thinking: "بفكر…" },
+  ar: { title: "مرشد BuildX", lead: "عايز تروح فين؟", ask: "اسألني أي حاجة عن BuildX", send: "اسأل", sound: "الصوت", hide: "خبّي المرشد", close: "اقفل المرشد", on: "شغّال", off: "مقفول", thinking: "ثانية بفكّر…" },
 };
 
 export function MascotGuide({
