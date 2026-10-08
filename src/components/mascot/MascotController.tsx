@@ -2,8 +2,9 @@
 /**
  * Baqloz (بقلظ), the BuildX guide, on the page: a small fixed "stage" that walks between spots along
  * the screen edges (never parked on text or controls when a clear spot exists), runs a scene for
- * every section of every page (config/mascotJourney.ts), talks in speech bubbles, opens his menu
- * when clicked, and reacts to the visitor: he looks at the cursor and at big buttons, talks about
+ * every section of every page (config/mascotJourney.ts), talks in speech bubbles and out loud
+ * (lib/mascot/voice.ts), invites the visitor on a tour of the whole site the first time they arrive
+ * and walks them through it page by page, opens his chat when clicked, and reacts to the visitor: he looks at the cursor and at big buttons, talks about
  * the cards you rest the cursor on, helps with forms, celebrates a click on Join, keeps count of the
  * pages you've explored, sits down and falls asleep when left alone, and has a couple of easter eggs.
  *
@@ -14,7 +15,7 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, SITE_TOUR, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -23,7 +24,9 @@ import { cn } from "@/lib/cn";
 import { BASE_PATH } from "@/lib/deploy";
 import { ONE_SHOT, type ClipName } from "@/lib/mascot/clip-names";
 import { confetti, playSound, type Sound } from "@/lib/mascot/fx";
+import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
+import { activated, hush, speak as speakAloud } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
 import { MascotLoader } from "./MascotLoader";
@@ -95,6 +98,9 @@ function once(key: string) {
 }
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const SITE_TOUR_ACTION: SceneAction = { kind: "sitetour", label: LINES.letsGo };
+const NOT_NOW: SceneAction = { kind: "dismiss", label: LINES.notNow };
+
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const isPhoneWidth = () => window.innerWidth < 768;
 
@@ -134,6 +140,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const lastMove = useRef(0);
   const touring = useRef(false);
   const nextStep = useRef<(() => void) | null>(null);
+  /** On the site tour: the page the tour is on (a visitor who goes elsewhere ends it). */
+  const tourPath = useRef<string | null>(null);
   const sceneTarget = useRef<Element | null>(null);
   const ctaTarget = useRef<Element | null>(null);
   const cursor = useRef<{ x: number; y: number } | null>(null);
@@ -158,14 +166,21 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
 
   const scenes = useMemo(() => scenesFor(pathname), [pathname]);
   const path = routeKey(pathname);
+  const here = useRef({ path, pathname });
+  useEffect(() => {
+    here.current = { path, pathname };
+  }, [path, pathname]);
   const visible = !hidden && !siteMenu && !search && !keyboard;
 
-  const sfx = useCallback((s: Sound) => soundOn.current && playSound(s), []);
+  const sfx = useCallback((s: Sound) => soundOn.current && activated() && playSound(s), []);
+  /** Say a line out loud when his voice is on (and the browser lets the page speak yet). */
+  const voiceLine = useCallback((text: string) => (soundOn.current && activated() ? speakAloud(text) : null), []);
 
   // Saved preferences.
   useEffect(() => {
     const h = storage.get("bx-guide-hidden") === "1";
-    const snd = storage.get("bx-guide-sound") === "1";
+    // His voice is on unless the visitor turned it off (the browser keeps it quiet until a first click).
+    const snd = storage.get("bx-guide-sound") !== "0";
     soundOn.current = snd;
     returning.current = storage.get("bx-guide-visited") === "1";
     storage.set("bx-guide-visited", "1");
@@ -252,15 +267,16 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         if (seq.current !== id) break;
         prio.current = 2;
         mascot.say(line);
-        sfx("pop");
-        await sleep(line.actions?.length ? (isPhoneWidth() ? 7000 : 12000) : 2400 + line[voice].length * 45);
+        const said = voiceLine(line[voice]);
+        if (!said) sfx("pop");
+        await Promise.all([sleep(line.actions?.length ? (isPhoneWidth() ? 9000 : 14000) : 2400 + line[voice].length * 45), said]);
       }
       if (seq.current === id) {
         prio.current = 0;
         mascot.say(null);
       }
     },
-    [voice, sfx],
+    [voice, sfx, voiceLine],
   );
 
   /** A short line on the side (hover, form tip, small talk) that never cuts off something more important. */
@@ -275,7 +291,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       }
       prio.current = o.prio;
       const id = mascot.say(line);
-      sfx("pop");
+      // Reactions are said out loud too; small talk only shows.
+      if (!(o.prio >= 1 && voiceLine(line[voice]))) sfx("pop");
       if (o.look) {
         ctaTarget.current = o.look;
         mascot.set({ look: center(o.look) });
@@ -291,7 +308,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       }, o.ms ?? 2600 + line[voice].length * 45);
       return true;
     },
-    [voice, sfx],
+    [voice, sfx, voiceLine],
   );
 
   const runScene = useCallback(
@@ -318,6 +335,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         if (once("bx-guide-greeted")) {
           const g: Text = greeting(new Date().getHours());
           say = say?.length ? [{ ...say[0], ar: `${g.ar} ${say[0].ar}`, en: `${g.en} ${say[0].en}` }, ...say.slice(1)] : [g];
+          // Wherever the visit starts, he offers to show them the whole site.
+          if (!say.some((l) => l.actions?.some((a) => a.kind === "sitetour"))) say = [...say, { ...LINES.invite, actions: [SITE_TOUR_ACTION, NOT_NOW] }];
           fresh = true;
         } else if (!fresh && Math.random() < 0.5) {
           say = [LINES.backAgain];
@@ -406,6 +425,87 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     }
   }, [scenes, runScene, speak]);
 
+  /** The site tour: page by page through SITE_TOUR, saying what each page is for, with Next / End tour. */
+  const siteTour = useCallback(async () => {
+    if (touring.current) return;
+    touring.current = true;
+    storage.set("bx-guide-toured", "1");
+    activeScene.current = 0;
+    pending.current = null;
+    mascot.set({ menu: false });
+    let id = ++seq.current;
+    mascot.play("Happy", "Idle");
+    await speak([LINES.tourStart], id);
+    const arrived = async (p: string) => {
+      for (let i = 0; i < 120 && touring.current; i++) {
+        if (here.current.path === p) return true;
+        await sleep(100);
+      }
+      return here.current.path === p;
+    };
+    for (let i = 0; i < SITE_TOUR.length && touring.current; i++) {
+      const stop = SITE_TOUR[i];
+      tourPath.current = stop.href;
+      if (here.current.path !== stop.href) {
+        // Walk off, change page, walk back in.
+        seq.current++;
+        mascot.say(null);
+        const s = sizeRef.current;
+        if (!reducedMotion()) void moveTo({ x: pos.current.x + s.w / 2 > window.innerWidth / 2 ? window.innerWidth + 20 : -s.w - 20, y: pos.current.y });
+        goTo({ href: stop.href }, { locale, pathname: here.current.pathname, router });
+        if (!(await arrived(stop.href))) break;
+        await sleep(reducedMotion() ? 300 : 800);
+      }
+      if (!touring.current) break;
+      if (!(stop.section && scrollToSection(stop.section))) window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+      await sleep(reducedMotion() ? 200 : 700);
+      if (!touring.current) break;
+      id = ++seq.current;
+      const target = (stop.point && visibleTarget(stop.point)) || document.querySelector("main h1");
+      sceneTarget.current = target;
+      mascot.set({ props: stop.props ?? [], goggles: !!stop.goggles, drone: false, look: target ? center(target) : null });
+      await place({ near: target });
+      if (!touring.current || seq.current !== id) break;
+      const c: ClipName = stop.clip === "Point" ? pointClip({ ...pos.current, ...sizeRef.current }, target) : (stop.clip ?? "Idle");
+      mascot.play(c, "Idle");
+      const last = i === SITE_TOUR.length - 1;
+      const acts: SceneAction[] = last ? [{ kind: "next", label: LINES.next }] : [{ kind: "next", label: LINES.next }, { kind: "stop", label: LINES.stop }];
+      const lines: Line[] = stop.say.map((l, j) => (j === stop.say.length - 1 ? { ...l, actions: acts } : l));
+      for (const line of lines) {
+        if (!touring.current || seq.current !== id) break;
+        prio.current = 2;
+        mascot.say(line);
+        const said = voiceLine(line[voice]);
+        if (line.actions) {
+          // The last line stays up until the visitor moves on.
+          await new Promise<void>((r) => (nextStep.current = r));
+          nextStep.current = null;
+        } else await Promise.all([sleep(2400 + line[voice].length * 45), said]);
+      }
+      if (c === "PointLeft" || c === "PointRight") mascot.play("Idle");
+    }
+    const finished = touring.current;
+    touring.current = false;
+    tourPath.current = null;
+    nextStep.current = null;
+    sceneTarget.current = null;
+    if (finished) {
+      id = ++seq.current;
+      mascot.set({ props: [], goggles: false });
+      mascot.play("Celebrate", "Happy");
+      sfx("tada");
+      await speak([{ ...LINES.tourEnd, actions: [{ kind: "menu", label: LINES.askMe }] }], id);
+      if (seq.current === id) mascot.play("Idle");
+    }
+  }, [speak, moveTo, place, locale, router, voice, voiceLine, sfx]);
+
+  /** Ends whichever tour is on. */
+  const endTour = useCallback(() => {
+    touring.current = false;
+    tourPath.current = null;
+    nextStep.current?.();
+  }, []);
+
   const go = useCallback(
     (target: { href: string; section?: string }) => {
       mascot.set({ menu: false });
@@ -418,6 +518,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const openMenu = useCallback((ask: boolean) => {
     seq.current++;
     mascot.say(null);
+    hush();
     setFocusAsk(ask);
     mascot.set({ menu: true });
     mascot.play("Listening");
@@ -428,12 +529,21 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     (a: GuideAction) => {
       sfx("click");
       mascot.set({ menu: false });
-      if (a === "search") ui.set({ search: true, menu: false });
+      hush();
+      if (a === "tour") void siteTour();
+      else if (a === "pagetour") void tour();
+      else if (a === "search") ui.set({ search: true, menu: false });
       else if (a === "lang") document.querySelector<HTMLAnchorElement>("header a[hreflang]")?.click();
       else window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
     },
-    [sfx],
+    [sfx, siteTour, tour],
   );
+
+  /** An answer in the chat: he reacts to it (and says it, when his voice is on, from the chat itself). */
+  const onReply = useCallback((r: BrainReply) => {
+    mascot.play(r.action || r.href ? "Happy" : r.topic ? "Think" : "Listening", "Listening");
+  }, []);
+  const onSpeak = useCallback((text: string) => void speakAloud(text), []);
 
   /** "On this page": scroll to the section and talk about it. */
   const onToc = useCallback(
@@ -457,22 +567,24 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       sfx("click");
       if (a.kind === "menu") openMenu(true);
       else if (a.kind === "tour") void tour();
+      else if (a.kind === "sitetour") void siteTour();
       else if (a.kind === "next") nextStep.current?.();
       else if (a.kind === "stop") {
-        touring.current = false;
-        nextStep.current?.();
+        endTour();
         seq.current++;
         mascot.say(null);
+        hush();
       } else if (a.kind === "dismiss") {
         seq.current++;
         mascot.say(null);
+        hush();
         mascot.play("Idle");
       } else if (a.kind === "go") {
         if (a.celebrate) celebrate();
         go({ href: a.href, section: a.section });
       }
     },
-    [tour, celebrate, go, sfx, openMenu],
+    [tour, siteTour, endTour, celebrate, go, sfx, openMenu],
   );
 
   // ── Page changes: clear the old page's scene; the new page's scenes walk it in. ──
@@ -482,11 +594,14 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       firstPath.current = false;
       return;
     }
+    // The site tour changes pages itself; it carries on (unless the visitor went somewhere else).
+    if (tourPath.current === routeKey(pathname)) return;
     seq.current++;
-    touring.current = false;
+    if (touring.current) endTour();
+    hush();
     sceneTarget.current = null;
     mascot.set({ menu: false, speech: null, props: [], goggles: false, drone: false, look: null });
-  }, [pathname]);
+  }, [pathname, endTour]);
   // After the reset above (effects run in order), so the new page's first scene isn't cancelled.
   useScrollScenes(scenes, onScene, pathname, !hidden, discover);
   useMascotReactions({ brief, busy: () => moving.current || touring.current || !!resting.current || mascot.get().menu || mascot.get().hidden }, pathname, !hidden && placed);
@@ -750,10 +865,11 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   }, []);
   const hide = useCallback(() => {
     seq.current++;
-    touring.current = false;
+    endTour();
+    hush();
     storage.set("bx-guide-hidden", "1");
     mascot.set({ hidden: true, menu: false, speech: null });
-  }, []);
+  }, [endTour]);
   const show = () => {
     storage.set("bx-guide-hidden", null);
     mascot.set({ hidden: false });
@@ -761,11 +877,12 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   };
   const toggleSound = useCallback(() => {
     const on = !mascot.get().sound;
-    storage.set("bx-guide-sound", on ? "1" : null);
+    storage.set("bx-guide-sound", on ? "1" : "0");
     soundOn.current = on;
     mascot.set({ sound: on });
-    if (on) playSound("pop");
-  }, []);
+    if (on) void speakAloud(voice === "ar" ? "تمام، أنا بتكلم أهو 😄" : "Okay, I'm talking now 😄");
+    else hush();
+  }, [voice]);
 
   const three = mode === "3d" && !failed3d;
   const name = GUIDE_NAME[voice];
@@ -817,11 +934,12 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           above={peek}
           compact={phone}
           onAction={onAction}
+          onListen={(text) => void speakAloud(text)}
           onClose={() => {
             seq.current++;
-            touring.current = false;
-            nextStep.current?.();
+            endTour();
             mascot.say(null);
+            hush();
           }}
         />
       </div>
@@ -837,7 +955,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             onGo={go}
             onToc={onToc}
             onAction={doAction}
-            onAnswer={() => mascot.play("Happy")}
+            onReply={onReply}
+            onSpeak={onSpeak}
             onClose={closeGuide}
             onHide={hide}
             onSound={toggleSound}
