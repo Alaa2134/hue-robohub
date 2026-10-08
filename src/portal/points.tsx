@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { errorText, must, rpc, sb, studentRpc } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
-import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Sheet, Stat, TopBar, toast, useAsync, type IconKey } from "./ui";
+import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Sheet, Stat, Toggle, TopBar, toast, useAsync, type IconKey } from "./ui";
 
 export const BADGES: Record<string, { ar: string; hint: string; icon: IconKey; color: string }> = {
   first_step: { ar: "أول خطوة", hint: "حضرت أول جلسة", icon: "check", color: "#38dcff" },
@@ -129,6 +129,7 @@ export function LeaderboardScreen() {
   return (
     <>
       <TopBar title="النقاط والأوسمة" sub={POINT_RULES} back="/staff/more" />
+      <HallOfFameCard lines={data ?? []} />
       {groups.length > 1 && (
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           <Chip active={!group} onClick={() => setGroup("")}>
@@ -228,3 +229,83 @@ function BonusSheet({ line, onClose, onDone }: { line: Line; onClose: () => void
     </Sheet>
   );
 }
+
+type Hof = { show: boolean; count: number; star: { student_id: string; reason_ar: string; reason_en: string; month: string } | null };
+
+/** The website's hall of fame: show the top students, and pick a member of the month. */
+function HallOfFameCard({ lines }: { lines: Line[] }) {
+  const { data, set } = useAsync(async () => {
+    const r = (await sb().from("site_settings").select("value").eq("key", "hall_of_fame").maybeSingle().then(must)) as { value: Partial<Hof> } | null;
+    return { show: false, count: 10, star: null, ...(r?.value ?? {}) } as Hof;
+  }, []);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  if (!data) return null;
+  const save = async (next: Hof, msg = "اتحفظ على الموقع") => {
+    setBusy(true);
+    try {
+      await sb().from("site_settings").upsert({ key: "hall_of_fame", value: next }).then(must);
+      set(next);
+      toast(msg);
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const star = data.star;
+  const starName = star ? (lines.find((l) => l.id === star.student_id)?.name ?? "—") : "";
+  return (
+    <Card className="mb-4 grid gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="font-semibold text-chalk">لوحة الشرف على الموقع</p>
+        <Button size="sm" variant="ghost" onClick={() => setOpen((o) => !o)}>
+          {open ? "إخفاء" : "تعديل"}
+        </Button>
+      </div>
+      <p className="text-sm text-mist">
+        {data.show ? `الموقع بيعرض أعلى ${data.count} (الاسم الأول + أول حرف من التاني بس)` : "الترتيب مش ظاهر على الموقع"}
+        {star ? ` · نجم الشهر: ${starName}` : ""}
+      </p>
+      {open && (
+        <>
+          <Toggle checked={data.show} disabled={busy} onChange={(v) => save({ ...data, show: v }, v ? "الترتيب ظاهر على الموقع" : "الترتيب اتخفى")} label="اعرض أعلى الطلاب على الموقع" hint="الأسماء بتظهر مختصرة، ومن غير أرقام أو بيانات تانية." />
+          <Field label="العدد">
+            <Input type="number" min={3} max={20} value={data.count} onChange={(e) => set({ ...data, count: Math.min(20, Math.max(3, Number(e.target.value) || 10)) })} onBlur={() => save(data)} />
+          </Field>
+          <Field label="نجم الشهر" hint="بيظهر في كارت لوحده على الصفحة الرئيسية، باسمه الأول والتاني.">
+            <select
+              className="h-11 w-full rounded-xl border border-[var(--line-2)] bg-void/60 px-3 text-chalk"
+              value={star?.student_id ?? ""}
+              onChange={(e) => set({ ...data, star: e.target.value ? { student_id: e.target.value, reason_ar: star?.reason_ar ?? "", reason_en: star?.reason_en ?? "", month: star?.month ?? new Date().toISOString().slice(0, 7) } : null })}
+            >
+              <option value="">— مفيش —</option>
+              {lines.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} ({l.points})
+                </option>
+              ))}
+            </select>
+          </Field>
+          {star && (
+            <>
+              <Field label="ليه؟ (عربي)">
+                <Input maxLength={200} value={star.reason_ar} placeholder="مثلاً: حضر كل الجلسات وقاد فريق السومو في التحدي" onChange={(e) => set({ ...data, star: { ...star, reason_ar: e.target.value } })} />
+              </Field>
+              <Field label="Why? (English)">
+                <Input dir="ltr" maxLength={200} value={star.reason_en} onChange={(e) => set({ ...data, star: { ...star, reason_en: e.target.value } })} />
+              </Field>
+              <Field label="الشهر">
+                <Input type="month" value={star.month} onChange={(e) => set({ ...data, star: { ...star, month: e.target.value } })} />
+              </Field>
+            </>
+          )}
+          <Button size="sm" variant="primary" loading={busy} onClick={() => save(data)}>
+            حفظ
+          </Button>
+        </>
+      )}
+    </Card>
+  );
+}
+

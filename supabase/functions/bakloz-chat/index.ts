@@ -65,6 +65,32 @@ async function siteKnowledge(): Promise<string | null> {
   return knowledge?.text ?? null;
 }
 
+type Live = {
+  now: string;
+  applications_open: boolean;
+  events: { slug: string | null; title: string; starts_at: string; location: string | null; rsvp_open: boolean; capacity: number | null; going: number }[];
+  news: { slug: string | null; title: string }[];
+  forms: { slug: string; title: string; closes_at: string | null }[];
+};
+
+/** The live state as a short note (Cairo time) the guide can quote. */
+function liveText(live: Live | null): string {
+  if (!live) return "## الوضع دلوقتي\nمش متاح دلوقتي؛ للمواعيد الحية وجّه الزائر لـ /events.";
+  const when = (iso: string) => new Intl.DateTimeFormat("ar-EG", { timeZone: "Africa/Cairo", weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
+  const lines = [`## الوضع دلوقتي (${when(live.now)} بتوقيت القاهرة)`, `- التقديم على BuildX: ${live.applications_open ? "مفتوح (/join)" : "مقفول دلوقتي (اللي عايز يتبلّغ يسيب رقمه في /join)"}`];
+  if (live.events.length) {
+    lines.push("- الإيفنتات الجاية:");
+    for (const e of live.events) {
+      const free = e.capacity ? Math.max(0, e.capacity - e.going) : null;
+      const seats = !e.rsvp_open ? "التسجيل مش مفتوح" : free === null ? "التسجيل مفتوح" : free === 0 ? "كامل العدد (فيه قايمة انتظار)" : `فاضل ${free} مكان`;
+      lines.push(`  • ${e.title} — ${when(e.starts_at)}${e.location ? ` — ${e.location}` : ""} — ${seats} [/events/${e.slug ?? ""}]`);
+    }
+  } else lines.push("- مفيش إيفنتات معلنة دلوقتي.");
+  if (live.news.length) lines.push(`- آخر الأخبار: ${live.news.map((n) => n.title).join(" | ")} [/news]`);
+  if (live.forms.length) lines.push(`- فورمات مفتوحة: ${live.forms.map((f) => `${f.title} [/form/?f=${f.slug}]`).join(" | ")}`);
+  return lines.join("\n");
+}
+
 function clean(s: unknown, max: number) {
   return typeof s === "string" ? s.replace(/\s+/g, " ").trim().slice(0, max) : "";
 }
@@ -120,6 +146,8 @@ Deno.serve(async (req) => {
 
   const known = await siteKnowledge();
   if (!known) return reply({ text: null, error: "knowledge" }, 503);
+  // What's on right now (events and places left, news, open forms): changes, so not cached.
+  const live = await admin.rpc("guide_live_context").then((r: { error: unknown; data: unknown }) => (r.error ? null : (r.data as Live)), () => null);
 
   try {
     const client = new Anthropic({ apiKey: key, timeout: 13000, maxRetries: 0 });
@@ -132,7 +160,10 @@ Deno.serve(async (req) => {
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       // Same instructions and knowledge on every request: cached.
-      system: [{ type: "text", text: PERSONA + known, cache_control: { type: "ephemeral" } }],
+      system: [
+        { type: "text", text: PERSONA + known, cache_control: { type: "ephemeral" } },
+        { type: "text", text: liveText(live) },
+      ],
       messages: conversation(history, question, path),
     });
     if (res.stop_reason === "refusal") return reply({ text: null });

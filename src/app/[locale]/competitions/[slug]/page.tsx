@@ -18,6 +18,7 @@ import { pageMeta } from "@/lib/seo";
 import { teamText } from "@/content/core-content";
 import { teamArt } from "@/lib/worlds";
 import { getTeam } from "@/server/queries/public";
+import { TeamFormCta } from "@/components/forms/site-forms";
 
 export const revalidate = 3600;
 export const dynamicParams = true;
@@ -77,6 +78,10 @@ export default async function TeamPage({ params }: P) {
           </div>
         </div>
       </section>
+
+      <div className="mx-auto max-w-[1680px] px-5 pt-10 empty:hidden sm:px-8">
+        <TeamFormCta locale={locale} team={slug} base={href("/form/")} />
+      </div>
 
       <Band>
         <div className="grid gap-12 lg:grid-cols-12">

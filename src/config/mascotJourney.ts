@@ -224,6 +224,8 @@ export const JOURNEY: Route[] = [
       },
     ],
   },
+  { match: /^\/forms/, scenes: [{ id: "forms", selector: "main", clip: "Happy", enter: true, say: [{ en: "Team tryouts, renewals, volunteering… every open form is here.", ar: "اختبارات الفرق، تجديد العضوية، التطوع… كل فورم مفتوح بتلاقيه هنا 📝" }] }] },
+  { match: /^\/form$/, scenes: [{ id: "form", selector: "main", clip: "Typing", enter: true, say: [{ en: "Fill it in calmly. I'm here if you need me.", ar: "املاه على مهلك… ولو احتجتني أنا هنا 😉" }] }] },
   { match: /^\/verify/, scenes: [{ id: "verify", selector: "main", clip: "Think", enter: true, say: [{ en: "Type the certificate code or scan its QR and I'll tell you if it's genuine.", ar: "اكتب كود الشهادة أو امسح الـ QR وأنا أقولك أصلية ولا لأ 🔍" }] }] },
   { match: /^\/ticket/, scenes: [{ id: "ticket", selector: "main", clip: "Happy", enter: true, say: [{ en: "Your ticket! Show the QR at the door 🎟️", ar: "دي التذكرة بتاعتك! ورّي الـ QR على الباب 🎟️" }] }] },
   { match: /^\/brand$/, scenes: [{ id: "brand", selector: "main", clip: "Think", enter: true, say: [{ en: "Our brand kit. Download the logos and use them right 😄", ar: "دي هوية BuildX… نزّل اللوجوهات واستخدمها صح 😄" }] }] },
@@ -368,6 +370,7 @@ export const PAGES: PageLink[] = [
   { id: "sponsors", label: { ar: "الشركاء", en: "Partners" }, icon: "handshake", href: "/sponsors", section: "#partners" },
   { id: "faq", label: { ar: "الأسئلة الشائعة", en: "FAQ" }, icon: "idea", href: "/faq" },
   { id: "verify", label: { ar: "تحقق من شهادة", en: "Verify a certificate" }, icon: "shield", href: "/verify" },
+  { id: "forms", label: { ar: "الفورمات المفتوحة", en: "Open forms" }, icon: "book", href: "/forms" },
   { id: "contact", label: { ar: "كلّمنا", en: "Contact" }, icon: "mail", href: "/contact" },
   { id: "join", label: { ar: "خليك عضو معانا", en: "Become a member" }, icon: "plus", href: "/join" },
 ];

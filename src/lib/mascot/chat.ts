@@ -7,6 +7,7 @@
  */
 import { SUPABASE_URL } from "@/lib/supabase-public";
 import { think, type BrainReply, type Memory } from "./brain";
+import { fetchLive } from "./live";
 
 export type ChatMsg = { id: number; role: "user" | "bot"; text: string; reply?: Omit<BrainReply, "text">; ai?: boolean };
 
@@ -54,7 +55,8 @@ async function ai(url: string, question: string, history: ChatMsg[], path: strin
 
 export async function ask(question: string, history: ChatMsg[], path: string): Promise<BrainReply & { ai: boolean }> {
   const mem = load();
-  const local = think(question, mem, path);
+  const live = await fetchLive();
+  const local = think(question, mem, path, live);
   mem.turns++;
   if (local.topic) mem.topic = local.topic;
   save(mem);

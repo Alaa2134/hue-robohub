@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { SiteItem } from "@/lib/site-content";
 import { downloadCsv, errorText, fmt, must, rpc, sb, today } from "./core";
 import { Scanner } from "./scanner";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Row, SearchBox, Stat, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
+import { whatsappLink } from "@/lib/contact";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Row, SearchBox, Sheet, Stat, Textarea, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 type Reg = { id: string; ticket: string; full_name: string; phone: string; email: string | null; faculty: string | null; status: "going" | "waitlist" | "cancelled"; checked_in_at: string | null; created_at: string };
 type Ev = Pick<SiteItem, "id" | "title" | "title_ar" | "starts_at" | "capacity" | "rsvp_open" | "published">;
@@ -173,6 +174,8 @@ export function EventRegistrations({ id }: { id: string }) {
         <Stat label="دخلوا" value={counts.inside} />
       </div>
 
+      {e.starts_at && new Date(e.starts_at).getTime() <= Date.now() && <FeedbackCard ev={e} regs={list} />}
+
       <Card className="mt-4 grid gap-3">
         {scan ? (
           <>
@@ -266,3 +269,138 @@ export function EventRegistrations({ id }: { id: string }) {
     </>
   );
 }
+
+type Feedback = { id: string; registration_id: string; rating: number; comment: string | null; publish_ok: boolean; testimonial_id: string | null; created_at: string };
+
+/** After the event: ratings from the ticket page, a nudge on WhatsApp, and publishing good comments. */
+function FeedbackCard({ ev, regs }: { ev: Ev; regs: Reg[] }) {
+  const fb = useAsync(async () => (await sb().from("event_feedback").select("*").eq("event_id", ev.id).order("created_at", { ascending: false }).then(must)) as Feedback[], [ev.id]);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState("");
+  const list = fb.data ?? [];
+  const avg = list.length ? list.reduce((a, f) => a + f.rating, 0) / list.length : 0;
+  const byReg = new Map(regs.map((r) => [r.id, r]));
+  const title = ev.title_ar || ev.title;
+
+  const publish = async (f: Feedback) => {
+    const r = byReg.get(f.registration_id);
+    if (!r || !f.comment) return;
+    setBusy(f.id);
+    const first = r.full_name.trim().split(/\s+/)[0];
+    const row = { kind: "testimonial", title: first, title_ar: first, summary: f.comment.slice(0, 600), summary_ar: f.comment.slice(0, 600), result: (ev.title || "").slice(0, 200), result_ar: title.slice(0, 200) };
+    try {
+      let created = await sb().from("site_content").insert({ ...row, published: true }).select("id").single();
+      let draft = false;
+      if (created.error) {
+        // Leads can only write drafts: an owner/admin publishes it from Site content.
+        created = await sb().from("site_content").insert({ ...row, published: false }).select("id").single();
+        draft = true;
+      }
+      const id = must(created as { data: { id: string } | null; error: unknown }).id;
+      await sb().from("event_feedback").update({ testimonial_id: id }).eq("id", f.id).then(must);
+      fb.set(list.map((x) => (x.id === f.id ? { ...x, testimonial_id: id } : x)));
+      toast(draft ? "اتعمل كمسودة في «محتوى الموقع» — مدير ينشره" : "اتنشر في «قالوا عن BuildX» على الموقع");
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <Card className="mt-4 grid gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="font-semibold text-chalk">رأي الحضور</p>
+        <Button size="sm" onClick={() => setAsking(true)}>
+          اطلب تقييم على واتساب
+        </Button>
+      </div>
+      {fb.loading && !fb.data ? (
+        <Loading />
+      ) : !list.length ? (
+        <p className="text-sm text-fog">لسه محدش قيّم. الحضور بيقيّموا من صفحة التذكرة بعد ما الإيفنت يبدأ.</p>
+      ) : (
+        <>
+          <p className="flex items-baseline gap-2">
+            <span className="text-3xl font-bold text-[#f5c451]">{avg.toFixed(1)}</span>
+            <span className="text-sm text-fog">من 5 · {list.length} تقييم</span>
+          </p>
+          <div className="grid gap-1">
+            {[5, 4, 3, 2, 1].map((n) => {
+              const c = list.filter((f) => f.rating === n).length;
+              return (
+                <div key={n} className="flex items-center gap-2 text-xs text-fog">
+                  <span className="w-6 text-end">{n}★</span>
+                  <span className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                    <span className="block h-full rounded-full bg-[#f5c451]" style={{ width: `${(c / list.length) * 100}%` }} />
+                  </span>
+                  <span className="w-6">{c}</span>
+                </div>
+              );
+            })}
+          </div>
+          <List>
+            {list
+              .filter((f) => f.comment)
+              .map((f) => {
+                const r = byReg.get(f.registration_id);
+                return (
+                  <div key={f.id} className="grid gap-2 px-4 py-3">
+                    <p className="flex items-center justify-between gap-2 text-sm">
+                      <span className="font-semibold text-chalk">{r?.full_name ?? "—"}</span>
+                      <span className="text-[#f5c451]">{"★".repeat(f.rating)}</span>
+                    </p>
+                    <p className="whitespace-pre-line text-sm text-mist">{f.comment}</p>
+                    {f.testimonial_id ? (
+                      <Badge tone="ok">اتنشر كرأي على الموقع</Badge>
+                    ) : f.publish_ok ? (
+                      <Button size="sm" className="justify-self-start" loading={busy === f.id} onClick={() => publish(f)}>
+                        انشره في «قالوا عن BuildX»
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-fog">مش موافق ينتشر.</p>
+                    )}
+                  </div>
+                );
+              })}
+          </List>
+        </>
+      )}
+      {asking && <AskFeedback ev={ev} regs={regs.filter((r) => r.status !== "cancelled" && !list.some((f) => f.registration_id === r.id))} onClose={() => setAsking(false)} />}
+    </Card>
+  );
+}
+
+function AskFeedback({ ev, regs, onClose }: { ev: Ev; regs: Reg[]; onClose: () => void }) {
+  const inside = regs.filter((r) => r.checked_in_at);
+  const people = inside.length ? inside : regs;
+  const [text, setText] = useState(`شكراً إنك جيت «${ev.title_ar || ev.title}» 🙏 قيّم الإيفنت في ثانية من تذكرتك:`);
+  return (
+    <Sheet open onClose={onClose} title={`اطلب تقييم (${people.length})`}>
+      <div className="grid gap-4">
+        <p className="text-sm text-mist">{inside.length ? "اللي دخلوا الإيفنت ولسه ماقيّموش." : "اللي سجّلوا ولسه ماقيّموش."} كل رسالة فيها رابط تذكرته.</p>
+        <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} />
+        {!people.length ? (
+          <Empty icon="check" title="كله قيّم 🎉" />
+        ) : (
+          <List>
+            {people.map((r) => {
+              const wa = whatsappLink(r.phone, `${text}\nhttps://buildxhue.com/ar/ticket/?t=${r.ticket}`);
+              return (
+                <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                  <span className="min-w-0 flex-1 truncate text-chalk">{r.full_name}</span>
+                  {wa && (
+                    <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-[#1fa855] px-3 py-1.5 text-sm font-semibold text-white">
+                      واتساب
+                    </a>
+                  )}
+                </div>
+              );
+            })}
+          </List>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+

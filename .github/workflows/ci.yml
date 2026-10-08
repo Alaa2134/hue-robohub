@@ -20,6 +20,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Chromium first: the build draws the share images with it, then the smoke tests use it.
+      - run: npx playwright install --with-deps chromium
       - name: Build
         run: node scripts/build-static.mjs
         env:
@@ -27,6 +29,4 @@ jobs:
           SITE_URL: https://buildxhue.com
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
       - name: Smoke tests
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npx playwright test

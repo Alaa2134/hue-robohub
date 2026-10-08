@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { GoalSetting, SiteSettings } from "@/lib/site-settings";
 import { siteImageUrl } from "@/lib/site-content";
 import { errorText, must, removeObjects, savedText, sb, uploadImage, type StaffRow } from "./core";
+import { SponsorDeckCard } from "./staff-inbox";
 import { Button, Card, Empty, ErrorBox, Field, IconButton, Input, Loading, Section, Textarea, Toggle, TopBar, toast, useAsync } from "./ui";
 
 const EMPTY_GOAL: GoalSetting = { value: "", label_en: "", label_ar: "", note_en: "", note_ar: "" };
@@ -205,6 +206,10 @@ export function SiteSettingsScreen({ me }: { me: StaffRow }) {
           <Button variant="primary" block loading={busy} onClick={save} className="mt-4">
             حفظ الإعدادات
           </Button>
+
+          <Section title="الشركاء والرعاية">
+            <SponsorDeckCard />
+          </Section>
         </div>
       )}
     </>

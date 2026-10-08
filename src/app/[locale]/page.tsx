@@ -9,6 +9,8 @@ import { Hero, type HeroStat } from "@/components/home/hero";
 import { TrackPanels, type TrackPanel } from "@/components/home/tracks";
 import { TeamDirectory } from "@/components/team/team-directory";
 import { LatestStrip, LivePartners, LiveTestimonials } from "@/components/live/live-content";
+import { NextEvent } from "@/components/live/next-event";
+import { HallOfFame } from "@/components/live/hall-of-fame";
 import type { Film } from "@/components/media/film";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
@@ -96,6 +98,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
     <>
       <Hero locale={locale} t={t} hero={hero} image={heroImageOf(settings) ?? art("hero")} stats={heroStats} film={heroFilm} ambient={ambient} thumbs={["team_sprint", "track_embedded", "team_sumo"].map((n) => art(n)).filter((e) => !!e) as NonNullable<ReturnType<typeof art>>[]} />
 
+      <NextEvent locale={locale} eventsHref={`${href("/events")}/`} />
+
       <LatestStrip locale={locale} eventsHref={`${href("/events")}/`} newsHref={`${href("/news")}/`} />
 
       <WhySection locale={locale} index="01" />
@@ -155,6 +159,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <RoadmapSection locale={locale} index="05" eventsHref={href("/events")} />
 
       <GoalsSection locale={locale} goals={goalsOf(settings).map((g) => ({ value: g.value, label: { en: g.label_en || g.label_ar, ar: g.label_ar || g.label_en }, note: { en: g.note_en || g.note_ar, ar: g.note_ar || g.note_en } }))} />
+
+      <HallOfFame locale={locale} />
 
       {STATIC_SITE && <LiveTestimonials locale={locale} title={locale === "ar" ? "قالوا عن BuildX HUE" : "What students say"} initial={await buildItems("testimonial")} />}
 

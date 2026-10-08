@@ -6,6 +6,7 @@ import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
 import { downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { PinResults, type PinItem } from "./staff-students";
+import { WaitlistCard } from "./staff-inbox";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 type Status = (typeof STATUSES)[number]["key"];
@@ -121,6 +122,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         }
       />
       {(me.role === "owner" || me.role === "admin") && <IntakeCard />}
+      <WaitlistCard />
       {loading && !data ? (
         <Loading />
       ) : error ? (
