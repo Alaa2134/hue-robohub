@@ -1057,3 +1057,24 @@ html[data-intro="play"] .hero-lock-label {
     animation: none;
   }
 }
+
+/* The still guide (no 3D): a gentle breath so he never looks like a frozen picture. Uses the
+   separate `scale` property so it adds to the swing / belly-flop transforms. */
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    scale: 1 1;
+  }
+  50% {
+    scale: 1.02 0.975;
+  }
+}
+.mascot-still {
+  transform-origin: 50% 92%;
+  animation: mascot-breathe 3.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-still {
+    animation: none;
+  }
+}

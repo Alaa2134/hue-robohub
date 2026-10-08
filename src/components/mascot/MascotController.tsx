@@ -275,11 +275,14 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
 
   /** Find a clear spot (or peek from the bottom edge when there's none) and walk there. */
   const place = useCallback(
-    async (o: { side?: "start" | "end"; near?: Element | null; enter?: boolean } = {}) => {
+    async (o: { side?: "start" | "end"; near?: Element | null; enter?: boolean; roam?: boolean } = {}) => {
       const s = sizeRef.current;
-      const spot = findSpot({ size: s, side: o.side, near: o.near, current: pos.current.x > -500 ? pos.current : null, self: stage.current });
+      // roam: a stroll, so he doesn't prefer staying where he is.
+      const spot = findSpot({ size: s, side: o.side, near: o.near, current: pos.current.x > -500 && !o.roam ? pos.current : null, self: stage.current });
       let to: Spot = spot;
-      const tight = spot.clear < (isPhoneWidth() ? 0.7 : 0.5);
+      // Phones: he's small and always stands in full view above the tab bar (peeking behind it hid all
+      // but the top of his head, so he looked stuck). Desktop: peeks when there's no clear spot.
+      const tight = !isPhoneWidth() && spot.clear < 0.5;
       setPeek(tight);
       if (tight) to = { x: spot.x, y: window.innerHeight - insetBottom() - s.h * 0.5 };
       // Walk in from the nearest edge the first time (or after walking off for a page change).
@@ -896,6 +899,26 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       events.forEach((e) => window.removeEventListener(e, activity));
     };
   }, [speak]);
+
+  // ── Strolling: when nothing's going on he doesn't stand frozen. Every so often he walks to another
+  // clear spot (the other side, or along the bottom on phones) or does a little something.
+  useEffect(() => {
+    if (!placed) return;
+    let n = 0;
+    const tick = () => {
+      const s = mascot.get();
+      if (s.hidden || s.menu || s.speech || moving.current || touring.current || physical.current || gameRef.current || resting.current || document.hidden) return;
+      if (performance.now() - lastMove.current < 12000) return;
+      n++;
+      if (n % 2 === 1 && !reducedMotion()) {
+        const right = pos.current.x + sizeRef.current.w / 2 > window.innerWidth / 2;
+        const side = right === (document.documentElement.dir !== "rtl") ? "start" : "end";
+        void place({ side: Math.random() < 0.7 ? side : undefined, roam: true });
+      } else mascot.play(pick(["LookAround", "Wave", "Jump", "LookAround"] as const), "Idle");
+    };
+    const t = window.setInterval(tick, isPhoneWidth() ? 14000 : 20000);
+    return () => clearInterval(t);
+  }, [placed, place]);
 
   // ── Phones: step out of the way while typing (the keyboard covers half the screen). ──
   useEffect(() => {

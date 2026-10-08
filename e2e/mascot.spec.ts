@@ -480,3 +480,18 @@ test("at the end of a page Baqloz suggests where to go next", async ({ page }) =
   await bubble(page).getByRole("button", { name: "يلا بينا" }).click();
   await expect(page).not.toHaveURL(/\/bootcamp\/$/, { timeout: 10_000 });
 });
+
+test("phones: Baqloz stands in full view above the tab bar (not hidden behind it)", async ({ page }, info) => {
+  test.skip(info.project.name !== "mobile", "phones only");
+  await withGuide(page);
+  await page.goto("/ar/");
+  await page.mouse.move(200, 300);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(2500);
+  const bar = (await page.locator("nav.fixed.bottom-0").boundingBox())!;
+  const body = (await guideButton(page).boundingBox())!;
+  expect(body.y + body.height).toBeLessThanOrEqual(bar.y + 2);
+  expect(body.height).toBeGreaterThan(40);
+});
