@@ -1,12 +1,12 @@
 "use client";
 /**
- * Face ID / fingerprint lock for the BuildX Team app: when it's on, the app asks for the owner's
+ * Face ID / fingerprint lock for team members in the BuildX HUE app: when it's on, the app asks for the owner's
  * biometrics when it opens and when it comes back after a minute in the background. It guards the
  * signed-in team session on a lost or borrowed phone; it is per device and off by default.
  */
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { appMode, isNative, sb } from "./core";
+import { isNative, sb } from "./core";
 import { BrandLine } from "./shell";
 import { Button, Icon, Toggle, toast } from "./ui";
 
@@ -28,10 +28,10 @@ const enabled = () => {
   }
 };
 
-export const biometricSupported = () => isNative() && appMode() === "staff";
+export const biometricSupported = () => isNative();
 
 async function verify() {
-  await NativeBiometric.verifyIdentity({ reason: "افتح BuildX Team", title: "BuildX Team", subtitle: "افتح التطبيق ببصمتك", negativeButtonText: "إلغاء", useFallback: true });
+  await NativeBiometric.verifyIdentity({ reason: "افتح BuildX HUE", title: "BuildX HUE", subtitle: "افتح التطبيق ببصمتك", negativeButtonText: "إلغاء", useFallback: true });
 }
 
 /** Wraps the staff app: shows the lock screen until the person unlocks it. */

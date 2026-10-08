@@ -158,7 +158,7 @@ test("a student registers for an event and opens a QR ticket", async ({ page }) 
   expect(errors).toEqual([]);
 });
 
-test("sign-in is visible in the header on a phone and the menu offers student and staff sign-in", async ({ page }) => {
+test("sign-in is visible in the header on a phone and the menu offers the one app sign-in", async ({ page }) => {
   await mockSupabase(page);
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/ar/");
@@ -166,6 +166,5 @@ test("sign-in is visible in the header on a phone and the menu offers student an
   await expect(signIn).toBeVisible();
   await expect(signIn).toHaveAttribute("href", "/app/");
   await page.locator('header button[aria-controls="site-menu"]').click();
-  await expect(page.locator("#site-menu").getByRole("link", { name: /أنا طالب/ })).toHaveAttribute("href", "/app/#/login/student");
-  await expect(page.locator("#site-menu").getByRole("link", { name: /فريق التدريب/ })).toHaveAttribute("href", "/app/#/login/staff");
+  await expect(page.locator("#site-menu").getByRole("link", { name: /دخول BuildX App/ })).toHaveAttribute("href", "/app/#/login");
 });

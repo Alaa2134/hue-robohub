@@ -1,6 +1,6 @@
 # BuildX HUE — Support / الدعم
 
-Help for the **BuildX HUE** (students) and **BuildX Team** (training team) apps and the website buildxhue.com.
+Help for the **BuildX HUE** app (students and the training team) and the website buildxhue.com.
 
 - Email: alaa00saber@gmail.com
 - WhatsApp: +20 106 531 6500
@@ -14,7 +14,7 @@ Help for the **BuildX HUE** (students) and **BuildX Team** (training team) apps 
 
 <div dir="rtl">
 
-مساعدة لتطبيقي **BuildX HUE** (الطلاب) و **BuildX Team** (فريق التدريب) والموقع buildxhue.com.
+مساعدة لتطبيق **BuildX HUE** (الطلاب وفريق التدريب) والموقع buildxhue.com.
 
 - البريد: alaa00saber@gmail.com
 - واتساب: ‎+20 106 531 6500

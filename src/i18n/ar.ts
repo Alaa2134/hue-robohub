@@ -5,10 +5,8 @@ const ar: Dictionary = {
   nav: {
     signInShort: "دخول",
     signIn: "تسجيل الدخول",
-    signInStudent: "أنا طالب",
-    signInStudentHint: "المحتوى والكويزات وحضورك",
-    signInStaff: "فريق التدريب",
-    signInStaffHint: "الحضور والطلاب والمحتوى ولوحة التحكم",
+    signInApp: "دخول BuildX App",
+    signInAppHint: "للطلاب وفريق التدريب: رقم الكارنيه أو الإيميل، وتدخل على لوحتك على طول",
     faq: "الأسئلة الشائعة",
     competitions: "المنافسات",
     brand: "الهوية",

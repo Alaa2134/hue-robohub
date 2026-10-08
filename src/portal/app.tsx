@@ -2,14 +2,14 @@
 /** BuildX App root: who is using the app (staff / student / nobody) and the hash route. */
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { APP_PATH, BASE_PATH, appMode, asciiDigits, isNative, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
+import { APP_PATH, asciiDigits, isNative, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
 import { BrandLine, InstallCard } from "./shell";
 import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
 import { BiometricGate } from "./biometric";
-import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute, type IconKey } from "./ui";
+import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
 import { isNoise } from "@/lib/error-noise";
 
 const AppPlugin = registerPlugin<{ addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle> }>("App");
@@ -134,20 +134,17 @@ export default function PortalApp() {
   if (!mounted || staff === undefined) return <Splash />;
 
   const [head, ...rest] = route.path;
-  const mode = appMode();
+  // One sign-in for everyone: students land on their dashboard (/me), the team on theirs (/staff).
   let screen: ReactNode;
-  // Each store app is one side only: BuildX HUE for students, BuildX Team for staff.
-  if (mode === "student" && (head === "staff" || head === "setup" || (head === "login" && rest[0] === "staff"))) screen = <Redirect to={student ? "/me" : "/login/student"} />;
-  else if (mode === "staff" && (head === "me" || (head === "login" && rest[0] !== "staff"))) screen = <Redirect to={staff ? "/staff" : "/login/staff"} />;
-  else if (mode === "student" && !head) screen = <Redirect to={student ? "/me" : "/login/student"} />;
-  else if (mode === "staff" && !head) screen = <Redirect to={staff ? "/staff" : "/login/staff"} />;
-  else if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
-  else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login/staff" />;
-  else if (head === "me") screen = student ? <StudentApp session={student} path={rest} query={route.query} /> : <Redirect to="/login/student" />;
-  else if (head === "login" && rest[0] === "staff") screen = staff ? <Redirect to="/staff" /> : <StaffLogin noAccess={noAccess} />;
-  else if (head === "login") screen = student ? <Redirect to="/me" /> : <StudentLogin initialCode={route.query.get("c") ?? ""} />;
+  if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
+  else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login" />;
+  else if (head === "me") screen = student ? <StudentApp session={student} path={rest} query={route.query} /> : <Redirect to="/login" />;
   else if (head === "setup") screen = staff ? <Redirect to="/staff" /> : <Setup />;
-  else screen = staff ? <Redirect to="/staff" /> : student ? <Redirect to="/me" /> : <Landing />;
+  else if (staff) screen = <Redirect to="/staff" />;
+  else if (student) screen = <Redirect to="/me" />;
+  // /login, and the old /login/student and /login/staff links.
+  else if (head === "login") screen = <Login initialCode={route.query.get("c") ?? ""} noAccess={noAccess} />;
+  else screen = <Redirect to="/login" />;
 
   return (
     <>
@@ -178,7 +175,7 @@ function AuthFrame({ children, back }: { children: ReactNode; back?: boolean }) 
     <div className="flex min-h-dvh flex-col bg-abyss bg-[radial-gradient(100%_55%_at_50%_0%,rgb(43_109_255/0.18),transparent_65%)] px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
       <div className="mx-auto flex w-full max-w-md items-center justify-between">
         <BrandLine />
-        {back && !appMode() && (
+        {back && (
           <a href="#/" className="flex items-center gap-1 text-sm text-mist hover:text-chalk">
             رجوع
             <Icon name="chevron" size={16} className="rotate-180" />
@@ -187,64 +184,6 @@ function AuthFrame({ children, back }: { children: ReactNode; back?: boolean }) 
       </div>
       <div className="mx-auto mt-8 w-full max-w-md flex-1">{children}</div>
     </div>
-  );
-}
-
-function RoleCard({ href, icon, title, body, accent }: { href: string; icon: IconKey; title: string; body: string; accent?: boolean }) {
-  return (
-    <a
-      href={`#${href}`}
-      className={
-        accent
-          ? "group flex items-center gap-4 rounded-3xl border border-volt/40 bg-gradient-to-l from-volt/25 to-volt/5 p-5 transition hover:border-cyan/50"
-          : "group flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5 transition hover:border-cyan/40"
-      }
-    >
-      <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white/[0.06] text-cyan">
-        <Icon name={icon} size={28} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-lg font-bold text-chalk">{title}</span>
-        <span className="mt-0.5 block text-sm leading-relaxed text-fog">{body}</span>
-      </span>
-      <Icon name="chevron" size={18} className="rotate-180 text-fog transition group-hover:-translate-x-1" />
-    </a>
-  );
-}
-
-function Landing() {
-  const [ready, setReady] = useState<boolean | null>(null);
-  useEffect(() => {
-    rpc<{ ready: boolean }>("app_status").then(
-      (r) => setReady(r.ready),
-      () => setReady(null),
-    );
-  }, []);
-  return (
-    <AuthFrame>
-      <h1 className="text-[28px] font-bold leading-tight text-chalk">أهلاً بك في تطبيق BuildX HUE</h1>
-      <p className="mt-2 text-[15px] leading-relaxed text-mist">المحتوى والكويزات وتسجيل الحضور بالباركود، في مكان واحد.</p>
-      <div className="mt-8 grid gap-3">
-        <RoleCard href="/login/student" icon="book" title="أنا طالب" body="المحتوى والملفات، الكويزات، وسجل حضورك." accent />
-        <RoleCard href="/login/staff" icon="users" title="فريق التدريب" body="تسجيل الحضور بالباركود، الطلاب، رفع المحتوى والكويزات." />
-      </div>
-      {ready === false && (
-        <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
-          <Icon name="key" size={22} className="shrink-0 text-warn" />
-          <p className="flex-1 text-sm text-mist">التطبيق لم يُجهَّز بعد. صاحب الحساب يبدأ من هنا مرة واحدة فقط.</p>
-          <Button size="sm" onClick={() => go("/setup")}>
-            إعداد أول مرة
-          </Button>
-        </Card>
-      )}
-      <div className="mt-4">
-        <InstallCard />
-      </div>
-      <a href={`${BASE_PATH}/ar/`} className="mt-10 flex items-center justify-center gap-2 text-sm text-fog hover:text-mist">
-        <Icon name="globe" size={16} />
-        موقع BuildX HUE
-      </a>
-    </AuthFrame>
   );
 }
 
@@ -258,20 +197,43 @@ function FormError({ text }: { text: string | null }) {
   );
 }
 
-function StudentLogin({ initialCode }: { initialCode: string }) {
-  const [code, setCode] = useState(initialCode);
-  const [pin, setPin] = useState("");
+/** Students sign in with their student number and PIN, the team with email and password: one form, told apart by the "@". */
+function Login({ initialCode, noAccess }: { initialCode: string; noAccess: string | null }) {
+  const [id, setId] = useState(initialCode);
+  const [secret, setSecret] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [ready, setReady] = useState<boolean | null>(null);
+  const team = id.includes("@");
+  const student = !team && /\S/.test(id);
+
+  useEffect(() => {
+    rpc<{ ready: boolean }>("app_status").then(
+      (r) => setReady(r.ready),
+      () => setReady(null),
+    );
+  }, []);
+  useEffect(() => {
+    if (noAccess !== null) setBusy(false);
+  }, [noAccess]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setErr(null);
+    if (team) {
+      const { error } = await sb().auth.signInWithPassword({ email: id.trim().toLowerCase(), password: secret });
+      if (error) {
+        setBusy(false);
+        setErr(/invalid login credentials/i.test(error.message) ? "البريد الإلكتروني أو كلمة المرور غير صحيحة." : errorText(error));
+      }
+      // On success the root loads the staff profile and moves on.
+      return;
+    }
     try {
       const r = await rpc<{ ok: boolean; error?: string; until?: string; token?: string; student?: { name: string; code: string; group: string } }>("student_login", {
-        p_code: code,
-        p_pin: asciiDigits(pin.trim()),
+        p_code: id.trim(),
+        p_pin: asciiDigits(secret.trim()),
       });
       if (r.ok && r.token && r.student) {
         studentStore.set({ token: r.token, ...r.student });
@@ -287,7 +249,7 @@ function StudentLogin({ initialCode }: { initialCode: string }) {
               ? "محاولات دخول كتير من نفس الشبكة. استنى ربع ساعة وجرّب تاني."
               : "رقم الطالب أو رمز الدخول غير صحيح.",
       );
-      setPin("");
+      setSecret("");
     } catch (e2) {
       setErr(errorText(e2));
     } finally {
@@ -295,61 +257,9 @@ function StudentLogin({ initialCode }: { initialCode: string }) {
     }
   };
 
-  return (
-    <AuthFrame back>
-      <h1 className="text-2xl font-bold text-chalk">دخول الطلاب</h1>
-      <p className="mt-1.5 text-sm leading-relaxed text-fog">اكتب رقمك الجامعي (رقم الكارنيه) ورمز الدخول المكوّن من 6 أرقام اللي أخدته من المدرّب.</p>
-      <form onSubmit={submit} className="mt-6 grid gap-4">
-        <Field label="رقم الطالب">
-          <Input value={code} onChange={(e) => setCode(e.target.value)} inputMode="text" autoComplete="username" dir="ltr" className="text-center font-mono text-lg tracking-wider" required />
-        </Field>
-        <Field label="رمز الدخول (PIN)">
-          <Input
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/[^\d٠-٩]/g, "").slice(0, 12))}
-            inputMode="numeric"
-            pattern="[0-9٠-٩]*"
-            autoComplete="current-password"
-            type="password"
-            dir="ltr"
-            className="text-center font-mono text-2xl tracking-[0.5em]"
-            required
-          />
-        </Field>
-        <FormError text={err} />
-        <Button type="submit" variant="primary" size="lg" loading={busy} block>
-          دخول
-        </Button>
-      </form>
-    </AuthFrame>
-  );
-}
-
-function StaffLogin({ noAccess }: { noAccess: string | null }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (noAccess !== null) setBusy(false);
-  }, [noAccess]);
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setErr(null);
-    const { error } = await sb().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) {
-      setBusy(false);
-      setErr(/invalid login credentials/i.test(error.message) ? "البريد الإلكتروني أو كلمة المرور غير صحيحة." : errorText(error));
-    }
-    // On success the root loads the staff profile and moves on.
-  };
-
   if (noAccess !== null)
     return (
-      <AuthFrame back>
+      <AuthFrame>
         <Card className="grid gap-4 text-center">
           <Icon name="lock" size={30} className="mx-auto text-warn" />
           <p className="text-[15px] leading-relaxed text-mist">
@@ -361,22 +271,43 @@ function StaffLogin({ noAccess }: { noAccess: string | null }) {
     );
 
   return (
-    <AuthFrame back>
-      <h1 className="text-2xl font-bold text-chalk">دخول فريق التدريب</h1>
-      <p className="mt-1.5 text-sm text-fog">بالبريد الإلكتروني وكلمة المرور اللي أنشأها لك المالك.</p>
+    <AuthFrame>
+      <h1 className="text-2xl font-bold text-chalk">تسجيل الدخول</h1>
+      <p className="mt-1.5 text-sm leading-relaxed text-fog">الطلاب: رقم الكارنيه ورمز الدخول اللي أخدته من المدرّب. فريق التدريب: الإيميل وكلمة المرور.</p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
-        <Field label="البريد الإلكتروني">
-          <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" dir="ltr" required />
+        <Field label="رقم الطالب أو البريد الإلكتروني">
+          <Input value={id} onChange={(e) => setId(e.target.value)} inputMode={team ? "email" : "text"} autoComplete="username" autoCapitalize="off" spellCheck={false} dir="ltr" className="text-center font-mono text-lg" required />
         </Field>
-        <Field label="كلمة المرور">
-          <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" dir="ltr" required />
+        <Field label={team ? "كلمة المرور" : student ? "رمز الدخول (PIN)" : "رمز الدخول أو كلمة المرور"}>
+          <Input
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            inputMode={student ? "numeric" : "text"}
+            autoComplete="current-password"
+            type="password"
+            dir="ltr"
+            className="text-center font-mono text-lg"
+            required
+          />
         </Field>
         <FormError text={err} />
         <Button type="submit" variant="primary" size="lg" loading={busy} block>
           دخول
         </Button>
-        <p className="text-center text-xs leading-relaxed text-fog">نسيت كلمة المرور؟ المالك أو المشرف يقدر يعمل لك كلمة مرور جديدة من شاشة «الفريق».</p>
+        <p className="text-center text-xs leading-relaxed text-fog">نسيت رمز الدخول أو كلمة المرور؟ المدرّب أو المالك يقدر يعمل لك واحد جديد.</p>
       </form>
+      {ready === false && (
+        <Card className="mt-6 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
+          <Icon name="key" size={22} className="shrink-0 text-warn" />
+          <p className="flex-1 text-sm text-mist">التطبيق لم يُجهَّز بعد. صاحب الحساب يبدأ من هنا مرة واحدة فقط.</p>
+          <Button size="sm" onClick={() => go("/setup")}>
+            إعداد أول مرة
+          </Button>
+        </Card>
+      )}
+      <div className="mt-4">
+        <InstallCard />
+      </div>
     </AuthFrame>
   );
 }

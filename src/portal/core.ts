@@ -15,19 +15,8 @@ export const MAX_UPLOAD = 50 * 1024 * 1024;
 
 /* ─── Native apps (Capacitor) ──────────────────────────────────────────── */
 
-/** True inside the BuildX HUE / BuildX Team store apps (the same bundle, served from the device). */
+/** True inside the BuildX HUE store app (the same bundle, served from the device). */
 export const isNative = () => typeof window !== "undefined" && Capacitor.isNativePlatform();
-
-/** Which store app this is: the student app only knows students, the team app only staff. Null on the web. */
-export function appMode(): "student" | "staff" | null {
-  if (!isNative()) return null;
-  try {
-    const m = localStorage.getItem("rh-app-mode");
-    return m === "student" || m === "staff" ? m : null;
-  } catch {
-    return null;
-  }
-}
 
 /** The public site, for links people share (inside the apps the page origin is the device itself). */
 export const SITE_ORIGIN = "https://buildxhue.com";

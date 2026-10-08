@@ -764,3 +764,52 @@ test("certificates go in one tap to every student who attended enough sessions",
   await expect.poll(() => inserted[0]?.map((r) => r.recipient_name)).toEqual(["Mona", "Laila"]);
   delete RPC.staff_attendance_rates;
 });
+
+test("one sign-in: a student number goes to the student dashboard, an email to the team's", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  let signedIn = false;
+  await page.route(/supabase\.co/, async (route) => {
+    const url = new URL(route.request().url());
+    const fn = url.pathname.split("/rpc/")[1];
+    if (fn) {
+      calls.push({ fn, body: route.request().postDataJSON() });
+      if (fn === "app_status") return route.fulfill({ json: { ready: true } });
+      if (fn === "student_login") return route.fulfill({ json: { ok: true, token: "t", student: { name: "طالب تجربة", code: "900100", group: "تجريبي" } } });
+      return route.fulfill({ json: null });
+    }
+    if (url.pathname.endsWith("/auth/v1/token")) {
+      signedIn = true;
+      return route.fulfill({ json: { access_token: jwt, refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: 4102444800, user: { id: "u1", email: "owner@example.com", aud: "authenticated", role: "authenticated" } } });
+    }
+    if (url.pathname.endsWith("/staff")) {
+      const row = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+      return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+    }
+    return route.fulfill({ json: [], headers: { "content-range": "0-0/0" } });
+  });
+
+  // No role picker: the app opens on the sign-in form, and old links land on it too.
+  await page.goto("/app/#/login/student?c=900100");
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  const id = page.getByLabel("رقم الطالب أو البريد الإلكتروني");
+  await expect(id).toHaveValue("900100");
+  await expect(page.getByLabel("رمز الدخول (PIN)")).toBeVisible();
+  await page.getByLabel("رمز الدخول (PIN)").fill("١٢٣٤٥٦");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page).toHaveURL(/#\/me$/);
+  expect(calls.find((c) => c.fn === "student_login")?.body).toEqual({ p_code: "900100", p_pin: "123456" });
+
+  // A team member on the same form: the "@" makes it an email sign-in.
+  await page.evaluate(() => {
+    localStorage.removeItem("rh-app-student");
+    location.hash = "#/";
+  });
+  await page.reload();
+  await expect(page).toHaveURL(/#\/login$/);
+  await page.getByLabel("رقم الطالب أو البريد الإلكتروني").fill("owner@example.com");
+  await page.getByLabel("كلمة المرور").fill("a-long-password");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page).toHaveURL(/#\/staff$/);
+  expect(signedIn).toBe(true);
+  expect(calls.filter((c) => c.fn === "student_login")).toHaveLength(1);
+});

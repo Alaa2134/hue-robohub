@@ -37,7 +37,7 @@ import {
 
 export type PinItem = { id: string; code: string; name: string; group: string; pin: string };
 
-const loginUrl = (code?: string) => `${publicOrigin()}${APP_PATH}#/login/student${code ? `?c=${encodeURIComponent(code)}` : ""}`;
+const loginUrl = (code?: string) => `${publicOrigin()}${APP_PATH}#/login${code ? `?c=${encodeURIComponent(code)}` : ""}`;
 
 export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchParams }) {
   const { list, error, loading, reload } = useStudents();

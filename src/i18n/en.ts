@@ -3,10 +3,8 @@ const en = {
   nav: {
     signInShort: "Sign in",
     signIn: "Sign in",
-    signInStudent: "Student",
-    signInStudentHint: "Course content, quizzes and your attendance",
-    signInStaff: "Training team",
-    signInStaffHint: "Attendance, students, content and the dashboard",
+    signInApp: "BuildX App",
+    signInAppHint: "Students and the training team: your student number or email takes you to your dashboard",
     faq: "FAQ",
     competitions: "Competitions",
     brand: "Brand",

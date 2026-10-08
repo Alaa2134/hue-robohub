@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Store settings for both native projects, applied on top of what `npx cap add` generates.
+ * Store settings for the native project (mobile/app), applied on top of what `npx cap add` generates.
  * Safe to run again: every change checks whether it is already there.
  *
  *   Android: camera permission (attendance scanner, photos), no cloud backup of sign-ins,
@@ -25,8 +25,8 @@ const CAMERA = "Scan attendance barcodes and event tickets, and take photos for 
 const PHOTOS = "Choose photos for your profile, projects and posts. لاختيار صور لملفك ومشاريعك ومنشوراتك.";
 const PHOTOS_ADD = "Save exported files and certificates to your photos. لحفظ الملفات والشهادات في الصور.";
 
-for (const app of ["student", "team"]) {
-  const dir = path.join(mobile, app);
+{
+  const dir = path.join(mobile, "app");
 
   // ── Android ──
   edit(path.join(dir, "android/app/src/main/AndroidManifest.xml"), (s) => {
@@ -35,8 +35,8 @@ for (const app of ["student", "team"]) {
         '<uses-permission android:name="android.permission.INTERNET" />',
         '<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />',
       );
-    // The student app opens buildxhue.com/app/… links (check-in QR, quiz links); see build-static.mjs step 9.
-    if (app === "student" && !s.includes('android:host="buildxhue.com"'))
+    // The app opens buildxhue.com/app/… links (check-in QR, quiz links); see build-static.mjs step 9.
+    if (!s.includes('android:host="buildxhue.com"'))
       s = must(s, "            </intent-filter>\n").replace(
         "            </intent-filter>\n",
         `            </intent-filter>
@@ -113,5 +113,5 @@ for (const app of ["student", "team"]) {
   edit(path.join(dir, "ios/App/App.xcodeproj/project.pbxproj"), (s) =>
     s.replace(/TARGETED_DEVICE_FAMILY = "1,2";/g, "TARGETED_DEVICE_FAMILY = 1;").replace(/MARKETING_VERSION = 1\.0;/g, "MARKETING_VERSION = 1.0.0;"),
   );
-  console.log(`[configure] ${app} ✓`);
+  console.log("[configure] app ✓");
 }

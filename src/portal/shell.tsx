@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Mark } from "@/components/brand/logo";
 import { cn } from "@/lib/cn";
 import { Button, Card, Icon, type IconKey } from "./ui";
-import { appMode, BASE_PATH, isNative } from "./core";
+import { BASE_PATH, isNative } from "./core";
 
 export type Tab = { href: string; label: string; icon: IconKey; match: (path: string[]) => boolean };
 
@@ -70,14 +70,11 @@ export function SiteCard({ className }: { className?: string }) {
   );
 }
 
-const APP_NAME = { student: "HUE", staff: "Team" } as const;
-
 export function BrandLine({ className }: { className?: string }) {
-  // The store apps carry their own names (read after mount, so the prerendered page still matches).
+  // The store app carries its own name (read after mount, so the prerendered page still matches).
   const [name, setName] = useState("App");
   useEffect(() => {
-    const mode = appMode();
-    if (mode) setName(APP_NAME[mode]);
+    if (isNative()) setName("HUE");
   }, []);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
