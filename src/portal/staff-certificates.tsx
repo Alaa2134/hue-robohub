@@ -137,6 +137,12 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
     return r && r.sessions ? Math.round((r.attended / r.sessions) * 100) : null;
   };
   const eligible = shown.filter((s) => (rateOf(s.id) ?? -1) >= Number(minRate || 0));
+  // Course progress (lectures opened, quizzes taken, sessions attended): who finished the track.
+  const progress = useAsync(async () => {
+    const rows = await rpc<{ student_id: string; percent: number }[]>("staff_progress", { p_group: null });
+    return new Map(rows.map((r) => [r.student_id, r.percent]));
+  }, []);
+  const finished = shown.filter((s) => (progress.data?.get(s.id) ?? 0) >= 80);
 
   const recipients =
     mode === "students"
@@ -289,13 +295,26 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
                 </button>
               </div>
             )}
+            {!!progress.data?.size && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-2 text-sm">
+                <span className="text-mist">اللي خلّصوا 80% من المسار أو أكتر: {finished.length}</span>
+                <button type="button" className="ms-auto font-semibold text-cyan" onClick={() => setPicked(new Set(finished.map((s) => s.id)))}>
+                  اختارهم
+                </button>
+              </div>
+            )}
             <ul className="grid max-h-72 gap-1 overflow-y-auto">
               {shown.map((s) => (
                 <li key={s.id}>
                   <label className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 hover:bg-white/[0.04]">
                     <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} className="size-5 accent-[#2b6dff]" />
                     <span className="min-w-0 flex-1 truncate text-chalk">{s.name}</span>
-                    {rateOf(s.id) !== null && <span className="text-xs text-mist" dir="ltr">{rateOf(s.id)}%</span>}
+                    {rateOf(s.id) !== null && <span className="text-xs text-mist" dir="ltr" title="الحضور">{rateOf(s.id)}%</span>}
+                    {progress.data?.has(s.id) && (
+                      <span className="text-xs text-cyan" title="المسار">
+                        مسار <bdi dir="ltr">{progress.data.get(s.id)}%</bdi>
+                      </span>
+                    )}
                     <span className="text-xs text-fog">{s.group}</span>
                   </label>
                 </li>

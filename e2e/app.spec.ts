@@ -787,6 +787,58 @@ test("certificates go in one tap to every student who attended enough sessions",
   delete RPC.staff_attendance_rates;
 });
 
+test("certificates for everyone who finished the course track, and the student's progress bar", async ({ page }) => {
+  await signInAsOwner(page);
+  const s = (id: string, name: string) => ({ id, code: id, codeKey: id, barcode: null, barcodeKey: null, name, group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true });
+  RPC.staff_list_students = [s("s1", "Mona"), s("s2", "Omar")];
+  RPC.staff_progress = [
+    { student_id: "s1", percent: 55 },
+    { student_id: "s2", percent: 92 },
+  ];
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Robotics Bootcamp 2026");
+  await expect(page.getByText("اللي خلّصوا 80% من المسار أو أكتر: 1")).toBeVisible();
+  await page.getByText("اللي خلّصوا 80% من المسار أو أكتر: 1").locator("..").getByRole("button", { name: "اختارهم" }).click();
+  await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.map((r) => r.recipient_name)).toEqual(["Omar"]);
+  delete RPC.staff_progress;
+});
+
+test("a student sees the course progress and opening a lecture counts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const seen: unknown[] = [];
+  const material = { id: "m1", title: "Lecture 5: sensors", description: "", kind: "link", path: null, url: "https://example.com/l5", fileName: null, mime: null, size: null, pinned: false, at: at(60) };
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [material, { ...material, id: "m2", title: "Lecture 4" }], quizzes: [], attendance: [] },
+    student_progress: { percent: 63, materials: { seen: 1, total: 2 }, quizzes: { done: 1, total: 2 }, sessions: { attended: 7, total: 8 }, seenIds: ["m2"] },
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_material_seen") seen.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.route("https://example.com/**", (route) => route.fulfill({ body: "ok" }));
+  await page.goto("/app/#/me");
+  await expect(page.getByText("مسار الكورس")).toBeVisible();
+  await expect(page.getByText("63%")).toBeVisible();
+  await expect(page.getByText("7/8")).toBeVisible();
+  await page.goto("/app/#/me/content");
+  await expect(page.getByLabel("شفته")).toHaveCount(1);
+  const popup = page.waitForEvent("popup");
+  await page.getByText("Lecture 5: sensors").click();
+  await (await popup).close();
+  await expect.poll(() => seen).toEqual([{ p_token: "a".repeat(64), p_material: "m1" }]);
+});
+
 test("one sign-in: a student number goes to the student dashboard, an email to the team's", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   let signedIn = false;
