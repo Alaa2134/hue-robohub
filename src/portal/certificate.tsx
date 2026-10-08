@@ -4,8 +4,8 @@
  * buildxhue.com/verify/?c=<code>. Sizes use container units, so the same page scales on a phone
  * screen and prints at exactly 297 × 210 mm.
  *
- * Certificates use the BuildX HUE artworks in public/certificates (Appreciation, and Achievement for
- * each track): the name, the date and the QR are drawn on top. The artworks were exported without
+ * Certificates use the BuildX HUE artworks in public/certificates (Appreciation, Achievement for
+ * each track, and one per team role: Organizer, Volunteer, Mentor, Judge…): the name, the date and the QR are drawn on top. The artworks were exported without
  * their sample date; their layout (where the gold line under the name and the date line sit) is in
  * CERT_DESIGNS, in pixels of the 1491 × 1055 artwork. "classic" is the original drawn design.
  */
@@ -67,28 +67,56 @@ export const CERT_KINDS: {
 
 export const verifyUrl = (code: string) => `https://buildxhue.com/verify/?c=${code}`;
 
-export type CertDesign = { key: string; en: string; ar: string; rule: number; dateLine: number; dateX: number; match?: RegExp };
+export type CertDesign = { key: string; en: string; ar: string; group: "track" | "team"; rule: number; dateLine: number; dateX: number; match?: RegExp };
 
 const ART = { w: 1491, h: 1055 };
 
-/** The artworks (order = order in the picker). `match` guesses the track from a certificate title. */
+/** The artworks (order = order in the picker). `match` guesses the track or role from a certificate title. */
 export const CERT_DESIGNS: CertDesign[] = [
-  { key: "appreciation", en: "Appreciation", ar: "شكر وتقدير", rule: 613, dateLine: 890, dateX: 349 },
-  { key: "robotics", en: "Robotics", ar: "روبوتكس", rule: 602, dateLine: 886, dateX: 392, match: /robot|روبوت/i },
-  { key: "ai", en: "Artificial Intelligence", ar: "ذكاء اصطناعي", rule: 611, dateLine: 890, dateX: 349, match: /\bai\b|artificial|machine learning|deep learning|ذكاء|تعلم الآلة/i },
-  { key: "iot", en: "IoT", ar: "إنترنت الأشياء", rule: 610, dateLine: 891, dateX: 348, match: /\biot\b|internet of things|الأشياء|الاشياء/i },
-  { key: "cybersecurity", en: "Cybersecurity", ar: "أمن سيبراني", rule: 612, dateLine: 891, dateX: 348, match: /cyber|security|سيبران|أمن المعلومات/i },
-  { key: "hardware", en: "Hardware", ar: "هاردوير", rule: 602, dateLine: 891, dateX: 335.5, match: /hardware|embedded|electronic|هارد|إلكترون|الكترون|امبيدد/i },
-  { key: "software", en: "Software", ar: "برمجيات", rule: 619, dateLine: 897, dateX: 350.5, match: /software|programming|coding|developer|web|برمج|سوفت/i },
-  { key: "design", en: "Design", ar: "تصميم", rule: 611, dateLine: 890, dateX: 351, match: /design|\bui\b|\bux\b|graphic|media|تصميم|جرافيك|ميديا/i },
-  { key: "entrepreneurship", en: "Entrepreneurship", ar: "ريادة أعمال", rule: 613, dateLine: 892, dateX: 349, match: /entrepreneur|business|startup|ريادة|بيزنس|أعمال/i },
+  { key: "appreciation", en: "Appreciation", ar: "شكر وتقدير", group: "track", rule: 613, dateLine: 890, dateX: 349 },
+  { key: "robotics", en: "Robotics", ar: "روبوتكس", group: "track", rule: 602, dateLine: 886, dateX: 392, match: /robot|روبوت/i },
+  { key: "ai", en: "Artificial Intelligence", ar: "ذكاء اصطناعي", group: "track", rule: 611, dateLine: 890, dateX: 349, match: /\bai\b|artificial|machine learning|deep learning|ذكاء|تعلم الآلة/i },
+  { key: "iot", en: "IoT", ar: "إنترنت الأشياء", group: "track", rule: 610, dateLine: 891, dateX: 348, match: /\biot\b|internet of things|الأشياء|الاشياء/i },
+  { key: "cybersecurity", en: "Cybersecurity", ar: "أمن سيبراني", group: "track", rule: 612, dateLine: 891, dateX: 348, match: /cyber|security|سيبران|أمن المعلومات/i },
+  { key: "hardware", en: "Hardware", ar: "هاردوير", group: "track", rule: 602, dateLine: 891, dateX: 335.5, match: /hardware|embedded|electronic|هارد|إلكترون|الكترون|امبيدد/i },
+  { key: "software", en: "Software", ar: "برمجيات", group: "track", rule: 619, dateLine: 897, dateX: 350.5, match: /software|programming|coding|developer|web|برمج|سوفت/i },
+  { key: "design", en: "Design", ar: "تصميم", group: "track", rule: 611, dateLine: 890, dateX: 351, match: /design|\bui\b|\bux\b|graphic|media|تصميم|جرافيك|ميديا/i },
+  { key: "entrepreneurship", en: "Entrepreneurship", ar: "ريادة أعمال", group: "track", rule: 613, dateLine: 892, dateX: 349, match: /entrepreneur|business|startup|ريادة|بيزنس|أعمال/i },
+  // Team, organizers and contributors: all share one layout.
+  ...(
+    [
+      ["organizer", "Organizer", "منظّم", /organi[sz]er|منظم|منظّم/i],
+      ["core-team", "Core Team Member", "عضو الفريق الأساسي", /core team|الفريق الأساسي|الفريق الاساسي/i],
+      ["track-lead", "Track Lead", "قائد مسار", /track lead|قائد مسار|قائد المسار/i],
+      ["team-leader", "Team Leader", "قائد فريق", /team lead|قائد فريق|قائد الفريق|تيم ليدر/i],
+      ["volunteer", "Volunteer", "متطوع", /volunteer|متطوع/i],
+      ["event-coordinator", "Event Coordinator", "منسّق فعاليات", /coordinator|منسق|منسّق/i],
+      ["media-design", "Media & Design Team", "الميديا والتصميم", /media\s*(and|&)\s*design|الميديا والتصميم|ميديا وتصميم/i],
+      ["technical", "Technical Team", "الفريق التقني", /technical team|tech team|الفريق التقني/i],
+      ["pr-partnerships", "PR & Partnerships", "العلاقات والشراكات", /\bpr\b|partnerships|شراكات|العلاقات العامة/i],
+      ["operations", "Operations & Logistics", "العمليات واللوجستيات", /operations|logistics|عمليات|لوجست/i],
+      ["registration", "Registration & Reception", "التسجيل والاستقبال", /registration|reception|التسجيل|الاستقبال/i],
+      ["social-media", "Social Media Team", "السوشيال ميديا", /social media|سوشيال/i],
+      ["photography", "Photography & Media Coverage", "التصوير والتغطية", /photograph|coverage|تصوير|التغطية/i],
+      ["mentor", "Mentor", "منتور", /mentor|منتور|مرشد/i],
+      ["speaker", "Speaker", "متحدث", /speaker|متحدث/i],
+      ["workshop-instructor", "Workshop Instructor", "مدرّب ورشة", /instructor|trainer|مدرب|مدرّب|محاضر/i],
+      ["judge", "Judge", "محكّم", /judge|jury|محكم|محكّم|تحكيم/i],
+      ["sponsor", "Sponsor / Partner", "راعي / شريك", /sponsor|\bpartner\b|راعي|رعاة|شريك/i],
+      ["outstanding-member", "Outstanding Member", "العضو المتميز", /outstanding|member of the (month|year)|المتميز|المتميّز/i],
+      ["ambassador", "Community Ambassador", "سفير المجتمع", /ambassador|سفير/i],
+    ] as const
+  ).map(([key, en, ar, match]): CertDesign => ({ key, en, ar, group: "team", rule: 613, dateLine: 890, dateX: 349, match })),
 ];
 
 /** The design to use: the one saved on the certificate, else Appreciation or the track in its title. */
 export function designKeyFor(c: Pick<Certificate, "design" | "kind" | "title" | "title_ar">): string {
   if (c.design && (c.design === "classic" || CERT_DESIGNS.some((d) => d.key === c.design))) return c.design;
-  if (c.kind === "appreciation") return "appreciation";
   const text = `${c.title} ${c.title_ar ?? ""}`;
+  // A role (Organizer, Judge…) is more specific than a track, so it wins: "Robotics Track Lead".
+  const role = CERT_DESIGNS.find((d) => d.group === "team" && d.match?.test(text));
+  if (role) return role.key;
+  if (c.kind === "appreciation") return "appreciation";
   return CERT_DESIGNS.find((d) => d.match?.test(text))?.key ?? "classic";
 }
 

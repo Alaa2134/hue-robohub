@@ -6,7 +6,8 @@ export default defineConfig({
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://localhost:4173", trace: "retain-on-failure" },
+  // Service workers are off (they'd answer requests the tests mock); e2e/offline.spec.ts turns them on.
+  use: { baseURL: "http://localhost:4173", trace: "retain-on-failure", serviceWorkers: "block" },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile", use: { ...devices["Pixel 7"] } },

@@ -93,7 +93,7 @@ export function findSpot(o: { size: { w: number; h: number }; side?: "start" | "
   const minY = inset.top - size.h * BODY.y;
   const maxY = vh - inset.bottom - size.h;
   const phone = vw < 768;
-  // Phones: only the bottom corners (limited movement). Desktop: anywhere down either edge.
+  // Phones: only the bottom row (limited movement). Desktop: anywhere down either edge.
   const ys: number[] = [];
   if (phone) ys.push(maxY);
   else for (let y = maxY; y >= minY; y -= 44) ys.push(y);
@@ -104,10 +104,14 @@ export function findSpot(o: { size: { w: number; h: number }; side?: "start" | "
   }
   let best = { x: wantRight ? right : left, y: maxY, clear: 0 };
   let bestScore = Infinity;
-  for (const x of [left, right]) {
+  // Phones: along the whole bottom edge (corners first), so he walks between spots instead of only
+  // swapping corners. Desktop: down both side edges.
+  const xs = phone ? [left, right, left + (right - left) * 0.33, left + (right - left) * 0.67] : [left, right];
+  for (const x of xs) {
     for (const y of ys) {
       const covered = overlap({ x, y }, size, o.self);
-      let score = covered * 100 + (Math.abs(y - prefY) / vh) * 10 + ((x === right) !== wantRight ? 7 : 0);
+      const middle = x !== left && x !== right;
+      let score = covered * 100 + (Math.abs(y - prefY) / vh) * 10 + ((x > (left + right) / 2) !== wantRight ? 7 : 0) + (middle ? 4 : 0);
       if (o.current) score += (Math.hypot(x - o.current.x, y - o.current.y) / vw) * 5;
       if (score < bestScore) {
         bestScore = score;

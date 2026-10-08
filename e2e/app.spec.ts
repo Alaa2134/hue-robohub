@@ -183,6 +183,29 @@ test("staff issue certificates to typed names and get a printable A4 page with a
   expect(errors).toEqual([]);
 });
 
+test("a team role in the title picks its certificate design (Volunteer), and staff can pick another", async ({ page }) => {
+  await signInAsOwner(page);
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByRole("button", { name: "شهادة تقدير" }).click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Volunteer — Robotics Day 2026");
+  await expect(page.getByRole("button", { name: "متطوع · تلقائي", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("الفريق والمنظمين والمساهمين")).toBeVisible();
+  await page.getByRole("button", { name: "محكّم", exact: true }).click();
+  await page.getByRole("button", { name: "أسماء بإيدي" }).click();
+  await page.getByLabel("الأسماء — اسم في كل سطر").fill("Mona Adel\n");
+  await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.[0]?.design).toBe("judge");
+});
+
 test("door check-in by a typed ticket code marks the attendee", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_check_in = { ok: true, name: "Mona Adel", status: "going", ticket: "BXT-1A2B3C4D" };
@@ -571,4 +594,53 @@ test("staff make a student's monthly report as a PDF", async ({ page }) => {
   if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
   expect(calls.find((c) => c.fn === "staff_student_report")?.body).toEqual({ p_student: "s1", p_from: "2026-10-01", p_to: "2026-10-31" });
   expect(errors).toEqual([]);
+});
+
+test("a trainer only sees the areas the owner gave them", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  // This account is a trainer with the website content area only.
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const row = { user_id: "u1", email: "media@example.com", full_name: "Media Lead", role: "lead", active: true, created_at: at(9999), title: "مسؤول الإعلام والتصميم", permissions: ["content"] };
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByText("مسؤول الإعلام والتصميم").first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /تسجيل حضور جديد/ })).toHaveCount(0);
+  const nav = page.getByRole("navigation", { name: "التنقل" });
+  await expect(nav.getByRole("link", { name: "الطلاب" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "المزيد" })).toBeVisible();
+  await page.goto("/app/#/staff/students");
+  await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByText("محتوى الموقع (فعاليات، أخبار، جاليري…)")).toBeVisible();
+  await expect(page.getByText("طلبات الانضمام")).toHaveCount(0);
+  await expect(page.getByText("رسائل الموقع وطلبات الرعاية")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the owner sets a member's position and areas", async ({ page }) => {
+  await signInAsOwner(page);
+  const owner = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+  const lead = { user_id: "u2", email: "lead@example.com", full_name: "Lead Two", role: "lead", active: true, created_at: at(10), title: null, permissions: null };
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...lead, ...(route.request().postDataJSON() as object) }] });
+    }
+    // The team list orders by created_at; the sign-in check asks for the signed-in row only.
+    const list = route.request().url().includes("order=created_at");
+    return route.fulfill({ json: list ? [owner, lead] : [owner] });
+  });
+  await page.goto("/app/#/staff/team");
+  await page.getByText("Lead Two").click();
+  await page.getByLabel("المنصب").fill("مسؤول الإعلام والتصميم");
+  // Picking a position suggests its areas: media gets the website content only.
+  await expect(page.getByRole("checkbox", { name: /محتوى الموقع والفورمات/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: /رسائل الموقع/ }).check();
+  await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
+  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["content", "inbox"] });
 });

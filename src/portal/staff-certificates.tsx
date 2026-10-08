@@ -197,31 +197,41 @@ function IssueSheet({ onClose, onDone }: { onClose: () => void; onDone: (ids: st
           </Field>
         </div>
 
-        <Field label="تصميم الشهادة" hint={design ? undefined : "بيتختار لوحده من النوع والعنوان. دوس على تصميم لو عايز غيره."}>
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {[...CERT_DESIGNS.map((d) => ({ key: d.key, ar: d.ar })), { key: "classic", ar: "الكلاسيكي" }].map((d) => {
-              const on = chosenDesign === d.key;
-              return (
-                <button
-                  key={d.key}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setDesign(design === d.key ? "" : d.key)}
-                  className={`w-28 shrink-0 overflow-hidden rounded-xl border text-start transition ${on ? "border-cyan ring-2 ring-cyan/40" : "border-[var(--line-2)] opacity-75 hover:opacity-100"}`}
-                >
-                  {d.key === "classic" ? (
-                    <span className="flex aspect-[297/210] items-center justify-center bg-[#081634] text-[11px] font-bold tracking-widest text-[#e8c77a]">BUILDX</span>
-                  ) : (
-                    <img src={certArt(d.key)} alt="" loading="lazy" className="block aspect-[297/210] w-full object-cover" />
-                  )}
-                  <span className="block truncate px-2 py-1.5 text-xs text-mist">
-                    {d.ar}
-                    {!design && on ? " · تلقائي" : ""}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <Field label="تصميم الشهادة" hint={design ? undefined : "بيتختار لوحده من النوع والعنوان (مثلاً Volunteer أو Judge أو Robotics). دوس على تصميم لو عايز غيره."}>
+          {(
+            [
+              ["المسارات والتقدير", [...CERT_DESIGNS.filter((d) => d.group === "track").map((d) => ({ key: d.key, ar: d.ar })), { key: "classic", ar: "الكلاسيكي" }]],
+              ["الفريق والمنظمين والمساهمين", CERT_DESIGNS.filter((d) => d.group === "team").map((d) => ({ key: d.key, ar: d.ar }))],
+            ] as const
+          ).map(([label, list]) => (
+            <div key={label} className="grid gap-1.5">
+              <p className="text-xs text-fog">{label}</p>
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                {list.map((d) => {
+                  const on = chosenDesign === d.key;
+                  return (
+                    <button
+                      key={d.key}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setDesign(design === d.key ? "" : d.key)}
+                      className={`w-28 shrink-0 overflow-hidden rounded-xl border text-start transition ${on ? "border-cyan ring-2 ring-cyan/40" : "border-[var(--line-2)] opacity-75 hover:opacity-100"}`}
+                    >
+                      {d.key === "classic" ? (
+                        <span className="flex aspect-[297/210] items-center justify-center bg-[#081634] text-[11px] font-bold tracking-widest text-[#e8c77a]">BUILDX</span>
+                      ) : (
+                        <img src={certArt(d.key)} alt="" loading="lazy" className="block aspect-[297/210] w-full object-cover" />
+                      )}
+                      <span className="block truncate px-2 py-1.5 text-xs text-mist">
+                        {d.ar}
+                        {!design && on ? " · تلقائي" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </Field>
 
         <div className="flex gap-2">

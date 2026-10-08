@@ -173,9 +173,9 @@ for (const f of walk(out).filter((x) => x.endsWith(".html"))) {
   if (next !== html) writeFileSync(f, next);
 }
 
-// 8. A new service-worker version per build, so phones drop old app files.
-const sw = path.join(out, "app/sw.js");
-if (existsSync(sw)) writeFileSync(sw, readFileSync(sw, "utf8").replace("__BUILD_ID__", Date.now().toString(36)));
+// 8. A new service-worker version per build (the app's and the website's), so devices drop old files.
+const buildId = Date.now().toString(36);
+for (const sw of [path.join(out, "app/sw.js"), path.join(out, "sw.js")]) if (existsSync(sw)) writeFileSync(sw, readFileSync(sw, "utf8").replace("__BUILD_ID__", buildId));
 
 // 9. Links to buildxhue.com/app/… open the BuildX HUE app when it's installed (Android App Links,
 // iOS Universal Links). Android trusts the app's signing certificates: the upload key below, plus the

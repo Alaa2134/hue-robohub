@@ -6,6 +6,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { isNoise } from "@/lib/error-noise";
 
 function rpc(fn: string, body: object) {
   return fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
@@ -33,7 +34,7 @@ export function Telemetry({ host, locale }: { host: string; locale: string }) {
     const seen = new Set<string>();
     const report = (message: string, source?: string) => {
       const key = `${message}|${source ?? ""}`;
-      if (!message || seen.has(key) || sent >= 5) return;
+      if (!message || isNoise(message, source) || seen.has(key) || sent >= 5) return;
       seen.add(key);
       sent++;
       rpc("log_client_error", { p: { message: message.slice(0, 500), source: source?.slice(0, 300), path: location.pathname } });

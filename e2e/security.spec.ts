@@ -34,6 +34,7 @@ test("every page ships its security policy, referrer policy and clickjacking gua
     else for (const d of ["object-src 'none'", "base-uri 'self'", "form-action 'self'", "default-src 'self'"]) if (!csp.includes(d)) problems.push(`${f}: CSP lacks ${d}`);
     if (!html.includes('name="referrer" content="strict-origin-when-cross-origin"')) problems.push(`${f}: no referrer policy`);
     if (!html.includes("window.top!==window.self")) problems.push(`${f}: no clickjacking guard`);
+    if (!html.includes('location.protocol!=="http:"')) problems.push(`${f}: no https upgrade`);
   }
   expect(problems).toEqual([]);
 });

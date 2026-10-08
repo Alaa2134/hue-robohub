@@ -7,12 +7,12 @@
  * Lines go through `brief`, which never cuts off something more important he's saying.
  */
 import { useEffect, useRef } from "react";
-import { FIELD_TIPS, HOVERS, LINE_INVALID, QUIPS, type Text } from "@/config/mascotJourney";
+import { FIELD_TIPS, HOVERS, LINE_INVALID, QUIPS, type Line, type Text } from "@/config/mascotJourney";
 import type { ClipName } from "@/lib/mascot/clip-names";
 import { mascot } from "./useMascotState";
 
 /** prio: 0 small talk, 1 a reaction, 2 important. `interrupt` cuts off a scene (the visitor is doing something). */
-export type Brief = (line: Text, o: { prio: number; ms?: number; clip?: ClipName; look?: Element | null; goggles?: boolean; interrupt?: boolean }) => boolean;
+export type Brief = (line: Line, o: { prio: number; ms?: number; clip?: ClipName; look?: Element | null; goggles?: boolean; interrupt?: boolean }) => boolean;
 
 export function useMascotReactions(api: { brief: Brief; busy: () => boolean }, key: string, enabled: boolean) {
   const ref = useRef(api);

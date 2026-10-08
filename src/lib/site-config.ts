@@ -97,7 +97,7 @@ export const defaultSiteConfig: SiteConfig = {
     videoId: null,
   },
   "site.contact": {
-    email: "alaa00saber@gmail.com",
+    email: "info@buildxhue.com",
     phone: "01065316500",
     whatsapp: "201065316500",
     address: {

@@ -10,6 +10,7 @@ import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute, type IconKey } from "./ui";
+import { isNoise } from "@/lib/error-noise";
 
 const AppPlugin = registerPlugin<{ addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle> }>("App");
 const STAFF_CACHE = "rh-app-staff-row";
@@ -60,7 +61,7 @@ export default function PortalApp() {
     // Uncaught errors reach the dashboard's error list (production domain and the store apps, five per load).
     let sent = 0;
     const report = (message: string, source?: string) => {
-      if (!message || sent++ >= 5 || !(isNative() || /^(www\.)?buildxhue\.com$/.test(location.hostname))) return;
+      if (!message || isNoise(message, source) || sent++ >= 5 || !(isNative() || /^(www\.)?buildxhue\.com$/.test(location.hostname))) return;
       rpc("log_client_error", { p: { message: message.slice(0, 500), source: source?.slice(0, 300), path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
     };
     const onError = (e: ErrorEvent) => report(e.message, e.filename ? `${e.filename.replace(location.origin, "")}:${e.lineno}:${e.colno}` : undefined);
