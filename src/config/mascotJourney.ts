@@ -20,6 +20,7 @@ export type SceneClip = ClipName | "Point";
 
 export type SceneAction =
   | { kind: "tour"; label: Text }
+  | { kind: "sitetour"; label: Text }
   | { kind: "dismiss"; label: Text }
   | { kind: "go"; label: Text; href: string; section?: string; celebrate?: boolean }
   | { kind: "menu"; label: Text }
@@ -54,7 +55,7 @@ export const GUIDE_NAME: Text = { ar: "بقلظ", en: "Baqloz" };
  */
 export const GUIDE_VOICE: "ar" | "page" = "ar";
 
-const tour: SceneAction = { kind: "tour", label: { en: "Show me around", ar: "يلا فرّجني" } };
+const siteTour: SceneAction = { kind: "sitetour", label: { en: "Let's go", ar: "يلا بينا" } };
 const notNow: SceneAction = { kind: "dismiss", label: { en: "Not now", ar: "بعدين" } };
 const askMe: SceneAction = { kind: "menu", label: { en: "Ask Baqloz", ar: "اسأل بقلظ" } };
 const go = (href: string, ar: string, en: string, section?: string): SceneAction => ({ kind: "go", href, section, label: { ar, en } });
@@ -73,7 +74,7 @@ export const JOURNEY: Route[] = [
         side: "end",
         say: [
           { en: "Hey 👋 I'm Baqloz, your guide at BuildX HUE!", ar: "أهلاً أهلاً 👋 أنا بقلظ، مرشدك في BuildX HUE!" },
-          { en: "Want me to show you around?", ar: "تيجي أفرّجك على المكان؟", actions: [tour, notNow] },
+          { en: "Want me to take you on a tour of the site?", ar: "تيجي آخدك جولة جوه الموقع؟", actions: [siteTour, notNow] },
         ],
       },
       {
@@ -416,4 +417,102 @@ export const LINES = {
   backAgain: { en: "Back again? 😄", ar: "رجعت تاني؟ 😄 شكلها عجبتك." },
   explored: { en: "You've seen the whole site! 🏆 You're one of us now.", ar: "كده إنت لفّيت الموقع كله! 🏆 بقيت واحد مننا خلاص." },
   copied: { en: "Copied!", ar: "اتنسخ!" },
+  invite: { en: "Want me to take you on a tour of the site?", ar: "تيجي آخدك جولة جوه الموقع؟" },
+  letsGo: { en: "Let's go", ar: "يلا بينا" },
+  notNow: { en: "Not now", ar: "بعدين" },
+  tourStart: { en: "Off we go! Follow me 🚶", ar: "حلو! امشي ورايا بقى 🚶 وأنا هحكيلك على كل حاجة." },
+  tourEnd: {
+    en: "That's the whole tour 🎉 Any question at all, click me and ask. I'm always here.",
+    ar: "كده لفّينا الموقع كله 🎉 أي سؤال في دماغك دوس عليّا واسألني… أنا موجود على طول.",
+  },
+  askMe: { en: "Ask Baqloz", ar: "اسأل بقلظ" },
 } satisfies Record<string, Text>;
+
+/**
+ * The site tour: Baqloz walks the visitor through the whole site, page by page, and says what each
+ * page is for. `section` scrolls to a part of the page; `point` is what he looks and points at.
+ */
+export type TourStop = { href: string; section?: string; point?: string; clip?: SceneClip; props?: PropName[]; goggles?: boolean; say: Text[] };
+export const SITE_TOUR: TourStop[] = [
+  {
+    href: "/",
+    section: "#hero",
+    clip: "Wave",
+    say: [
+      { ar: "دي الصفحة الرئيسية… منها توصل لأي حاجة في BuildX على طول.", en: "This is the home page. Everything at BuildX starts here." },
+      { ar: "فوق في الهيدر هتلاقي كل الصفحات، وزرار البحث لو مستعجل.", en: "Every page is in the header up top, plus search if you're in a hurry." },
+    ],
+  },
+  {
+    href: "/about",
+    clip: "Think",
+    props: ["gears"],
+    say: [
+      { ar: "هنا تعرف إحنا مين: BuildX HUE، مجتمع طلابي في جامعة حورس للروبوتكس والابتكار.", en: "Who we are: BuildX HUE, Horus University's student community for robotics and innovation." },
+      { ar: "شعارنا Build • Innovate • Compete… يعني نتعلم بإيدينا، ونبتكر، وننافس بجد.", en: "Our motto: Build • Innovate • Compete. Learn by doing, invent, and compete for real." },
+    ],
+  },
+  {
+    href: "/tracks",
+    clip: "Point",
+    point: "main a[href*='/tracks/']",
+    props: ["chip", "nodes"],
+    goggles: true,
+    say: [
+      { ar: "دي التراكات… كل تراك طريق كامل من الصفر لحد مشروع حقيقي.", en: "The tracks: each one takes you from zero to a real project." },
+      { ar: "روبوتكس، AI، سوفتوير، IoT، 3D، ميديا، وبيزنس. لو محتار اسألني وأنا أرشحلك على حسب اهتمامك 😉", en: "Robotics, AI, software, IoT, 3D, media and business. Not sure? Ask me and I'll suggest one 😉" },
+    ],
+  },
+  {
+    href: "/competitions",
+    clip: "Jump",
+    props: ["sensors"],
+    say: [
+      { ar: "فرق المسابقات… هنا بنجهّز روبوتات ومشاريع وننزل بيها مسابقات بجد 🏆", en: "Competition teams: we build robots and projects and take them to real contests 🏆" },
+      { ar: "سومو، لاين فولور، هاكاثونات AI، برمجة… اختار الفريق اللي يشبهك.", en: "Sumo, line follower, AI hackathons, programming… pick the team that fits you." },
+    ],
+  },
+  {
+    href: "/bootcamp",
+    clip: "Happy",
+    props: ["gears"],
+    say: [{ ar: "البوتكامب: أسابيع مكثّفة بتبدأ فيها من الأساسيات خطوة بخطوة لحد ما تبقى جاهز للمسابقات.", en: "The bootcamp: intensive weeks, from the basics step by step until you're competition-ready." }],
+  },
+  {
+    href: "/events",
+    clip: "LookAround",
+    say: [
+      { ar: "الإيفنتات: ورش، هاكاثونات، وسهرات بناء.", en: "Events: workshops, hackathons and build nights." },
+      { ar: "تقدر تسجّل في أي إيفنت من هنا وتاخد تذكرة QR على موبايلك.", en: "Register for any event here and get a QR ticket on your phone." },
+    ],
+  },
+  {
+    href: "/projects",
+    clip: "Typing",
+    props: ["code"],
+    say: [{ ar: "المشاريع اللي أعضاؤنا عملوها بإيديهم… مين عارف، يمكن مشروعك يبقى هنا السنة الجاية 👀", en: "Projects our members built themselves. Maybe yours is here next year 👀" }],
+  },
+  {
+    href: "/team",
+    clip: "Wave",
+    say: [{ ar: "ودول الناس اللي ورا BuildX… الفريق. دوس على أي حد وشوف شغله.", en: "And these are the people behind BuildX. Click anyone to see their work." }],
+  },
+  {
+    href: "/verify",
+    clip: "Think",
+    say: [{ ar: "معاك شهادة من عندنا؟ هنا تتأكد إنها أصلية بالكود أو بالـ QR اللي عليها.", en: "Got a BuildX certificate? Check it's genuine here with its code or QR." }],
+  },
+  {
+    href: "/faq",
+    clip: "Think",
+    say: [{ ar: "عندك سؤال؟ أغلب الإجابات هنا… ولو ملقتهاش، اسألني أنا 😄", en: "Got a question? Most answers are here. And if not, ask me 😄" }],
+  },
+  {
+    href: "/join",
+    clip: "Celebrate",
+    say: [
+      { ar: "وآخر محطة… وأهم محطة 😄 هنا تقدّم وتبقى واحد مننا.", en: "Last stop, and the best one 😄 Apply here and become one of us." },
+      { ar: "الفورم سهل، وأنا هكون جنبك في كل خانة لو احتجتني.", en: "The form is easy, and I'll help with every field if you need me." },
+    ],
+  },
+];

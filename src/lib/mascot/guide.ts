@@ -1,22 +1,16 @@
 /**
- * Baqloz's answers. A small intent matcher runs in the browser (English and Arabic, no network).
- * It sits behind a provider interface so an AI backend can take over later: set
- * NEXT_PUBLIC_MASCOT_GUIDE_URL to an endpoint you host (e.g. a Supabase Edge Function that holds its
- * own model key server-side) answering POST {question, locale, path} with {text, href?, section?}.
- * No key ever reaches the browser, and the local matcher answers whenever that endpoint can't.
+ * Baqloz's navigation answers: a keyword matcher (English and Arabic) that maps a question to the
+ * page that answers it, with a short line and a button. The chat (chat.ts) asks his brain
+ * (brain.ts) first; this is what the brain falls back on for "where is…" and "how do I…".
  *
  * Answers only point to what the site itself says (no invented dates or prices): for details they
  * send people to the right page.
  */
 import { TEAMS, TRACKS, type Text } from "@/config/mascotJourney";
 
-/** "search" opens the site search, "lang" switches language, "top" scrolls up. */
-export type GuideAction = "search" | "lang" | "top";
+/** "search" opens the site search, "lang" switches language, "top" scrolls up, "tour" starts the site tour. */
+export type GuideAction = "search" | "lang" | "top" | "tour" | "pagetour";
 export type GuideAnswer = { text: Text; href?: string; section?: string; label?: Text; action?: GuideAction };
-export type GuideContext = { locale: "en" | "ar"; path: string };
-export interface GuideProvider {
-  answer(question: string, ctx: GuideContext): Promise<GuideAnswer>;
-}
 
 type Intent = { keys: string[]; answer: GuideAnswer };
 
@@ -138,33 +132,4 @@ export function matchIntent(question: string): GuideAnswer {
     }
   }
   return best?.answer ?? FALLBACK;
-}
-
-export const localGuide: GuideProvider = {
-  answer: async (q) => matchIntent(q),
-};
-
-function remoteGuide(url: string): GuideProvider {
-  return {
-    async answer(question, ctx) {
-      try {
-        const ctl = new AbortController();
-        const timer = setTimeout(() => ctl.abort(), 6000);
-        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: question.slice(0, 300), ...ctx }), signal: ctl.signal });
-        clearTimeout(timer);
-        if (!res.ok) throw new Error(String(res.status));
-        const d = (await res.json()) as { text?: string; href?: string; section?: string };
-        if (!d.text) throw new Error("empty");
-        const local = matchIntent(question);
-        return { text: { en: d.text, ar: d.text }, href: d.href ?? local.href, section: d.section ?? local.section, label: local.label, action: local.action };
-      } catch {
-        return matchIntent(question);
-      }
-    },
-  };
-}
-
-export function guideProvider(): GuideProvider {
-  const url = process.env.NEXT_PUBLIC_MASCOT_GUIDE_URL;
-  return url ? remoteGuide(url) : localGuide;
 }

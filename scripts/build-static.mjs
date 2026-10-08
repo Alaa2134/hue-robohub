@@ -179,6 +179,9 @@ if (/^[A-Z0-9]{10}$/.test(team)) {
   writeFileSync(path.join(out, ".well-known/apple-app-site-association"), `${JSON.stringify(aasa, null, 2)}\n`);
 }
 
+// 10. What Baqloz's AI knows (the bakloz-chat Edge Function reads it from the published site).
+execSync(`npx tsx scripts/build-guide-knowledge.ts "${path.join(out, "guide-knowledge.txt")}"`, { cwd: root, stdio: "inherit" });
+
 writeFileSync(path.join(out, ".nojekyll"), "");
 // What the scheduled deploy compares against to decide whether published content changed.
 writeFileSync(path.join(out, "content-version.txt"), `${version}\n`);

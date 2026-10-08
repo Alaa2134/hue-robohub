@@ -997,9 +997,40 @@ html[data-intro="play"] .hero-lock-label {
 .mascot-menu-in {
   animation: mascot-pop-in 0.3s var(--ease-out-expo) both;
 }
+/* "Baqloz is typing…" */
+.mascot-typing {
+  display: inline-flex;
+  gap: 3px;
+}
+.mascot-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--color-cyan, #22d3ee);
+  animation: mascot-typing 1.1s ease-in-out infinite;
+}
+.mascot-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.mascot-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes mascot-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .mascot-bubble-in,
-  .mascot-menu-in {
+  .mascot-menu-in,
+  .mascot-typing i {
     animation: none;
   }
 }
