@@ -183,6 +183,29 @@ test("staff issue certificates to typed names and get a printable A4 page with a
   expect(errors).toEqual([]);
 });
 
+test("a team role in the title picks its certificate design (Volunteer), and staff can pick another", async ({ page }) => {
+  await signInAsOwner(page);
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByRole("button", { name: "شهادة تقدير" }).click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Volunteer — Robotics Day 2026");
+  await expect(page.getByRole("button", { name: "متطوع · تلقائي", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("الفريق والمنظمين والمساهمين")).toBeVisible();
+  await page.getByRole("button", { name: "محكّم", exact: true }).click();
+  await page.getByRole("button", { name: "أسماء بإيدي" }).click();
+  await page.getByLabel("الأسماء — اسم في كل سطر").fill("Mona Adel\n");
+  await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.[0]?.design).toBe("judge");
+});
+
 test("door check-in by a typed ticket code marks the attendee", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_check_in = { ok: true, name: "Mona Adel", status: "going", ticket: "BXT-1A2B3C4D" };
