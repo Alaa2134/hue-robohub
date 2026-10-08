@@ -135,7 +135,7 @@ export function QuizzesScreen() {
 
 /* ─── Editor ───────────────────────────────────────────────────────────── */
 
-type Settings = { title: string; description: string; group: string; opens: string; closes: string; limit: string; attempts: string; shuffle: boolean; show: boolean; published: boolean };
+type Settings = { title: string; description: string; group: string; opens: string; closes: string; limit: string; attempts: string; shuffle: boolean; show: boolean; published: boolean; weekly: boolean };
 
 function blankQuestion(quizId: string, kind: QuestionKind, position: number): Question {
   return {
@@ -255,6 +255,7 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
             shuffle: next.shuffle,
             show_answers: next.show,
             published: next.published,
+            weekly: next.weekly,
           })
           .eq("id", id)
           .select()
@@ -471,6 +472,15 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
             label="إظهار الإجابات الصحيحة بعد الانتهاء"
             hint="تظهر بعد آخر محاولة للطالب أو بعد إغلاق الكويز."
           />
+          <Toggle
+            checked={settings.weekly}
+            onChange={(weekly) => {
+              setSettings({ ...settings, weekly });
+              setDirty(true);
+            }}
+            label="🏆 مسابقة الأسبوع"
+            hint="أول محاولة بس بتتحسب: الأعلى درجة ثم الأسرع. لما يقفل (أو بعد أسبوع من فتحه) الثلاثة الأوائل ياخدوا 30 و20 و10 نقطة، والمجموعة توصلها إشعار بالأبطال."
+          />
           <Button variant="primary" icon="check" onClick={() => setSettingsOpen(false)} block>
             تم
           </Button>
@@ -497,6 +507,7 @@ function toSettings(q: Quiz): Settings {
     shuffle: q.shuffle,
     show: q.show_answers,
     published: q.published,
+    weekly: !!q.weekly,
   };
 }
 
@@ -669,6 +680,32 @@ function QuestionCard({
 
 type AttemptRow = Attempt & { students: { code: string; full_name: string; group_name: string } | null };
 
+type ContestLine = { rank: number; name: string; score: number; max: number; seconds: number };
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+
+/** The weekly contest's table (first attempts: best score, then fastest). */
+function ContestTable({ id, awarded }: { id: string; awarded: boolean }) {
+  const { data } = useAsync(() => rpc<ContestLine[]>("staff_contest", { p_quiz: id }), [id]);
+  if (!data?.length) return null;
+  return (
+    <Section title={awarded ? "🏆 ترتيب المسابقة (اتوزعت النقاط)" : "🏆 ترتيب المسابقة"}>
+      <List>
+        {data.slice(0, 10).map((l) => (
+          <Row key={l.rank} chevron={false}>
+            <div className="flex items-center gap-3">
+              <span className="w-7 text-center font-mono font-bold text-gold">{l.rank <= 3 ? ["🥇", "🥈", "🥉"][l.rank - 1] : l.rank}</span>
+              <span className="min-w-0 flex-1 truncate text-chalk">{l.name}</span>
+              <span className="font-mono text-sm text-mist" dir="ltr">
+                {l.score}/{l.max} · {mmss(l.seconds)}
+              </span>
+            </div>
+          </Row>
+        ))}
+      </List>
+    </Section>
+  );
+}
+
 export function QuizResults({ id }: { id: string }) {
   const students = useStudents();
   const { data, error, loading, reload } = useAsync(async () => {
@@ -772,6 +809,7 @@ export function QuizResults({ id }: { id: string }) {
         <Stat label="أعلى" value={fmt.pct(summary.max)} tone="ok" />
         <Stat label="أقل" value={fmt.pct(summary.min)} tone="warn" />
       </div>
+      {data.quiz.weekly && <ContestTable id={id} awarded={!!(data.quiz as Quiz & { weekly_awarded_at?: string | null }).weekly_awarded_at} />}
 
       <Section title="درجات الطلاب">
         {!data.attempts.length ? (

@@ -2,7 +2,7 @@
 /** Points and badges: the student's own screen and the staff leaderboard (computed in the database, see 20261007170000_points_badges.sql). */
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
-import { errorText, must, rpc, sb, studentRpc, studentRpcOffline } from "./core";
+import { errorText, fmt, must, rpc, sb, studentRpc, studentRpcOffline } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
 import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Sheet, Stat, Toggle, TopBar, toast, useAsync, type IconKey } from "./ui";
 
@@ -16,6 +16,7 @@ export const BADGES: Record<string, { ar: string; hint: string; icon: IconKey; c
   certified: { ar: "معاه شهادة", hint: "خدت شهادة", icon: "award", color: "#34d399" },
   social: { ar: "اجتماعي", hint: "حضرت 3 فعاليات", icon: "users", color: "#f472b6" },
   team_star: { ar: "نجم الفريق", hint: "50 نقطة تقدير من الفريق", icon: "star", color: "#fde047" },
+  on_fire: { ar: "نار 🔥", hint: "حضرت 5 سيشنات ورا بعض", icon: "calendar", color: "#ff7a45" },
 };
 
 export const POINT_RULES = "الحضور 10 (متأخر 6) · كل كويز لحد 20 · كل تاسك لحد 20 · الشهادة 30 · الفعالية 15 · ونقاط تقدير من الفريق";
@@ -34,7 +35,16 @@ function Badge_({ k, dim }: { k: string; dim?: boolean }) {
   );
 }
 
-type Mine = { points: number; rank?: number; of?: number; group?: string; breakdown?: Record<string, number>; badges: string[]; top: { name: string; points: number; me: boolean }[] };
+type Mine = {
+  points: number;
+  rank?: number;
+  of?: number;
+  group?: string;
+  breakdown?: Record<string, number>;
+  badges: string[];
+  streak?: { current: number; best: number };
+  top: { name: string; points: number; me: boolean }[];
+};
 
 export function useMyPoints() {
   return useAsync(() => studentRpcOffline<Mine>("student_points"), []);
@@ -53,7 +63,10 @@ export function PointsCard() {
         <p className="font-semibold text-chalk">
           <span className="font-mono text-2xl">{data.points}</span> نقطة
         </p>
-        <p className="mt-0.5 text-xs text-fog">{data.rank ? `ترتيبك ${data.rank} من ${data.of} في مجموعتك · ${data.badges.length} وسام` : "احضر وحل كويزات عشان تجمع نقاط"}</p>
+        <p className="mt-0.5 text-xs text-fog">
+          {data.rank ? `ترتيبك ${data.rank} من ${data.of} في مجموعتك · ${data.badges.length} وسام` : "احضر وحل كويزات عشان تجمع نقاط"}
+          {(data.streak?.current ?? 0) >= 2 && ` · 🔥 ${data.streak!.current} سيشن ورا بعض`}
+        </p>
       </div>
       <Icon name="chevron" size={18} className="rotate-180 text-fog" />
     </a>
@@ -85,6 +98,21 @@ export function MyPoints() {
         <Stat label="فعاليات" value={b.events ?? 0} />
       </div>
       <p className="mt-2 text-xs leading-relaxed text-fog">{POINT_RULES}</p>
+      {data.streak && (
+        <Card className="mt-3 flex items-center gap-4 border-[#ff7a45]/30">
+          <span className="text-4xl" aria-hidden>
+            🔥
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-chalk">
+              {data.streak.current ? `${data.streak.current} سيشن ورا بعض` : "ابدأ سلسلة حضور من السيشن الجاية"}
+            </p>
+            <p className="text-xs text-fog">
+              أطول سلسلة ليك: {data.streak.best} · {data.streak.best >= 5 ? "خدت وسام «نار» 🔥" : `فاضلك ${5 - data.streak.best} عشان وسام «نار»`}
+            </p>
+          </div>
+        </Card>
+      )}
 
       <Section title={`الأوسمة (${data.badges.length} من ${Object.keys(BADGES).length})`}>
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -309,3 +337,53 @@ function HallOfFameCard({ lines }: { lines: Line[] }) {
   );
 }
 
+
+type Weekly = {
+  quiz: { id: string; title: string; opensAt: string | null; endsAt: string; state: "upcoming" | "open" | "done" };
+  top: { rank: number; name: string; score: number; max: number; seconds: number; me: boolean }[];
+  me: { rank: number; score: number; max: number } | null;
+  players: number;
+} | null;
+
+/** Student home: this week's quiz contest for their group (top five, their place). */
+export function WeeklyContestCard() {
+  const { data } = useAsync(() => studentRpcOffline<Weekly>("student_weekly"), []);
+  if (!data) return null;
+  const { quiz, top, me, players } = data;
+  return (
+    <Card className="mt-3 border-gold/40 bg-gradient-to-l from-gold/[0.12] to-transparent">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl" aria-hidden>
+          🏆
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-gold">مسابقة الأسبوع</p>
+          <p className="truncate font-bold text-chalk">{quiz.title}</p>
+          <p className="text-xs text-fog">
+            {quiz.state === "upcoming" && quiz.opensAt ? `تبدأ ${fmt.dateTime(quiz.opensAt)}` : quiz.state === "open" ? `لحد ${fmt.dateTime(quiz.endsAt)} · ${players} مشترك` : `خلصت · ${players} مشترك`}
+          </p>
+        </div>
+        {quiz.state === "open" && !me && (
+          <a href={`#/me/quiz/${quiz.id}`} className="rounded-xl bg-gold px-3 py-2 text-sm font-bold text-abyss">
+            ادخل
+          </a>
+        )}
+      </div>
+      {!!top.length && (
+        <ol className="mt-3 grid gap-1">
+          {top.slice(0, 3).map((t) => (
+            <li key={t.rank} className={cn("flex items-center gap-2 rounded-lg px-2 py-1 text-sm", t.me && "bg-white/[0.06]")}>
+              <span aria-hidden>{["🥇", "🥈", "🥉"][t.rank - 1]}</span>
+              <span className="min-w-0 flex-1 truncate text-chalk">{t.name}</span>
+              <span className="font-mono text-xs text-fog" dir="ltr">
+                {t.score}/{t.max}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {me && me.rank > 3 && <p className="mt-2 text-xs text-mist">ترتيبك: {me.rank} من {players}</p>}
+      <p className="mt-2 text-[11px] text-fog">أول محاولة بس بتتحسب: الأعلى درجة ثم الأسرع. الأوائل: 30 و20 و10 نقطة.</p>
+    </Card>
+  );
+}

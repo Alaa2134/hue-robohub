@@ -161,6 +161,8 @@ export type Quiz = {
   max_attempts: number;
   shuffle: boolean;
   show_answers: boolean;
+  /** The weekly contest (first attempt counts; top three get bonus points). */
+  weekly?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

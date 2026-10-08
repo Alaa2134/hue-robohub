@@ -276,7 +276,17 @@ test("a student sees their points, badges, group ranking and certificates", asyn
       points: 75, rank: 1, of: 2, group: "G1",
       breakdown: { attended: 1, quizzes: 1, perfect: 1, certs: 1, events: 1, bonus: 0 },
       badges: ["first_step", "full_marks", "certified"],
+      streak: { current: 3, best: 4 },
       top: [{ name: "Mona A.", points: 75, me: true }, { name: "Omar A.", points: 66, me: false }],
+    },
+    student_weekly: {
+      quiz: { id: "wq1", title: "Sensors sprint", opensAt: at(60 * 24), endsAt: new Date(Date.now() + 864e5 * 3).toISOString(), state: "open" },
+      top: [
+        { rank: 1, name: "Omar A.", score: 10, max: 10, seconds: 95, me: false },
+        { rank: 2, name: "Sara K.", score: 9, max: 10, seconds: 120, me: false },
+      ],
+      me: null,
+      players: 2,
     },
     student_certificates: [{ id: "c1", code: "BXC-1A2B3C4D", name: "Mona Adel", kind: "completion", title: "Robotics Bootcamp 2026", title_ar: "بوتكامب الروبوتات", details: null, details_ar: null, hours: 24, issued_on: "2026-10-07" }],
   };
@@ -285,10 +295,16 @@ test("a student sees their points, badges, group ranking and certificates", asyn
     return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
   });
   await page.goto("/app/#/me");
-  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام")).toBeVisible();
+  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام · 🔥 3 سيشن ورا بعض")).toBeVisible();
+  // This week's contest: the top players and a way in for someone who hasn't played.
+  await expect(page.getByText("Sensors sprint")).toBeVisible();
+  await expect(page.getByText("Omar A.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "ادخل" })).toHaveAttribute("href", "#/me/quiz/wq1");
   await expect(page.getByText("بوتكامب الروبوتات")).toBeVisible();
   await page.getByText("ترتيبك 1 من 2").click();
-  await expect(page.getByText("الأوسمة (3 من 9)")).toBeVisible();
+  await expect(page.getByText("الأوسمة (3 من 10)")).toBeVisible();
+  await expect(page.getByText("3 سيشن ورا بعض")).toBeVisible();
+  await expect(page.getByText("أطول سلسلة ليك: 4 · فاضلك 1 عشان وسام «نار»")).toBeVisible();
   await expect(page.getByText("Mona A. (انت)")).toBeVisible();
   expect(errors).toEqual([]);
 });

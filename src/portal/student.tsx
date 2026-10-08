@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentStore, type AttStatus, type StudentSession } from "./core";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
-import { MyPoints, PointsCard } from "./points";
+import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
 import { PushCard } from "./push";
 import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
@@ -182,6 +182,7 @@ function Home({ data, reload, loading }: ScreenProps) {
         </div>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
+      <WeeklyContestCard />
       <PointsCard />
       <PushCard kind="student" />
 
