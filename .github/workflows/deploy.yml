@@ -48,6 +48,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Chromium first: the build draws the share images with it, then the smoke tests use it.
+      - run: npx playwright install --with-deps chromium
       - name: Build
         run: node scripts/build-static.mjs
         env:
@@ -57,9 +59,7 @@ jobs:
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       - name: Smoke tests
-        run: |
-          npx playwright install --with-deps chromium
-          npx playwright test
+        run: npx playwright test
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:

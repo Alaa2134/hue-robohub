@@ -31,6 +31,10 @@ const T = {
     hours: "Training hours",
     code: "Code",
     another: "Check another code",
+    addLinkedIn: "Add to LinkedIn profile",
+    shareLinkedIn: "Share on LinkedIn",
+    copyLink: "Copy verification link",
+    copied: "Link copied ✓",
   },
   ar: {
     label: "كود الشهادة",
@@ -50,6 +54,10 @@ const T = {
     hours: "ساعات التدريب",
     code: "الكود",
     another: "تحقّق من كود تاني",
+    addLinkedIn: "ضيفها لبروفايلك على LinkedIn",
+    shareLinkedIn: "شاركها على LinkedIn",
+    copyLink: "انسخ رابط التحقق",
+    copied: "اتنسخ الرابط ✓",
   },
 };
 
@@ -124,6 +132,7 @@ export function CertificateVerify({ locale }: { locale: string }) {
           ))}
           {details && <p className="text-sm text-mist sm:col-span-2">{details}</p>}
         </dl>
+        {!res.revoked && <LinkedInActions cert={res} locale={l} />}
         <button
           type="button"
           className="btn self-start"
@@ -164,3 +173,48 @@ export function CertificateVerify({ locale }: { locale: string }) {
     </form>
   );
 }
+
+/**
+ * A valid certificate's owner adds it to their LinkedIn profile ("Licenses & certifications",
+ * pre-filled with the name, issuer, date, code and this verification link) or shares it.
+ */
+function LinkedInActions({ cert, locale }: { cert: Cert; locale: "ar" | "en" }) {
+  const t = T[locale];
+  const [copied, setCopied] = useState(false);
+  const verifyUrl = `https://buildxhue.com/verify/?c=${encodeURIComponent(cert.code)}`;
+  const issued = new Date(cert.issued_on);
+  const add = new URLSearchParams({
+    startTask: "CERTIFICATION_NAME",
+    name: `${KIND.en[cert.kind] ?? "Certificate"} — ${cert.title}`.slice(0, 200),
+    organizationName: "BuildX HUE",
+    issueYear: String(issued.getFullYear()),
+    issueMonth: String(issued.getMonth() + 1),
+    certUrl: verifyUrl,
+    certId: cert.code,
+  });
+  return (
+    <div className="flex flex-wrap gap-2">
+      <a href={`https://www.linkedin.com/profile/add?${add}`} target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+        <span aria-hidden className="btn-sheen" />
+        <span>{t.addLinkedIn}</span>
+        <Icon name="arrowUpRight" size={15} />
+      </a>
+      <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(verifyUrl)}`} target="_blank" rel="noopener noreferrer" className="btn">
+        <span>{t.shareLinkedIn}</span>
+      </a>
+      <button
+        type="button"
+        className="btn"
+        onClick={() => {
+          void navigator.clipboard?.writeText(verifyUrl).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+          });
+        }}
+      >
+        {copied ? t.copied : t.copyLink}
+      </button>
+    </div>
+  );
+}
+

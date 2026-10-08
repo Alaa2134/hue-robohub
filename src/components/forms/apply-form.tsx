@@ -6,6 +6,7 @@ import { DAYS, FACULTIES, HEARD_FROM, HOURS, LEVELS, TEAM_ROLES, YEARS, label } 
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { WaitlistForm } from "./site-forms";
 
 export type ApplyTrack = { slug: string; name: string; tagline: string };
 
@@ -353,6 +354,9 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
         </span>
         <p className="t-headline text-3xl text-chalk">{t.err.closed}</p>
         <p className="max-w-xl text-lg leading-relaxed text-mist">{closed || (locale === "ar" ? "تابعنا عشان تعرف أول ما التقديم يفتح تاني." : "Follow us to hear the moment applications open again.")}</p>
+        <div className="mt-2 w-full border-t border-[var(--line)] pt-5">
+          <WaitlistForm locale={locale} />
+        </div>
       </div>
     );
   }

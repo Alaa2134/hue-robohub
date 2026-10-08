@@ -252,6 +252,8 @@ export function EventTicket({ locale }: { locale: string }) {
   const title = l === "ar" && tk.event.title_ar ? tk.event.title_ar : tk.event.title;
   const where = l === "ar" ? tk.event.location_ar || tk.event.location : tk.event.location || tk.event.location_ar;
   const when = tk.event.starts_at ? new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(tk.event.starts_at)) : "";
+  const startMs = tk.event.starts_at ? new Date(tk.event.starts_at).getTime() : 0;
+  const started = !!startMs && startMs <= Date.now() && Date.now() - startMs < 30 * 86_400_000;
   const tone = tk.status === "cancelled" ? "border-danger/40 bg-danger/10 text-danger" : tk.status === "waitlist" ? "border-warn/40 bg-warn/10 text-warn" : "border-ok/40 bg-ok/10 text-ok";
 
   const cancel = async (e: React.FormEvent) => {
@@ -297,7 +299,8 @@ export function EventTicket({ locale }: { locale: string }) {
           <span>{t.event}</span>
         </a>
       )}
-      {tk.status !== "cancelled" && !tk.checked_in && (
+      {started && tk.status !== "cancelled" && <EventFeedback locale={l} ticket={tk.ticket} />}
+      {tk.status !== "cancelled" && !tk.checked_in && !started && (
         <div className="rounded-[18px] border border-[var(--line)] p-4">
           {!cancelOpen ? (
             <button type="button" className="text-sm font-semibold text-mist underline-offset-4 hover:underline" onClick={() => setCancelOpen(true)}>
@@ -322,3 +325,89 @@ export function EventTicket({ locale }: { locale: string }) {
     </div>
   );
 }
+
+const FB = {
+  ar: { title: "إيه رأيك في الإيفنت؟", stars: ["وحش", "مش أوي", "كويس", "حلو جداً", "تحفة"], comment: "قول رأيك في سطرين (اختياري)", publish: "ممكن ننشر رأيك على الموقع باسمك الأول", send: "ابعت التقييم", thanks: "شكراً على رأيك 🙏 بيفرق معانا جداً.", edit: "عدّل تقييمك", error: "مقدرناش نبعت. جرّب تاني." },
+  en: { title: "How was the event?", stars: ["Bad", "Meh", "Good", "Great", "Amazing"], comment: "A line or two (optional)", publish: "You may publish my comment on the website with my first name", send: "Send rating", thanks: "Thank you 🙏 It really helps us.", edit: "Edit your rating", error: "Couldn't send. Try again." },
+};
+
+/** After the event starts: rate it (1–5), comment, and allow publishing it as a testimonial. */
+function EventFeedback({ locale, ticket }: { locale: "ar" | "en"; ticket: string }) {
+  const t = FB[locale];
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [publish, setPublish] = useState(false);
+  const [state, setState] = useState<"" | "sending" | "done" | "error">("");
+  useEffect(() => {
+    rpc<{ rating: number; comment: string | null; publish_ok: boolean } | null>("event_feedback_of", { p_ticket: ticket })
+      .then((f) => {
+        if (!f) return;
+        setRating(f.rating);
+        setComment(f.comment ?? "");
+        setPublish(f.publish_ok);
+        setState("done");
+      })
+      .catch(() => undefined);
+  }, [ticket]);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rating) return;
+    setState("sending");
+    try {
+      const r = await rpc<{ ok: boolean }>("submit_event_feedback", { p_ticket: ticket, p_rating: rating, p_comment: comment, p_publish: publish });
+      setState(r.ok ? "done" : "error");
+    } catch {
+      setState("error");
+    }
+  };
+  if (state === "done")
+    return (
+      <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-ok/30 bg-ok/10 p-4 text-chalk">
+        <span>
+          {"★".repeat(rating)}
+          <span className="text-fog">{"★".repeat(5 - rating)}</span> · {t.thanks}
+        </span>
+        <button type="button" className="text-sm text-mist underline-offset-4 hover:underline" onClick={() => setState("")}>
+          {t.edit}
+        </button>
+      </div>
+    );
+  return (
+    <form onSubmit={send} className="grid gap-3 rounded-[18px] border border-[var(--line-2)] bg-panel/60 p-5" aria-label={t.title}>
+      <p className="font-semibold text-chalk">{t.title}</p>
+      <div role="radiogroup" aria-label={t.title} className="flex gap-1.5" dir="ltr">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={rating === n}
+            aria-label={`${n} — ${t.stars[n - 1]}`}
+            title={t.stars[n - 1]}
+            onClick={() => setRating(n)}
+            className={cn("flex size-11 items-center justify-center rounded-xl border text-2xl transition", n <= rating ? "border-[#f5c451]/60 bg-[#f5c451]/15 text-[#f5c451]" : "border-[var(--line-2)] text-steel hover:text-mist")}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      {rating > 0 && <p className="text-sm text-mist">{t.stars[rating - 1]}</p>}
+      <textarea className={cn(input, "h-auto min-h-24 py-3")} maxLength={1000} rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder={t.comment} aria-label={t.comment} />
+      {comment.trim() && (
+        <label className="flex items-start gap-2.5 text-sm text-mist">
+          <input type="checkbox" className="mt-0.5 size-4 accent-[#2b6dff]" checked={publish} onChange={(e) => setPublish(e.target.checked)} />
+          {t.publish}
+        </label>
+      )}
+      {state === "error" && (
+        <p role="alert" className="text-sm text-danger">
+          {t.error}
+        </p>
+      )}
+      <button type="submit" className="btn btn-primary justify-self-start" disabled={!rating || state === "sending"}>
+        <span>{t.send}</span>
+      </button>
+    </form>
+  );
+}
+

@@ -182,6 +182,9 @@ if (/^[A-Z0-9]{10}$/.test(team)) {
 // 10. What Baqloz's AI knows (the bakloz-chat Edge Function reads it from the published site).
 execSync(`npx tsx scripts/build-guide-knowledge.ts "${path.join(out, "guide-knowledge.txt")}"`, { cwd: root, stdio: "inherit" });
 
+// 11. A share image per page (needs Playwright's Chromium; skipped without it).
+execSync(`node scripts/build-share-images.mjs "${out}" "${site}"`, { cwd: root, stdio: "inherit" });
+
 writeFileSync(path.join(out, ".nojekyll"), "");
 // What the scheduled deploy compares against to decide whether published content changed.
 writeFileSync(path.join(out, "content-version.txt"), `${version}\n`);

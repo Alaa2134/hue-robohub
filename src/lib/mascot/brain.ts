@@ -10,10 +10,12 @@
  */
 import { KB, type KTeam, type KTrack } from "./knowledge";
 import { matchIntent, normalize, type GuideAction } from "./guide";
+import { eventLine, type Live } from "./live";
 
 export type Topic = { kind: "track"; slug: string } | { kind: "team"; slug: string } | { kind: "bootcamp" } | { kind: "events" } | { kind: "join" } | { kind: "about" };
 export type Memory = { topic?: Topic; name?: string; turns: number };
-export type BrainReply = { text: string; href?: string; section?: string; label?: string; action?: GuideAction; followups: string[]; topic?: Topic };
+/** `unsure`: he only guessed (a page to look at, or "I don't know"); the AI may answer instead. */
+export type BrainReply = { text: string; href?: string; section?: string; label?: string; action?: GuideAction; followups: string[]; topic?: Topic; unsure?: boolean };
 
 const pick = <T,>(xs: readonly T[]) => xs[Math.floor(Math.random() * xs.length)];
 const has = (q: string, keys: string[]) => keys.some((k) => {
@@ -92,7 +94,7 @@ function teamAnswer(t: KTeam): Pick<BrainReply, "text" | "followups"> {
 const LIST_TRACKS = () => KB.tracks.map((t) => t.name).join("، ");
 
 /** Small talk first (with a name he remembers), then knowledge, then navigation, then honesty. */
-export function think(question: string, mem: Memory, path: string): BrainReply {
+export function think(question: string, mem: Memory, path: string, live?: Live | null): BrainReply {
   const q = ` ${normalize(question)} `;
   const name = mem.name ? ` يا ${mem.name}` : "";
 
@@ -136,6 +138,34 @@ export function think(question: string, mem: Memory, path: string): BrainReply {
     if (t) return { ...teamAnswer(t), href: `/competitions/${t.slug}`, label: "شوف الفريق", topic: mem.topic };
   }
 
+  // ── Live: what's on right now ──
+  if (live) {
+    const ev = live.events;
+    if (has(q, ["seat", "seats", "places", "اماكن", "مكان", "فاضل", "كامل العدد"]) && ev.length) {
+      const e = ev.find((x) => x.rsvp_open) ?? ev[0];
+      return { text: `${eventLine(e)}. سجّل بسرعة من صفحته 👇`, href: e.slug ? `/events/${e.slug}` : "/events", label: "سجّل مكانك", topic: { kind: "events" }, followups: ["فيه إيفنتات تانية؟", "أحجز إزاي؟"] };
+    }
+    if (has(q, ["event", "events", "workshop", "hackathon", "ايفنت", "ايفنتات", "فعاليه", "فعاليات", "ورشه", "ورش", "هاكاثون", "الجاي"]) && ev.length) {
+      const [first, ...rest] = ev;
+      return {
+        text: `أقرب إيفنت: ${eventLine(first)} 📅${rest.length ? ` وبعده: ${rest.slice(0, 2).map((e) => `«${e.title}»`).join(" و")}.` : ""}`,
+        href: first.slug ? `/events/${first.slug}` : "/events",
+        label: first.rsvp_open ? "سجّل مكانك" : "التفاصيل",
+        topic: { kind: "events" },
+        followups: ["فاضل كام مكان؟", "أحجز إزاي؟", "إيه الجديد؟"],
+      };
+    }
+    if (has(q, ["news", "new", "latest", "اخبار", "الاخبار", "الجديد", "جديد", "اخر حاجه"]) && live.news.length)
+      return { text: `آخر الأخبار: ${live.news.map((n) => `«${n.title}»`).join("، ")} 📰`, href: live.news[0].slug ? `/news/${live.news[0].slug}` : "/news", label: "اقرا الخبر", followups: ["الإيفنت الجاي إمتى؟", "إزاي أنضم؟"] };
+    if (has(q, ["form", "forms", "tryout", "volunteer", "فورم", "فورمات", "استماره", "اختبارات", "تجديد", "تطوع", "متطوع", "اقدم علي فريق", "ادخل فريق"])) {
+      if (live.forms.length)
+        return { text: `فيه ${live.forms.length === 1 ? "فورم مفتوح" : `${live.forms.length} فورمات مفتوحة`} دلوقتي: ${live.forms.map((f) => `«${f.title}»`).join("، ")}. املاه قبل ما يقفل 👇`, href: `/form/?f=${live.forms[0].slug}`, label: "املأ الفورم", followups: ["فيه إيفنتات؟", "إزاي أنضم؟"] };
+      return { text: "مفيش فورمات مفتوحة دلوقتي. أول ما يفتح فورم جديد (اختبارات فرق، تطوع…) هيظهر في صفحة الفورمات 👀", href: "/forms", label: "صفحة الفورمات", followups: ["إزاي أنضم؟", "الإيفنت الجاي إمتى؟"] };
+    }
+    if (has(q, ASPECT.join) && !live.applications_open)
+      return { text: `التقديم مقفول دلوقتي${name} 😕 بس سيب رقمك في صفحة الانضمام وأول ما يفتح هنبلّغك على طول.`, href: "/join", label: "بلّغني لما يفتح", topic: { kind: "join" }, followups: ["الإيفنت الجاي إمتى؟", "فيه فورمات مفتوحة؟"] };
+  }
+
   // ── The season: tracks list, teams, events, bootcamp, plan, goals ──
   if (has(q, ["tracks", "التراكات", "تراكات", "المسارات", "مسارات", "كام تراك"])) return { text: `عندنا ${KB.tracks.length} تراكات: ${LIST_TRACKS()}. قولّي بتحب إيه وأنا أرشحلك 😉`, href: "/tracks", section: "#tracks", label: "ورّيني التراكات", followups: ["أبدأ بأنهي تراك؟", "يعني إيه إمبيدد؟", "إيه الفرق بين الـ AI والسوفتوير؟"] };
   if (has(q, ["teams", "الفرق", "فرق المسابقات", "المسابقات", "competitions"])) return { text: `فرق المسابقات عندنا: ${KB.teams.map((t) => t.name).join("، ")}. كل فريق بيتمرن طول السنة 🏁`, href: "/competitions", section: "#compete", label: "فرق المسابقات", followups: ["يعني إيه سومو؟", "إيه هو اللاين فولور؟", "إزاي أدخل فريق مسابقات؟"] };
@@ -166,8 +196,9 @@ export function think(question: string, mem: Memory, path: string): BrainReply {
 
   // ── Navigation answers, then honesty ──
   const nav = matchIntent(question);
-  if (nav.href || nav.action) return { text: nav.text.ar, href: nav.href, section: nav.section, label: nav.label?.ar, action: nav.action, followups: [] };
+  if (nav.href || nav.action) return { text: nav.text.ar, href: nav.href, section: nav.section, label: nav.label?.ar, action: nav.action, followups: [], unsure: true };
   return {
+    unsure: true,
     text: pick([`دي مش عارفها بصراحة${name} 😅 بس ممكن أساعدك في التراكات أو المسابقات أو الإيفنتات أو الانضمام.`, "سؤال حلو بس معنديش إجابته 🙈 جرّب البحث أو اسأل الفريق من صفحة التواصل."]),
     action: "search",
     label: "افتح البحث",

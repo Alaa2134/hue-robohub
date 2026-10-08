@@ -70,7 +70,7 @@ export function knowledgeText(): string {
   for (const f of KB.faq) lines.push(`- س: ${f.q}\n  ج: ${f.a}`);
   lines.push(
     "\n## الصفحات",
-    "/ الرئيسية، /about عن BuildX، /tracks التراكات، /competitions المسابقات، /bootcamp البوتكامب، /events الإيفنتات، /projects المشاريع، /team الفريق، /achievements الإنجازات، /news الأخبار، /gallery الصور، /films الفيديوهات، /resources المصادر، /sponsors الشركاء، /faq الأسئلة الشائعة، /contact التواصل، /join التقديم، /join/status متابعة الطلب، /verify التحقق من شهادة، /privacy الخصوصية، /brand الهوية. التطبيق: /app (للطلبة والفريق: حضور وتاسكات ونقط وشهادات).",
+    "/ الرئيسية، /about عن BuildX، /tracks التراكات، /competitions المسابقات، /bootcamp البوتكامب، /events الإيفنتات، /projects المشاريع، /team الفريق، /achievements الإنجازات، /news الأخبار، /gallery الصور، /films الفيديوهات، /resources المصادر، /sponsors الشركاء، /faq الأسئلة الشائعة، /contact التواصل، /join التقديم، /join/status متابعة الطلب، /verify التحقق من شهادة، /forms الفورمات المفتوحة (اختبارات الفرق والتطوع والتجديد)، /privacy الخصوصية، /brand الهوية. التطبيق: /app (للطلبة والفريق: حضور وتاسكات ونقط وشهادات).",
   );
   return lines.join("\n");
 }

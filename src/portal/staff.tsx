@@ -24,6 +24,8 @@ import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
+import { InboxScreen, newMessagesCount } from "./staff-inbox";
+import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { Badge, Button, Card, Icon, IconButton, List, Row, Section, Stat, go, useAsync, type IconKey } from "./ui";
 
 const TABS: Tab[] = [
@@ -118,6 +120,12 @@ export function StaffApp({ me, path, query, onProfile }: { me: StaffRow; path: s
     case "deletions":
       screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
       break;
+    case "inbox":
+      screen = <InboxScreen me={me} />;
+      break;
+    case "forms":
+      screen = id ? sub === "responses" ? <FormResponses key={id} id={id} /> : <FormEditor key={id} id={id} me={me} /> : <FormsScreen />;
+      break;
     case "more":
       screen = <MoreScreen me={me} />;
       break;
@@ -143,15 +151,16 @@ function StaffHome({ me }: { me: StaffRow }) {
   const [creating, setCreating] = useState(false);
   const { data } = useAsync(async () => {
     const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const [open, week, materials, quizzes, applications] = await Promise.all([
+    const [open, week, materials, quizzes, applications, messages] = await Promise.all([
       sb().from("attendance_sessions").select("*, attendance(count)").is("closed_at", null).order("starts_at", { ascending: false }).limit(5).then(must),
       sb().from("attendance_sessions").select("id", { count: "exact", head: true }).gte("starts_at", weekAgo),
       sb().from("materials").select("id", { count: "exact", head: true }),
       sb().from("quizzes").select("id", { count: "exact", head: true }).eq("published", true),
       newApplicationsCount().catch(() => 0),
+      newMessagesCount().catch(() => 0),
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
-    return { open: open as OpenSession[], week: week.count ?? 0, materials: materials.count ?? 0, quizzes: quizzes.count ?? 0, applications, deletions };
+    return { open: open as OpenSession[], week: week.count ?? 0, materials: materials.count ?? 0, quizzes: quizzes.count ?? 0, applications, messages, deletions };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
   const noPin = active.filter((s) => !s.hasPin).length;
@@ -198,6 +207,16 @@ function StaffHome({ me }: { me: StaffRow }) {
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/applications")}>
             راجِع
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.messages && (
+        <Card className="mt-4 flex items-center gap-3 border-volt/30 bg-volt/[0.06]">
+          <Icon name="bell" size={22} className="shrink-0 text-cyan" />
+          <p className="flex-1 text-sm text-mist">{data.messages === 1 ? "فيه رسالة جديدة من الموقع." : `فيه ${data.messages} رسايل جديدة من الموقع.`}</p>
+          <Button size="sm" variant="primary" onClick={() => go("/staff/inbox")}>
+            افتح
           </Button>
         </Card>
       )}
@@ -256,7 +275,7 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />
           <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />
           <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />
-          <Shortcut icon="chart" label="زيارات الموقع" to="/staff/stats" />
+          <Shortcut icon="list" label="الفورمات" to="/staff/forms" />
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
         </div>
       </Section>
@@ -287,6 +306,8 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
+    { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
+    { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Icon } from "@/components/brand/icons";
 import { SOCIAL_LABEL, SocialIcon, safeHref } from "@/components/brand/social-icons";
-import { ClosedNotice, ContactForm } from "@/components/forms/public-forms";
+import { ContactForm } from "@/components/forms/public-forms";
+import { MessageForm } from "@/components/forms/site-forms";
 import { STATIC_SITE } from "@/lib/deploy";
 import { Band } from "@/components/pages/section";
 import { PageHero } from "@/components/site/page-hero";
@@ -31,12 +32,7 @@ export default async function Contact({ params }: Params) {
         <div className="grid gap-12 lg:grid-cols-12">
           <div className="lg:col-span-7">
             {STATIC_SITE ? (
-              <ClosedNotice
-                title={locale === "ar" ? "نموذج الرسائل يفتح قريبًا" : "The message form opens soon"}
-                body={locale === "ar" ? "لحد ما نربط النموذج، تواصل معنا عبر القنوات الموجودة في الصفحة." : "Until the form is connected, reach us through the channels on this page."}
-                href={href("/about")}
-                cta={t.nav.about}
-              />
+              <MessageForm locale={locale} />
             ) : (
               <ContactForm
                 labels={{
