@@ -7,7 +7,28 @@ import { useMemo, useState } from "react";
 import { safeHref } from "@/components/brand/social-icons";
 import { mailtoLink, whatsappLink } from "@/lib/contact";
 import { downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Sheet, Textarea, TopBar, confirmDialog, copyText, toast, useAsync } from "./ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Empty,
+  ErrorBox,
+  Field,
+  Icon,
+  Input,
+  List,
+  Loading,
+  Row,
+  SearchBox,
+  Sheet,
+  Textarea,
+  TopBar,
+  confirmDialog,
+  copyText,
+  toast,
+  useAsync,
+} from "./ui";
 
 type Status = "new" | "read" | "replied" | "archived";
 type Message = {
@@ -33,17 +54,42 @@ const STATUS: Record<Status, { ar: string; tone: "info" | "volt" | "ok" | "muted
   replied: { ar: "اترد عليها", tone: "ok" },
   archived: { ar: "أرشيف", tone: "muted" },
 };
-const TOPIC: Record<string, string> = { general: "عام", partnership: "شراكة / رعاية", media: "إعلام", workshop: "طلب ورشة", other: "أخرى", sponsor: "طلب رعاية" };
-const TIER: Record<string, string> = { strategic: "شريك استراتيجي", gold: "راعي ذهبي", silver: "راعي فضي", technical: "شريك تقني", unsure: "مش متأكدين" };
+const TOPIC: Record<string, string> = {
+  general: "عام",
+  partnership: "شراكة / رعاية",
+  media: "إعلام",
+  workshop: "طلب ورشة",
+  other: "أخرى",
+  sponsor: "طلب رعاية",
+};
+const TIER: Record<string, string> = {
+  strategic: "شريك استراتيجي",
+  gold: "راعي ذهبي",
+  silver: "راعي فضي",
+  technical: "شريك تقني",
+  unsure: "مش متأكدين",
+};
 
 /** Unread messages (home dashboard). */
 export async function newMessagesCount(): Promise<number> {
-  const r = await sb().from("inbox_messages").select("id", { count: "exact", head: true }).eq("status", "new");
+  const r = await sb()
+    .from("inbox_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "new");
   return r.count ?? 0;
 }
 
 export function InboxScreen({ me }: { me: StaffRow }) {
-  const { data, error, loading, reload, set } = useAsync(async () => (await sb().from("inbox_messages").select("*").order("created_at", { ascending: false }).limit(500).then(must)) as Message[], []);
+  const { data, error, loading, reload, set } = useAsync(
+    async () =>
+      (await sb()
+        .from("inbox_messages")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(500)
+        .then(must)) as Message[],
+    [],
+  );
   const [filter, setFilter] = useState<"open" | "sponsor" | "replied" | "archived">("open");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Message | null>(null);
@@ -51,15 +97,37 @@ export function InboxScreen({ me }: { me: StaffRow }) {
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     return (data ?? [])
-      .filter((m) => (filter === "open" ? m.status === "new" || m.status === "read" : filter === "sponsor" ? m.kind === "sponsor" && m.status !== "archived" : m.status === filter))
-      .filter((m) => !s || [m.name, m.email, m.phone, m.organization, m.message].some((x) => x?.toLowerCase().includes(s)));
+      .filter((m) =>
+        filter === "open"
+          ? m.status === "new" || m.status === "read"
+          : filter === "sponsor"
+            ? m.kind === "sponsor" && m.status !== "archived"
+            : m.status === filter,
+      )
+      .filter(
+        (m) =>
+          !s ||
+          [m.name, m.email, m.phone, m.organization, m.message].some((x) => x?.toLowerCase().includes(s)),
+      );
   }, [data, filter, q]);
 
-  const count = (f: typeof filter) => (data ?? []).filter((m) => (f === "open" ? m.status === "new" || m.status === "read" : f === "sponsor" ? m.kind === "sponsor" && m.status !== "archived" : m.status === f)).length;
+  const count = (f: typeof filter) =>
+    (data ?? []).filter((m) =>
+      f === "open"
+        ? m.status === "new" || m.status === "read"
+        : f === "sponsor"
+          ? m.kind === "sponsor" && m.status !== "archived"
+          : m.status === f,
+    ).length;
 
   const update = async (m: Message, patch: Partial<Message>) => {
     try {
-      const row = { ...patch, ...(patch.status === "replied" || patch.status === "archived" ? { handled_at: new Date().toISOString() } : {}) };
+      const row = {
+        ...patch,
+        ...(patch.status === "replied" || patch.status === "archived"
+          ? { handled_at: new Date().toISOString() }
+          : {}),
+      };
       await sb().from("inbox_messages").update(row).eq("id", m.id).then(must);
       const next = { ...m, ...row } as Message;
       set((data ?? []).map((x) => (x.id === m.id ? next : x)));
@@ -77,12 +145,32 @@ export function InboxScreen({ me }: { me: StaffRow }) {
   const exportCsv = () =>
     downloadCsv(`buildx-messages-${today()}.csv`, [
       ["التاريخ", "النوع", "الاسم", "الجهة", "الإيميل", "الموبايل", "الموضوع", "الباقة", "الرسالة", "الحالة"],
-      ...(data ?? []).map((m) => [fmt.dateTime(m.created_at), m.kind === "sponsor" ? "رعاية" : "تواصل", m.name, m.organization, m.email, m.phone, TOPIC[m.topic] ?? m.topic, m.extra?.tier ? TIER[m.extra.tier] : "", m.message, STATUS[m.status].ar]),
+      ...(data ?? []).map((m) => [
+        fmt.dateTime(m.created_at),
+        m.kind === "sponsor" ? "رعاية" : "تواصل",
+        m.name,
+        m.organization,
+        m.email,
+        m.phone,
+        TOPIC[m.topic] ?? m.topic,
+        m.extra?.tier ? TIER[m.extra.tier] : "",
+        m.message,
+        STATUS[m.status].ar,
+      ]),
     ]);
 
   return (
     <>
-      <TopBar title="رسائل الموقع" sub="«كلّمنا» وطلبات الرعاية" back="/staff/more" actions={<Button size="sm" icon="download" onClick={exportCsv} disabled={!data?.length}>Excel</Button>} />
+      <TopBar
+        title="رسائل الموقع"
+        sub="«كلّمنا» وطلبات الرعاية"
+        back="/staff/more"
+        actions={
+          <Button size="sm" icon="download" onClick={exportCsv} disabled={!data?.length}>
+            Excel
+          </Button>
+        }
+      />
       <div className="mt-3 flex flex-wrap gap-2">
         <Chip active={filter === "open"} onClick={() => setFilter("open")} count={count("open")}>
           محتاجة رد
@@ -105,13 +193,19 @@ export function InboxScreen({ me }: { me: StaffRow }) {
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !list.length ? (
-        <Empty icon="bell" title={filter === "open" ? "مفيش رسايل مستنية رد 🎉" : "مفيش حاجة هنا"} body="الرسايل اللي بتتبعت من صفحة «كلّمنا» وطلبات الرعاية من صفحة الشركاء بتظهر هنا." />
+        <Empty
+          icon="bell"
+          title={filter === "open" ? "مفيش رسايل مستنية رد 🎉" : "مفيش حاجة هنا"}
+          body="الرسايل اللي بتتبعت من صفحة «كلّمنا» وطلبات الرعاية من صفحة الشركاء بتظهر هنا."
+        />
       ) : (
         <List className="mt-4">
           {list.map((m) => (
             <Row key={m.id} onClick={() => view(m)}>
               <div className="flex items-start gap-3">
-                <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${m.status === "new" ? "bg-cyan" : "bg-transparent"}`} />
+                <span
+                  className={`mt-1.5 size-2.5 shrink-0 rounded-full ${m.status === "new" ? "bg-cyan" : "bg-transparent"}`}
+                />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-semibold text-chalk">{m.name}</span>
@@ -129,26 +223,59 @@ export function InboxScreen({ me }: { me: StaffRow }) {
           ))}
         </List>
       )}
-      {open && <MessageSheet m={open} me={me} onClose={() => setOpen(null)} onUpdate={(p) => update(open, p)} onDelete={async () => {
-        if (!(await confirmDialog({ title: "مسح الرسالة؟", body: "مش هتقدر ترجعها.", ok: "امسح", danger: true }))) return;
-        try {
-          await sb().from("inbox_messages").delete().eq("id", open.id).then(must);
-          set((data ?? []).filter((x) => x.id !== open.id));
-          setOpen(null);
-        } catch (e) {
-          toast.error(e);
-        }
-      }} />}
+      {open && (
+        <MessageSheet
+          m={open}
+          me={me}
+          onClose={() => setOpen(null)}
+          onUpdate={(p) => update(open, p)}
+          onDelete={async () => {
+            if (
+              !(await confirmDialog({
+                title: "مسح الرسالة؟",
+                body: "مش هتقدر ترجعها.",
+                ok: "امسح",
+                danger: true,
+              }))
+            )
+              return;
+            try {
+              await sb().from("inbox_messages").delete().eq("id", open.id).then(must);
+              set((data ?? []).filter((x) => x.id !== open.id));
+              setOpen(null);
+            } catch (e) {
+              toast.error(e);
+            }
+          }}
+        />
+      )}
     </>
   );
 }
 
-function MessageSheet({ m, me, onClose, onUpdate, onDelete }: { m: Message; me: StaffRow; onClose: () => void; onUpdate: (p: Partial<Message>) => Promise<void>; onDelete: () => void }) {
+function MessageSheet({
+  m,
+  me,
+  onClose,
+  onUpdate,
+  onDelete,
+}: {
+  m: Message;
+  me: StaffRow;
+  onClose: () => void;
+  onUpdate: (p: Partial<Message>) => Promise<void>;
+  onDelete: () => void;
+}) {
   const [note, setNote] = useState(m.note ?? "");
   const first = m.name.split(/\s+/)[0];
-  const greet = m.locale === "en" ? `Hi ${first}, this is the BuildX HUE team. Thanks for your message.` : `أهلاً ${first}، معاك فريق BuildX HUE. شكراً على رسالتك.`;
+  const greet =
+    m.locale === "en"
+      ? `Hi ${first}, this is the BuildX HUE team. Thanks for your message.`
+      : `أهلاً ${first}، معاك فريق BuildX HUE. شكراً على رسالتك.`;
   const wa = whatsappLink(m.phone, greet);
-  const mail = m.email ? mailtoLink(m.email, m.kind === "sponsor" ? "BuildX HUE — Sponsorship" : "BuildX HUE", `${greet}\n\n`) : null;
+  const mail = m.email
+    ? mailtoLink(m.email, m.kind === "sponsor" ? "BuildX HUE — Sponsorship" : "BuildX HUE", `${greet}\n\n`)
+    : null;
   return (
     <Sheet open onClose={onClose} title={m.kind === "sponsor" ? "طلب رعاية" : "رسالة من الموقع"}>
       <div className="grid gap-4">
@@ -156,40 +283,83 @@ function MessageSheet({ m, me, onClose, onUpdate, onDelete }: { m: Message; me: 
           <p className="text-lg font-bold text-chalk">{m.name}</p>
           {m.organization && <p className="text-sm text-mist">{m.organization}</p>}
           <p className="mt-1 text-xs text-fog">
-            {fmt.dateTime(m.created_at)} · {TOPIC[m.topic] ?? m.topic} · {m.locale === "en" ? "English" : "عربي"}
+            {fmt.dateTime(m.created_at)} · {TOPIC[m.topic] ?? m.topic} ·{" "}
+            {m.locale === "en" ? "English" : "عربي"}
           </p>
         </div>
         {m.kind === "sponsor" && (m.extra?.tier || m.extra?.interest || m.extra?.website) && (
           <Card className="grid gap-1 text-sm">
-            {m.extra.tier && <p><span className="text-fog">الباقة: </span><span className="text-chalk">{TIER[m.extra.tier] ?? m.extra.tier}</span></p>}
-            {m.extra.interest && <p><span className="text-fog">مهتمين بـ: </span><span className="text-chalk">{m.extra.interest}</span></p>}
+            {m.extra.tier && (
+              <p>
+                <span className="text-fog">الباقة: </span>
+                <span className="text-chalk">{TIER[m.extra.tier] ?? m.extra.tier}</span>
+              </p>
+            )}
+            {m.extra.interest && (
+              <p>
+                <span className="text-fog">مهتمين بـ: </span>
+                <span className="text-chalk">{m.extra.interest}</span>
+              </p>
+            )}
             {safeHref(m.extra.website) && (
-              <a href={safeHref(m.extra.website)!} target="_blank" rel="noopener noreferrer nofollow" className="text-cyan underline" dir="ltr">
+              <a
+                href={safeHref(m.extra.website)!}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="text-cyan underline"
+                dir="ltr"
+              >
                 {m.extra.website}
               </a>
             )}
           </Card>
         )}
-        <p className="whitespace-pre-line rounded-2xl bg-white/[0.04] p-4 leading-relaxed text-frost">{m.message}</p>
+        <p className="whitespace-pre-line rounded-2xl bg-white/[0.04] p-4 leading-relaxed text-frost">
+          {m.message}
+        </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1fa855] px-4 font-semibold text-white" onClick={() => m.status !== "replied" && void onUpdate({ status: "replied" })}>
+            <a
+              href={wa}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#1fa855] px-4 font-semibold text-white"
+              onClick={() => m.status !== "replied" && void onUpdate({ status: "replied" })}
+            >
               رد على واتساب
             </a>
           )}
           {mail && (
-            <a href={mail} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk" onClick={() => m.status !== "replied" && void onUpdate({ status: "replied" })}>
+            <a
+              href={mail}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk"
+              onClick={() => m.status !== "replied" && void onUpdate({ status: "replied" })}
+            >
               <Icon name="mail" size={18} />
               رد بالإيميل
             </a>
           )}
         </div>
         <div className="flex flex-wrap gap-2 text-sm">
-          {m.email && <Button size="sm" icon="copy" onClick={() => copyText(m.email!)}>{m.email}</Button>}
-          {m.phone && <Button size="sm" icon="copy" onClick={() => copyText(m.phone!)}><span dir="ltr">{m.phone}</span></Button>}
+          {m.email && (
+            <Button size="sm" icon="copy" onClick={() => copyText(m.email!)}>
+              {m.email}
+            </Button>
+          )}
+          {m.phone && (
+            <Button size="sm" icon="copy" onClick={() => copyText(m.phone!)}>
+              <span dir="ltr">{m.phone}</span>
+            </Button>
+          )}
         </div>
         <Field label="ملاحظة داخلية" hint="محدش بيشوفها غير الفريق.">
-          <Textarea rows={3} maxLength={2000} value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== (m.note ?? "") && void onUpdate({ note })} />
+          <Textarea
+            rows={3}
+            maxLength={2000}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={() => note !== (m.note ?? "") && void onUpdate({ note })}
+          />
         </Field>
         <div className="flex flex-wrap gap-2">
           {m.status !== "replied" && (
@@ -219,7 +389,15 @@ function MessageSheet({ m, me, onClose, onUpdate, onDelete }: { m: Message; me: 
 
 /* ─── Waitlist ─────────────────────────────────────────────────────────── */
 
-type Waiting = { id: string; name: string | null; phone: string | null; email: string | null; locale: "ar" | "en"; notified_at: string | null; created_at: string };
+type Waiting = {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  locale: "ar" | "en";
+  notified_at: string | null;
+  created_at: string;
+};
 
 export async function waitlistCount(): Promise<number> {
   const r = await sb().from("waitlist").select("id", { count: "exact", head: true }).is("notified_at", null);
@@ -228,28 +406,63 @@ export async function waitlistCount(): Promise<number> {
 
 /** Applications screen → who asked to be told when applications open. */
 export function WaitlistCard() {
-  const { data, set } = useAsync(async () => (await sb().from("waitlist").select("*").is("notified_at", null).order("created_at").limit(2000).then(must)) as Waiting[], []);
+  const { data, set } = useAsync(
+    async () =>
+      (await sb()
+        .from("waitlist")
+        .select("*")
+        .is("notified_at", null)
+        .order("created_at")
+        .limit(2000)
+        .then(must)) as Waiting[],
+    [],
+  );
   const [open, setOpen] = useState(false);
   if (!data?.length) return null;
   return (
     <>
       <Card className="mb-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">
         <Icon name="bell" size={22} className="shrink-0 text-cyan" />
-        <p className="flex-1 text-sm text-mist">{data.length === 1 ? "شخص واحد مستني التقديم يفتح." : `${data.length} شخص مستنيين التقديم يفتح.`}</p>
+        <p className="flex-1 text-sm text-mist">
+          {data.length === 1 ? "شخص واحد مستني التقديم يفتح." : `${data.length} شخص مستنيين التقديم يفتح.`}
+        </p>
         <Button size="sm" variant="primary" onClick={() => setOpen(true)}>
           القايمة
         </Button>
       </Card>
-      {open && <WaitlistSheet list={data} onClose={() => setOpen(false)} onDone={(ids) => set(data.filter((w) => !ids.includes(w.id)))} />}
+      {open && (
+        <WaitlistSheet
+          list={data}
+          onClose={() => setOpen(false)}
+          onDone={(ids) => set(data.filter((w) => !ids.includes(w.id)))}
+        />
+      )}
     </>
   );
 }
 
-function WaitlistSheet({ list, onClose, onDone }: { list: Waiting[]; onClose: () => void; onDone: (ids: string[]) => void }) {
+function WaitlistSheet({
+  list,
+  onClose,
+  onDone,
+}: {
+  list: Waiting[];
+  onClose: () => void;
+  onDone: (ids: string[]) => void;
+}) {
   const [busy, setBusy] = useState(false);
-  const [text, setText] = useState("أهلاً! التقديم في BuildX HUE فتح دلوقتي 🎉 قدّم من هنا: https://buildxhue.com/ar/join/");
+  const [text, setText] = useState(
+    "أهلاً! التقديم في BuildX HUE فتح دلوقتي 🎉 قدّم من هنا: https://buildxhue.com/ar/join/",
+  );
   const markAll = async () => {
-    if (!(await confirmDialog({ title: "علّم الكل إنهم اتبلّغوا؟", body: "هيختفوا من القايمة، ويقدروا يسجلوا تاني للمرة الجاية.", ok: "تمام" }))) return;
+    if (
+      !(await confirmDialog({
+        title: "علّم الكل إنهم اتبلّغوا؟",
+        body: "هيختفوا من القايمة، ويقدروا يسجلوا تاني للمرة الجاية.",
+        ok: "تمام",
+      }))
+    )
+      return;
     setBusy(true);
     try {
       const ids = list.map((w) => w.id);
@@ -263,7 +476,10 @@ function WaitlistSheet({ list, onClose, onDone }: { list: Waiting[]; onClose: ()
       setBusy(false);
     }
   };
-  const emails = list.map((w) => w.email).filter(Boolean).join(", ");
+  const emails = list
+    .map((w) => w.email)
+    .filter(Boolean)
+    .join(", ");
   return (
     <Sheet open onClose={onClose} title={`مستنيين التقديم (${list.length})`}>
       <div className="grid gap-4">
@@ -279,7 +495,12 @@ function WaitlistSheet({ list, onClose, onDone }: { list: Waiting[]; onClose: ()
           <Button
             size="sm"
             icon="download"
-            onClick={() => downloadCsv(`buildx-waitlist-${today()}.csv`, [["الاسم", "الموبايل", "الإيميل", "اللغة", "سجّل"], ...list.map((w) => [w.name, w.phone, w.email, w.locale, fmt.dateTime(w.created_at)])])}
+            onClick={() =>
+              downloadCsv(`buildx-waitlist-${today()}.csv`, [
+                ["الاسم", "الموبايل", "الإيميل", "اللغة", "سجّل"],
+                ...list.map((w) => [w.name, w.phone, w.email, w.locale, fmt.dateTime(w.created_at)]),
+              ])
+            }
           >
             Excel
           </Button>
@@ -299,7 +520,12 @@ function WaitlistSheet({ list, onClose, onDone }: { list: Waiting[]; onClose: ()
                   </p>
                 </div>
                 {wa && (
-                  <a href={wa} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-[#1fa855] px-3 py-1.5 text-sm font-semibold text-white">
+                  <a
+                    href={wa}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg bg-[#1fa855] px-3 py-1.5 text-sm font-semibold text-white"
+                  >
                     واتساب
                   </a>
                 )}
@@ -317,7 +543,12 @@ function WaitlistSheet({ list, onClose, onDone }: { list: Waiting[]; onClose: ()
 /** Site settings → the PDF link the sponsorship form offers. */
 export function SponsorDeckCard() {
   const { data, set } = useAsync(async () => {
-    const r = (await sb().from("site_settings").select("value").eq("key", "sponsorship").maybeSingle().then(must)) as { value: { deck_url?: string } } | null;
+    const r = (await sb()
+      .from("site_settings")
+      .select("value")
+      .eq("key", "sponsorship")
+      .maybeSingle()
+      .then(must)) as { value: { deck_url?: string } } | null;
     return { deck_url: r?.value?.deck_url ?? "" };
   }, []);
   const [busy, setBusy] = useState(false);
@@ -327,7 +558,10 @@ export function SponsorDeckCard() {
     if (url && !/^https:\/\/\S+$/.test(url)) return toast("الرابط لازم يبدأ بـ https://", "error");
     setBusy(true);
     try {
-      await sb().from("site_settings").upsert({ key: "sponsorship", value: { deck_url: url } }).then(must);
+      await sb()
+        .from("site_settings")
+        .upsert({ key: "sponsorship", value: { deck_url: url } })
+        .then(must);
       toast("اتحفظ");
     } catch (e) {
       toast.error(e);
@@ -338,8 +572,16 @@ export function SponsorDeckCard() {
   return (
     <Card className="grid gap-3">
       <p className="font-semibold text-chalk">ملف الرعاية (PDF)</p>
-      <Field label="رابط الملف" hint="ارفعه على Google Drive أو أي مكان، وحط الرابط هنا. بيظهر زرار «حمّل ملف الرعاية» جنب فورم الرعاية.">
-        <Input dir="ltr" placeholder="https://" value={data.deck_url} onChange={(e) => set({ deck_url: e.target.value })} />
+      <Field
+        label="رابط الملف"
+        hint="ارفعه على Google Drive أو أي مكان، وحط الرابط هنا. بيظهر زرار «حمّل ملف الرعاية» جنب فورم الرعاية."
+      >
+        <Input
+          dir="ltr"
+          placeholder="https://"
+          value={data.deck_url}
+          onChange={(e) => set({ deck_url: e.target.value })}
+        />
       </Field>
       <Button size="sm" loading={busy} onClick={save}>
         حفظ
