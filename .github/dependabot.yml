@@ -1,0 +1,8 @@
+# The workflows pin each action to a commit (supply-chain safety); Dependabot opens a monthly PR to move
+# the pins to new releases.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
