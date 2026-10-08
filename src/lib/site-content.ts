@@ -1,7 +1,7 @@
 /** Website content the team publishes from the app (events, news, projects, gallery, achievements). */
 import { SUPABASE_KEY, SUPABASE_URL } from "./supabase-public";
 
-export type ContentKind = "event" | "post" | "project" | "photo" | "achievement" | "faq" | "testimonial" | "partner";
+export type ContentKind = "event" | "post" | "project" | "photo" | "achievement" | "faq" | "testimonial" | "partner" | "story";
 
 export type SiteItem = {
   id: string;
@@ -58,6 +58,7 @@ const ORDER: Record<ContentKind, string> = {
   faq: "sort_order.asc,created_at.asc",
   testimonial: "pinned.desc,sort_order.asc,created_at.desc",
   partner: "sort_order.asc,created_at.asc",
+  story: "pinned.desc,sort_order.asc,created_at.desc",
 };
 
 async function rest<T>(q: string): Promise<T> {
@@ -110,8 +111,8 @@ export async function searchLive(term: string, locale: Loc, limit = 6): Promise<
       `team_profiles?select=slug,full_name,full_name_ar,headline,headline_ar,external_url&published=eq.true&${or(["full_name", "full_name_ar", "headline", "headline_ar"])}&limit=${limit}`,
     ),
   ]);
-  const SECTION: Record<ContentKind, string> = { post: "/news", project: "/projects", event: "/events", achievement: "/achievements", photo: "/gallery", faq: "/faq", testimonial: "/", partner: "/sponsors" };
-  const TYPE: Record<ContentKind, SearchHit["type"]> = { post: "article", project: "project", event: "event", achievement: "achievement", photo: "article", faq: "article", testimonial: "article", partner: "article" };
+  const SECTION: Record<ContentKind, string> = { post: "/news", project: "/projects", event: "/events", achievement: "/achievements", photo: "/gallery", faq: "/faq", testimonial: "/", partner: "/sponsors", story: "/stories" };
+  const TYPE: Record<ContentKind, SearchHit["type"]> = { post: "article", project: "project", event: "event", achievement: "achievement", photo: "article", faq: "article", testimonial: "article", partner: "article", story: "article" };
   return [
     ...people.map((p) => ({ type: "member" as const, title: pickL(p.full_name, p.full_name_ar, locale), subtitle: pickL(p.headline, p.headline_ar, locale), href: safeLink(p.external_url) ?? `/team/${p.slug}` })),
     ...items.map((i) => ({

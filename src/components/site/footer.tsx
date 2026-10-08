@@ -9,6 +9,7 @@ import { localePath, type Locale } from "@/i18n/config";
 import type { Dictionary } from "@/i18n";
 import { art } from "@/lib/media-library";
 import { pick, type SiteConfig, type SocialConfig } from "@/lib/site-config";
+import { AppDownload } from "./app-download";
 import { HideOn } from "./hide-on";
 import { MENU_GROUPS } from "./nav";
 
@@ -131,6 +132,7 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
             {t.nav.contact}
             <Icon name="arrow" size={15} className="rtl:-scale-x-100" />
           </Link>
+          <AppDownload locale={locale} className="mt-7" />
         </div>
       </div>
 

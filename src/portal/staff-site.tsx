@@ -20,6 +20,7 @@ const KINDS: { key: ContentKind; label: string; one: string; fields: F[]; titleL
   { key: "achievement", label: "الإنجازات", one: "إنجاز", fields: ["title", "result", "starts", "summary", "image", "url", "schedule"], titleLabel: "اسم المسابقة / الإنجاز", urlLabel: "لينك", startsLabel: "التاريخ", resultLabel: "المركز / النتيجة" },
   { key: "faq", label: "الأسئلة الشائعة", one: "سؤال", fields: ["title", "body", "sort"], titleLabel: "السؤال" },
   { key: "testimonial", label: "آراء الطلاب", one: "رأي", fields: ["title", "result", "summary", "image", "pinned", "sort"], titleLabel: "الاسم", resultLabel: "الصفة (مثلاً: طالب فرقة تانية · روبوتات)" },
+  { key: "story", label: "قصص النجاح", one: "قصة", fields: ["title", "result", "summary", "body", "image", "url", "pinned", "sort"], titleLabel: "الاسم", resultLabel: "هو فين دلوقتي (مثلاً: مهندس في Valeo · بطل مسابقة…)", urlLabel: "LinkedIn أو لينك (اختياري)", path: "/stories" },
   { key: "partner", label: "الشركاء والرعاة", one: "شريك", fields: ["title", "image", "url", "result", "sort"], titleLabel: "اسم الشريك", urlLabel: "موقع الشريك", resultLabel: "نوع الشراكة (راعي، شريك تعليمي…)" },
 ];
 const kindOf = (k: ContentKind) => KINDS.find((x) => x.key === k)!;
