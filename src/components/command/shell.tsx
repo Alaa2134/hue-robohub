@@ -133,7 +133,7 @@ export function CommandShell({ user, nav, actions, unread, children }: { user: S
   }, []);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
+      if (e.key?.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         setPalette((p) => !p);
       }

@@ -51,7 +51,7 @@ export function Header({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
     const on = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const typing = !!el?.closest("input, textarea, select, [contenteditable='true']");
-      if ((e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
+      if ((e.key?.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !typing)) {
         e.preventDefault();
         ui.set({ search: true, menu: false });
       }
