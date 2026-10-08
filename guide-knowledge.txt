@@ -1,0 +1,70 @@
+BuildX HUE: مجتمع طلابي في جامعة حورس – مصر للروبوتكس والابتكار. الموسم: 2026 – 2027. الموقع: buildxhue.com. الشعار: Build • Innovate • Compete.
+
+## التراكات (المسارات)
+- الروبوتات والأنظمة المدمجة (Robotics & Embedded Systems) [/tracks/robotics-embedded]: صمّم روبوتات حقيقية ووصّلها وبرمجها. ابنِ روبوتات من الصفر: اختار المحركات والحساسات، ووصّلها بلوحات Arduino وESP32، واكتب الكود اللي بيتحكم فيها، وجهّزها للمسابقات. التقنيات: تصميم الروبوتات والتحكم فيها، Arduino، ESP32، الحساسات والمشغّلات، روبوتات المسابقات. الأدوات: Arduino IDE, PlatformIO, Multimeter, Soldering station. المسابقات: Line Follower / Sprint, Sumo Robotics. المراحل: Foundations: Electronics basics (Circuits, power and reading datasheets.) | Foundations: Microcontrollers (Program Arduino and ESP32 boards.) | Core: Sensors & actuators (Make the robot sense its world and move.) | Advanced: Competition robots (Design, tune and test robots for real events.)
+- الذكاء الاصطناعي وتعلّم الآلة (AI & Machine Learning) [/tracks/ai-ml]: علّم الآلة تشوف وتاخد قرار. اشتغل على مشاريع تعلّم الآلة والرؤية الحاسوبية والذكاء الاصطناعي للروبوتات، وطبّقها على مشاكل حقيقية. التقنيات: تعلّم الآلة، الرؤية الحاسوبية، ذكاء الروبوتات، تطبيقات من الواقع. الأدوات: Python, Jupyter, OpenCV, PyTorch / TensorFlow. المسابقات: AI Hackathons. المراحل: Foundations: Python for AI (Data, notebooks and the core libraries.) | Foundations: Machine learning (Train and evaluate your first models.) | Core: Computer vision (Detect and track objects with a camera.) | Advanced: AI for robots (Put models on real robots and in hackathons.)
+- تطوير البرمجيات (Software Development) [/tracks/software]: تطبيقات وأدوات والكود اللي ورا الروبوتات. ابنِ تطبيقات ويب وموبايل، وبرمجيات للروبوتات، وأدوات ولوحات متابعة، وشارك في مشاريع مفتوحة المصدر مع فريقك. التقنيات: تطوير الويب والموبايل، برمجيات الروبوتات، الأدوات ولوحات المتابعة، مشاريع مفتوحة المصدر. الأدوات: Git & GitHub, VS Code, Linux, Web frameworks. المسابقات: Programming Competitions. المراحل: Foundations: Programming basics (Problem solving, Git and teamwork.) | Core: Web & mobile (Ship real apps that people use.) | Core: Robot software (Write the software and dashboards robots need.) | Advanced: Open source & contests (Publish your work and enter programming contests.)
+- إنترنت الأشياء والأنظمة الذكية (IoT & Smart Systems) [/tracks/iot]: وصّل الأجهزة بالسحابة. اعمل أجهزة ذكية وأتمتة، ووصّلها بمنصات إنترنت الأشياء والسحابة، وتابعها لحظة بلحظة — من مشاريع بسيطة لحد التطبيقات الصناعية. التقنيات: الأجهزة الذكية والأتمتة، منصات IoT والسحابة، المراقبة اللحظية، تطبيقات صناعية. الأدوات: ESP32, MQTT, Cloud dashboards, Node-RED. المسابقات: IoT Challenges, Green Innovation Challenges. المراحل: Foundations: Smart devices (Sensors, boards and automation basics.) | Core: Connect to the cloud (Send data to IoT platforms.) | Core: Real-time monitoring (Dashboards and alerts that update live.) | Advanced: Real applications (Solve real problems in IoT challenges.)
+- التصميم والتصنيع ثلاثي الأبعاد (3D Design & Manufacturing) [/tracks/3d-design]: من رسمة CAD لقطعة مطبوعة في إيدك. صمّم القطع ببرامج CAD، واطبعها بالطابعة ثلاثية الأبعاد، واتعلّم التصميم الميكانيكي، وحوّل الأفكار لنماذج أولية المجتمع كله يستفيد منها. التقنيات: النمذجة ثلاثية الأبعاد (CAD)، الطباعة ثلاثية الأبعاد، التصميم الميكانيكي، النماذج الأولية والتصنيع. الأدوات: Fusion 360, SolidWorks, Cura / PrusaSlicer, 3D printers. المسابقات: Sumo Robotics, Green Innovation Challenges. المراحل: Foundations: 3D modeling (Sketches, parts and assemblies in CAD.) | Core: 3D printing (Print, test and improve your parts.) | Core: Mechanical design (Chassis, mounts and moving parts.) | Advanced: Prototypes (Build the bodies of the community's robots.)
+- الميديا والتصميم (Media & Design) [/tracks/media-design]: احكي حكاية اللي بنبنيه. اعمل محتوى، وغطّي الفعاليات، وصمّم جرافيك، وعدّل فيديوهات — الهوية البصرية لـ BuildX HUE بيبنيها المسار ده. التقنيات: صناعة المحتوى، تغطية الفعاليات، التصميم الجرافيك، مونتاج الفيديو. الأدوات: Figma, Adobe Photoshop / Illustrator, Premiere / CapCut, Camera kit. المسابقات: —. المراحل: Foundations: Design basics (Layout, color, type and the brand.) | Core: Content creation (Posts, reels and announcements.) | Core: Event coverage (Photo and video at every event.) | Advanced: Showcase (Present our projects to the world.)
+- الأعمال وريادة الأعمال (Business & Entrepreneurship) [/tracks/business]: حوّل الأفكار لتأثير حقيقي. أدِر المشاريع، ودوّر على رعاة وتمويل، وفكّر بعقلية الشركات الناشئة، وساعد إن أفكار المجتمع تتحوّل لتأثير حقيقي. التقنيات: إدارة المشاريع، التمويل والرعاية، عقلية الشركات الناشئة، من الفكرة للتأثير. الأدوات: Project boards, Pitch decks, Spreadsheets, Business model canvas. المسابقات: Green Innovation Challenges. المراحل: Foundations: Project management (Plans, tasks and deadlines.) | Core: Sponsorship (Reach partners and raise support.) | Core: Startup mindset (Validate ideas and pitch them.) | Advanced: Real impact (Take projects beyond the university.)
+
+## فرق المسابقات
+- تتبّع الخط / السرعة (Line Follower / Sprint) [/competitions/line-follower]: سرعة • دقة • تحكّم. روبوتات سريعة بتتبع الخط وبتسابق الوقت. الفرق بتبني روبوتات خفيفة وسريعة، وبتحسّن خوارزميات تتبّع الخط، وبتقضي ساعات في اختبار وضبط الروبوت على المسار. التركيز: تتبّع الخط بسرعة عالية، المهارات: تحسين الخوارزميات، التدريب: اختبار المسار وضبطه
+- روبوتات السومو (Sumo Robotics) [/competitions/sumo]: قوة • استراتيجية • تحكّم. روبوتات بتزق المنافس برّه الحلبة. السومو محتاج تصميم ميكانيكي قوي واستراتيجية ذكية. الفرق بتصمّم الهيكل، وبتبرمج الروبوت يدوّر على المنافس ويزقّه، وبتشارك في فعاليات محلية ودولية. التركيز: التصميم الميكانيكي، المهارات: الاستراتيجية والتحكّم، الفعاليات: محلية ودولية
+- تحديات إنترنت الأشياء (IoT Challenges) [/competitions/iot-challenges]: استشعار • اتصال • حل. أنظمة ذكية متصلة بتحل مشاكل حقيقية. الفرق بتبني أنظمة ذكية بالحساسات والاتصال اللاسلكي وبتطبّقها على مشاكل من الواقع. التركيز: الأنظمة الذكية، المهارات: الحساسات والاتصال، الهدف: تطبيقات من الواقع
+- هاكاثونات الذكاء الاصطناعي (AI Hackathons) [/competitions/ai-hackathons]: فكّر • درّب • سلّم. تحديات قصيرة ومكثّفة بتتحل بالذكاء الاصطناعي. فرق متنوعة من تخصصات مختلفة بتحل مشاكل بنماذج وتطبيقات الذكاء الاصطناعي في وقت محدود. التركيز: حل المشكلات، المهارات: نماذج وتطبيقات الذكاء الاصطناعي، الفرق: متعددة التخصصات
+- مسابقات البرمجة (Programming Competitions) [/competitions/programming]: منطق • سرعة • شغل جماعي. مسابقات جماعية في حل المشكلات والخوارزميات. اتمرّن على حل المشكلات وهياكل البيانات والخوارزميات مع فريقك، وبعدين نافسوا مع بعض في مسابقات البرمجة. التركيز: حل المشكلات، المهارات: هياكل البيانات والخوارزميات، الشكل: مسابقات جماعية
+- تحديات الابتكار الأخضر (Green Innovation Challenges) [/competitions/green-innovation]: استدامة • ابتكار • أثر. أفكار ونماذج بتساعد البيئة. الفرق بتصمّم حلول للاستدامة، وبتقيس أثرها على البيئة، وبتبني نماذج شغّالة. التركيز: حلول الاستدامة، القياس: الأثر البيئي، الهدف: تنفيذ حقيقي
+
+## البوتكامب (/bootcamp)
+- الأسبوع 1: Electronics & Hardware Fundamentals — Read schematics, use a multimeter with confidence and build circuits that work the first time.
+- الأسبوع 2: Arduino & Sensors — Program microcontrollers and turn the physical world into data.
+- الأسبوع 3: Motors & Drivers — Make things move — reliably and under control.
+- الأسبوع 4: ESP32 & Wireless — Connect robots to phones, dashboards and each other.
+- الأسبوع 5: Mechanical Design & 3D Printing — Design printable parts, chassis and mounts in Fusion 360.
+- الأسبوع 6: Build Your Competition Robot — Integrate everything into a robot that runs a real course.
+- الأسبوع 7: BuildX Internal Challenge — Final event: a university-level challenge where teams run their robots on the course in front of judges.
+
+## الأنشطة
+- مشاريع روبوتات: نصمّم ونبني ونجرّب روبوتات حقيقية.
+- ورش وتدريبات: ورش عملية في المهارات التقنية والشخصية.
+- هاكاثونات وتحديات: هاكاثونات داخلية وخارجية.
+- التجهيز للمسابقات: نكوّن فرق ونستعد للمسابقات المحلية والدولية.
+- زيارات صناعية: نشوف بيئات الشغل الحقيقية من قريب.
+- فعاليات المجتمع: محاضرات تقنية وعروض مشاريع وتعارف.
+
+## الإيفنتات المخططة للموسم (التفاصيل الحية في /events)
+- يوم التعريف (سبتمبر 2026): نعرّفك بالمجتمع والمسارات والفرص.
+- ورش تقنية (أكتوبر – نوفمبر 2026): هاردوير وبرمجة وذكاء اصطناعي وطباعة ثلاثية الأبعاد وغيرها.
+- تحدّي BuildX الداخلي: مسابقة على مستوى الجامعة للبناء والابتكار.
+- معسكرات التحضير للمسابقات (يناير – مارس 2027): تدريب وبناء فرق للمسابقات المحلية والدولية.
+- زيارات صناعية (فبراير – أبريل 2027): زيارات لشركات ومصانع كبيرة.
+- محاضرات وضيوف: خبراء من الصناعة والشركات الناشئة والجامعات.
+- معرض المشاريع: بنعرض مشاريع ونماذج الطلاب.
+
+## خطة السنة
+- Q1 سبتمبر – نوفمبر 2026: بناء الأساس — التعريف والتسجيل، ورش تمهيدية، تكوين مجموعات الاهتمام، أول تحدٍّ داخلي
+- Q2 ديسمبر 2026 – فبراير 2027: التطوير والتدريب — معسكرات تقنية، تطوير المشاريع، التحضير للمسابقات، زيارات صناعية
+- Q3 مارس – مايو 2027: المنافسة والعرض — مسابقات محلية ودولية، هاكاثون BuildX، معرض المشاريع، محاضرات وتعارف
+- Q4 يونيو – أغسطس 2027: التقييم والنمو — تقييم الأثر، توسيع المجتمع، شراكات جديدة، خطة السنة الجاية
+
+## أهداف الموسم (أهداف مش نتائج)
+100+ عضو نشط، 10+ مسابقة، 20+ ورشة، 15+ مشروع، 5+ شريك من الصناعة
+
+## الأسئلة الشائعة
+- س: مين يقدر ينضم لـ BuildX HUE؟
+  ج: طلبة جامعة حورس. املأ استمارة التقديم والفريق هيراجعها ويرجعلك.
+- س: لازم يكون عندي خبرة في الروبوتات أو البرمجة؟
+  ج: لأ. الاستمارة بتسألك عن مستواك عشان نحطك في المكان المناسب — المبتدئين مرحب بيهم وبيبدأوا من الأساسيات.
+- س: أقدر أختار أنهي مسارات؟
+  ج: بتختار المسارات اللي تهمك في الاستمارة. كل مسار واللي هتتعلمه وهتبنيه موجود في صفحة المسارات.
+- س: أقدّم إزاي؟
+  ج: افتح صفحة انضم لينا، املأ الاستمارة خطوة بخطوة وابعتها. خلي تليفونك جنبك — هنتواصل معاك عليه بخصوص طلبك.
+- س: أعرف حالة طلبي إزاي؟
+  ج: افتح انضم لينا ← تابع حالة طلبك، واكتب رقم طلبك (بيبدأ بـ BX-) ورقم الموبايل اللي قدّمت بيه.
+- س: هل BuildX HUE جهة رسمية في الجامعة؟
+  ج: BuildX HUE مجتمع طلابي في جامعة حورس، والموقع ده مش منشور رسمي للجامعة.
+
+## الصفحات
+/ الرئيسية، /about عن BuildX، /tracks التراكات، /competitions المسابقات، /bootcamp البوتكامب، /events الإيفنتات، /projects المشاريع، /team الفريق، /achievements الإنجازات، /news الأخبار، /gallery الصور، /films الفيديوهات، /resources المصادر، /sponsors الشركاء، /faq الأسئلة الشائعة، /contact التواصل، /join التقديم، /join/status متابعة الطلب، /verify التحقق من شهادة، /privacy الخصوصية، /brand الهوية. التطبيق: /app (للطلبة والفريق: حضور وتاسكات ونقط وشهادات).
