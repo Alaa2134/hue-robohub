@@ -45,6 +45,8 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
   const [bulk, setBulk] = useState(false);
   const k = kindOf(kind);
   const list = (data ?? []).filter((i) => i.kind === kind);
+  // Drafts the rest of the team wrote, waiting for someone who can publish.
+  const waiting = isAdmin(me) ? (data ?? []).filter((i) => !i.published && i.created_by !== me.user_id && KINDS.some((x) => x.key === i.kind)) : [];
 
   return (
     <>
@@ -57,6 +59,32 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
           </Button>
         }
       />
+      {waiting.length > 0 && (
+        <Card className="mb-3 border-warn/30 bg-warn/[0.06]">
+          <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-chalk">
+            <Icon name="clock" size={18} className="text-warn" />
+            مستنية النشر ({waiting.length})
+          </p>
+          <List>
+            {waiting.slice(0, 8).map((i) => (
+              <Row
+                key={i.id}
+                onClick={() => {
+                  setKind(i.kind as ContentKind);
+                  setEditing(i);
+                }}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-chalk">{i.title_ar || i.title || kindOf(i.kind as ContentKind).one}</p>
+                  <p className="truncate text-xs text-fog">
+                    {kindOf(i.kind as ContentKind).label} · {fmt.rel(i.created_at)}
+                  </p>
+                </div>
+              </Row>
+            ))}
+          </List>
+        </Card>
+      )}
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         {KINDS.map((x) => (
           <Chip key={x.key} active={kind === x.key} onClick={() => setKind(x.key)} count={(data ?? []).filter((i) => i.kind === x.key).length}>

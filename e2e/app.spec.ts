@@ -722,3 +722,14 @@ test("the team's home and menu link to the website", async ({ page }) => {
   await page.goto("/app/#/staff/more");
   await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toBeVisible();
 });
+
+test("drafts the team wrote wait at the top of the content screen for whoever publishes", async ({ page }) => {
+  await signInAsOwner(page);
+  const draft = { id: "d1", kind: "post", slug: "robot-day", title: "Robot day", title_ar: "يوم الروبوت", published: false, pinned: false, created_by: "u9", created_at: at(5), starts_at: null, publish_at: null, image_path: null, tags: [] };
+  const mine = { ...draft, id: "d2", title_ar: "مسودتي", created_by: "u1" };
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: [draft, mine] }));
+  await page.goto("/app/#/staff/site");
+  await expect(page.getByText("مستنية النشر (1)")).toBeVisible();
+  await page.getByText("يوم الروبوت").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
