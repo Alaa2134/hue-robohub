@@ -66,6 +66,10 @@ const AREA_OF: Record<string, Area> = {
   forms: "content",
   inbox: "inbox",
   certificates: "certificates",
+  settings: "settings",
+  apps: "settings",
+  portfolios: "portfolios",
+  notify: "notify",
 };
 
 /** A section outside this person's permissions. */
@@ -430,7 +434,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     return !a || can(me, a);
   };
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
-    { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify", show: me.role !== "lead" },
+    { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
@@ -438,10 +442,9 @@ function MoreScreen({ me }: { me: StaffRow }) {
       icon: "settings",
       label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)",
       to: "/staff/settings",
-      show: me.role !== "lead",
     },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
-    { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios", show: me.role !== "lead" },
+    { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
@@ -460,7 +463,6 @@ function MoreScreen({ me }: { me: StaffRow }) {
       icon: "install",
       label: "التطبيقات (التحديث الإجباري ولينكات المتاجر)",
       to: "/staff/apps",
-      show: me.role !== "lead",
     },
     { icon: "user", label: "حسابي وكلمة المرور", to: "/staff/account" },
     { icon: "lock", label: "التحقق بخطوتين (كود من الموبايل)", to: "/staff/2fa" },

@@ -644,3 +644,53 @@ test("the owner sets a member's position and areas", async ({ page }) => {
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
   await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["content", "inbox"] });
 });
+
+test("the head of media publishes, edits the team's pages and sends notifications, and nothing else", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const row = { user_id: "u1", email: "media@example.com", full_name: "Media Head", role: "lead", active: true, created_at: at(9999), title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] };
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+  });
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByText("محتوى الموقع (فعاليات، أخبار، جاليري…)")).toBeVisible();
+  await expect(page.getByText("بورتفوليو الفريق")).toBeVisible();
+  await expect(page.getByText("إرسال إشعار للطلاب أو الفريق")).toBeVisible();
+  await expect(page.getByText("إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)")).toHaveCount(0);
+  await expect(page.getByText("طلبات الانضمام")).toHaveCount(0);
+  await expect(page.getByText("الأمان والهجمات")).toHaveCount(0);
+  // Publishes directly (no "draft" note).
+  await page.goto("/app/#/staff/site");
+  await expect(page.getByText("انت تقدر تنشر على الموقع")).toBeVisible();
+  await page.goto("/app/#/staff/settings");
+  await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  await page.goto("/app/#/staff/students");
+  await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("positions for the website admin and the head of media suggest their areas", async ({ page }) => {
+  await signInAsOwner(page);
+  const owner = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+  const lead = { user_id: "u2", email: "lead@example.com", full_name: "Lead Two", role: "lead", active: true, created_at: at(10), title: null, permissions: null };
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...lead, ...(route.request().postDataJSON() as object) }] });
+    }
+    const list = route.request().url().includes("order=created_at");
+    return route.fulfill({ json: list ? [owner, lead] : [owner] });
+  });
+  await page.goto("/app/#/staff/team");
+  await page.getByText("Lead Two").click();
+  await page.getByLabel("المنصب").fill("إداري الموقع");
+  await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /النشر على الموقع/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).not.toBeChecked();
+  await page.getByLabel("المنصب").fill("هيد الميديا");
+  await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).not.toBeChecked();
+  await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
+  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] });
+});
