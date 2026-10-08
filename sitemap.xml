@@ -49,6 +49,12 @@
 <priority>0.7</priority>
 </url>
 <url>
+<loc>https://buildxhue.com/stories/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/stories/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/stories/" />
+<priority>0.7</priority>
+</url>
+<url>
 <loc>https://buildxhue.com/events/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/" />
