@@ -1,10 +1,11 @@
 "use client";
 /**
- * The BuildX guide on the page: a small fixed "stage" that walks between spots along the screen edges
- * (never parked on text or controls when a clear spot exists), runs each section's scene from
- * config/mascotJourney.ts, talks in speech bubbles, opens the guide menu when clicked, and reacts
- * to the visitor: it looks at the cursor and at big buttons, celebrates a click on Join, sits down
- * and falls asleep when left alone, and has a couple of easter eggs.
+ * Baqloz (بقلظ), the BuildX guide, on the page: a small fixed "stage" that walks between spots along
+ * the screen edges (never parked on text or controls when a clear spot exists), runs a scene for
+ * every section of every page (config/mascotJourney.ts), talks in speech bubbles, opens his menu
+ * when clicked, and reacts to the visitor: he looks at the cursor and at big buttons, talks about
+ * the cards you rest the cursor on, helps with forms, celebrates a click on Join, keeps count of the
+ * pages you've explored, sits down and falls asleep when left alone, and has a couple of easter eggs.
  *
  * Only the mascot's own body takes clicks; everything else on the stage lets them through.
  */
@@ -12,16 +13,18 @@ import { gsap } from "gsap";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useUi } from "@/components/site/ui-state";
-import { GUIDE_VOICE, LINES, type Line, type Scene, type SceneAction } from "@/config/mascotJourney";
+import { ui, useUi } from "@/components/site/ui-state";
+import { GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
+import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
 import type { Locale } from "@/i18n/config";
 import { cn } from "@/lib/cn";
 import { BASE_PATH } from "@/lib/deploy";
-import type { ClipName } from "@/lib/mascot/clip-names";
+import { ONE_SHOT, type ClipName } from "@/lib/mascot/clip-names";
 import { confetti, playSound, type Sound } from "@/lib/mascot/fx";
-import { BODY, center, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
+import type { GuideAction } from "@/lib/mascot/guide";
+import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
 import { MascotLoader } from "./MascotLoader";
 import { goTo } from "./MascotNavigation";
@@ -80,6 +83,17 @@ function firstTime(id: string) {
   }
 }
 
+/** A once-per-visit flag. */
+function once(key: string) {
+  try {
+    if (sessionStorage.getItem(key)) return false;
+    sessionStorage.setItem(key, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const isPhoneWidth = () => window.innerWidth < 768;
@@ -126,6 +140,21 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const resting = useRef<"" | "Sit" | "Sleep">("");
   const soundOn = useRef(false);
   const returning = useRef(false);
+  /** How important the line on screen is: 2 a scene, 1 a reaction (hover, form tip), 0 small talk. */
+  const prio = useRef(0);
+  /** The configured scene in progress (walking there or talking); stale once anything else takes over. */
+  const activeScene = useRef(0);
+  const sceneBusy = () => activeScene.current !== 0 && activeScene.current === seq.current;
+  /** A found section that had to wait for a scene to finish. */
+  const pending = useRef<Scene | null>(null);
+  const [focusAsk, setFocusAsk] = useState(false);
+  const [explored, setExplored] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("bx-guide-pages") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
 
   const scenes = useMemo(() => scenesFor(pathname), [pathname]);
   const path = routeKey(pathname);
@@ -220,12 +249,47 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const speak = useCallback(
     async (lines: Line[], id: number) => {
       for (const line of lines) {
-        if (seq.current !== id) return;
+        if (seq.current !== id) break;
+        prio.current = 2;
         mascot.say(line);
         sfx("pop");
         await sleep(line.actions?.length ? (isPhoneWidth() ? 7000 : 12000) : 2400 + line[voice].length * 45);
       }
-      if (seq.current === id) mascot.say(null);
+      if (seq.current === id) {
+        prio.current = 0;
+        mascot.say(null);
+      }
+    },
+    [voice, sfx],
+  );
+
+  /** A short line on the side (hover, form tip, small talk) that never cuts off something more important. */
+  const brief = useCallback<Brief>(
+    (line, o) => {
+      const s = mascot.get();
+      if (s.hidden || s.menu || touring.current || resting.current) return false;
+      if ((s.speech && prio.current > o.prio) || (sceneBusy() && o.prio < 2)) return false;
+      if (o.interrupt && sceneBusy()) {
+        seq.current++;
+        activeScene.current = 0;
+      }
+      prio.current = o.prio;
+      const id = mascot.say(line);
+      sfx("pop");
+      if (o.look) {
+        ctaTarget.current = o.look;
+        mascot.set({ look: center(o.look) });
+      }
+      if (o.goggles) mascot.set({ goggles: true });
+      if (o.clip) mascot.play(o.clip, "Idle");
+      setTimeout(() => {
+        if (mascot.get().speech?.id !== id) return;
+        mascot.say(null);
+        prio.current = 0;
+        if (o.look && ctaTarget.current === o.look) ctaTarget.current = null;
+        if (o.clip && !ONE_SHOT.has(o.clip) && mascot.get().clip === o.clip) mascot.play("Idle");
+      }, o.ms ?? 2600 + line[voice].length * 45);
+      return true;
     },
     [voice, sfx],
   );
@@ -233,6 +297,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   const runScene = useCallback(
     async (scene: Scene, o: { force?: boolean; actions?: SceneAction[] } = {}) => {
       const id = ++seq.current;
+      if (!scene.id.startsWith("auto-")) activeScene.current = id;
       const target = visibleTarget(scene.point);
       sceneTarget.current = target;
       const section = scene.selector === "main" ? null : document.querySelector(scene.selector);
@@ -246,24 +311,56 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       const box = { ...pos.current, ...sizeRef.current };
       const c: ClipName = scene.clip === "Point" ? pointClip(box, target) : scene.clip;
       mascot.play(c, "Idle");
-      const say: Line[] | undefined = scene.id === "hero" && returning.current && scene.say ? [LINES.welcomeBack, ...scene.say.slice(1)] : scene.say;
-      const lines = say && (o.force || firstTime(`${path}#${scene.id}`)) ? say : null;
+      let say: Line[] | undefined = scene.id === "hero" && returning.current && scene.say ? [LINES.welcomeBack, ...scene.say.slice(1)] : scene.say;
+      let fresh = !!say && (o.force || firstTime(`${path}#${scene.id}`));
+      if (scene.enter && !o.force) {
+        // First page of the visit: say hello for the time of day. A page seen before: a wink.
+        if (once("bx-guide-greeted")) {
+          const g: Text = greeting(new Date().getHours());
+          say = say?.length ? [{ ...say[0], ar: `${g.ar} ${say[0].ar}`, en: `${g.en} ${say[0].en}` }, ...say.slice(1)] : [g];
+          fresh = true;
+        } else if (!fresh && Math.random() < 0.5) {
+          say = [LINES.backAgain];
+          fresh = true;
+        }
+      }
+      const lines = fresh ? say : null;
       if (lines) {
         const withActions = o.actions ? lines.map((l, i) => (i === lines.length - 1 ? { ...l, actions: [...(l.actions ?? []), ...o.actions!] } : l)) : lines;
         await speak(withActions, id);
       } else if (c === "PointLeft" || c === "PointRight") await sleep(2600);
       if (seq.current === id && (c === "PointLeft" || c === "PointRight")) mascot.play("Idle");
+      if (seq.current !== id) return;
+      activeScene.current = 0;
+      // A section that came into view meanwhile gets its turn now, if it's still on screen.
+      const next = pending.current;
+      pending.current = null;
+      const el = next && document.querySelector(next.selector);
+      if (next && el && next !== scene) {
+        const r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight * 0.7 && r.bottom > window.innerHeight * 0.3) setTimeout(() => seq.current === id && void runSceneRef.current?.(next), 600);
+      }
     },
     [place, speak, path],
   );
+  const runSceneRef = useRef<typeof runScene | null>(null);
+  useEffect(() => {
+    runSceneRef.current = runScene;
+  });
 
   const onScene = useCallback(
     (scene: Scene) => {
       if (touring.current || mascot.get().menu || mascot.get().hidden) return;
+      // Sections found on the page wait for a configured scene to finish.
+      if (scene.id.startsWith("auto-") && sceneBusy()) {
+        pending.current = scene;
+        return;
+      }
       void runScene(scene);
     },
     [runScene],
   );
+  const discover = useCallback((configured: Scene[]) => discoverSections(configured), []);
 
   // ── Moments ──
   const celebrate = useCallback(
@@ -284,7 +381,9 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   );
 
   const tour = useCallback(async () => {
-    const steps = scenes.filter((s) => s.selector !== "main" && s.id !== "hero" && document.querySelector(s.selector));
+    const steps = [...scenes, ...discoverSections(scenes)]
+      .filter((s) => s.selector !== "main" && s.id !== "hero" && document.querySelector(s.selector))
+      .sort((a, b) => document.querySelector(a.selector)!.getBoundingClientRect().top - document.querySelector(b.selector)!.getBoundingClientRect().top);
     if (!steps.length) return;
     touring.current = true;
     const next: SceneAction = { kind: "next", label: LINES.next };
@@ -316,10 +415,48 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     [locale, pathname, router, sfx],
   );
 
+  const openMenu = useCallback((ask: boolean) => {
+    seq.current++;
+    mascot.say(null);
+    setFocusAsk(ask);
+    mascot.set({ menu: true });
+    mascot.play("Listening");
+  }, []);
+
+  /** The menu's quick actions and the answers that come with one. */
+  const doAction = useCallback(
+    (a: GuideAction) => {
+      sfx("click");
+      mascot.set({ menu: false });
+      if (a === "search") ui.set({ search: true, menu: false });
+      else if (a === "lang") document.querySelector<HTMLAnchorElement>("header a[hreflang]")?.click();
+      else window.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
+    },
+    [sfx],
+  );
+
+  /** "On this page": scroll to the section and talk about it. */
+  const onToc = useCallback(
+    (selector: string) => {
+      mascot.set({ menu: false });
+      sfx("click");
+      const el = document.querySelector(selector);
+      if (!el) return;
+      scrollToSection(selector);
+      const scene = [...scenes, ...discoverSections(scenes)].find((s) => {
+        const target = s.selector === "main" ? null : document.querySelector(s.selector);
+        return target && (target === el || el.contains(target) || target.contains(el));
+      });
+      if (scene) setTimeout(() => void runScene(scene, { force: true }), reducedMotion() ? 200 : 1200);
+    },
+    [scenes, runScene, sfx],
+  );
+
   const onAction = useCallback(
     (a: SceneAction) => {
       sfx("click");
-      if (a.kind === "tour") void tour();
+      if (a.kind === "menu") openMenu(true);
+      else if (a.kind === "tour") void tour();
       else if (a.kind === "next") nextStep.current?.();
       else if (a.kind === "stop") {
         touring.current = false;
@@ -332,10 +469,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         mascot.play("Idle");
       } else if (a.kind === "go") {
         if (a.celebrate) celebrate();
-        go({ href: a.href });
+        go({ href: a.href, section: a.section });
       }
     },
-    [tour, celebrate, go, sfx],
+    [tour, celebrate, go, sfx, openMenu],
   );
 
   // ── Page changes: clear the old page's scene; the new page's scenes walk it in. ──
@@ -351,7 +488,31 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     mascot.set({ menu: false, speech: null, props: [], goggles: false, drone: false, look: null });
   }, [pathname]);
   // After the reset above (effects run in order), so the new page's first scene isn't cancelled.
-  useScrollScenes(scenes, onScene, pathname, !hidden);
+  useScrollScenes(scenes, onScene, pathname, !hidden, discover);
+  useMascotReactions({ brief, busy: () => moving.current || touring.current || !!resting.current || mascot.get().menu || mascot.get().hidden }, pathname, !hidden && placed);
+
+  // ── Exploring: count the site's pages he's seen; celebrate when it's all of them. ──
+  useEffect(() => {
+    const page = PAGES.find((p) => p.href === path);
+    if (!page) return;
+    setExplored((list) => {
+      if (list.includes(page.id)) return list;
+      const next = [...list, page.id];
+      storage.set("bx-guide-pages", JSON.stringify(next));
+      if (next.length >= PAGES.length && storage.get("bx-guide-explored") !== "1") {
+        storage.set("bx-guide-explored", "1");
+        setTimeout(() => {
+          const id = ++seq.current;
+          mascot.play("Celebrate", "Happy");
+          sfx("tada");
+          const b = mascot.get().box;
+          confetti({ x: b.x + b.w / 2, y: b.y + b.h * 0.3 });
+          void speak([LINES.explored], id).then(() => seq.current === id && mascot.play("Idle"));
+        }, 6000);
+      }
+      return next;
+    });
+  }, [path, sfx, speak]);
 
   // Walk off when following a link to another page (navigation isn't held up).
   useEffect(() => {
@@ -576,12 +737,11 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       return;
     }
     if (resting.current) return;
-    const open = !mascot.get().menu;
-    seq.current++;
-    mascot.say(null);
-    mascot.set({ menu: open });
-    mascot.play(open ? "Listening" : "Idle");
     sfx("click");
+    if (mascot.get().menu) {
+      mascot.set({ menu: false });
+      mascot.play("Idle");
+    } else openMenu(false);
   };
   const closeGuide = useCallback(() => {
     mascot.set({ menu: false });
@@ -608,7 +768,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   }, []);
 
   const three = mode === "3d" && !failed3d;
-  const label = voice === "ar" ? "مرشد BuildX: افتح القائمة" : "BuildX guide: open the menu";
+  const name = GUIDE_NAME[voice];
+  const label = voice === "ar" ? `${name}، مرشد BuildX: افتح القائمة` : `${name}, the BuildX guide: open the menu`;
   const box = { ...pos.current, ...size, phone };
 
   return (
@@ -639,9 +800,17 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           aria-label={label}
           aria-haspopup="dialog"
           aria-expanded={guideOpen}
-          className="pointer-events-auto absolute cursor-pointer rounded-[42%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan"
+          className="peer pointer-events-auto absolute cursor-pointer rounded-[42%] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan"
           style={{ left: `${BODY.x * 100}%`, top: `${BODY.y * 100}%`, width: `${BODY.w * 100}%`, height: `${(peek ? 0.5 - BODY.y : BODY.h) * 100}%` }}
         />
+        {/* Name tag on hover / keyboard focus. */}
+        <span
+          aria-hidden
+          lang={voice}
+          className="pointer-events-none absolute inset-x-0 bottom-[1%] mx-auto w-max rounded-full border border-cyan/30 bg-[rgb(9_22_54/0.92)] px-2.5 py-0.5 text-xs font-semibold text-ice opacity-0 transition-opacity duration-300 peer-hover:opacity-100 peer-focus-visible:opacity-100"
+        >
+          {name}
+        </span>
         <MascotSpeech
           locale={voice}
           side={onRight ? "left" : "right"}
@@ -663,7 +832,11 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             locale={voice}
             path={path}
             anchor={box}
+            explored={explored}
+            focusAsk={focusAsk}
             onGo={go}
+            onToc={onToc}
+            onAction={doAction}
             onAnswer={() => mascot.play("Happy")}
             onClose={closeGuide}
             onHide={hide}
@@ -681,7 +854,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           className="mascot-pill fixed bottom-[calc(5.4rem+env(safe-area-inset-bottom))] end-3 z-30 flex items-center gap-2 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.9)] py-1 pe-3.5 ps-1 text-xs font-medium text-mist shadow-lg backdrop-blur transition hover:text-chalk lg:bottom-5 lg:end-5"
         >
           <img src={POSTER} alt="" className="size-8 rounded-full bg-white/5 object-cover object-top" />
-          {voice === "ar" ? "رجّع المرشد" : "Show guide"}
+          {voice === "ar" ? `رجّع ${name}` : `Show ${name}`}
         </button>
       )}
     </>

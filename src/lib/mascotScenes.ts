@@ -2,7 +2,7 @@
  * Geometry and routing for the BuildX guide: which scenes a page has, where on screen the mascot can
  * stand without covering text or controls, which way to point, and how to get to a section or page.
  */
-import { FORM_ROUTES, JOURNEY, QUIET_ROUTES, type Scene } from "@/config/mascotJourney";
+import { FORM_ROUTES, JOURNEY, QUIET_ROUTES, SECTION_FALLBACK, SECTION_RULES, type Scene } from "@/config/mascotJourney";
 import type { ClipName } from "@/lib/mascot/clip-names";
 
 /** Path without locale prefix or trailing slash ("/" for home). */
@@ -156,4 +156,73 @@ export function scrollToSection(selector: string): boolean {
   if (lenis) lenis.scrollTo(el, { offset: -72, duration: 1.4, immediate: reduce });
   else el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   return true;
+}
+
+const headingText = (h: HTMLElement) => {
+  // The accessible text: animated headings repeat their words in an aria-hidden copy.
+  const copy = h.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll("[aria-hidden='true']").forEach((n) => n.remove());
+  const t = (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+  return t.length > 48 ? `${t.slice(0, 46)}…` : t;
+};
+
+/** A section's own heading (not one belonging to a section inside it). */
+function headingOf(sec: Element): HTMLElement | null {
+  for (const h of sec.querySelectorAll<HTMLElement>("h1, h2")) {
+    if (h.closest("section") !== sec) continue;
+    if (headingText(h).length > 1) return h;
+  }
+  return null;
+}
+
+let autoId = 0;
+
+/**
+ * Every section on the page with its own heading that no configured scene covers gets a scene: a
+ * line picked by its heading (SECTION_RULES) or a friendly fallback naming it. The page's own header
+ * (its h1) is left to the page's arrival scene.
+ */
+export function discoverSections(configured: Scene[]): Scene[] {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const taken = configured.filter((s) => s.selector !== "main").flatMap((s) => [...document.querySelectorAll(s.selector)]);
+  const out: Scene[] = [];
+  let n = 0;
+  for (const sec of main.querySelectorAll<HTMLElement>("section")) {
+    if (sec.closest("[data-mascot], [data-mascot-menu]")) continue;
+    if (taken.some((t) => t === sec || t.contains(sec) || sec.contains(t))) continue;
+    const h = headingOf(sec);
+    if (!h || h.tagName === "H1") continue;
+    if (sec.getBoundingClientRect().height < 140) continue;
+    sec.dataset.guide ??= `s${++autoId}`;
+    const text = headingText(h);
+    const rule = SECTION_RULES.find((r) => r.match.test(text));
+    const say = rule?.say ?? SECTION_FALLBACK[n++ % SECTION_FALLBACK.length];
+    const fill = (s: string) => s.replace("{h}", text);
+    const key = text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40);
+    out.push({
+      id: `auto-${key}`,
+      selector: `[data-guide="${sec.dataset.guide}"]`,
+      clip: rule?.clip ?? (out.length % 2 ? "LookAround" : "Point"),
+      point: `[data-guide="${sec.dataset.guide}"] :is(h1, h2)`,
+      props: rule?.props,
+      goggles: rule?.goggles,
+      say: [{ ar: fill(say.ar), en: fill(say.en) }],
+    });
+  }
+  return out;
+}
+
+/** The page's table of contents for the guide's menu: each section with a heading, in order. */
+export function pageToc(): { label: string; selector: string }[] {
+  const main = document.querySelector("main");
+  if (!main) return [];
+  const items: { label: string; selector: string }[] = [];
+  for (const sec of main.querySelectorAll<HTMLElement>("section")) {
+    const h = headingOf(sec);
+    if (!h || sec.getBoundingClientRect().height < 80) continue;
+    if (!sec.id && !sec.dataset.guide) sec.dataset.guide = `s${++autoId}`;
+    items.push({ label: headingText(h), selector: sec.id ? `#${CSS.escape(sec.id)}` : `[data-guide="${sec.dataset.guide}"]` });
+  }
+  return items.slice(0, 10);
 }

@@ -77,8 +77,11 @@ export const mascot = {
     const loop = ONE_SHOT.has(clip) ? (rest ?? (ONE_SHOT.has(state.clip) ? state.rest : state.clip)) : clip;
     mascot.set({ clip, clipId: state.clipId + 1, rest: loop, eyesClosed: clip === "Sleep" });
   },
+  /** Show a line (or clear the bubble). Returns the line's id, to clear only that line later. */
   say(line: Line | null) {
-    mascot.set({ speech: line ? { ...line, id: ++speechId } : null });
+    const id = ++speechId;
+    mascot.set({ speech: line ? { ...line, id } : null });
+    return id;
   },
   reset() {
     state = { ...initial, mode: state.mode, ready: state.ready, hidden: state.hidden, sound: state.sound, box: state.box };

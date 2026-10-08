@@ -1,13 +1,14 @@
 "use client";
 /**
  * Starts the guide's scenes as their sections reach the middle of the screen (GSAP ScrollTrigger,
- * loaded with the guide). Scenes for the whole page ("main") start right away. Sections that load
- * later (live content) are picked up by refreshing the triggers after a moment.
+ * loaded with the guide). Scenes for the whole page ("main") start right away. `discover` adds
+ * scenes for the page's other sections. Sections that load later (live content) are picked up by
+ * looking again after a moment.
  */
 import { useEffect, useRef } from "react";
 import type { Scene } from "@/config/mascotJourney";
 
-export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void, key: string, enabled: boolean) {
+export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void, key: string, enabled: boolean, discover?: (configured: Scene[]) => Scene[]) {
   const handler = useRef(onScene);
   useEffect(() => {
     handler.current = onScene;
@@ -21,7 +22,6 @@ export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void
     const page = scenes.filter((s) => s.selector === "main");
     const sections = scenes.filter((s) => s.selector !== "main");
     for (const s of page) handler.current(s);
-    if (!sections.length) return;
 
     void (async () => {
       const [{ gsap }, { ScrollTrigger }] = await Promise.all([import("gsap"), import("gsap/ScrollTrigger")]);
@@ -30,7 +30,8 @@ export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void
       const triggers: ScrollTrigger[] = [];
       const made = new Set<string>();
       const build = () => {
-        for (const s of sections) {
+        const found = discover?.(scenes) ?? [];
+        for (const s of [...sections, ...found]) {
           if (made.has(s.id)) continue;
           const el = document.querySelector(s.selector);
           if (!el) continue;
@@ -51,7 +52,7 @@ export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void
       build();
       // Live sections (partners, testimonials) can appear after the first paint.
       timers.push(window.setTimeout(build, 1500), window.setTimeout(build, 4000));
-      // The first scene in view starts now, even without scrolling.
+      // The first configured scene in view starts now, even without scrolling.
       const first = sections.find((s) => {
         const el = document.querySelector(s.selector);
         if (!el) return false;
@@ -67,5 +68,5 @@ export function useScrollScenes(scenes: Scene[], onScene: (scene: Scene) => void
       timers.forEach((t) => clearTimeout(t));
       kill();
     };
-  }, [scenes, key, enabled]);
+  }, [scenes, key, enabled, discover]);
 }
