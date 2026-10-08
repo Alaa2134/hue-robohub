@@ -10,7 +10,7 @@ import { can, errorText, isNative, must, sb, type StaffRow } from "./core";
 import { BrandLine } from "./shell";
 import { Button, Card, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Textarea, TopBar, toast, useAsync } from "./ui";
 
-/** One app for students and the team (com.buildxhue.student); the keys keep their first names. */
+/** One app for students and the team (Android buildx.hue.app, iPhone com.buildxhue.student); the keys keep their first names. */
 export type AppsSettings = {
   student_min?: string;
   message?: string;
@@ -19,7 +19,7 @@ export type AppsSettings = {
 };
 
 const PLAY = (id: string) => `https://play.google.com/store/apps/details?id=${id}`;
-const DEFAULT_LINKS = { student_android: PLAY("com.buildxhue.student") };
+const DEFAULT_LINKS = { student_android: PLAY("buildx.hue.app") };
 
 type AppInfo = { version: string; build: string; id: string };
 const App = registerPlugin<{ getInfo(): Promise<AppInfo> }>("App");

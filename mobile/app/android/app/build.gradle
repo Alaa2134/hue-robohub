@@ -4,7 +4,8 @@ android {
     namespace = "com.buildxhue.student"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.buildxhue.student"
+        // The Play Store listing was created as buildx.hue.app; the Java package (namespace) stays as is.
+        applicationId "buildx.hue.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode((System.getenv("VERSION_CODE") ?: "1") as Integer)

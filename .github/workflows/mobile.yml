@@ -1,5 +1,5 @@
 # Builds the store app from the BuildX App (see mobile/README.md):
-#   BuildX HUE (com.buildxhue.student) — students and the training team, one sign-in
+#   BuildX HUE (Android buildx.hue.app, iPhone com.buildxhue.student) — students and the training team, one sign-in
 #
 # Run it from Actions → "Mobile apps" → Run workflow. Each run gives:
 #   Android: a signed .aab (download it from the run and upload it to Google Play Console)
@@ -86,7 +86,10 @@ jobs:
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+          if [ -n "$GOOGLE_SERVICES_JSON" ] && ! printf '%s' "$GOOGLE_SERVICES_JSON" | grep -q '"buildx\.hue\.app"'; then
+            # A file made for another package name would fail the build; build without push instead.
+            echo "::warning::GOOGLE_SERVICES_JSON has no Android app with package buildx.hue.app: building without push notifications. Add that app in Firebase and replace the secret."
+          elif [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/app/android/app/google-services.json
             # Tells the app push is set up in this build (see src/portal/native-push.ts).
             echo '{"android":true}' > mobile/app/android/app/src/main/assets/public/app/push.json
