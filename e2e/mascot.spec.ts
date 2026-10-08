@@ -1,5 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import * as journey from "../src/config/mascotJourney";
+import { voiceKey } from "../src/lib/mascot/voice-text";
 
 /**
  * The BuildX guide (3D mascot) on the public site. Automated browsers only get it when a test asks
@@ -539,11 +542,12 @@ test("left alone he keeps busy (push-ups, reading, coding…); click him and he 
   expect(errors).toEqual([]);
 });
 
-test("he talks: silent until the first tap (the browser's rule) and says so; the tap makes him say the line on screen", async ({ page }) => {
+test("with the device voice turned on (no recordings), he's silent until the first tap and says so; the tap makes him say the line", async ({ page }) => {
   await withGuide(page);
   // Record what he says instead of playing it (and pretend the device lists no voices yet, as many
   // Android phones do: he must still try).
   await page.addInitScript(() => {
+    localStorage.setItem("bx-guide-device-voice", "1");
     const said: string[] = [];
     (window as unknown as { said: string[] }).said = said;
     Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => [] });
@@ -563,4 +567,39 @@ test("he talks: silent until the first tap (the browser's rule) and says so; the
   await page.mouse.click(700, 300);
   await expect(bubble(page)).not.toContainText("دوس في أي حتة");
   await expect.poll(() => page.evaluate(() => (window as unknown as { said: string[] }).said.join(" | ")), { timeout: 8000 }).toMatch(/بقلظ|بيلد إكس|جولة/);
+});
+
+test("his recorded Egyptian voice plays the line on screen; the robotic device voice stays off", async ({ page }) => {
+  await withGuide(page);
+  // A manifest listing every scripted line, and a short clip for each.
+  const lines = new Set<string>();
+  const walk = (v: unknown, seen = new Set<unknown>()) => {
+    if (!v || typeof v !== "object" || seen.has(v)) return;
+    seen.add(v);
+    if (typeof (v as { ar?: unknown }).ar === "string") lines.add((v as { ar: string }).ar);
+    for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, seen);
+  };
+  walk(Object.values(journey));
+  for (const h of [0, 6, 13, 20]) lines.add(journey.greeting(h).ar);
+  const clips = [...lines].map(voiceKey);
+  const played: string[] = [];
+  await page.route("**/voice/manifest.json", (route) => route.fulfill({ json: { voice: "ar-EG-ShakirNeural", clips } }));
+  await page.route(/\/voice\/[0-9a-f]{8}\.mp3$/, (route) => {
+    played.push(new URL(route.request().url()).pathname.split("/").pop()!);
+    return route.fulfill({ body: readFileSync("public/voice/silence.mp3"), contentType: "audio/mpeg" });
+  });
+  await page.addInitScript(() => {
+    const said: string[] = [];
+    (window as unknown as { said: string[] }).said = said;
+    Object.defineProperty(window.speechSynthesis, "speak", { value: (u: SpeechSynthesisUtterance) => u.text.trim() && said.push(u.text) });
+  });
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page)).toContainText("أنا بقلظ", { timeout: 15_000 });
+  await expect(bubble(page).getByRole("button", { name: "اسمعها بصوت بقلظ" })).toBeVisible();
+  await page.mouse.click(700, 300);
+  // The greeting and the line are two clips, played one after the other.
+  await expect.poll(() => played.length, { timeout: 8000 }).toBeGreaterThanOrEqual(1);
+  expect(played.every((f) => clips.includes(f.replace(".mp3", "")))).toBe(true);
+  expect(await page.evaluate(() => (window as unknown as { said: string[] }).said)).toEqual([]);
 });

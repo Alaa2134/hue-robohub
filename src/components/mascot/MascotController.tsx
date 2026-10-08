@@ -35,7 +35,7 @@ import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
 import { BADGES, play, visitToday } from "@/lib/mascot/games";
 import { OCCASION_LINES, wardrobe } from "@/lib/mascot/wardrobe";
-import { activated, hush, speak as speakAloud, speaking, unlock } from "@/lib/mascot/voice";
+import { activated, hush, loadVoice, speak as speakAloud, speaking, unlock } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
 import type { Quality } from "./Mascot3D";
@@ -233,6 +233,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const snd = storage.get("bx-guide-sound") !== "0";
     soundOn.current = snd;
     returning.current = storage.get("bx-guide-visited") === "1";
+    // The list of his recorded lines (small), so the first line can play the moment sound is allowed.
+    void loadVoice();
     storage.set("bx-guide-visited", "1");
     mascot.set({ mode, hidden: h, sound: snd });
   }, [mode]);

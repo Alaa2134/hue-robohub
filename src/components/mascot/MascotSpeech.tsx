@@ -9,14 +9,20 @@ import { useEffect, useState } from "react";
 import { GUIDE_NAME, type SceneAction } from "@/config/mascotJourney";
 import { useMascot } from "@/hooks/useMascotState";
 import { cn } from "@/lib/cn";
-import { canSpeak, isUnlocked, onUnlock } from "@/lib/mascot/voice";
+import { canSay, isUnlocked, loadVoice, onUnlock } from "@/lib/mascot/voice";
 
 export function MascotSpeech({ locale, side, above, compact, onAction, onListen, onClose }: { locale: "en" | "ar"; side: "left" | "right"; above: boolean; compact?: boolean; onAction: (a: SceneAction) => void; onListen: (text: string) => void; onClose: () => void }) {
   const speech = useMascot((s) => s.speech);
   const sound = useMascot((s) => s.sound);
   const [voice, setVoice] = useState(false);
   // Voices load late on some browsers.
-  useEffect(() => setVoice(canSpeak()), [speech]);
+  useEffect(() => {
+    let alive = true;
+    void loadVoice().then(() => alive && setVoice(!!speech && canSay(speech[locale])));
+    return () => {
+      alive = false;
+    };
+  }, [speech, locale]);
   // Until the first tap the browser keeps him silent: say so, so visitors know he talks.
   const [silent, setSilent] = useState(false);
   useEffect(() => {

@@ -35,7 +35,7 @@ const TEAM_KEYS: Record<string, string[]> = {
   "green-innovation": ["green", "environment", "sustainab", "بيئه", "اخضر"],
 };
 
-const INTENTS: Intent[] = [
+export const INTENTS: Intent[] = [
   // Who and what.
   { keys: ["who are you", "your name", "baqloz", "انت مين", "اسمك", "بقلظ", "مين انت"], answer: { text: t("أنا بقلظ 👋 مرشدك في BuildX HUE. بلفّ معاك الموقع وأجاوبك على أي سؤال.", "I'm Baqloz 👋 your BuildX HUE guide. I show you around and answer questions.") } },
   { keys: ["what can you do", "help", "تقدر تعمل", "بتعمل ايه", "ساعدني", "مساعده"], answer: { text: t("أقدر أفرّجك على الموقع، أوصّلك لأي صفحة، أساعدك تملا الفورم، وأجاوب على أسئلتك عن التراكات والإيفنتات والمسابقات والانضمام.", "I can show you around, take you anywhere, help with forms, and answer questions about tracks, events, competitions and joining.") } },
@@ -94,7 +94,7 @@ for (const [slug, keys] of Object.entries(TRACK_KEYS))
 for (const [slug, keys] of Object.entries(TEAM_KEYS))
   if (TEAMS[slug]) INTENTS.push({ keys, answer: { text: TEAMS[slug], href: `/competitions/${slug}`, label: t("شوف الفريق", "See the team") } });
 
-const FALLBACK: GuideAnswer = {
+export const FALLBACK: GuideAnswer = {
   text: t("دي مش عارفها بصراحة 😅 جرّب البحث، أو الأسئلة الشائعة، أو ابعت للفريق.", "Not sure about that one 😅 Try search, the FAQ, or message the team."),
   action: "search",
   label: t("افتح البحث", "Open search"),
