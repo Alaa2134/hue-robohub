@@ -1,9 +1,9 @@
 "use client";
-/** Owner/admin screen for the website's own settings: contact, socials, hero, announcement and goals. */
+/** Owners, admins and whoever has "settings": the website's own settings: contact, socials, hero, announcement and goals. */
 import { useEffect, useState } from "react";
 import type { GoalSetting, SiteSettings } from "@/lib/site-settings";
 import { siteImageUrl } from "@/lib/site-content";
-import { errorText, must, removeObjects, savedText, sb, uploadImage, type StaffRow } from "./core";
+import { can, errorText, must, removeObjects, savedText, sb, uploadImage, type StaffRow } from "./core";
 import { SponsorDeckCard } from "./staff-inbox";
 import { GuideAiCard } from "./staff-guide";
 import { Button, Card, Empty, ErrorBox, Field, IconButton, Input, Loading, Section, Textarea, Toggle, TopBar, toast, useAsync } from "./ui";
@@ -11,7 +11,7 @@ import { Button, Card, Empty, ErrorBox, Field, IconButton, Input, Loading, Secti
 const EMPTY_GOAL: GoalSetting = { value: "", label_en: "", label_ar: "", note_en: "", note_ar: "" };
 
 export function SiteSettingsScreen({ me }: { me: StaffRow }) {
-  const admin = me.role !== "lead";
+  const admin = can(me, "settings");
   const { data, error, loading, reload } = useAsync(async () => {
     const rows = (await sb().from("site_settings").select("value").eq("key", "site").limit(1).then(must)) as { value: SiteSettings }[];
     return rows[0]?.value ?? {};
@@ -27,7 +27,7 @@ export function SiteSettingsScreen({ me }: { me: StaffRow }) {
     return (
       <>
         <TopBar title="إعدادات الموقع" back="/staff/more" />
-        <Empty icon="lock" title="الصفحة دي للمالك والأدمنز بس" />
+        <Empty icon="lock" title="إعدادات الموقع مش من صلاحياتك" />
       </>
     );
 

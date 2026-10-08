@@ -242,5 +242,57 @@ export function buildClips(): THREE.AnimationClip[] {
     }),
   );
 
+  // What he gets up to when nobody needs him (MascotController's activities).
+  // Push-ups: tipped forward on his hands, body straight, up and down.
+  out.push(
+    // Lying forward from the hips, so the hips go back half a body length to keep him in frame.
+    sample("PushUp", 3.2, (t) => {
+      const u = 0.5 + 0.5 * Math.cos((t / 1.6) * TAU); // 1 = arms straight, 0 = down
+      const lift = 0.2 + 0.12 * u;
+      return {
+        hips: { rot: [1.22, 0, 0], pos: [0, lift, -0.5], scale: [0, 0.01 * (1 - u), 0] },
+        head: { rot: [-1.1 + 0.08 * (1 - u), 0, 0] },
+        armL: { rot: [-1.3, 0, -0.16 - 0.55 * (1 - u)] },
+        armR: { rot: [-1.3, 0, 0.16 + 0.55 * (1 - u)] },
+        legL: { rot: [1.35, 0, 0], pos: [0, 0.1, -0.16] },
+        legR: { rot: [1.35, 0, 0], pos: [0, 0.1, -0.16] },
+      };
+    }),
+  );
+  // A big stretch, arms up, leaning side to side.
+  out.push(
+    sample("Stretch", 4, (t) => {
+      const k = env(t, 4, 0.6);
+      const s = sin(t, 4);
+      return {
+        hips: { rot: [0, 0, 0.16 * s * k], scale: [0, 0.04 * k, 0], ...breathe(t) },
+        head: { rot: [-0.18 * k, 0, 0.14 * s * k] },
+        armL: { rot: [0, 0, -2.7 * k] },
+        armR: { rot: [0, 0, 2.7 * k] },
+      };
+    }),
+  );
+  // A sip from the cup in his right hand.
+  out.push(
+    sample("Drink", 3, (t) => {
+      const k = env(t, 3, 0.5);
+      return {
+        hips: { ...breathe(t) },
+        head: { rot: [-0.16 * k, 0, 0.04 * k] },
+        armR: { rot: [-2.15 * k, 0, -0.42 * k] },
+        armL: { rot: [0, 0, -0.06 * k] },
+      };
+    }),
+  );
+  // Reading the book in his hands, head down, a page now and then.
+  out.push(
+    sample("Read", 3, (t) => ({
+      hips: { rot: [0.06, 0, 0], ...breathe(t, 3, 0.01) },
+      head: { rot: [0.3 + 0.02 * sin(t, 3), 0.08 * sin(t, 3), 0] },
+      armL: { rot: [-1.05, 0, 0.32] },
+      armR: { rot: [-1.05 - 0.12 * Math.max(0, sin(t, 3)), 0, -0.32] },
+    })),
+  );
+
   return out;
 }

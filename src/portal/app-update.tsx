@@ -6,7 +6,7 @@
  */
 import { registerPlugin } from "@capacitor/core";
 import { useEffect, useState, type ReactNode } from "react";
-import { appMode, errorText, isNative, must, sb, type StaffRow } from "./core";
+import { appMode, can, errorText, isNative, must, sb, type StaffRow } from "./core";
 import { BrandLine } from "./shell";
 import { Button, Card, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Textarea, TopBar, toast, useAsync } from "./ui";
 
@@ -82,9 +82,9 @@ export function UpdateGate({ children }: { children: ReactNode }) {
   );
 }
 
-/** /staff/apps — owners and admins: minimum versions and store links. */
+/** /staff/apps — owners, admins and whoever has "settings": minimum versions and store links. */
 export function AppsSettingsScreen({ me }: { me: StaffRow }) {
-  const admin = me.role !== "lead";
+  const admin = can(me, "settings");
   const { data, error, loading, reload } = useAsync(async () => {
     const rows = (await sb().from("site_settings").select("value").eq("key", "apps").limit(1).then(must)) as { value: AppsSettings }[];
     return rows[0]?.value ?? {};

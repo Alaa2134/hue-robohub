@@ -6,12 +6,12 @@
 import { useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { LINK_KEYS, LINK_LABEL, sortProfiles, teamImageUrl, type TeamGroup, type TeamProfile, type TeamProject } from "@/lib/team-public";
-import { must, removeObjects, sb, uid, uploadImage, type StaffRow } from "./core";
+import { can, must, removeObjects, sb, uid, uploadImage, type StaffRow } from "./core";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
 const GROUP_LABEL: Record<TeamGroup, string> = { founder: "مؤسس", lead: "قائد فريق", member: "عضو" };
-const isAdmin = (me: StaffRow) => me.role === "owner" || me.role === "admin";
+const isAdmin = (me: StaffRow) => can(me, "portfolios");
 
 const slugify = (v: string) =>
   v
@@ -436,7 +436,7 @@ export function PortfoliosAdmin({ me }: { me: StaffRow }) {
   }, []);
   const [adding, setAdding] = useState(false);
 
-  if (!isAdmin(me)) return <Empty icon="lock" title="الصفحة دي للمشرفين بس" />;
+  if (!isAdmin(me)) return <Empty icon="lock" title="صفحات الفريق مش من صلاحياتك" />;
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
 

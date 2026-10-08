@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { Line, PropName } from "@/config/mascotJourney";
+import type { Outfit } from "@/lib/mascot/model";
 import { ONE_SHOT, type ClipName } from "@/lib/mascot/clip-names";
 
 export type MascotMode = "3d" | "poster";
@@ -33,6 +34,10 @@ export type MascotState = {
   speech: (Line & { id: number }) | null;
   /** Picked up by the visitor (dangling from the cursor or finger). */
   held: boolean;
+  /** What he's wearing and holding (time of day, day of the week, season, occasion, activity). */
+  outfit: Outfit[];
+  /** His face: eyebrows and mouth. */
+  mood: "neutral" | "happy" | "angry" | "sad" | "surprised";
   /** Lying on his belly after a throw, head towards screen-left (-1) or screen-right (1); 0 standing. */
   flop: number;
   /** Mascot box on screen (for the bubble, menu and look direction). */
@@ -56,6 +61,8 @@ const initial: MascotState = {
   drone: false,
   speech: null,
   held: false,
+  outfit: [],
+  mood: "neutral",
   flop: 0,
   box: { x: 0, y: 0, w: 0, h: 0 },
 };

@@ -67,20 +67,28 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
  * What a trainer (role lead) may work in. Owners and admins have every area; a trainer with no list
  * has every area too (as before). The database enforces the same areas (private.can).
  */
-export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates";
+export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates" | "publish" | "settings" | "portfolios" | "notify";
 export const AREAS: { key: Area; label: string; hint: string }[] = [
   { key: "students", label: "الطلاب والتدريب", hint: "الطلاب، الحضور، التاسكات، الكويزات، الملفات، الإعلانات والنقاط" },
   { key: "applications", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
   { key: "events", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
-  { key: "content", label: "محتوى الموقع والفورمات", hint: "الأخبار والفعاليات والجاليري، والفورمات وردودها" },
+  { key: "content", label: "محتوى الموقع والفورمات", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، والفورمات وردودها" },
+  { key: "publish", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى، وتعديل وحذف المنشور" },
+  { key: "portfolios", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
+  { key: "settings", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات" },
+  { key: "notify", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
   { key: "inbox", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
   { key: "certificates", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
 ];
-export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => me.role !== "lead" || !me.permissions || me.permissions.includes(area);
+/** A trainer with no list keeps the areas trainers always had; the newer ones are given by name. */
+const BASIC: Area[] = ["applications", "students", "events", "content", "inbox", "certificates"];
+export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => me.role !== "lead" || (me.permissions ?? BASIC).includes(area);
 
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[] }[] = [
-  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "inbox", "certificates"] },
+  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "publish", "portfolios", "settings", "notify", "inbox", "certificates"] },
+  { title: "إداري الموقع", areas: ["content", "publish", "portfolios", "settings", "notify", "inbox"] },
+  { title: "هيد الميديا", areas: ["content", "publish", "portfolios", "notify"] },
   { title: "المدير التقني", areas: ["students", "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: ["students"] },
   { title: "مسؤول Embedded وIoT", areas: ["students"] },

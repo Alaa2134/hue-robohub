@@ -9,13 +9,20 @@ import { useEffect, useState } from "react";
 import { GUIDE_NAME, type SceneAction } from "@/config/mascotJourney";
 import { useMascot } from "@/hooks/useMascotState";
 import { cn } from "@/lib/cn";
-import { canSpeak } from "@/lib/mascot/voice";
+import { canSpeak, isUnlocked, onUnlock } from "@/lib/mascot/voice";
 
 export function MascotSpeech({ locale, side, above, compact, onAction, onListen, onClose }: { locale: "en" | "ar"; side: "left" | "right"; above: boolean; compact?: boolean; onAction: (a: SceneAction) => void; onListen: (text: string) => void; onClose: () => void }) {
   const speech = useMascot((s) => s.speech);
+  const sound = useMascot((s) => s.sound);
   const [voice, setVoice] = useState(false);
   // Voices load late on some browsers.
   useEffect(() => setVoice(canSpeak()), [speech]);
+  // Until the first tap the browser keeps him silent: say so, so visitors know he talks.
+  const [silent, setSilent] = useState(false);
+  useEffect(() => {
+    setSilent(!isUnlocked());
+    return onUnlock(() => setSilent(false));
+  }, []);
   return (
     <div
       role="status"
@@ -37,13 +44,18 @@ export function MascotSpeech({ locale, side, above, compact, onAction, onListen,
           <span aria-hidden className={cn("absolute size-3 rotate-45 border-[var(--line-2)] bg-[rgb(9_22_54/0.94)]", above ? "-bottom-1.5 border-b border-e" : "top-6", !above && (side === "left" ? "-right-1.5 border-r border-t" : "-left-1.5 border-b border-l"), above && (side === "left" ? "right-8" : "left-8"))} />
           <p className="mb-0.5 text-xs font-bold text-cyan">{GUIDE_NAME[locale]}</p>
           <p className={voice ? "pe-10" : "pe-4"}>{speech[locale]}</p>
+          {voice && sound && silent && !speech.actions?.length && (
+            <p className="mt-1.5 text-xs text-cyan" aria-hidden>
+              {locale === "ar" ? "🔊 دوس في أي حتة عشان تسمع صوتي" : "🔊 Tap anywhere to hear me"}
+            </p>
+          )}
           {voice && (
             <button
               type="button"
               onClick={() => onListen(speech[locale])}
               aria-label={locale === "ar" ? "اسمعها بصوت بقلظ" : "Read it aloud"}
               title={locale === "ar" ? "اسمعها" : "Read aloud"}
-              className="absolute end-8 top-1.5 flex size-7 items-center justify-center rounded-full text-fog transition hover:bg-white/10 hover:text-chalk"
+              className={cn("absolute end-8 top-1.5 flex size-7 items-center justify-center rounded-full transition hover:bg-white/10 hover:text-chalk", silent && sound ? "animate-pulse text-cyan" : "text-fog")}
             >
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 5 6 9H3v6h3l5 4V5z" />

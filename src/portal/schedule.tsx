@@ -4,7 +4,7 @@
  * and announcements from the coaches. See 20261008130000_schedule_announcements.sql.
  */
 import { useMemo, useState, type FormEvent } from "react";
-import { download, errorText, fmt, must, sb, studentRpc, type StaffRow } from "./core";
+import { can, download, errorText, fmt, must, sb, studentRpc, type StaffRow } from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
@@ -222,7 +222,7 @@ export function AnnouncementsScreen({ me }: { me: StaffRow }) {
 function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: () => void; onSaved: () => void }) {
   const students = useStudents();
   const groups = useMemo(() => groupsOf(students.list), [students.list]);
-  const [f, setF] = useState({ title: "", body: "", group_name: "", pinned: false, days: "7", push: me.role !== "lead" });
+  const [f, setF] = useState({ title: "", body: "", group_name: "", pinned: false, days: "7", push: can(me, "notify") });
   const [busy, setBusy] = useState(false);
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -234,7 +234,7 @@ function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: ()
         .from("announcements")
         .insert({ title: f.title.trim(), body: f.body.trim(), group_name: f.group_name, pinned: f.pinned, expires_at: days > 0 ? new Date(Date.now() + days * 864e5).toISOString() : null })
         .then(must);
-      if (f.push && me.role !== "lead") {
+      if (f.push && can(me, "notify")) {
         const { error } = await sb().functions.invoke("send-push", { body: { title: f.title.trim(), body: f.body.trim().slice(0, 240), url: "/app/#/me", audience: f.group_name ? "group" : "students", group: f.group_name || null } });
         if (error) toast("الإعلان اتنشر، بس الإشعار موصلش", "error");
       }
@@ -262,7 +262,7 @@ function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: ()
           <Input type="number" inputMode="numeric" min={0} max={365} value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} dir="ltr" />
         </Field>
         <Toggle checked={f.pinned} onChange={(v) => setF({ ...f, pinned: v })} label="مثبّت فوق" />
-        {me.role !== "lead" && <Toggle checked={f.push} onChange={(v) => setF({ ...f, push: v })} label="ابعته إشعار كمان" hint="للي مفعّلين الإشعارات." />}
+        {can(me, "notify") && <Toggle checked={f.push} onChange={(v) => setF({ ...f, push: v })} label="ابعته إشعار كمان" hint="للي مفعّلين الإشعارات." />}
         <Button type="submit" variant="primary" size="lg" block loading={busy}>
           نشر
         </Button>

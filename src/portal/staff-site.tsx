@@ -1,12 +1,13 @@
 "use client";
 /**
  * Website content from the app: events, news, projects, gallery photos and achievements.
- * Any staff member writes drafts; owners/admins publish (enforced in the database too).
+ * Anyone with "content" writes drafts; owners, admins and whoever has "publish" publish (enforced in
+ * the database too).
  */
 import { useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
-import { errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
+import { can, errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -22,7 +23,7 @@ const KINDS: { key: ContentKind; label: string; one: string; fields: F[]; titleL
   { key: "partner", label: "الشركاء والرعاة", one: "شريك", fields: ["title", "image", "url", "result", "sort"], titleLabel: "اسم الشريك", urlLabel: "موقع الشريك", resultLabel: "نوع الشراكة (راعي، شريك تعليمي…)" },
 ];
 const kindOf = (k: ContentKind) => KINDS.find((x) => x.key === k)!;
-const isAdmin = (me: StaffRow) => me.role === "owner" || me.role === "admin";
+const isAdmin = (me: StaffRow) => can(me, "publish");
 const slugify = (v: string) =>
   v
     .toLowerCase()
@@ -49,7 +50,7 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
     <>
       <TopBar
         title="محتوى الموقع"
-        sub={isAdmin(me) ? "انت تقدر تنشر على الموقع" : "اكتب مسودة — المشرفين بينشروها"}
+        sub={isAdmin(me) ? "انت تقدر تنشر على الموقع" : "اكتب مسودة — اللي عندهم صلاحية النشر بينشروها"}
         actions={
           <Button size="sm" variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk(true) : setEditing("new"))}>
             {kind === "photo" ? "صور" : k.one}

@@ -18,8 +18,10 @@ const admin = createClient(Deno.env.get("SUPABASE_URL")!, secretKey(), {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+// The site and the store apps (Android serves from https://localhost, iOS from capacitor://localhost).
+const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://localhost:4173", "https://localhost", "capacitor://localhost"];
+
 const CORS = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Max-Age": "86400",
@@ -147,7 +149,16 @@ async function removeStaff(me: Caller, b: Body) {
   return reply({ ok: true });
 }
 
+// Only the site and the apps may call this from a browser (each response names the caller's origin).
 Deno.serve(async (req) => {
+  const origin = req.headers.get("origin") ?? "";
+  const res = await handle(req);
+  res.headers.set("Access-Control-Allow-Origin", ORIGINS.includes(origin) ? origin : ORIGINS[0]);
+  res.headers.set("Vary", "Origin");
+  return res;
+});
+
+async function handle(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return reply({ error: "method" }, 405);
   let body: Body;
@@ -170,4 +181,4 @@ Deno.serve(async (req) => {
     console.error("staff-admin", String(action), e instanceof Error ? e.message : "error");
     return reply({ error: "server" }, 500);
   }
-});
+}
