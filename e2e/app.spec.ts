@@ -6,6 +6,12 @@ const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "own
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 const RPC: Record<string, unknown> = {
+  staff_access_requests: [
+    { id: "r1", kind: "pin", note: "01001234567", at: at(20), studentId: "s1", staffUserId: null, name: "Mona Adel", code: "2024001", group: "Robotics A", email: null, phone: null },
+  ],
+  staff_set_pins: [{ id: "s1", code: "2024001", name: "Mona Adel", group: "Robotics A", pin: "482913" }],
+  staff_push_keys_status: { web: true, android: true, ios: false, devices: { android: 7, ios: 0 } },
+  staff_set_push_keys: { ok: true },
   staff_usage: { db_bytes: 420 * 1024 * 1024, buckets: [{ bucket: "materials", bytes: 300 * 1024 * 1024, files: 40 }] },
   security_pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
   staff_security_overview: {
@@ -270,7 +276,17 @@ test("a student sees their points, badges, group ranking and certificates", asyn
       points: 75, rank: 1, of: 2, group: "G1",
       breakdown: { attended: 1, quizzes: 1, perfect: 1, certs: 1, events: 1, bonus: 0 },
       badges: ["first_step", "full_marks", "certified"],
+      streak: { current: 3, best: 4 },
       top: [{ name: "Mona A.", points: 75, me: true }, { name: "Omar A.", points: 66, me: false }],
+    },
+    student_weekly: {
+      quiz: { id: "wq1", title: "Sensors sprint", opensAt: at(60 * 24), endsAt: new Date(Date.now() + 864e5 * 3).toISOString(), state: "open" },
+      top: [
+        { rank: 1, name: "Omar A.", score: 10, max: 10, seconds: 95, me: false },
+        { rank: 2, name: "Sara K.", score: 9, max: 10, seconds: 120, me: false },
+      ],
+      me: null,
+      players: 2,
     },
     student_certificates: [{ id: "c1", code: "BXC-1A2B3C4D", name: "Mona Adel", kind: "completion", title: "Robotics Bootcamp 2026", title_ar: "بوتكامب الروبوتات", details: null, details_ar: null, hours: 24, issued_on: "2026-10-07" }],
   };
@@ -279,10 +295,16 @@ test("a student sees their points, badges, group ranking and certificates", asyn
     return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
   });
   await page.goto("/app/#/me");
-  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام")).toBeVisible();
+  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام · 🔥 3 سيشن ورا بعض")).toBeVisible();
+  // This week's contest: the top players and a way in for someone who hasn't played.
+  await expect(page.getByText("Sensors sprint")).toBeVisible();
+  await expect(page.getByText("Omar A.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "ادخل" })).toHaveAttribute("href", "#/me/quiz/wq1");
   await expect(page.getByText("بوتكامب الروبوتات")).toBeVisible();
   await page.getByText("ترتيبك 1 من 2").click();
-  await expect(page.getByText("الأوسمة (3 من 9)")).toBeVisible();
+  await expect(page.getByText("الأوسمة (3 من 10)")).toBeVisible();
+  await expect(page.getByText("3 سيشن ورا بعض")).toBeVisible();
+  await expect(page.getByText("أطول سلسلة ليك: 4 · فاضلك 1 عشان وسام «نار»")).toBeVisible();
   await expect(page.getByText("Mona A. (انت)")).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -765,6 +787,58 @@ test("certificates go in one tap to every student who attended enough sessions",
   delete RPC.staff_attendance_rates;
 });
 
+test("certificates for everyone who finished the course track, and the student's progress bar", async ({ page }) => {
+  await signInAsOwner(page);
+  const s = (id: string, name: string) => ({ id, code: id, codeKey: id, barcode: null, barcodeKey: null, name, group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true });
+  RPC.staff_list_students = [s("s1", "Mona"), s("s2", "Omar")];
+  RPC.staff_progress = [
+    { student_id: "s1", percent: 55 },
+    { student_id: "s2", percent: 92 },
+  ];
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Robotics Bootcamp 2026");
+  await expect(page.getByText("اللي خلّصوا 80% من المسار أو أكتر: 1")).toBeVisible();
+  await page.getByText("اللي خلّصوا 80% من المسار أو أكتر: 1").locator("..").getByRole("button", { name: "اختارهم" }).click();
+  await page.getByRole("button", { name: "إصدار 1 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.map((r) => r.recipient_name)).toEqual(["Omar"]);
+  delete RPC.staff_progress;
+});
+
+test("a student sees the course progress and opening a lecture counts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const seen: unknown[] = [];
+  const material = { id: "m1", title: "Lecture 5: sensors", description: "", kind: "link", path: null, url: "https://example.com/l5", fileName: null, mime: null, size: null, pinned: false, at: at(60) };
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [material, { ...material, id: "m2", title: "Lecture 4" }], quizzes: [], attendance: [] },
+    student_progress: { percent: 63, materials: { seen: 1, total: 2 }, quizzes: { done: 1, total: 2 }, sessions: { attended: 7, total: 8 }, seenIds: ["m2"] },
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_material_seen") seen.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.route("https://example.com/**", (route) => route.fulfill({ body: "ok" }));
+  await page.goto("/app/#/me");
+  await expect(page.getByText("مسار الكورس")).toBeVisible();
+  await expect(page.getByText("63%")).toBeVisible();
+  await expect(page.getByText("7/8")).toBeVisible();
+  await page.goto("/app/#/me/content");
+  await expect(page.getByLabel("شفته")).toHaveCount(1);
+  const popup = page.waitForEvent("popup");
+  await page.getByText("Lecture 5: sensors").click();
+  await (await popup).close();
+  await expect.poll(() => seen).toEqual([{ p_token: "a".repeat(64), p_material: "m1" }]);
+});
+
 test("one sign-in: a student number goes to the student dashboard, an email to the team's", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   let signedIn = false;
@@ -812,4 +886,176 @@ test("one sign-in: a student number goes to the student dashboard, an email to t
   await expect(page).toHaveURL(/#\/staff$/);
   expect(signedIn).toBe(true);
   expect(calls.filter((c) => c.fn === "student_login")).toHaveLength(1);
+});
+
+test("the owner adds the phone notification keys from the app (write-only)", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/notify");
+  const card = page.locator("section", { hasText: "إشعارات التطبيق على الموبايل" });
+  await expect(card.getByText("Android ✓")).toBeVisible();
+  await expect(card.getByText("7 أندرويد · 0 آيفون مسجّلين")).toBeVisible();
+  await card.getByRole("button", { name: "تغيير المفاتيح" }).click();
+  await card.getByLabel("Apple (iPhone): ملف AuthKey .p8").setInputFiles({ name: "AuthKey_ABCDE12345.p8", mimeType: "application/octet-stream", buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n") });
+  await card.getByLabel("Key ID").fill("abcde12345");
+  await card.getByLabel("Team ID").fill("TEAM123456");
+  await card.getByRole("button", { name: "حفظ" }).click();
+  await expect(page.getByText("اتحفظت ✓")).toBeVisible();
+  expect(calls.find((c) => c.fn === "staff_set_push_keys")?.body).toEqual({
+    p_fcm: null,
+    p_apns_p8: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+    p_apns_key_id: "ABCDE12345",
+    p_apns_team_id: "TEAM123456",
+  });
+});
+
+test("forgot PIN: the student asks from the sign-in screen and a coach sends a new one", async ({ page }) => {
+  // The request, signed out.
+  const asked: unknown[] = [];
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "request_access_help") asked.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn === "request_access_help" ? { ok: true } : fn === "app_status" ? { ready: true } : null });
+  });
+  await page.goto("/app/#/login");
+  await page.getByLabel("رقم الطالب أو البريد الإلكتروني").fill("2024001");
+  await page.getByRole("button", { name: "نسيت رمز الدخول أو كلمة المرور؟" }).click();
+  await page.getByLabel("رقم موبايلك أو ملاحظة (اختياري)").fill("01001234567");
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByText("وصل طلبك للمدرّبين. هيبعتولك رمز دخول جديد.")).toBeVisible();
+  expect(asked).toEqual([{ p_ident: "2024001", p_note: "01001234567" }]);
+  await page.unrouteAll();
+
+  // The coach's side.
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff");
+  await page.reload();
+  await page.getByText("فيه حد نسي رمز الدخول أو كلمة المرور ومستني.").locator("..").getByRole("button", { name: "افتح" }).click();
+  await expect(page).toHaveURL(/#\/staff\/access$/);
+  await expect(page.getByText("2024001 · Robotics A")).toBeVisible();
+  await page.getByRole("button", { name: "رمز جديد" }).click();
+  await expect(page.getByText("482913")).toBeVisible();
+  expect(calls.find((c) => c.fn === "staff_set_pins")?.body).toEqual({ p_ids: ["s1"], p_only_missing: false });
+  expect(calls.find((c) => c.fn === "staff_access_resolve")?.body).toEqual({ p_id: "r1", p_status: "done" });
+});
+
+test("the store app shows four first-run screens once, then the sign-in form", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { CapacitorCustomPlatform: unknown }).CapacitorCustomPlatform = { name: "android", plugins: {} };
+  });
+  await page.route(/supabase\.co/, (route) => route.fulfill({ json: { ready: true } }));
+  await page.goto("/app/");
+  await expect(page.getByRole("heading", { name: "أهلاً بيك في BuildX HUE" })).toBeVisible();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("heading", { name: "خليك عارف كل جديد" })).toBeVisible();
+  // This build has no push set up (no app/push.json), so it never asks.
+  await expect(page.getByRole("button", { name: "شغّل الإشعارات" })).toHaveCount(0);
+  await page.getByRole("button", { name: "يلا نبدأ" }).click();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "أهلاً بيك في BuildX HUE" })).toHaveCount(0);
+});
+
+test("a student sends a project for the website and sees the open team tryouts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const sent: unknown[] = [];
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] },
+    student_projects_mine: [{ id: "p0", title: "Line follower", status: "published", note: null, at: at(600), slug: "student-line-follower-ab12" }],
+    public_forms: [
+      { slug: "robocup-tryouts", title_ar: "اختبارات فريق RoboCup", intro_ar: "انضم لفريق المسابقة", team: "robocup", open: true },
+      { slug: "volunteers", title_ar: "متطوعين يوم الروبوت", intro_ar: null, team: null, open: true },
+      { slug: "old", title_ar: "فورم قديم", intro_ar: null, team: null, open: false },
+    ],
+    student_project_submit: { ok: true },
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_project_submit") sent.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByText("مشاريعي وفرق المسابقات").click();
+  await expect(page.getByText("اتنشر على الموقع ✓")).toBeVisible();
+  await expect(page.getByRole("link", { name: "شوفه على الموقع" })).toHaveAttribute("href", "/ar/projects/student-line-follower-ab12/");
+  await expect(page.getByRole("link", { name: /اختبارات فريق RoboCup/ })).toHaveAttribute("href", "/ar/form/?f=robocup-tryouts");
+  await expect(page.getByText("متطوعين يوم الروبوت")).toBeVisible();
+  await expect(page.getByText("فورم قديم")).toHaveCount(0);
+  await page.getByLabel("اسم المشروع").fill("Smart plant");
+  await page.getByLabel("بيعمل إيه؟").fill("Waters itself");
+  await page.getByLabel("لينك (GitHub، فيديو، Drive…) — اختياري").fill("github.com/mona/plant");
+  await page.getByRole("button", { name: "ابعت المشروع" }).click();
+  await expect(page.getByText("اتبعت ✓ الفريق هيراجعه وينشره على الموقع")).toBeVisible();
+  expect(sent).toEqual([{ p_token: "a".repeat(64), p_title: "Smart plant", p_description: "Waters itself", p_url: "github.com/mona/plant", p_photo: null }]);
+});
+
+test("content staff publish a student's project on the website or decline it", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_student_projects = [
+    { id: "sp1", title: "Smart plant", description: "Waters itself", url: "https://github.com/mona/plant", photo: null, at: at(30), student: "Mona Adel", group: "G1" },
+    { id: "sp2", title: "Spam", description: "", url: null, photo: null, at: at(20), student: "Omar", group: "G1" },
+  ];
+  await signInAsOwner(page, calls);
+  const inserted: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_content/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: { id: "sc1" } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/projects");
+  const card = (t: string) => page.locator("div", { has: page.getByText(t, { exact: true }) }).filter({ has: page.getByRole("button") }).last();
+  await card("Smart plant").getByRole("button", { name: "انشر على الموقع" }).click();
+  await expect(page.getByText("اتنشر على الموقع ✓")).toBeVisible();
+  expect(inserted[0]).toMatchObject({ kind: "project", title_ar: "Smart plant", url: "https://github.com/mona/plant", published: true, tags: ["students"] });
+  expect(String(inserted[0]?.slug)).toMatch(/^student-smart-plant-[a-z0-9]+$/);
+  expect(calls.find((c) => c.fn === "staff_review_project")?.body).toEqual({ p_id: "sp1", p_status: "published", p_note: null, p_site: "sc1" });
+  await card("Spam").getByPlaceholder("ملاحظة للطالب لو مش هينتشر (اختياري)").fill("مش مشروع");
+  await card("Spam").getByRole("button", { name: "مش هينتشر" }).click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_review_project").map((c) => c.body)).toContainEqual({ p_id: "sp2", p_status: "declined", p_note: "مش مشروع", p_site: null });
+  delete RPC.staff_student_projects;
+});
+
+test("coaches see who needs a word, with a WhatsApp nudge ready", async ({ page }) => {
+  RPC.staff_at_risk = [
+    { id: "s1", name: "Mona Adel", group: "G1", phone: "01001234567", missed: 2, lastSeen: at(60 * 24 * 9), reasons: ["missed_two"] },
+    { id: "s2", name: "Omar Ali", group: "G1", phone: null, missed: 0, lastSeen: null, reasons: ["inactive"] },
+  ];
+  await signInAsOwner(page);
+  await page.goto("/app/#/staff");
+  await page.getByText("فيه 2 طلاب محتاجين متابعة (غابوا أو اختفوا).").locator("..").getByRole("button", { name: "شوفهم" }).click();
+  await expect(page).toHaveURL(/#\/staff\/at-risk$/);
+  await expect(page.getByText("غاب آخر سيشنين")).toBeVisible();
+  await expect(page.getByText("مختفي من أسبوعين")).toBeVisible();
+  const wa = await page.getByRole("link", { name: "واتساب Mona Adel" }).getAttribute("href");
+  expect(wa).toMatch(/^https:\/\/wa\.me\/201001234567\?text=/);
+  await expect(page.getByRole("link", { name: "واتساب Omar Ali" })).toHaveCount(0);
+  delete RPC.staff_at_risk;
+});
+
+test("a lecture can be scheduled: hidden until its time, then it publishes itself", async ({ page }) => {
+  await signInAsOwner(page);
+  const inserted: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/materials/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "m9" }] });
+    }
+    const later = new Date(Date.now() + 864e5).toISOString();
+    return route.fulfill({ json: [{ id: "m1", title: "Lecture 6", description: "", kind: "link", storage_path: null, url: "https://x.y", file_name: null, mime: null, size_bytes: null, group_name: "", published: false, publish_at: later, pinned: false, created_by: "u1", created_at: at(5) }] });
+  });
+  await page.goto("/app/#/staff/content");
+  await expect(page.getByText(/^ينزل /)).toBeVisible();
+  await page.getByRole("button", { name: "إضافة رابط" }).click();
+  await page.getByLabel("العنوان").fill("Lecture 7");
+  await page.getByLabel("الرابط").fill("youtube.com/watch?v=1");
+  const when = new Date(Date.now() + 2 * 864e5);
+  const local = new Date(when.getTime() - when.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+  await page.getByLabel("انشره في (اختياري)").fill(local);
+  await page.getByRole("dialog").getByRole("button", { name: "إضافة", exact: true }).click();
+  await expect.poll(() => inserted[0]).toMatchObject({ title: "Lecture 7", published: false });
+  expect(new Date(String(inserted[0]?.publish_at)).getTime()).toBeGreaterThan(Date.now() + 864e5);
 });

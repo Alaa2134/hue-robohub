@@ -21,6 +21,9 @@ import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
 import { StudentsScreen } from "./staff-students";
 import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
+import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
+import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
+import { AtRiskScreen, atRiskCount } from "./at-risk";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -60,10 +63,12 @@ const AREA_OF: Record<string, Area> = {
   announcements: "students",
   leaderboard: "students",
   reports: "students",
+  "at-risk": "students",
   applications: "applications",
   events: "events",
   site: "content",
   forms: "content",
+  projects: "content",
   inbox: "inbox",
   certificates: "certificates",
   settings: "settings",
@@ -167,7 +172,7 @@ export function StaffApp({
       screen = <SiteSettingsScreen me={me} />;
       break;
     case "notify":
-      screen = <NotifyScreen />;
+      screen = <NotifyScreen me={me} />;
       break;
     case "backups":
       screen = <BackupsScreen me={me} />;
@@ -201,6 +206,15 @@ export function StaffApp({
       break;
     case "apps":
       screen = <AppsSettingsScreen me={me} />;
+      break;
+    case "at-risk":
+      screen = <AtRiskScreen />;
+      break;
+    case "projects":
+      screen = <StudentProjectsReview me={me} />;
+      break;
+    case "access":
+      screen = <AccessRequestsScreen me={me} />;
       break;
     case "deletions":
       screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
@@ -259,6 +273,9 @@ function StaffHome({ me }: { me: StaffRow }) {
       newMessagesCount().catch(() => 0),
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
+    const access = can(me, "students") || me.role !== "lead" ? await pendingAccessRequests().catch(() => 0) : 0;
+    const projects = can(me, "content") ? await pendingStudentProjects().catch(() => 0) : 0;
+    const atRisk = can(me, "students") ? await atRiskCount().catch(() => 0) : 0;
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -267,6 +284,9 @@ function StaffHome({ me }: { me: StaffRow }) {
       applications,
       messages,
       deletions,
+      access,
+      projects,
+      atRisk,
     };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
@@ -337,6 +357,38 @@ function StaffHome({ me }: { me: StaffRow }) {
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/inbox")}>
             افتح
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.access && (
+        <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
+          <Icon name="key" size={22} className="shrink-0 text-warn" />
+          <p className="flex-1 text-sm text-mist">
+            {data.access === 1 ? "فيه حد نسي رمز الدخول أو كلمة المرور ومستني." : `فيه ${data.access} طلبات دخول مستنية (نسيوا الرمز أو كلمة المرور).`}
+          </p>
+          <Button size="sm" variant="primary" onClick={() => go("/staff/access")}>
+            افتح
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.atRisk && (
+        <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
+          <Icon name="users" size={22} className="shrink-0 text-warn" />
+          <p className="flex-1 text-sm text-mist">{data.atRisk === 1 ? "فيه طالب محتاج متابعة (غاب أو اختفى)." : `فيه ${data.atRisk} طلاب محتاجين متابعة (غابوا أو اختفوا).`}</p>
+          <Button size="sm" onClick={() => go("/staff/at-risk")}>
+            شوفهم
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.projects && (
+        <Card className="mt-4 flex items-center gap-3 border-gold/30 bg-gold/[0.06]">
+          <Icon name="star" size={22} className="shrink-0 text-gold" />
+          <p className="flex-1 text-sm text-mist">{data.projects === 1 ? "طالب بعت مشروع للموقع ومستني المراجعة." : `فيه ${data.projects} مشاريع طلاب مستنية المراجعة.`}</p>
+          <Button size="sm" variant="primary" onClick={() => go("/staff/projects")}>
+            راجِع
           </Button>
         </Card>
       )}
@@ -441,6 +493,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
+    { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects", show: can(me, "content") },
     {
       icon: "settings",
       label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)",
@@ -455,12 +508,14 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
+    { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk", show: can(me, "students") },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security", show: me.role !== "lead" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
+    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access", show: can(me, "students") || me.role !== "lead" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",

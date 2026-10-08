@@ -131,6 +131,8 @@ export type Material = {
   size_bytes: number | null;
   group_name: string;
   published: boolean;
+  /** Hidden until this time, then it publishes itself (and the group is notified). */
+  publish_at?: string | null;
   pinned: boolean;
   created_by: string | null;
   created_at: string;
@@ -161,6 +163,8 @@ export type Quiz = {
   max_attempts: number;
   shuffle: boolean;
   show_answers: boolean;
+  /** The weekly contest (first attempt counts; top three get bonus points). */
+  weekly?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -258,6 +262,34 @@ export async function studentRpc<T>(fn: string, args: Record<string, unknown> = 
     throw error;
   }
   return data as T;
+}
+
+/**
+ * A student RPC that still answers offline: each success is kept on the phone (per student), and when
+ * the network fails the last answer is returned instead, so the app opens on the bus too.
+ */
+export async function studentRpcOffline<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+  const key = `rh-off:${studentStore.get()?.code ?? ""}:${fn}`;
+  try {
+    const data = await studentRpc<T>(fn, args);
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      /* the copy is optional */
+    }
+    return data;
+  } catch (e) {
+    const offline = typeof navigator !== "undefined" && (!navigator.onLine || /fetch|network|load failed/i.test(String((e as Error)?.message)));
+    if (offline) {
+      try {
+        const v = localStorage.getItem(key);
+        if (v) return JSON.parse(v) as T;
+      } catch {
+        /* fall through */
+      }
+    }
+    throw e;
+  }
 }
 
 /* ─── Codes ─────────────────────────────────────────────────────────────── */

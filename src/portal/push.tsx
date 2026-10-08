@@ -1,7 +1,8 @@
 "use client";
-/** Push notifications in the BuildX App: turning them on for this device, and the staff "send" screen. */
+/** Push notifications in the BuildX App: turning them on for this device (browser or phone app), and the staff "send" screen. */
 import { useEffect, useState } from "react";
-import { APP_PATH, errorText, isNative, fmt, must, rpc, sb, studentRpc } from "./core";
+import { APP_PATH, errorText, isNative, fmt, must, rpc, sb, studentRpc, type StaffRow } from "./core";
+import { enableNativePush, nativePushState } from "./native-push";
 import { groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Textarea, TopBar, toast, useAsync } from "./ui";
 
@@ -23,8 +24,8 @@ async function registration() {
 }
 
 export async function pushState(): Promise<State> {
-  // Web push needs a browser; the store apps don't have it (yet).
-  if (isNative()) return "unsupported";
+  // The store app uses the phone's own notifications.
+  if (isNative()) return nativePushState();
   if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return isIos() && !standalone() ? "ios-install" : "unsupported";
   if (Notification.permission === "denied") return "denied";
   const reg = await navigator.serviceWorker.getRegistration(APP_PATH);
@@ -33,6 +34,11 @@ export async function pushState(): Promise<State> {
 }
 
 export async function enablePush(kind: "student" | "staff") {
+  if (isNative()) {
+    const state = await enableNativePush(kind);
+    if (state !== "on") throw new Error(state);
+    return;
+  }
   if ((await Notification.requestPermission()) !== "granted") throw new Error("denied");
   const reg = await registration();
   await navigator.serviceWorker.ready;
@@ -55,8 +61,12 @@ export function PushCard({ kind }: { kind: "student" | "staff" }) {
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    pushState().then(setState, () => setState("unsupported"));
-  }, []);
+    pushState().then((s) => {
+      setState(s);
+      // In the app, refresh this phone's token for whoever is signed in now (it can change).
+      if (s === "on" && isNative()) enableNativePush(kind, false).catch(() => undefined);
+    }, () => setState("unsupported"));
+  }, [kind]);
   if (!state || state === "on" || state === "unsupported") return null;
   const turnOn = async () => {
     setBusy(true);
@@ -65,8 +75,8 @@ export function PushCard({ kind }: { kind: "student" | "staff" }) {
       setState("on");
       toast("الإشعارات اشتغلت ✓");
     } catch (e) {
-      if (Notification.permission === "denied") setState("denied");
-      else toast(errorText(e), "error");
+      if ((e as Error).message === "denied" || (!isNative() && Notification.permission === "denied")) setState("denied");
+      else if ((e as Error).message !== "off") toast(errorText(e), "error");
     } finally {
       setBusy(false);
     }
@@ -82,7 +92,9 @@ export function PushCard({ kind }: { kind: "student" | "staff" }) {
           {state === "ios-install"
             ? "على الآيفون: دوس مشاركة ← «إضافة إلى الشاشة الرئيسية» وافتح التطبيق من هناك عشان الإشعارات تشتغل."
             : state === "denied"
-              ? "الإشعارات مقفولة من إعدادات المتصفح. افتحها من إعدادات الموقع."
+              ? isNative()
+                ? "الإشعارات مقفولة من إعدادات الموبايل. افتحها من الإعدادات ← BuildX HUE ← الإشعارات."
+                : "الإشعارات مقفولة من إعدادات المتصفح. افتحها من إعدادات الموقع."
               : kind === "student"
                 ? "كويز جديد، تغيير ميعاد، أو إعلان مهم — يوصلك على طول."
                 : "تنبيه لما يحصل حاجة مهمة في التطبيق."}
@@ -100,8 +112,94 @@ export function PushCard({ kind }: { kind: "student" | "staff" }) {
 type Msg = { id: string; title: string; body: string; audience: string; group_name: string | null; created_at: string; targets: number | null; delivered: number | null };
 const AUD: Record<string, string> = { students: "كل الطلاب", group: "مجموعة", staff: "الفريق", everyone: "الكل" };
 
-/** /staff/notify (owners/admins): write and send a notification, and see what was sent. */
-export function NotifyScreen() {
+type KeysStatus = { web: boolean; android: boolean; ios: boolean; devices: { android: number; ios: number } };
+
+/**
+ * Owner only: the keys that let the phone app get notifications. Pasted once from the Firebase and
+ * Apple consoles; stored in the database and never shown again (the screen only says "set").
+ */
+function PushKeysCard() {
+  const status = useAsync(() => rpc<KeysStatus>("staff_push_keys_status"), []);
+  const [open, setOpen] = useState(false);
+  const [k, setK] = useState({ fcm: "", p8: "", keyId: "", teamId: "" });
+  const [busy, setBusy] = useState(false);
+  const readFile = (set: (v: string) => void) => (e: { target: HTMLInputElement }) => {
+    const f = e.target.files?.[0];
+    if (f) f.text().then(set, () => toast("مقدرتش أقرا الملف", "error"));
+  };
+  const save = async () => {
+    if (!k.fcm.trim() && !k.p8.trim()) return toast("حط ملف Firebase أو مفتاح Apple", "error");
+    setBusy(true);
+    try {
+      const r = await rpc<{ ok: boolean; error?: string }>("staff_set_push_keys", {
+        p_fcm: k.fcm.trim() || null,
+        p_apns_p8: k.p8.trim() || null,
+        p_apns_key_id: k.keyId.trim().toUpperCase() || null,
+        p_apns_team_id: k.teamId.trim().toUpperCase() || null,
+      });
+      if (!r.ok)
+        return toast(r.error === "fcm_json" ? "ده مش ملف Service account من Firebase" : "راجع مفتاح Apple: ملف .p8 و Key ID و Team ID (10 حروف/أرقام)", "error");
+      toast("اتحفظت ✓");
+      setK({ fcm: "", p8: "", keyId: "", teamId: "" });
+      setOpen(false);
+      status.reload();
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const d = status.data;
+  return (
+    <Section title="إشعارات التطبيق على الموبايل">
+      <Card className="grid gap-3">
+        <div className="flex flex-wrap gap-2">
+          <Badge tone={d?.android ? "ok" : "muted"}>Android {d?.android ? "✓" : "—"}</Badge>
+          <Badge tone={d?.ios ? "ok" : "muted"}>iPhone {d?.ios ? "✓" : "—"}</Badge>
+          {d && (
+            <span className="text-xs text-fog">
+              {d.devices.android} أندرويد · {d.devices.ios} آيفون مسجّلين
+            </span>
+          )}
+        </div>
+        <p className="text-xs leading-relaxed text-fog">
+          عشان الإشعارات توصل للتطبيق: من Firebase ← Project settings ← Service accounts ← Generate new private key (ملف JSON)، ومن Apple Developer ← Keys ← مفتاح APNs (ملف .p8). الخطوات كاملة في mobile/README.md. المفاتيح بتتحفظ ومبتظهرش تاني.
+        </p>
+        {!open ? (
+          <Button size="sm" icon="key" onClick={() => setOpen(true)}>
+            {d?.android || d?.ios ? "تغيير المفاتيح" : "إضافة المفاتيح"}
+          </Button>
+        ) : (
+          <div className="grid gap-3">
+            <Field label="Firebase (Android): ملف Service account JSON">
+              <Input type="file" accept=".json,application/json" onChange={readFile((v) => setK((p) => ({ ...p, fcm: v })))} />
+            </Field>
+            <Field label="Apple (iPhone): ملف AuthKey .p8">
+              <Input type="file" accept=".p8" onChange={readFile((v) => setK((p) => ({ ...p, p8: v })))} />
+            </Field>
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Key ID">
+                <Input value={k.keyId} onChange={(e) => setK((p) => ({ ...p, keyId: e.target.value }))} dir="ltr" maxLength={10} className="font-mono uppercase" />
+              </Field>
+              <Field label="Team ID">
+                <Input value={k.teamId} onChange={(e) => setK((p) => ({ ...p, teamId: e.target.value }))} dir="ltr" maxLength={10} className="font-mono uppercase" />
+              </Field>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="primary" loading={busy} onClick={save}>
+                حفظ
+              </Button>
+              <Button onClick={() => setOpen(false)}>إلغاء</Button>
+            </div>
+          </div>
+        )}
+      </Card>
+    </Section>
+  );
+}
+
+/** /staff/notify (who may send notifications): write and send one, and see what was sent. */
+export function NotifyScreen({ me }: { me: StaffRow }) {
   const students = useStudents();
   const groups = groupsOf(students.list);
   const history = useAsync(async () => (await sb().from("push_messages").select("id,title,body,audience,group_name,created_at,targets,delivered").order("created_at", { ascending: false }).limit(50).then(must)) as Msg[], []);
@@ -166,6 +264,7 @@ export function NotifyScreen() {
         </Button>
       </Card>
       <PushCard kind="staff" />
+      {me.role === "owner" && <PushKeysCard />}
       <Section title="اللي اتبعت">
         {history.loading && !history.data ? (
           <Loading />

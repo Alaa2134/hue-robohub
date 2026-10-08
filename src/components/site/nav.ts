@@ -42,6 +42,7 @@ export const MENU_GROUPS: { key: NavKey; items: NavItem[] }[] = [
       { key: "news", href: "/news", icon: "news" },
       { key: "gallery", href: "/gallery", icon: "image" },
       { key: "achievements", href: "/achievements", icon: "award" },
+      { key: "stories", href: "/stories", icon: "rocket" },
       { key: "join", href: "/join", icon: "plus" },
       { key: "faq", href: "/faq", icon: "idea" },
       { key: "contact", href: "/contact", icon: "mail" },

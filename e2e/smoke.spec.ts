@@ -168,3 +168,27 @@ test("sign-in is visible in the header on a phone and the menu offers the one ap
   await page.locator('header button[aria-controls="site-menu"]').click();
   await expect(page.locator("#site-menu").getByRole("link", { name: /دخول BuildX App/ })).toHaveAttribute("href", "/app/#/login");
 });
+
+test("success stories page shows the team's stories, and the footer offers the app once it's in a store", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  await page.route("**/rest/v1/site_settings**", (route) =>
+    route.fulfill({ json: new URL(route.request().url()).searchParams.get("key") === "eq.apps" ? [{ value: { student_android: "https://play.google.com/store/apps/details?id=com.buildxhue.student" } }] : [{ value: { open: true } }] }),
+  );
+  await page.route("**/rest/v1/site_content**", (route) =>
+    route.fulfill({
+      json: new URL(route.request().url()).searchParams.get("kind") === "eq.story"
+        ? [{ id: "st1", kind: "story", slug: null, title: "Mona Adel", title_ar: "منى عادل", summary: null, summary_ar: "بدأت من صفر في الروبوتات", body: null, body_ar: "القصة كاملة هنا", result: null, result_ar: "مهندسة في Valeo", image_path: null, url: "https://linkedin.com/in/mona", starts_at: null, ends_at: null, location: null, location_ar: null, track: null, tags: [], published: true, pinned: false, sort_order: 0, created_at: new Date().toISOString() }]
+        : [],
+    }),
+  );
+  await page.goto("/ar/stories/");
+  await expect(page.getByRole("heading", { name: "منى عادل" })).toBeVisible();
+  await expect(page.getByText("دلوقتي: مهندسة في Valeo")).toBeVisible();
+  await page.getByRole("button", { name: "القصة كاملة" }).click();
+  await expect(page.getByText("القصة كاملة هنا")).toBeVisible();
+  // Desktop shows every store that has a link; only Google Play is set here.
+  await expect(page.locator("footer").getByRole("link", { name: /Google Play/ })).toHaveAttribute("href", /com\.buildxhue\.student/);
+  await expect(page.locator("footer").getByRole("link", { name: /App Store/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

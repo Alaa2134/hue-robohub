@@ -48,6 +48,7 @@ const ORDER: Record<ContentKind, string> = {
   faq: "sort_order.asc,created_at.asc",
   testimonial: "pinned.desc,sort_order.asc,created_at.desc",
   partner: "sort_order.asc,created_at.asc",
+  story: "pinned.desc,sort_order.asc,created_at.desc",
 };
 
 export function buildItems(kind: ContentKind): Promise<SiteItem[]> {

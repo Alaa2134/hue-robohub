@@ -6,7 +6,7 @@
  */
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { errorText, fmt, fromLocalInput, must, prepareImage, rpc, sb, studentRpc, studentStore, toLocalInput, type StaffRow } from "./core";
+import { errorText, fmt, fromLocalInput, must, prepareImage, rpc, sb, studentRpc, studentRpcOffline, studentStore, toLocalInput, type StaffRow } from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, Row, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
@@ -27,7 +27,7 @@ function taskState(t: StudentTask): { label: string; tone: "ok" | "warn" | "dang
 }
 
 export function useStudentTasks() {
-  return useAsync(() => studentRpc<StudentTask[]>("student_tasks"), []);
+  return useAsync(() => studentRpcOffline<StudentTask[]>("student_tasks"), []);
 }
 
 /** Student home: the tasks still to hand in. */

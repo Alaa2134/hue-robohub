@@ -518,3 +518,56 @@ export function LivePartners({ locale, initial, title, variant = "strip", empty,
     </section>
   );
 }
+
+/* ─── Success stories ──────────────────────────────────────────────────── */
+
+const ST = {
+  ar: { now: "دلوقتي", more: "القصة كاملة", less: "أقل", empty: "أول القصص في الطريق. ارجع قريب.", link: "LinkedIn" },
+  en: { now: "Now", more: "Read the story", less: "Less", empty: "The first stories are on their way. Check back soon.", link: "LinkedIn" },
+};
+
+/** /stories: students and graduates, where they are now, in their own words. */
+export function LiveStories({ locale, initial }: { locale: string; initial?: SiteItem[] }) {
+  const t = ST[locale === "ar" ? "ar" : "en"];
+  const s = useLive(() => fetchContent("story", 60), [], initial?.length ? initial : undefined);
+  const [open, setOpen] = useState<string | null>(null);
+  if (s.failed) return <Note>{tr(locale).error}</Note>;
+  if (!s.data) return <Skeleton n={3} tall />;
+  if (!s.data.length) return <Note>{t.empty}</Note>;
+  return (
+    <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {s.data.map((x) => {
+        const body = bodyOf(x, locale);
+        const link = safeLink(x.url);
+        return (
+          <li key={x.id} className="flex flex-col overflow-hidden rounded-[22px] border border-[var(--line-2)] bg-panel/70">
+            {x.image_path && <Cover item={x} className="aspect-[4/3]" />}
+            <div className="flex flex-1 flex-col gap-3 p-6">
+              <h2 className="t-title text-xl text-chalk">{titleOf(x, locale)}</h2>
+              {resultOf(x, locale) && (
+                <p className="text-sm font-semibold text-gold">
+                  {t.now}: {resultOf(x, locale)}
+                </p>
+              )}
+              {summaryOf(x, locale) && <p className="text-pretty text-[1.02rem] leading-relaxed text-frost">“{summaryOf(x, locale)}”</p>}
+              {body && open === x.id && <p className="whitespace-pre-line text-sm leading-relaxed text-mist">{body}</p>}
+              <div className="mt-auto flex flex-wrap gap-2 pt-2">
+                {body && (
+                  <button type="button" className="btn btn-sm" onClick={() => setOpen(open === x.id ? null : x.id)} aria-expanded={open === x.id}>
+                    {open === x.id ? t.less : t.more}
+                  </button>
+                )}
+                {link && (
+                  <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
+                    <span>{t.link}</span>
+                    <Icon name="arrowUpRight" size={14} />
+                  </a>
+                )}
+              </div>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

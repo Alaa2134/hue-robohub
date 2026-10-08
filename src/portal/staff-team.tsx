@@ -54,7 +54,7 @@ const ADMIN_ERRORS: Record<string, string> = {
 };
 const adminError = (e: unknown) => ADMIN_ERRORS[(e as Error)?.message] ?? errorText(e);
 
-type Credentials = { name: string; email: string; password: string };
+export type Credentials = { name: string; email: string; password: string };
 
 export function TeamScreen({ me }: { me: StaffRow }) {
   const { data, error, loading, reload } = useAsync(async () => must(await sb().from("staff").select("*").order("created_at")) as StaffRow[], []);
@@ -302,7 +302,7 @@ function MemberSheet({ member: m, me, onClose, onChanged, onCredentials }: { mem
   );
 }
 
-function CredentialsSheet({ creds, onClose }: { creds: Credentials | null; onClose: () => void }) {
+export function CredentialsSheet({ creds, onClose }: { creds: Credentials | null; onClose: () => void }) {
   if (!creds) return null;
   const url = `${publicOrigin()}${APP_PATH}#/login`;
   const msg = `أهلاً ${creds.name}\nحسابك على تطبيق BuildX HUE:\nالبريد: ${creds.email}\nكلمة المرور المؤقتة: ${creds.password}\n${url}\nغيّر كلمة المرور من «حسابي» بعد أول دخول.`;

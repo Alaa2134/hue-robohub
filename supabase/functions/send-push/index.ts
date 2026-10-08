@@ -1,9 +1,9 @@
-// Sends a BuildX App push notification. Called from the app by an owner/admin with their own session:
-// the message is created through staff_push_create (which checks the role and two-factor), then the
-// devices and the VAPID key are read with the service role and the push is delivered with web-push.
+// Sends a BuildX App push notification. Called from the app by a team member who may send them, with
+// their own session: the message is created through staff_push_create (which checks the permission
+// and two-factor), then it is delivered to browsers and phones like every other notification.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import webpush from "npm:web-push@3.6.7";
+import { deliver, type Targets } from "../_shared/deliver.ts";
 
 // The site, and the store apps (Android serves from https://localhost, iOS from capacitor://localhost).
 const ORIGINS = ["https://buildxhue.com", "https://www.buildxhue.com", "http://buildxhue.com", "http://localhost:4173", "https://localhost", "capacitor://localhost"];
@@ -17,12 +17,6 @@ function cors(req: Request) {
     Vary: "Origin",
   };
 }
-
-type Targets = {
-  message: { id: string; title: string; body: string; url: string | null };
-  vapid: { public: string; private: string; subject: string };
-  subs: { endpoint: string; keys: { p256dh: string; auth: string } }[];
-};
 
 Deno.serve(async (req) => {
   const headers = { ...cors(req), "Content-Type": "application/json" };
@@ -55,29 +49,16 @@ Deno.serve(async (req) => {
   }
   const id = created.data as string;
 
-  // 2. Devices and key, with the service role.
+  // 2. Browsers and phones, with the service role.
   const admin = createClient(url, service, { auth: { persistSession: false } });
   const t = await admin.rpc("push_targets", { p_message: id });
+  const n = await admin.rpc("push_native_targets", { p_message: id });
   if (t.error || !t.data) return new Response(JSON.stringify({ error: "targets", detail: t.error?.message }), { status: 500, headers });
-  const { message, vapid, subs } = t.data as Targets;
-  if (!vapid.private || !vapid.public) return new Response(JSON.stringify({ error: "not_configured" }), { status: 500, headers });
-  webpush.setVapidDetails(vapid.subject || "https://buildxhue.com", vapid.public, vapid.private);
+  const targets = { ...(t.data as Targets), native: (n.data ?? undefined) as Targets["native"] };
+  if (!targets.vapid.private && !targets.native?.fcm && !targets.native?.apns.key) return new Response(JSON.stringify({ error: "not_configured" }), { status: 500, headers });
 
-  // 3. Deliver, 50 at a time.
-  const payload = JSON.stringify({ title: message.title, body: message.body, url: message.url ?? "/app/" });
-  let delivered = 0;
-  const gone: string[] = [];
-  for (let i = 0; i < subs.length; i += 50) {
-    const batch = subs.slice(i, i + 50);
-    const results = await Promise.allSettled(batch.map((s) => webpush.sendNotification(s, payload, { TTL: 86400, urgency: "normal" })));
-    results.forEach((r, j) => {
-      if (r.status === "fulfilled") delivered++;
-      else {
-        const code = (r.reason as { statusCode?: number })?.statusCode;
-        if (code === 404 || code === 410) gone.push(batch[j].endpoint);
-      }
-    });
-  }
-  await admin.rpc("push_report", { p_message: id, p_targets: subs.length, p_delivered: delivered, p_gone: gone });
-  return new Response(JSON.stringify({ ok: true, id, targets: subs.length, delivered }), { headers });
+  // 3. Deliver.
+  const out = await deliver(targets, "normal");
+  await admin.rpc("push_report_all", { p_message: id, p_targets: out.targets, p_delivered: out.delivered, p_gone: out.gone, p_gone_native: out.goneNative });
+  return new Response(JSON.stringify({ ok: true, id, targets: out.targets, delivered: out.delivered }), { headers });
 });

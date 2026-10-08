@@ -2,13 +2,15 @@
 /** Student side: home, content library, quizzes (timed, autosaved, graded on the server) and attendance. */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentStore, type AttStatus, type StudentSession } from "./core";
+import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
-import { MyPoints, PointsCard } from "./points";
+import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
 import { PushCard } from "./push";
+import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
 import { CheckinCard, StudentCheckin } from "./self-checkin";
 import { StudentTasks, TasksCard } from "./tasks";
+import { StudentProjects } from "./student-projects";
 import { Announcements, NextUpCard, StudentSchedule } from "./schedule";
 import { AppShell, BrandLine, InstallCard, SiteButton, SiteCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
@@ -34,6 +36,7 @@ import {
   confirmDialog,
   go,
   toast,
+  useAsync,
 } from "./ui";
 
 type HomeMaterial = { id: string; title: string; description: string; kind: "file" | "link"; path: string | null; url: string | null; fileName: string | null; mime: string | null; size: number | null; pinned: boolean; at: string };
@@ -113,6 +116,7 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
   if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
   else if (section === "tasks") screen = <StudentTasks id={id} />;
   else if (section === "schedule") screen = <StudentSchedule />;
+  else if (section === "projects") screen = <StudentProjects />;
   else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
   else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
@@ -168,6 +172,7 @@ function Home({ data, reload, loading }: ScreenProps) {
       </div>
 
       <Announcements />
+      <ProgressCard />
       <CheckinCard />
       <NextUpCard />
       <TasksCard />
@@ -181,6 +186,7 @@ function Home({ data, reload, loading }: ScreenProps) {
         </div>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
+      <WeeklyContestCard />
       <PointsCard />
       <PushCard kind="student" />
 
@@ -267,10 +273,54 @@ function MyCertificatePrint({ id }: { id: string }) {
   return <CertificatePrint certs={[c]} onBack={() => go("/me")} />;
 }
 
-function MaterialRow({ m }: { m: HomeMaterial }) {
+type Progress = {
+  percent: number;
+  materials: { seen: number; total: number };
+  quizzes: { done: number; total: number };
+  sessions: { attended: number; total: number };
+  seenIds: string[];
+} | null;
+
+const useProgress = () => useAsync(() => studentRpcOffline<Progress>("student_progress"), []);
+
+/** Opening a lecture or file counts towards the course progress (once). */
+const markSeen = (id: string) => studentRpc("student_material_seen", { p_material: id }).catch(() => undefined);
+
+/** Student home: how far they are through their group's track. */
+function ProgressCard() {
+  const { data } = useProgress();
+  if (!data || (!data.materials.total && !data.quizzes.total && !data.sessions.total)) return null;
+  const part = (label: string, n: number, of: number) =>
+    of > 0 && (
+      <div className="flex items-center gap-2 text-xs text-fog">
+        <span className="w-20 shrink-0">{label}</span>
+        <span className="flex-1">
+          <Bar value={(n / of) * 100} />
+        </span>
+        <span className="w-12 shrink-0 text-end font-mono" dir="ltr">
+          {n}/{of}
+        </span>
+      </div>
+    );
+  return (
+    <Card className="mt-3 grid gap-2">
+      <div className="flex items-baseline justify-between">
+        <p className="font-semibold text-chalk">مسار الكورس</p>
+        <p className="font-mono text-2xl font-bold text-cyan">{data.percent}%</p>
+      </div>
+      <Bar value={data.percent} />
+      {part("المحاضرات", data.materials.seen, data.materials.total)}
+      {part("الكويزات", data.quizzes.done, data.quizzes.total)}
+      {part("الحضور", data.sessions.attended, data.sessions.total)}
+      {data.percent >= 80 && <p className="text-xs text-ok">قربت تخلّص المسار 🎓 كمّل كده عشان الشهادة.</p>}
+    </Card>
+  );
+}
+
+function MaterialRow({ m, seen }: { m: HomeMaterial; seen?: boolean }) {
   const href = m.kind === "link" ? m.url! : fileUrl(m.path!);
   return (
-    <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
+    <a href={href} target="_blank" rel="noreferrer" onClick={() => markSeen(m.id)} className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-volt/15 text-[#8fb5ff]">
         <Icon name={kindIcon(m)} size={22} />
       </span>
@@ -281,6 +331,11 @@ function MaterialRow({ m }: { m: HomeMaterial }) {
           {m.description ? ` · ${m.description}` : ""}
         </span>
       </span>
+      {seen && (
+        <span role="img" aria-label="شفته" className="text-ok">
+          <Icon name="check" size={16} />
+        </span>
+      )}
       {m.pinned && <Icon name="pin" size={16} className="text-cyan" />}
       {m.kind === "file" && m.path && (
         <span
@@ -290,6 +345,7 @@ function MaterialRow({ m }: { m: HomeMaterial }) {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            markSeen(m.id);
             window.open(fileUrl(m.path!, m.fileName ?? undefined), "_blank", "noopener");
           }}
           onKeyDown={(e) => {
@@ -306,6 +362,7 @@ function MaterialRow({ m }: { m: HomeMaterial }) {
 
 function Materials({ data, reload, loading }: ScreenProps) {
   const [q, setQ] = useState("");
+  const seen = new Set(useProgress().data?.seenIds ?? []);
   const shown = data.materials.filter((m) => !q.trim() || m.title.includes(q.trim()) || m.description.includes(q.trim()));
   return (
     <>
@@ -314,7 +371,7 @@ function Materials({ data, reload, loading }: ScreenProps) {
       {shown.length ? (
         <List>
           {shown.map((m) => (
-            <MaterialRow key={m.id} m={m} />
+            <MaterialRow key={m.id} m={m} seen={seen.has(m.id)} />
           ))}
         </List>
       ) : (
@@ -484,6 +541,14 @@ function Account({ session }: { session: StudentSession }) {
           </Button>
         </form>
       </Card>
+      <a href="#/me/projects" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+        <Icon name="star" size={20} className="shrink-0 text-gold" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">مشاريعي وفرق المسابقات</span>
+          <span className="block text-xs text-fog">اعرض مشروعك على الموقع، وقدّم في فرق المسابقات</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
       <SiteCard className="mt-4" />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={logout}>
         تسجيل الخروج
@@ -682,6 +747,7 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
             /* ignore */
           }
           onSubmitted(r);
+          if (r.max > 0 && r.score / r.max >= 0.8) goodMoment();
           return;
         } catch (e) {
           if (tryNo === 3) {

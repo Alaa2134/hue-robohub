@@ -8,6 +8,9 @@ import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
+import { enableNativePush, listenForNotificationTaps } from "./native-push";
+import { Onboarding, needsOnboarding } from "./onboarding";
+import { ForgotForm } from "./access-requests";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
 import { isNoise } from "@/lib/error-noise";
@@ -38,9 +41,11 @@ export default function PortalApp() {
   const [noAccess, setNoAccess] = useState<string | null>(null);
   const [gate, setGate] = useState<MfaGateMode | null>(null);
   const [student, setStudent] = useState<StudentSession | null>(null);
+  const [onboarding, setOnboarding] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    setOnboarding(needsOnboarding());
     const sync = () => setStudent(studentStore.get());
     sync();
     window.addEventListener("rh-student", sync);
@@ -54,6 +59,7 @@ export default function PortalApp() {
       })
         .then((h) => (linkHandle = h))
         .catch(() => undefined);
+    listenForNotificationTaps();
     // The store apps carry their own files, so they skip the offline worker.
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator && !isNative()) {
       navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH }).catch(() => undefined);
@@ -131,7 +137,14 @@ export default function PortalApp() {
     };
   }, [loadStaff]);
 
+  // In the store app, register this phone for notifications for whoever is signed in (if allowed).
+  const who = staff ? "staff" : student ? "student" : null;
+  useEffect(() => {
+    if (who && isNative()) enableNativePush(who, false).catch(() => undefined);
+  }, [who]);
+
   if (!mounted || staff === undefined) return <Splash />;
+  if (onboarding && !staff && !student) return <Onboarding onDone={() => setOnboarding(false)} />;
 
   const [head, ...rest] = route.path;
   // One sign-in for everyone: students land on their dashboard (/me), the team on theirs (/staff).
@@ -204,6 +217,7 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState<boolean | null>(null);
+  const [forgot, setForgot] = useState(false);
   const team = id.includes("@");
   const student = !team && /\S/.test(id);
 
@@ -294,8 +308,13 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
         <Button type="submit" variant="primary" size="lg" loading={busy} block>
           دخول
         </Button>
-        <p className="text-center text-xs leading-relaxed text-fog">نسيت رمز الدخول أو كلمة المرور؟ المدرّب أو المالك يقدر يعمل لك واحد جديد.</p>
+        {!forgot && (
+          <button type="button" onClick={() => setForgot(true)} className="text-center text-sm text-cyan hover:underline">
+            نسيت رمز الدخول أو كلمة المرور؟
+          </button>
+        )}
       </form>
+      {forgot && <ForgotForm initial={id} onClose={() => setForgot(false)} />}
       {ready === false && (
         <Card className="mt-6 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="key" size={22} className="shrink-0 text-warn" />

@@ -1,5 +1,5 @@
 "use client";
-/** BuildX App → More → النسخ الاحتياطية (owner only): seven nightly snapshots plus one on demand, each downloadable as JSON. */
+/** BuildX App → More → النسخ الاحتياطية (owner only): seven nightly snapshots, eight weekly ones and one on demand, each downloadable as JSON. */
 import { useState } from "react";
 import { download, errorText, fmt, rpc, type StaffRow } from "./core";
 import { Button, Card, Empty, ErrorBox, List, Loading, Row, TopBar, toast, useAsync } from "./ui";
@@ -47,7 +47,7 @@ export function BackupsScreen({ me }: { me: StaffRow }) {
     <>
       <TopBar
         title="النسخ الاحتياطية"
-        sub="نسخة كل ليلة الساعة 2:23 — آخر 7 أيام"
+        sub="كل ليلة (آخر 7 أيام) وكل أسبوع (آخر 8 أسابيع)"
         back="/staff/more"
         actions={
           <Button size="sm" variant="primary" loading={busy === "now"} onClick={now}>
@@ -68,7 +68,7 @@ export function BackupsScreen({ me }: { me: StaffRow }) {
             <Row key={s.slot} chevron={false}>
               <div className="flex items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-chalk">{s.slot === 7 ? "نسخة يدوية" : `نسخة ${DAYS[s.slot]}`}</p>
+                  <p className="font-semibold text-chalk">{s.slot === 7 ? "نسخة يدوية" : s.slot >= 8 ? "نسخة أسبوعية" : `نسخة ${DAYS[s.slot]}`}</p>
                   <p className="truncate text-xs text-fog">
                     {fmt.dateTime(s.taken_at)} · {s.counts.students ?? 0} طالب · {s.counts.applications ?? 0} طلب · {Math.max(1, Math.round(s.bytes / 1024))} KB
                   </p>
