@@ -88,6 +88,8 @@ jobs:
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/app/android/app/google-services.json
+            # Tells the app push is set up in this build (see src/portal/native-push.ts).
+            echo '{"android":true}' > mobile/app/android/app/src/main/assets/public/app/push.json
           else
             echo "::notice::GOOGLE_SERVICES_JSON is not set: the Android app builds without push notifications."
           fi
@@ -176,7 +178,11 @@ jobs:
           #   IOS_PUSH=1             push notifications (APNs key added in Supabase, see mobile/README.md)
           #   IOS_UNIVERSAL_LINKS=1  buildxhue.com/app links open the app (needs https on the site)
           ENT=""
-          if [ "${{ vars.IOS_PUSH }}" = "1" ]; then ENT="$ENT<key>aps-environment</key><string>production</string>"; fi
+          if [ "${{ vars.IOS_PUSH }}" = "1" ]; then
+            ENT="$ENT<key>aps-environment</key><string>production</string>"
+            # Tells the app push is set up in this build (see src/portal/native-push.ts).
+            echo '{"ios":true}' > App/public/app/push.json
+          fi
           if [ "${{ vars.IOS_UNIVERSAL_LINKS }}" = "1" ]; then
             ENT="$ENT<key>com.apple.developer.associated-domains</key><array><string>applinks:buildxhue.com</string></array>"
           fi

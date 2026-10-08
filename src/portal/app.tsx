@@ -8,6 +8,7 @@ import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
+import { listenForNotificationTaps } from "./native-push";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
 import { isNoise } from "@/lib/error-noise";
@@ -54,6 +55,7 @@ export default function PortalApp() {
       })
         .then((h) => (linkHandle = h))
         .catch(() => undefined);
+    listenForNotificationTaps();
     // The store apps carry their own files, so they skip the offline worker.
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator && !isNative()) {
       navigator.serviceWorker.register(`${APP_PATH}sw.js`, { scope: APP_PATH }).catch(() => undefined);

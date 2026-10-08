@@ -6,6 +6,8 @@ const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "own
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 const RPC: Record<string, unknown> = {
+  staff_push_keys_status: { web: true, android: true, ios: false, devices: { android: 7, ios: 0 } },
+  staff_set_push_keys: { ok: true },
   staff_usage: { db_bytes: 420 * 1024 * 1024, buckets: [{ bucket: "materials", bytes: 300 * 1024 * 1024, files: 40 }] },
   security_pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
   staff_security_overview: {
@@ -812,4 +814,25 @@ test("one sign-in: a student number goes to the student dashboard, an email to t
   await expect(page).toHaveURL(/#\/staff$/);
   expect(signedIn).toBe(true);
   expect(calls.filter((c) => c.fn === "student_login")).toHaveLength(1);
+});
+
+test("the owner adds the phone notification keys from the app (write-only)", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/notify");
+  const card = page.locator("section", { hasText: "إشعارات التطبيق على الموبايل" });
+  await expect(card.getByText("Android ✓")).toBeVisible();
+  await expect(card.getByText("7 أندرويد · 0 آيفون مسجّلين")).toBeVisible();
+  await card.getByRole("button", { name: "تغيير المفاتيح" }).click();
+  await card.getByLabel("Apple (iPhone): ملف AuthKey .p8").setInputFiles({ name: "AuthKey_ABCDE12345.p8", mimeType: "application/octet-stream", buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n") });
+  await card.getByLabel("Key ID").fill("abcde12345");
+  await card.getByLabel("Team ID").fill("TEAM123456");
+  await card.getByRole("button", { name: "حفظ" }).click();
+  await expect(page.getByText("اتحفظت ✓")).toBeVisible();
+  expect(calls.find((c) => c.fn === "staff_set_push_keys")?.body).toEqual({
+    p_fcm: null,
+    p_apns_p8: "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----",
+    p_apns_key_id: "ABCDE12345",
+    p_apns_team_id: "TEAM123456",
+  });
 });

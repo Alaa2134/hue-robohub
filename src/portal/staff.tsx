@@ -167,7 +167,7 @@ export function StaffApp({
       screen = <SiteSettingsScreen me={me} />;
       break;
     case "notify":
-      screen = <NotifyScreen />;
+      screen = <NotifyScreen me={me} />;
       break;
     case "backups":
       screen = <BackupsScreen me={me} />;
