@@ -168,12 +168,21 @@ export function buildMascot(): THREE.Group {
   // Eyes (glossy black ovals with a catchlight).
   const eyeGeo = new THREE.SphereGeometry(0.04, 32, 24);
   const shineGeo = new THREE.SphereGeometry(0.0105, 12, 8);
+  const shine2Geo = new THREE.SphereGeometry(0.0045, 10, 6);
+  const irisGeo = new THREE.SphereGeometry(0.0402, 40, 12, 0, Math.PI * 2, 0, 0.82);
+  const pupilGeo = new THREE.SphereGeometry(0.0405, 32, 8, 0, Math.PI * 2, 0, 0.42);
+  const iris = std("Iris", "#3b2417", { roughness: 0.18, clearcoat: 1, clearcoatRoughness: 0.04 });
   for (const [name, x] of [
     [NODES.eyeL, -0.09],
     [NODES.eyeR, 0.09],
   ] as const) {
     const e = mesh(name, eyeGeo, eye, [x, 0.09, onFace(x, 0.09, -0.006)], [0, x * 1.4, 0], [0.8, 1.2, 0.5]);
+    // The main catchlight first (the runtime slides it as the eye moves), then a small second one.
     e.add(mesh(`${name}Shine`, shineGeo, shine, [0.013, 0.016, 0.034], [0, 0, 0], [1.2, 0.85, 1]));
+    e.add(mesh(`${name}Shine2`, shine2Geo, shine, [-0.012, -0.015, 0.0355]));
+    // A dark warm iris and a deeper pupil, as caps on the eye's surface (they turn with it).
+    e.add(mesh(`${name}Iris`, irisGeo, iris, [0, 0, 0], [Math.PI / 2, 0, 0]));
+    e.add(mesh(`${name}Pupil`, pupilGeo, eye, [0, 0, 0], [Math.PI / 2, 0, 0]));
     look.add(e);
   }
 

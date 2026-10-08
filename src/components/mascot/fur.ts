@@ -8,6 +8,7 @@ import * as THREE from "three";
 
 export type FurOptions = { layers: number; length: number; density: number };
 
+export const FUR_ULTRA: FurOptions = { layers: 24, length: 0.036, density: 340 };
 export const FUR_DESKTOP: FurOptions = { layers: 14, length: 0.034, density: 260 };
 export const FUR_MOBILE: FurOptions = { layers: 6, length: 0.028, density: 200 };
 

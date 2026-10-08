@@ -38,6 +38,7 @@ import { OCCASION_LINES, wardrobe } from "@/lib/mascot/wardrobe";
 import { activated, hush, speak as speakAloud } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
+import type { Quality } from "./Mascot3D";
 import { MascotLoader } from "./MascotLoader";
 import { goTo } from "./MascotNavigation";
 import { MascotSpeech } from "./MascotSpeech";
@@ -63,6 +64,14 @@ const POSTER = `${BASE_PATH}/mascot/poster.webp`;
 const POSTER_WAVE = `${BASE_PATH}/mascot/poster-wave.webp`;
 const OUTFIT_EMOJI: Record<string, string> = { Nightcap: "😴", Scarf: "🧣", Sunglasses: "😎", PartyHat: "🥳", Lantern: "🏮", TeaCup: "☕", Book: "" };
 const ACTIVITY_EMOJI: Record<string, string> = { pushups: "💪", stretch: "🧘", read: "📚", code: "💻", think: "💡", dance: "🕺", tea: "" };
+/** How much detail this device can afford: fur layers and pixel density (the canvas is small). */
+function quality(phone: boolean): Quality {
+  const cores = navigator.hardwareConcurrency ?? 4;
+  const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? 8;
+  if (cores <= 4 || memory < 4) return "low";
+  if (phone) return cores >= 8 ? "high" : "low";
+  return cores >= 8 && memory >= 8 ? "ultra" : "high";
+}
 /** Swings around his head while held or flying (the stage sets --tilt). */
 const SWING = { transform: "rotate(var(--tilt, 0deg))", transformOrigin: "50% 26%" } as const;
 const CHEERFUL: ReadonlySet<ClipName> = new Set(["Wave", "Happy", "Celebrate", "Dance", "Jump"]);
@@ -775,6 +784,10 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     let fastSince = 0;
     let lastFast = 0;
     let lastNotice = 0;
+    // The cursor (or finger) holds his attention for a few seconds after it last moved; then he
+    // looks back at you.
+    let lastPoint = 0;
+    let idle = 0;
     const lookNow = () => {
       raf = 0;
       if (mascot.get().eyesClosed) return;
@@ -783,20 +796,35 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         const r = t.getBoundingClientRect();
         if (r.bottom > 0 && r.top < window.innerHeight) return mascot.set({ look: center(t) });
       }
-      const b = mascot.get().box;
       const c = cursor.current;
-      if (c && Math.hypot(c.x - (b.x + b.w / 2), c.y - (b.y + b.h * 0.4)) < Math.max(520, window.innerWidth * 0.4)) mascot.set({ look: c });
-      else mascot.set({ look: null });
+      mascot.set({ look: c && performance.now() - lastPoint < (fine ? 6000 : 1800) ? c : null });
     };
     const queue = () => !raf && (raf = requestAnimationFrame(lookNow));
+    const point = (x: number, y: number) => {
+      cursor.current = { x, y };
+      lastPoint = performance.now();
+      clearTimeout(idle);
+      idle = window.setTimeout(queue, fine ? 6100 : 1900);
+      queue();
+    };
+    // Fingers: he watches where you touch and drag (but not his own body: that's being picked up).
+    const touch = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" || stage.current?.contains(e.target as Node)) return;
+      point(e.clientX, e.clientY);
+    };
+    const leave = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.relatedTarget) return;
+      cursor.current = null;
+      queue();
+    };
     const move = (e: PointerEvent) => {
-      if (!fine || e.pointerType !== "mouse") return;
+      if (e.pointerType !== "mouse") return touch(e);
+      if (!fine) return;
       const now = performance.now();
       const dt = Math.max(8, now - last.t);
       speed = speed * 0.75 + (Math.hypot(e.clientX - last.x, e.clientY - last.y) / dt) * 1000 * 0.25;
       last = { x: e.clientX, y: e.clientY, t: now };
-      cursor.current = { x: e.clientX, y: e.clientY };
-      queue();
+      point(e.clientX, e.clientY);
       const s = mascot.get();
       if (!s.box.w || s.menu || s.speech || moving.current || touring.current || resting.current || physical.current) return;
       const b = s.box;
@@ -833,12 +861,17 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       }
     };
     document.addEventListener("pointermove", move, { passive: true });
+    document.addEventListener("pointerdown", touch, { passive: true });
     document.addEventListener("pointerover", over, { passive: true });
     document.addEventListener("pointerout", out, { passive: true });
+    document.addEventListener("pointerout", leave, { passive: true });
     window.addEventListener("scroll", queue, { passive: true });
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(idle);
       document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerdown", touch);
+      document.removeEventListener("pointerout", leave);
       document.removeEventListener("pointerover", over);
       document.removeEventListener("pointerout", out);
       window.removeEventListener("scroll", queue);
@@ -1596,7 +1629,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
             {!ready && <img src={POSTER} alt="" draggable={false} className="absolute inset-0 size-full select-none" />}
             <div className={cn("absolute inset-0 transition-opacity duration-700", ready ? "opacity-100" : "opacity-0")} style={SWING}>
               <Fallback onError={() => setFailed3d(true)}>
-                <Mascot3D url={MODEL} quality={phone || (navigator.hardwareConcurrency ?? 8) <= 4 ? "low" : "high"} paused={!visible} onProgress={setProgress} onError={() => setFailed3d(true)} />
+                <Mascot3D url={MODEL} quality={quality(phone)} fps={phone ? 30 : 60} paused={!visible} onProgress={setProgress} onError={() => setFailed3d(true)} />
               </Fallback>
             </div>
             {!ready && <MascotLoader locale={voice} progress={progress} />}

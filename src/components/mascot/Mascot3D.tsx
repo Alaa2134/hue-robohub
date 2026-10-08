@@ -13,11 +13,13 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mascot } from "@/hooks/useMascotState";
 import { NODES, OUTFITS } from "@/lib/mascot/model";
-import { addFur, FUR_DESKTOP, FUR_MOBILE } from "./fur";
+import { addFur, FUR_DESKTOP, FUR_MOBILE, FUR_ULTRA } from "./fur";
 import { bindAnimations } from "./MascotAnimations";
 import { buildProps } from "./props";
 
-export type Quality = "high" | "low";
+export type Quality = "ultra" | "high" | "low";
+
+const FUR: Record<Quality, typeof FUR_DESKTOP> = { ultra: FUR_ULTRA, high: FUR_DESKTOP, low: FUR_MOBILE };
 
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 
@@ -86,13 +88,16 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
   const model = gltf.scene;
   const props = useMemo(() => buildProps(), []);
   const parts = useMemo(() => {
-    addFur(model, quality === "high" ? FUR_DESKTOP : FUR_MOBILE);
+    addFur(model, FUR[quality]);
     const get = (n: string) => model.getObjectByName(n) ?? null;
     const eyes = [get(NODES.eyeL), get(NODES.eyeR)].filter(Boolean) as THREE.Object3D[];
     return {
       root: get(NODES.root),
       look: get(NODES.look),
-      eyes: eyes.map((e) => ({ node: e, sy: e.scale.y, x: e.position.x, y: e.position.y })),
+      eyes: eyes.map((e) => {
+        const shine = e.children[0] ?? null;
+        return { node: e, sy: e.scale.y, x: e.position.x, y: e.position.y, shine, shineAt: shine?.position.clone() ?? null };
+      }),
       goggles: get(NODES.goggles),
       headphones: get(NODES.headphones),
       mouth: get(NODES.mouth),
@@ -107,7 +112,9 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
     };
   }, [model, quality]);
   const anim = useRef<ReturnType<typeof bindAnimations> | null>(null);
-  const blink = useRef({ next: 2, t: -1 });
+  const blink = useRef({ next: 2, t: -1, again: false });
+  /** Where the eyes and the head point (yaw, pitch in radians); eyes get there first, the head follows. */
+  const gaze = useRef({ eyeYaw: 0, eyePitch: 0, tYaw: 0, tPitch: 0, micro: { x: 0, y: 0, next: 0 }, wander: { yaw: 0, pitch: 0, until: 0, next: 3 }, roll: 0, lean: 0, torso: 0, open: 1 });
   const goggleW = useRef(0);
   const droneW = useRef(0);
   const fall = useRef<THREE.Group>(null);
@@ -142,44 +149,110 @@ function Rig({ gltf, quality }: { gltf: GLTF; quality: Quality }) {
       fall.current.scale.setScalar(1 - 0.2 * w);
     }
 
-    // Body turns towards where it walks (three-quarter, so the face stays visible).
-    if (parts.root) parts.root.rotation.y = damp(parts.root.rotation.y, s.facing * 1.05, 8, dt);
+    // Breathing: a slow, slight swell of the whole body from the feet (faster while talking or
+    // after being thrown around).
+    const inner = fall.current?.children[0];
+    if (inner && !s.flop) {
+      const rate = s.speech ? 2.6 : s.mood === "surprised" ? 3.4 : 1.7;
+      const br = Math.sin(t * rate);
+      inner.scale.set(1 - 0.006 * br, 1 + 0.011 * br, 1 - 0.006 * br);
+    } else if (inner) inner.scale.set(1, 1, 1);
 
-    // Head and eyes follow the look target (in screen pixels, relative to the mascot's head).
+    // Gaze. The target is what he looks at (the cursor or finger, a button, a section); with nothing
+    // to look at he looks at you, and now and then glances away and back. The eyes jump there first
+    // (a saccade) and the head turns after them; far to the side the body turns a little too.
+    const g = gaze.current;
     let yaw = 0;
     let pitch = 0;
+    let close = 0;
     if (s.look && s.box.w) {
       const hx = s.box.x + s.box.w / 2;
       const hy = s.box.y + s.box.h * 0.32;
-      const dx = (s.look.x - hx) / Math.max(320, window.innerWidth * 0.45);
-      const dy = (s.look.y - hy) / Math.max(320, window.innerHeight * 0.6);
-      yaw = THREE.MathUtils.clamp(dx, -1, 1) * 0.55;
-      pitch = THREE.MathUtils.clamp(dy, -1, 1) * 0.32;
-    }
-    if (s.eyesClosed || s.flop) yaw = pitch = 0;
-    if (parts.look) {
-      parts.look.rotation.y = damp(parts.look.rotation.y, yaw - s.facing * 0.35, 6, dt);
-      parts.look.rotation.x = damp(parts.look.rotation.x, pitch, 6, dt);
-    }
-
-    // Blink every few seconds (eyes closed while asleep).
-    const b = blink.current;
-    if (t > b.next && b.t < 0) b.t = 0;
-    let open = 1;
-    if (b.t >= 0) {
-      b.t += dt;
-      open = Math.abs(1 - b.t / 0.075);
-      if (b.t > 0.15) {
-        b.t = -1;
-        b.next = t + 2.2 + Math.random() * 3.5;
-        open = 1;
+      const dx = s.look.x - hx;
+      const dy = s.look.y - hy;
+      yaw = Math.tanh(dx / Math.max(260, window.innerWidth * 0.32)) * 0.75;
+      pitch = Math.tanh(dy / Math.max(260, window.innerHeight * 0.45)) * 0.42;
+      close = Math.max(0, 1 - Math.hypot(dx, dy) / Math.max(60, s.box.h * 0.45));
+    } else if (!s.speech) {
+      const w = g.wander;
+      if (t > w.next) {
+        w.yaw = (Math.random() - 0.5) * 0.9;
+        w.pitch = (Math.random() - 0.35) * 0.35;
+        w.until = t + 0.7 + Math.random() * 1.1;
+        w.next = t + 3.5 + Math.random() * 5;
+      }
+      if (t < w.until) {
+        yaw = w.yaw;
+        pitch = w.pitch;
       }
     }
+    if (s.eyesClosed || s.flop || s.held) yaw = pitch = close = 0;
+    // A big jump in where he looks: humans often blink with it.
+    if (Math.hypot(yaw - g.tYaw, pitch - g.tPitch) > 0.32 && blink.current.t < 0 && Math.random() < 0.6) blink.current.next = t;
+    g.tYaw = yaw;
+    g.tPitch = pitch;
+    // Tiny fixation jitter (micro-saccades) so the eyes never look frozen.
+    if (t > g.micro.next) {
+      g.micro = { x: (Math.random() - 0.5) * 0.05, y: (Math.random() - 0.5) * 0.035, next: t + 0.35 + Math.random() * 0.9 };
+    }
+    g.eyeYaw = damp(g.eyeYaw, yaw + g.micro.x, 32, dt);
+    g.eyePitch = damp(g.eyePitch, pitch + g.micro.y, 32, dt);
+    // The body turns towards where it walks (three-quarter, so the face stays visible), and a bit
+    // towards something far to the side.
+    g.torso = damp(g.torso, s.facing ? 0 : THREE.MathUtils.clamp(yaw - Math.sign(yaw) * 0.35, -0.3, 0.3) * 0.5, 2.2, dt);
+    if (parts.root) parts.root.rotation.y = damp(parts.root.rotation.y, s.facing * 1.05 + g.torso, 8, dt);
+    // Curious head tilt towards the side he looks at; leans back from a cursor right in his face.
+    g.roll = damp(g.roll, -yaw * 0.16 + (s.mood === "happy" ? 0.06 * Math.sin(t * 1.3) : 0), 3, dt);
+    g.lean = damp(g.lean, close * -0.22, 9, dt);
+    if (parts.look) {
+      const headYaw = yaw * 0.78 - s.facing * 0.35 - g.torso;
+      parts.look.rotation.y = damp(parts.look.rotation.y, headYaw, 4.5, dt);
+      parts.look.rotation.x = damp(parts.look.rotation.x, pitch * 0.8 + g.lean, 4.5, dt);
+      parts.look.rotation.z = g.roll;
+    }
+    // The eyes cover what the head hasn't turned yet.
+    const headNow = parts.look ? parts.look.rotation.y + s.facing * 0.35 + g.torso : 0;
+    const eyeX = THREE.MathUtils.clamp(g.eyeYaw - headNow * 0.85, -0.6, 0.6);
+    const eyeY = THREE.MathUtils.clamp(g.eyePitch - (parts.look ? parts.look.rotation.x - g.lean : 0) * 0.85, -0.5, 0.5);
+
+    // Blinks: every 2-6 s at random, sometimes twice in a row, quick to close and slower to open;
+    // the upper lid comes down (the eye squashes from the top). Asleep: closed.
+    const b = blink.current;
+    if (t > b.next && b.t < 0) b.t = 0;
+    let lid = 1;
+    if (b.t >= 0) {
+      b.t += dt;
+      const CLOSE = 0.06;
+      const HOLD = 0.035;
+      const OPEN = 0.11;
+      lid = b.t < CLOSE ? 1 - b.t / CLOSE : b.t < CLOSE + HOLD ? 0 : Math.min(1, (b.t - CLOSE - HOLD) / OPEN);
+      if (b.t > CLOSE + HOLD + OPEN) {
+        b.t = -1;
+        b.again = !b.again && Math.random() < 0.18;
+        b.next = t + (b.again ? 0.12 : 2 + Math.random() * 4);
+        lid = 1;
+      }
+    }
+    // How wide open: wide when surprised, a smiling squint when happy, narrowed when angry, a
+    // squint when the cursor is right in his face.
+    const wide = { neutral: 1, happy: 0.82, angry: 0.78, sad: 0.9, surprised: 1.18 }[s.mood] ?? 1;
+    g.open = damp(g.open, wide * (1 - close * 0.4), 10, dt);
+    let open = lid * g.open;
     if (s.eyesClosed) open = 0.1;
     for (const e of parts.eyes) {
-      e.node.scale.y = e.sy * Math.max(0.1, open);
-      e.node.position.x = e.x + yaw * 0.012;
-      e.node.position.y = e.y - pitch * 0.01;
+      const k = Math.max(0.1, open);
+      e.node.scale.y = e.sy * k;
+      // Squash from the top: the bottom edge stays, as if the upper lid comes down.
+      e.node.position.x = e.x + eyeX * 0.03;
+      e.node.position.y = e.y - eyeY * 0.022 - (1 - k) * 0.02;
+      // The catchlight stays put relative to the light, so it slides a little across the moving eye.
+      if (e.shine && e.shineAt) {
+        const sx = e.shineAt.x - eyeX * 0.012;
+        const sy = e.shineAt.y + eyeY * 0.01;
+        e.shine.position.set(sx, sy, Math.sqrt(Math.max(0, 0.04 ** 2 - sx ** 2 - sy ** 2)));
+      }
+      // Mid-blink the eye is a thin line: no catchlights or iris on it.
+      for (const c of e.node.children) c.visible = k > 0.35;
     }
 
     // Outfits pop on and off (a quick scale), the nightcap replaces the headphones.
@@ -254,7 +327,7 @@ function loadModel(url: string, onProgress: (p: number) => void) {
   return cache.get(url)!;
 }
 
-export default function Mascot3D({ url, quality, paused, onProgress, onError }: { url: string; quality: Quality; paused: boolean; onProgress?: (p: number) => void; onError?: () => void }) {
+export default function Mascot3D({ url, quality, fps, paused, onProgress, onError }: { url: string; quality: Quality; fps?: number; paused: boolean; onProgress?: (p: number) => void; onError?: () => void }) {
   const [gltf, setGltf] = useState<GLTF | null>(null);
   const progress = useRef(onProgress);
   const error = useRef(onError);
@@ -275,8 +348,9 @@ export default function Mascot3D({ url, quality, paused, onProgress, onError }: 
   return (
     <Canvas
       frameloop="demand"
-      // The canvas is small (his size on the page), so full sharpness on phones costs little.
-      dpr={[1, 2]}
+      // The canvas is small (his size on the page), so full sharpness costs little; ultra goes up to
+      // the screen's own density (3x on many phones and retina screens).
+      dpr={quality === "ultra" ? [1, Math.min(3, window.devicePixelRatio || 1)] : [1, 2]}
       gl={{ antialias: true, alpha: true, powerPreference: "low-power", preserveDrawingBuffer: false }}
       camera={{ fov: 24, position: [0, 0.82, 4.3], near: 0.1, far: 20 }}
       onCreated={({ gl, camera }) => {
@@ -291,7 +365,7 @@ export default function Mascot3D({ url, quality, paused, onProgress, onError }: 
       style={{ pointerEvents: "none" }}
       aria-hidden
     >
-      <Ticker fps={quality === "high" ? 60 : 30} paused={paused} />
+      <Ticker fps={fps ?? (quality === "low" ? 30 : 60)} paused={paused} />
       <Environment />
       <directionalLight color="#fff4e8" intensity={2.2} position={[-2, 3, 3]} />
       <directionalLight color="#9cc4ff" intensity={1.6} position={[2.5, 2, -2]} />
