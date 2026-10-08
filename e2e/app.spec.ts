@@ -694,3 +694,31 @@ test("positions for the website admin and the head of media suggest their areas"
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
   await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] });
 });
+
+test("signed in, students and the team can go back to the website and come back still signed in", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home") return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_deletion_status") return route.fulfill({ json: { pending: false } });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByRole("heading", { name: "Mona Adel" })).toBeVisible();
+  await page.getByRole("link", { name: "موقع BuildX HUE" }).click();
+  await expect(page).toHaveURL(/\/ar\/$/);
+  await expect(page.locator("main").first()).toBeVisible();
+  // Back to the app: still signed in.
+  await page.goto("/app/#/me");
+  await expect(page.getByRole("heading", { name: "Mona Adel" })).toBeVisible();
+  await page.goto("/app/#/me/account");
+  await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toHaveAttribute("href", "/ar/");
+});
+
+test("the team's home and menu link to the website", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto("/app/#/staff");
+  await expect(page.getByRole("link", { name: "موقع BuildX HUE" })).toHaveAttribute("href", "/ar/");
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toBeVisible();
+});
