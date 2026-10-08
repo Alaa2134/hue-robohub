@@ -59,6 +59,14 @@ jobs:
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      # Baqloz's recorded voice (made by the "Baqloz voice" workflow) goes in /voice/.
+      - name: Voice clips
+        run: |
+          if git ls-remote --exit-code --heads origin voice-assets >/dev/null; then
+            git fetch -q --depth=1 origin voice-assets
+            git archive FETCH_HEAD | tar -x -C out-static/voice
+            echo "$(ls out-static/voice | wc -l) voice files"
+          fi
       - name: Smoke tests
         run: npx playwright test
       - uses: actions/upload-artifact@v4

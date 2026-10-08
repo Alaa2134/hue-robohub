@@ -529,3 +529,48 @@ export function SecurityAlert() {
     </Card>
   );
 }
+
+/* ─── Free plan usage ──────────────────────────────────────────────────── */
+
+type Usage = { db_bytes: number; buckets: { bucket: string; bytes: number; files: number }[] };
+const MB = 1024 * 1024;
+const BUCKET_LABEL: Record<string, string> = { materials: "ملفات الكورسات", submissions: "تسليمات الطلاب", site: "صور الموقع", team: "صور الفريق", backups: "النسخ الاحتياطية" };
+
+function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = Math.min(100, Math.round((used / limit) * 100));
+  const tone = pct >= 90 ? "bg-danger" : pct >= 75 ? "bg-warn" : "bg-gradient-to-l from-cyan to-volt";
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between text-sm">
+        <span className="text-chalk">{label}</span>
+        <span className="text-xs text-fog" dir="ltr">
+          {(used / MB).toFixed(used < 10 * MB ? 1 : 0)} / {Math.round(limit / MB)} MB · {pct}%
+        </span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-white/10" role="meter" aria-label={label} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <div className={`h-full rounded-full ${tone}`} style={{ width: `${Math.max(pct, 2)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** Owners and admins: how much of Supabase's free plan is used, before it runs out. */
+export function UsageCard() {
+  const { data } = useAsync(() => rpc<Usage>("staff_usage"), []);
+  if (!data) return null;
+  const files = data.buckets.reduce((n, b) => n + b.bytes, 0);
+  const near = data.db_bytes / (500 * MB) >= 0.75 || files / (1024 * MB) >= 0.75;
+  return (
+    <Card className="mt-4 grid gap-3">
+      <p className="font-semibold text-chalk">الباقة المجانية</p>
+      <Meter label="قاعدة البيانات" used={data.db_bytes} limit={500 * MB} />
+      <Meter label="الملفات" used={files} limit={1024 * MB} />
+      {data.buckets.length > 0 && (
+        <p className="text-xs leading-relaxed text-fog">
+          {data.buckets.map((b) => `${BUCKET_LABEL[b.bucket] ?? b.bucket}: ${(b.bytes / MB).toFixed(1)} MB`).join(" · ")}
+        </p>
+      )}
+      {near && <p className="text-xs text-warn">قرّبت توصل للحد المجاني: امسح الملفات القديمة، وحط الفيديوهات على يوتيوب بدل ما ترفعها.</p>}
+    </Card>
+  );
+}

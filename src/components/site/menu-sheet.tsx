@@ -60,22 +60,13 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
   const signIn = (
     <>
       <p className="t-eyebrow mb-3 text-fog">{t.signIn}</p>
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-        {(
-          [
-            ["login/student", t.signInStudent, t.signInStudentHint, "users"],
-            ["login/staff", t.signInStaff, t.signInStaffHint, "lock"],
-          ] as const
-        ).map(([to, label, hint, icon]) => (
-          <a key={to} href={`${APP_HREF}#/${to}`} className="flex flex-col gap-1 rounded-xl border border-[var(--line-2)] bg-panel/60 p-3 transition-colors hover:border-cyan/50">
-            <span className="flex items-center gap-2 font-semibold text-chalk">
-              <Icon name={icon} size={16} className="text-cyan" />
-              {label}
-            </span>
-            <span className="text-xs leading-snug text-fog">{hint}</span>
-          </a>
-        ))}
-      </div>
+      <a href={`${APP_HREF}#/login`} className="flex flex-col gap-1 rounded-xl border border-[var(--line-2)] bg-panel/60 p-3 transition-colors hover:border-cyan/50">
+        <span className="flex items-center gap-2 font-semibold text-chalk">
+          <Icon name="lock" size={16} className="text-cyan" />
+          {t.signInApp}
+        </span>
+        <span className="text-xs leading-snug text-fog">{t.signInAppHint}</span>
+      </a>
     </>
   );
 

@@ -1,0 +1,61 @@
+# Records Baqloz's lines in a natural Egyptian voice (scripts/build-voice.ts, Azure Speech free tier)
+# and keeps the clips on the "voice-assets" branch; the site deploy copies them into /voice/. Only new
+# or changed lines are recorded. Needs the repository secret AZURE_SPEECH_KEY (and the variable
+# AZURE_SPEECH_REGION if the Speech resource isn't in West Europe); without it nothing happens.
+name: Baqloz voice
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/config/mascotJourney.ts", "src/lib/mascot/guide.ts", "src/lib/mascot/wardrobe.ts", "src/lib/mascot/voice-text.ts", "scripts/build-voice.ts"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: voice
+  cancel-in-progress: false
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_KEY: ${{ secrets.AZURE_SPEECH_KEY != '' }}
+      REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # The clips live in their own small repository checkout (the voice-assets branch), not in main.
+      - name: The clips recorded so far
+        run: |
+          mkdir voice && cd voice
+          git init -q && git remote add origin "$REMOTE"
+          if git ls-remote --exit-code --heads origin voice-assets >/dev/null; then
+            git fetch -q --depth=1 origin voice-assets && git checkout -q -b voice-assets FETCH_HEAD
+          else
+            git checkout -q --orphan voice-assets
+          fi
+      - name: Record new lines
+        env:
+          AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
+          AZURE_SPEECH_REGION: ${{ vars.AZURE_SPEECH_REGION }}
+        run: npx tsx scripts/build-voice.ts --out voice
+      - name: Save them and redeploy the site
+        if: env.HAS_KEY == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd voice
+          git add -A .
+          if git diff --cached --quiet; then echo "No new clips."; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Baqloz voice clips"
+          git push -q origin HEAD:voice-assets
+          cd ..
+          gh workflow run "Deploy site" --ref main

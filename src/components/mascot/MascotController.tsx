@@ -22,7 +22,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { ACTIVITIES, GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, TEA, type Activity, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { ACTIVITIES, FORM_ROUTES, GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, TEA, type Activity, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -35,7 +35,7 @@ import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
 import { BADGES, play, visitToday } from "@/lib/mascot/games";
 import { OCCASION_LINES, wardrobe } from "@/lib/mascot/wardrobe";
-import { activated, hush, speak as speakAloud, speaking, unlock } from "@/lib/mascot/voice";
+import { activated, hush, loadVoice, speak as speakAloud, speaking, unlock } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
 import type { Quality } from "./Mascot3D";
@@ -233,6 +233,8 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const snd = storage.get("bx-guide-sound") !== "0";
     soundOn.current = snd;
     returning.current = storage.get("bx-guide-visited") === "1";
+    // The list of his recorded lines (small), so the first line can play the moment sound is allowed.
+    void loadVoice();
     storage.set("bx-guide-visited", "1");
     mascot.set({ mode, hidden: h, sound: snd });
   }, [mode]);
@@ -1523,6 +1525,31 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     const { streak, fresh } = visitToday();
     if (!fresh || streak < 2) return;
     const t = window.setTimeout(() => brief(fill(GAME.streak, streak), { prio: 1, clip: "Happy", ms: 5000 }), 9000);
+    return () => clearTimeout(t);
+  }, [placed, brief]);
+
+  // An application started and not sent (the form keeps a draft on this device): once a visit, on any
+  // other page, he offers to finish it.
+  useEffect(() => {
+    if (!placed || FORM_ROUTES.some((r) => r.test(here.current.path))) return;
+    let name = "";
+    try {
+      if (sessionStorage.getItem("bx-guide-resume")) return;
+      const d = JSON.parse(localStorage.getItem("buildx_apply_draft_v1") ?? "null") as { full_name?: string; phone?: string; email?: string } | null;
+      if (!d || !(d.full_name?.trim() || d.phone?.trim() || d.email?.trim())) return;
+      name = d.full_name?.trim().split(/\s+/)[0] ?? "";
+    } catch {
+      return;
+    }
+    const join = PAGES.find((p) => p.id === "join");
+    if (!join) return;
+    let t = 0;
+    const attempt = () => {
+      const line = name ? fill(LINES.resumeApply, name) : LINES.resumeApplyAnon;
+      if (brief({ ...line, actions: [{ kind: "go", href: join.href, label: LINES.finishIt }, NOT_NOW] }, { prio: 1, clip: "Wave", ms: 12000 })) once("bx-guide-resume");
+      else t = window.setTimeout(attempt, 4000);
+    };
+    t = window.setTimeout(attempt, 12000);
     return () => clearTimeout(t);
   }, [placed, brief]);
 

@@ -212,6 +212,8 @@ const TT = {
     confirm: "Cancel my place",
     wrongPhone: "The phone number doesn't match this ticket.",
     error: "We couldn't load the ticket. Check your connection and try again.",
+    whatsapp: "Send it to myself on WhatsApp",
+    share: (title: string, url: string) => `My ticket for ${title} 🎟️\n${url}`,
   },
   ar: {
     going: "مؤكَّد",
@@ -226,6 +228,8 @@ const TT = {
     confirm: "الغي مكاني",
     wrongPhone: "رقم الموبايل مش مطابق للتذكرة.",
     error: "مقدرناش نحمّل التذكرة. اتأكد من النت وجرّب تاني.",
+    whatsapp: "ابعتها لنفسي على واتساب",
+    share: (title: string, url: string) => `تذكرتي لـ ${title} 🎟️\n${url}`,
   },
 };
 
@@ -301,6 +305,12 @@ export function EventTicket({ locale }: { locale: string }) {
           </p>
         </div>
       </div>
+      {tk.status !== "cancelled" && (
+        // Free: WhatsApp's own share link with the ticket's address (no API, no number needed).
+        <a href={`https://wa.me/?text=${encodeURIComponent(t.share(title, location.href))}`} target="_blank" rel="noopener noreferrer" className="btn btn-primary justify-self-start">
+          <span>{t.whatsapp}</span>
+        </a>
+      )}
       {tk.event.slug && (
         <a href={`${l === "ar" ? "/ar" : ""}/events/${tk.event.slug}/`} className="btn justify-self-start">
           <span>{t.event}</span>

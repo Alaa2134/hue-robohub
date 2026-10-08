@@ -304,7 +304,7 @@ function MemberSheet({ member: m, me, onClose, onChanged, onCredentials }: { mem
 
 function CredentialsSheet({ creds, onClose }: { creds: Credentials | null; onClose: () => void }) {
   if (!creds) return null;
-  const url = `${publicOrigin()}${APP_PATH}#/login/staff`;
+  const url = `${publicOrigin()}${APP_PATH}#/login`;
   const msg = `أهلاً ${creds.name}\nحسابك على تطبيق BuildX HUE:\nالبريد: ${creds.email}\nكلمة المرور المؤقتة: ${creds.password}\n${url}\nغيّر كلمة المرور من «حسابي» بعد أول دخول.`;
   return (
     <Sheet open onClose={onClose} title="بيانات الدخول">

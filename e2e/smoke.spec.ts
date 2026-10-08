@@ -150,13 +150,15 @@ test("a student registers for an event and opens a QR ticket", async ({ page }) 
   await expect(page).toHaveURL(/\/ar\/ticket\/\?t=BXT-1A2B3C4D$/);
   await expect(page.getByText("مؤكَّد")).toBeVisible();
   await expect(page.getByRole("img", { name: "BXT-1A2B3C4D" })).toBeVisible();
+  // Sending it to yourself on WhatsApp (free share link with the ticket's address).
+  await expect(page.getByRole("link", { name: "ابعتها لنفسي على واتساب" })).toHaveAttribute("href", /^https:\/\/wa\.me\/\?text=.*BXT-1A2B3C4D/);
   // Coming back to the event page shows the saved ticket instead of the form.
   await page.goto("/ar/events/item/?s=kickoff");
   await expect(page.getByText("انت متسجل في الفعالية دي")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("sign-in is visible in the header on a phone and the menu offers student and staff sign-in", async ({ page }) => {
+test("sign-in is visible in the header on a phone and the menu offers the one app sign-in", async ({ page }) => {
   await mockSupabase(page);
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/ar/");
@@ -164,6 +166,5 @@ test("sign-in is visible in the header on a phone and the menu offers student an
   await expect(signIn).toBeVisible();
   await expect(signIn).toHaveAttribute("href", "/app/");
   await page.locator('header button[aria-controls="site-menu"]').click();
-  await expect(page.locator("#site-menu").getByRole("link", { name: /أنا طالب/ })).toHaveAttribute("href", "/app/#/login/student");
-  await expect(page.locator("#site-menu").getByRole("link", { name: /فريق التدريب/ })).toHaveAttribute("href", "/app/#/login/staff");
+  await expect(page.locator("#site-menu").getByRole("link", { name: /دخول BuildX App/ })).toHaveAttribute("href", "/app/#/login");
 });

@@ -1,52 +1,118 @@
 /**
- * Baqloz's voice: his lines read aloud with the browser's own speech synthesis, in an Arabic voice
- * (the most natural Egyptian one the device has). On by default, but browsers only let a page speak
- * after the visitor's first click or tap, so nothing is heard before that; the visitor can turn it
- * off in his menu. Nothing is downloaded and nothing leaves the device.
+ * Baqloz's voice. His scripted lines are recorded in a natural Egyptian voice (scripts/build-voice.ts
+ * makes the clips at deploy time; public/voice/manifest.json lists them) and played from the site.
+ * Lines without a recording (a name, a live number, an AI answer) stay silent unless the visitor turns
+ * on the device's own voice in his menu: browser voices are Modern Standard and robotic, so it's off
+ * by default. Browsers only let a page play sound after the visitor's first click or tap.
  */
-let voice: SpeechSynthesisVoice | null = null;
-/** How many voices the device listed (0 = not known yet: many Android phones list none). */
-let listed = 0;
+import { greeting } from "@/config/mascotJourney";
+import { BASE_PATH } from "@/lib/deploy";
+import { spoken, voiceKey } from "./voice-text";
+
+const DEVICE_KEY = "bx-guide-device-voice";
 let unlocked = false;
+let clips: Set<string> | null = null;
+let loading: Promise<Set<string>> | null = null;
+let audio: HTMLAudioElement | null = null;
+let playing = false;
+/** Bumped by every new line and by hush(), so a line that was cut off stops before its next clip. */
+let gen = 0;
 
-const supported = () => typeof window !== "undefined" && "speechSynthesis" in window;
+const browser = () => typeof window !== "undefined";
+const synthOk = () => browser() && "speechSynthesis" in window;
 
-/** Egyptian first, then the natural-sounding (online / neural) voices, then any Arabic voice. */
-function score(v: SpeechSynthesisVoice) {
-  return (/^ar[-_]EG/i.test(v.lang) ? 4 : 0) + (/natural|online|neural|premium|enhanced/i.test(v.name) ? 3 : 0) + (v.localService ? 0 : 1);
+/** The list of recorded lines (fetched once; an empty list when there are none). */
+export function loadVoice(): Promise<Set<string>> {
+  if (clips) return Promise.resolve(clips);
+  if (!browser()) return Promise.resolve(new Set());
+  loading ??= fetch(`${BASE_PATH}/voice/manifest.json`)
+    .then((r) => (r.ok ? (r.json() as Promise<{ clips?: string[] }>) : { clips: [] }))
+    .then((m) => (clips = new Set(m.clips ?? [])))
+    .catch(() => (clips = new Set()));
+  return loading;
 }
 
+/* ─── The device's own voice (optional) ────────────────────────────────── */
+
+let device: SpeechSynthesisVoice | null = null;
+let listed = 0;
 function choose() {
   const all = window.speechSynthesis?.getVoices() ?? [];
   listed = all.length;
-  voice = all.filter((v) => /^ar([-_]|$)/i.test(v.lang)).sort((a, b) => score(b) - score(a))[0] ?? null;
+  const score = (v: SpeechSynthesisVoice) => (/^ar[-_]EG/i.test(v.lang) ? 4 : 0) + (/natural|online|neural|premium|enhanced/i.test(v.name) ? 3 : 0);
+  device = all.filter((v) => /^ar([-_]|$)/i.test(v.lang)).sort((a, b) => score(b) - score(a))[0] ?? null;
 }
-
-if (supported()) {
+if (synthOk()) {
   choose();
   window.speechSynthesis.addEventListener?.("voiceschanged", choose);
 }
 
-/**
- * Can this device speak Arabic? When it hasn't listed its voices (as on many Android phones) we try
- * anyway: the engine picks a voice from the language.
- */
-export const canSpeak = () => supported() && (choose(), !!voice || listed === 0);
-
+/** Has the visitor turned on the device voice for lines with no recording? */
+export function deviceVoiceOn(): boolean {
+  try {
+    return localStorage.getItem(DEVICE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setDeviceVoice(on: boolean) {
+  try {
+    localStorage.setItem(DEVICE_KEY, on ? "1" : "0");
+  } catch {}
+}
+const deviceCan = () => synthOk() && (choose(), !!device || listed === 0);
 /** The device lists its voices and none is Arabic (e.g. Chrome on Windows without Arabic installed). */
-export const noArabicVoice = () => supported() && (choose(), listed > 0 && !voice);
+export const noArabicVoice = () => synthOk() && (choose(), listed > 0 && !device);
 
-/** Words an Arabic voice would stumble over, spelled the way he says them. */
-const SAY: [RegExp, string][] = [
-  [/BuildX\s*HUE/gi, "بيلد إكس هيو"],
-  [/BuildX/gi, "بيلد إكس"],
-  [/\bAI\b/g, "إيه آي"],
-  [/\bIoT\b/gi, "آي أو تي"],
-  [/\bQR\b/g, "كيو آر"],
-  [/\b3D\b/gi, "ثري دي"],
-];
+/* ─── Recorded clips ───────────────────────────────────────────────────── */
 
-/** Has the visitor clicked or tapped yet? (Speech and sound need that.) */
+/** The greeting he puts before a page's first line ("صباح الفل ☀️ …") is its own clip. */
+const GREETINGS = [0, 6, 13, 20].map((h) => spoken(greeting(h).ar));
+
+/** The clips that say this line: the whole line, or a greeting followed by a recorded line. */
+function clipsFor(text: string): string[] | null {
+  if (!clips?.size) return null;
+  const key = voiceKey(text);
+  if (clips.has(key)) return [key];
+  const s = spoken(text);
+  for (const g of GREETINGS)
+    if (s.startsWith(`${g} `)) {
+      const rest = voiceKey(s.slice(g.length + 1));
+      const head = voiceKey(g);
+      if (clips.has(head) && clips.has(rest)) return [head, rest];
+    }
+  return null;
+}
+
+function player() {
+  audio ??= new Audio();
+  audio.preload = "auto";
+  return audio;
+}
+
+function playClip(key: string): Promise<void> {
+  const a = player();
+  return new Promise<void>((done) => {
+    const finish = () => {
+      clearTimeout(timer);
+      a.onended = a.onerror = a.onpause = null;
+      done();
+    };
+    const timer = setTimeout(finish, 20000);
+    a.onended = a.onerror = a.onpause = finish;
+    a.src = `${BASE_PATH}/voice/${key}.mp3`;
+    a.play().catch(finish);
+  });
+}
+
+/* ─── Public API ───────────────────────────────────────────────────────── */
+
+/** Can he say anything at all here (recordings, or the device voice the visitor turned on)? */
+export const canSpeak = () => !!clips?.size || (deviceVoiceOn() && deviceCan());
+/** Can he say this particular line? */
+export const canSay = (text: string) => !!clipsFor(text) || (deviceVoiceOn() && deviceCan());
+
+/** Has the visitor clicked or tapped yet? (Sound needs that.) */
 export const activated = () => typeof navigator === "undefined" || ((navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive ?? true);
 
 const waiting: (() => void)[] = [];
@@ -62,52 +128,68 @@ export function onUnlock(f: () => void) {
 }
 
 /**
- * Call from inside the visitor's first tap, click or key press: iPhones only let a page speak later
- * if speech was first started from a gesture, so this starts a silent one.
+ * Call from inside the visitor's first tap, click or key press: iPhones only let a page play sound
+ * later if it first played from a gesture, so this plays a moment of silence (and starts a silent
+ * utterance for the device voice).
  */
 export function unlock() {
   if (unlocked) return;
   unlocked = true;
   for (const f of waiting.splice(0)) f();
-  if (!supported()) return;
-  const u = new SpeechSynthesisUtterance(" ");
-  u.volume = 0;
-  u.lang = voice?.lang ?? "ar-EG";
-  window.speechSynthesis.speak(u);
+  if (!browser()) return;
+  void loadVoice();
+  const a = player();
+  a.src = `${BASE_PATH}/voice/silence.mp3`;
+  a.play().catch(() => undefined);
+  if (synthOk() && deviceVoiceOn()) {
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  }
 }
 
 /** Is he saying something right now? */
-export const speaking = () => supported() && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+export const speaking = () => playing || (synthOk() && (window.speechSynthesis.speaking || window.speechSynthesis.pending));
 
-/** Say it aloud; resolves when he's done (or right away when he can't speak). */
-export function speak(text: string): Promise<void> {
-  if (!canSpeak()) return Promise.resolve();
-  let t = text.replace(/\p{Extended_Pictographic}|️/gu, "").replace(/[«»]/g, "");
-  for (const [re, said] of SAY) t = t.replace(re, said);
-  const u = new SpeechSynthesisUtterance(t.trim());
-  if (voice) u.voice = voice;
-  u.lang = voice?.lang ?? "ar-EG";
-  u.rate = 1.02;
-  // Natural voices sound odd pitched up; the plain ones get a younger, lighter voice.
-  u.pitch = voice && score(voice) >= 3 ? 1.1 : 1.3;
-  const synth = window.speechSynthesis;
-  const busy = synth.speaking || synth.pending;
-  if (busy) synth.cancel();
-  // Chrome can get stuck paused (e.g. after a background tab).
-  if (synth.paused) synth.resume();
+/** Say it aloud; resolves when he's done (or right away when he can't say it). */
+export async function speak(text: string): Promise<void> {
+  await loadVoice();
+  hush();
+  const my = gen;
+  const parts = clipsFor(text);
+  if (parts) {
+    playing = true;
+    try {
+      for (const key of parts) {
+        if (gen !== my) break;
+        await playClip(key);
+      }
+    } finally {
+      if (gen === my) playing = false;
+    }
+    return;
+  }
+  if (!deviceVoiceOn() || !deviceCan()) return;
+  const t = spoken(text);
+  const u = new SpeechSynthesisUtterance(t);
+  if (device) u.voice = device;
+  u.lang = device?.lang ?? "ar-EG";
+  u.rate = 1;
+  u.pitch = 1;
   return new Promise<void>((done) => {
-    // Some engines never fire "end"; don't wait past a generous estimate.
     const timer = setTimeout(done, 1500 + t.length * 110);
     u.onend = u.onerror = () => {
       clearTimeout(timer);
       done();
     };
-    // Chrome sometimes drops an utterance queued in the same moment as a cancel.
-    if (busy) setTimeout(() => synth.speak(u), 60);
-    else synth.speak(u);
+    window.speechSynthesis.speak(u);
   });
 }
 
+/** Stop talking. */
 export function hush() {
-  if (supported()) window.speechSynthesis.cancel();
+  gen++;
+  playing = false;
+  if (audio && !audio.paused) audio.pause();
+  if (synthOk()) window.speechSynthesis.cancel();
 }

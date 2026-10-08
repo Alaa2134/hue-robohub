@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">BuildX Team</string>
-    <string name="title_activity_main">BuildX Team</string>
-    <string name="package_name">com.buildxhue.team</string>
-    <string name="custom_url_scheme">com.buildxhue.team</string>
-</resources>

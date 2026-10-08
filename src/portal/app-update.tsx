@@ -1,27 +1,25 @@
 "use client";
 /**
- * "Update the app" for the store apps. Owners set the lowest version each app may run (and the store
- * links) in /staff/apps; an older app shows a full-screen notice with a button to the store, so a
+ * "Update the app" for the store app. Owners set the lowest version it may run (and the store links)
+ * in /staff/apps; an older app shows a full-screen notice with a button to the store, so a
  * change that needs the new app never meets an old one. Stored in site_settings under "apps".
  */
 import { registerPlugin } from "@capacitor/core";
 import { useEffect, useState, type ReactNode } from "react";
-import { appMode, can, errorText, isNative, must, sb, type StaffRow } from "./core";
+import { can, errorText, isNative, must, sb, type StaffRow } from "./core";
 import { BrandLine } from "./shell";
 import { Button, Card, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Textarea, TopBar, toast, useAsync } from "./ui";
 
+/** One app for students and the team (com.buildxhue.student); the keys keep their first names. */
 export type AppsSettings = {
   student_min?: string;
-  team_min?: string;
   message?: string;
   student_android?: string;
   student_ios?: string;
-  team_android?: string;
-  team_ios?: string;
 };
 
 const PLAY = (id: string) => `https://play.google.com/store/apps/details?id=${id}`;
-const DEFAULT_LINKS = { student_android: PLAY("com.buildxhue.student"), team_android: PLAY("com.buildxhue.team") };
+const DEFAULT_LINKS = { student_android: PLAY("com.buildxhue.student") };
 
 type AppInfo = { version: string; build: string; id: string };
 const App = registerPlugin<{ getInfo(): Promise<AppInfo> }>("App");
@@ -43,17 +41,15 @@ const platform = () => (/iphone|ipad|ipod|macintosh/i.test(navigator.userAgent) 
 export function UpdateGate({ children }: { children: ReactNode }) {
   const [need, setNeed] = useState<{ url: string; message: string; version: string; min: string } | null>(null);
   useEffect(() => {
-    const mode = appMode();
-    if (!isNative() || !mode) return;
+    if (!isNative()) return;
     let alive = true;
     (async () => {
       const [info, rows] = await Promise.all([App.getInfo(), sb().from("site_settings").select("value").eq("key", "apps").limit(1).then(must)]);
       const s = ((rows as { value: AppsSettings }[])[0]?.value ?? {}) as AppsSettings;
-      const app = mode === "student" ? "student" : "team";
-      const min = (s[`${app}_min`] ?? "").trim();
+      const min = (s.student_min ?? "").trim();
       if (!alive || !min || compareVersions(info.version, min) >= 0) return;
       const links = { ...DEFAULT_LINKS, ...s } as Record<string, string | undefined>;
-      setNeed({ url: links[`${app}_${platform()}`] ?? "", message: s.message ?? "", version: info.version, min });
+      setNeed({ url: links[`student_${platform()}`] ?? "", message: s.message ?? "", version: info.version, min });
     })().catch(() => undefined); // offline or no plugin: let them in
     return () => {
       alive = false;
@@ -107,8 +103,8 @@ export function AppsSettingsScreen({ me }: { me: StaffRow }) {
     </Field>
   );
   const save = async () => {
-    for (const k of ["student_min", "team_min"] as const) if (s[k]?.trim() && !/^\d+(\.\d+){0,2}$/.test(s[k]!.trim())) return toast("رقم الإصدار يكون زي 1.0.0", "error");
-    for (const k of ["student_android", "student_ios", "team_android", "team_ios"] as const) if (s[k]?.trim() && !/^https:\/\/\S+$/.test(s[k]!.trim())) return toast("لينكات المتاجر لازم تبدأ بـ https://", "error");
+    for (const k of ["student_min"] as const) if (s[k]?.trim() && !/^\d+(\.\d+){0,2}$/.test(s[k]!.trim())) return toast("رقم الإصدار يكون زي 1.0.0", "error");
+    for (const k of ["student_android", "student_ios"] as const) if (s[k]?.trim() && !/^https:\/\/\S+$/.test(s[k]!.trim())) return toast("لينكات المتاجر لازم تبدأ بـ https://", "error");
     setBusy(true);
     try {
       const value = Object.fromEntries(Object.entries(s).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v]).filter(([, v]) => v));
@@ -133,18 +129,11 @@ export function AppsSettingsScreen({ me }: { me: StaffRow }) {
           <p className="text-sm leading-relaxed text-fog">
             لما تحط أقل إصدار، أي حد معاه نسخة أقدم بيشوف شاشة «في تحديث جديد» ومش بيقدر يكمل غير لما يحدّث. سيبها فاضية عشان محدش يتمنع. رقم الإصدار هو اللي بتكتبه في «Run workflow».
           </p>
-          <Section title="BuildX HUE (الطلاب)">
+          <Section title="BuildX HUE (الطلاب والفريق)">
             <Card className="grid gap-3">
               {field("student_min", "أقل إصدار مسموح", "1.0.0")}
               {field("student_android", "لينك Google Play", DEFAULT_LINKS.student_android)}
               {field("student_ios", "لينك App Store", "https://apps.apple.com/app/id…", "من App Store Connect ← App Information ← View on App Store")}
-            </Card>
-          </Section>
-          <Section title="BuildX Team (الفريق)">
-            <Card className="grid gap-3">
-              {field("team_min", "أقل إصدار مسموح", "1.0.0")}
-              {field("team_android", "لينك Google Play", DEFAULT_LINKS.team_android)}
-              {field("team_ios", "لينك App Store", "https://apps.apple.com/app/id…")}
             </Card>
           </Section>
           <Section title="الرسالة (اختياري)">

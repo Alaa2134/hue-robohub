@@ -1,6 +1,6 @@
 # BuildX HUE — Privacy / الخصوصية
 
-This is the privacy notice for the BuildX HUE website (buildxhue.com) and the **BuildX HUE** and **BuildX Team** apps. The same text is published at https://buildxhue.com/en/privacy/ and https://buildxhue.com/ar/privacy/.
+This is the privacy notice for the BuildX HUE website (buildxhue.com) and the **BuildX HUE** app. The same text is published at https://buildxhue.com/en/privacy/ and https://buildxhue.com/ar/privacy/.
 
 ## Privacy notice
 
@@ -18,9 +18,9 @@ Only to review your application, contact you about it, and — if you join — s
 
 Applications are visible only to the community's owner, admins and team leads inside the BuildX App. Access is role-based and important actions are recorded in an activity log. Your phone number and email are never shown on the public site.
 
-### The BuildX HUE and BuildX Team apps
+### The BuildX HUE app
 
-Accounts are created by the community's team, not in the apps. The student app (BuildX HUE) uses your student number, name and group, and keeps your attendance, quiz answers and scores, points and certificates. The team app (BuildX Team) uses the team member's email and name, and the photos and files they choose to upload. The camera is used only to scan attendance barcodes and tickets on the device; no picture is saved unless you choose to upload it. If the app breaks we record the error message, the screen and the device type. There are no ads, no tracking across apps or sites, and nothing is sold or shared with advertisers. Data is stored with our database provider (Supabase) and sent over encrypted connections.
+Accounts are created by the community's team, not in the app. For students the app uses your student number, name and group, and keeps your attendance, quiz answers and scores, points and certificates. For training team members it uses their email and name, and the photos and files they choose to upload. The camera is used only to scan attendance barcodes and tickets on the device; no picture is saved unless you choose to upload it. If the app breaks we record the error message, the screen and the device type. There are no ads, no tracking across apps or sites, and nothing is sold or shared with advertisers. Data is stored with our database provider (Supabase) and sent over encrypted connections.
 
 ### Deleting your account
 
@@ -72,9 +72,9 @@ Contact us to exercise your rights: alaa00saber@gmail.com
 
 الطلبات لا يراها إلا مالك المجتمع والمسؤولون وقادة الفرق داخل تطبيق BuildX. الوصول حسب الصلاحيات والإجراءات المهمة تُسجَّل في سجل النشاط. رقم هاتفك وبريدك لا يظهران أبدًا على الموقع العام.
 
-### تطبيقا BuildX HUE و BuildX Team
+### تطبيق BuildX HUE
 
-الحسابات ينشئها فريق المجتمع وليس التطبيقات نفسها. تطبيق الطلاب (BuildX HUE) يستخدم رقمك الجامعي واسمك ومجموعتك، ويحفظ حضورك وإجابات الكويزات ودرجاتها ونقاطك وشهاداتك. تطبيق الفريق (BuildX Team) يستخدم بريد عضو الفريق واسمه والصور والملفات التي يختار رفعها. الكاميرا تُستخدم فقط لمسح باركود الحضور والتذاكر على الجهاز، ولا تُحفظ أي صورة إلا إذا اخترت رفعها. وإذا تعطّل التطبيق نسجّل رسالة الخطأ والشاشة ونوع الجهاز. لا إعلانات، ولا تتبّع عبر التطبيقات أو المواقع، ولا نبيع أي بيانات أو نشاركها مع معلنين. البيانات محفوظة لدى مزوّد قاعدة البيانات (Supabase) وتنتقل عبر اتصالات مشفّرة.
+الحسابات ينشئها فريق المجتمع وليس التطبيق نفسه. للطلاب يستخدم التطبيق رقمك الجامعي واسمك ومجموعتك، ويحفظ حضورك وإجابات الكويزات ودرجاتها ونقاطك وشهاداتك. ولأعضاء فريق التدريب يستخدم بريد العضو واسمه والصور والملفات التي يختار رفعها. الكاميرا تُستخدم فقط لمسح باركود الحضور والتذاكر على الجهاز، ولا تُحفظ أي صورة إلا إذا اخترت رفعها. وإذا تعطّل التطبيق نسجّل رسالة الخطأ والشاشة ونوع الجهاز. لا إعلانات، ولا تتبّع عبر التطبيقات أو المواقع، ولا نبيع أي بيانات أو نشاركها مع معلنين. البيانات محفوظة لدى مزوّد قاعدة البيانات (Supabase) وتنتقل عبر اتصالات مشفّرة.
 
 ### حذف حسابك
 

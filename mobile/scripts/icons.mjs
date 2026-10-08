@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * Icon and splash sources for both apps, drawn from the BuildX mark (public/brand/mark-*.svg):
- *   BuildX HUE  (student) — the colour mark on night blue
- *   BuildX Team (team)    — the white mark on BuildX blue, with a TEAM label
- * Writes mobile/<app>/assets/{icon-only,icon-foreground,icon-background,splash,splash-dark}.png, then
- * `npx @capacitor/assets generate` (run in each app folder) makes every Android and iOS size from them.
- * Also writes the Google Play listing art: mobile/store/<app>/play-icon.png (512) and feature-graphic.png (1024×500).
+ * Icon and splash sources for the BuildX HUE app (students and the training team), drawn from the
+ * BuildX mark (public/brand/mark-*.svg): the colour mark on night blue.
+ * Writes mobile/app/assets/{icon-only,icon-foreground,icon-background,splash,splash-dark}.png, then
+ * `npx @capacitor/assets generate` (run in mobile/app) makes every Android and iOS size from them.
+ * Also writes the Google Play listing art: mobile/store/play-icon.png (512) and feature-graphic.png (1024×500).
  */
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -14,10 +13,7 @@ import { chromium } from "@playwright/test";
 const root = path.resolve(import.meta.dirname, "../..");
 const mark = (name) => readFileSync(path.join(root, "public/brand", `${name}.svg`), "utf8").replace(/width="118" height="100"/, 'width="100%" height="100%"');
 
-const APPS = {
-  student: { bg: "radial-gradient(120% 90% at 50% 0%, #17336f 0%, #0b1f4a 45%, #081634 100%)", mark: mark("mark-color"), label: "", name: "BuildX HUE", line: "المحتوى والكويزات والحضور والنقاط" },
-  team: { bg: "radial-gradient(120% 90% at 50% 0%, #5a98ff 0%, #2f7bff 45%, #1f57e6 100%)", mark: mark("mark-white"), label: "TEAM", name: "BuildX Team", line: "الحضور بالباركود وإدارة الطلاب والمحتوى" },
-};
+const a = { bg: "radial-gradient(120% 90% at 50% 0%, #17336f 0%, #0b1f4a 45%, #081634 100%)", mark: mark("mark-color"), label: "", name: "BuildX HUE", line: "للطلاب وفريق التدريب في تطبيق واحد" };
 
 /** One square image: `fill` paints the background, `scale` is the mark's width as a share of the side. */
 const page = ({ size, fill, mark, scale, label }) => `<!doctype html><html><head><style>
@@ -28,8 +24,8 @@ const page = ({ size, fill, mark, scale, label }) => `<!doctype html><html><head
 </style></head><body><div class="c"><div class="m">${mark}</div>${label ? `<div class="l">${label}</div>` : ""}</div></body></html>`;
 
 const browser = await chromium.launch();
-for (const [app, a] of Object.entries(APPS)) {
-  const out = path.join(root, "mobile", app, "assets");
+{
+  const out = path.join(root, "mobile", "app", "assets");
   mkdirSync(out, { recursive: true });
   const shots = [
     // Full icon (iOS, Play listing, legacy Android).
@@ -42,19 +38,19 @@ for (const [app, a] of Object.entries(APPS)) {
   ];
   for (const s of shots) {
     const p = await browser.newPage({ viewport: { width: s.size, height: s.size } });
-    await p.setContent(page({ size: s.size, fill: s.fill, mark: s.noMark ? "" : s.file.startsWith("splash") && app === "team" ? mark("mark-color") : a.mark, scale: s.scale, label: s.noMark ? "" : a.label }));
+    await p.setContent(page({ size: s.size, fill: s.fill, mark: s.noMark ? "" : a.mark, scale: s.scale, label: s.noMark ? "" : a.label }));
     await p.screenshot({ path: path.join(out, s.file), omitBackground: !s.fill });
     await p.close();
   }
   // Google Play listing art.
-  const listing = path.join(root, "mobile", "store", app);
+  const listing = path.join(root, "mobile", "store");
   mkdirSync(listing, { recursive: true });
   const icon = await browser.newPage({ viewport: { width: 512, height: 512 } });
   await icon.setContent(page({ size: 512, fill: a.bg, mark: a.mark, scale: 0.5, label: a.label }));
   await icon.screenshot({ path: path.join(listing, "play-icon.png") });
   await icon.close();
   const feature = await browser.newPage({ viewport: { width: 1024, height: 500 } });
-  await feature.setContent(`<!doctype html><html dir="rtl"><body style="margin:0;width:1024px;height:500px;overflow:hidden;background:radial-gradient(90% 120% at 85% 0%, ${app === "team" ? "#2f6dff" : "#1d3f8c"} 0%, #0b1f4a 50%, #081634 100%);font-family:'Noto Sans Arabic','DejaVu Sans',sans-serif">
+  await feature.setContent(`<!doctype html><html dir="rtl"><body style="margin:0;width:1024px;height:500px;overflow:hidden;background:radial-gradient(90% 120% at 85% 0%, #1d3f8c 0%, #0b1f4a 50%, #081634 100%);font-family:'Noto Sans Arabic','DejaVu Sans',sans-serif">
     <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:56px;direction:ltr">
       <div style="width:220px;height:220px;border-radius:52px;background:${a.bg};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;box-shadow:0 20px 60px rgb(0 0 0/.45),0 0 0 2px rgb(255 255 255/.1)">
         <div style="width:120px;aspect-ratio:118/100">${a.mark}</div>${a.label ? `<div style="font:800 26px/1 'DejaVu Sans',sans-serif;letter-spacing:6px;color:#fff;padding-left:6px">${a.label}</div>` : ""}
@@ -66,6 +62,6 @@ for (const [app, a] of Object.entries(APPS)) {
     </div></body></html>`);
   await feature.screenshot({ path: path.join(listing, "feature-graphic.png") });
   await feature.close();
-  console.log(`[icons] ${app} → ${out}`);
+  console.log(`[icons] → ${out}`);
 }
 await browser.close();

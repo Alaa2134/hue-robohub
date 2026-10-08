@@ -2,11 +2,11 @@
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
 import { useState } from "react";
 import { ROLE_LABEL, can, fmt, must, sb, type Area, type Session, type StaffRow } from "./core";
-import { InstallCard, AppShell, BrandLine, type Tab } from "./shell";
+import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
-import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./staff-insights";
+import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen, UsageCard } from "./staff-insights";
 import { SiteContentScreen } from "./staff-site";
 import { SiteSettingsScreen } from "./staff-settings";
 import { TwoFactorScreen } from "./staff-2fa";
@@ -277,7 +277,10 @@ function StaffHome({ me }: { me: StaffRow }) {
     <>
       <header className="flex items-center justify-between pb-2 pt-[calc(1rem+env(safe-area-inset-top))]">
         <BrandLine />
-        <IconButton icon="user" label="حسابي" onClick={() => go("/staff/more")} />
+        <div className="flex">
+          <SiteButton />
+          <IconButton icon="user" label="حسابي" onClick={() => go("/staff/more")} />
+        </div>
       </header>
       <div className="mt-4">
         <p className="text-sm text-fog">{fmt.day(new Date())}</p>
@@ -496,6 +499,8 @@ function MoreScreen({ me }: { me: StaffRow }) {
             </Row>
           ))}
       </List>
+      {me.role !== "lead" && <UsageCard />}
+      <SiteCard className="mt-4" />
       <PushCard kind="staff" />
       <div className="mt-4">
         <InstallCard />

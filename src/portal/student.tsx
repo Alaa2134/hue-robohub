@@ -10,7 +10,7 @@ import { DeleteAccountCard } from "./account-deletion";
 import { CheckinCard, StudentCheckin } from "./self-checkin";
 import { StudentTasks, TasksCard } from "./tasks";
 import { Announcements, NextUpCard, StudentSchedule } from "./schedule";
-import { AppShell, BrandLine, InstallCard, type Tab } from "./shell";
+import { AppShell, BrandLine, InstallCard, SiteButton, SiteCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
 import {
   Badge,
@@ -151,6 +151,7 @@ function Home({ data, reload, loading }: ScreenProps) {
       <header className="flex items-center justify-between pb-2 pt-[calc(1rem+env(safe-area-inset-top))]">
         <BrandLine />
         <div className="flex">
+          <SiteButton />
           <IconButton icon="refresh" label="تحديث" onClick={reload} className={cn(loading && "animate-spin")} />
           <IconButton icon="user" label="حسابي" onClick={() => go("/me/account")} />
         </div>
@@ -483,6 +484,7 @@ function Account({ session }: { session: StudentSession }) {
           </Button>
         </form>
       </Card>
+      <SiteCard className="mt-4" />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={logout}>
         تسجيل الخروج
       </Button>

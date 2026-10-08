@@ -1,11 +1,10 @@
-# Builds the two store apps from the BuildX App (see mobile/README.md):
-#   BuildX HUE  (com.buildxhue.student) — students
-#   BuildX Team (com.buildxhue.team)    — training team
+# Builds the store app from the BuildX App (see mobile/README.md):
+#   BuildX HUE (com.buildxhue.student) — students and the training team, one sign-in
 #
 # Run it from Actions → "Mobile apps" → Run workflow. Each run gives:
-#   Android: a signed .aab per app (download it from the run and upload it to Google Play Console)
-#   iOS:     an upload to TestFlight per app (then "Add for review" in App Store Connect)
-# Without the signing secrets it still checks that both projects build (unsigned Android, iOS simulator),
+#   Android: a signed .aab (download it from the run and upload it to Google Play Console)
+#   iOS:     an upload to TestFlight (then "Add for review" in App Store Connect)
+# Without the signing secrets it still checks that the project builds (unsigned Android, iOS simulator),
 # which is also what runs on pull requests that touch the apps.
 name: Mobile apps
 
@@ -57,25 +56,19 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: www
-          path: |
-            mobile/student/www
-            mobile/team/www
+          path: mobile/app/www
           retention-days: 3
 
   android:
     needs: web
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [student, team]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: www
-          path: mobile
+          path: mobile/app/www
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -88,13 +81,13 @@ jobs:
         working-directory: mobile
         run: |
           npm ci --no-audit --no-fund
-          cd ${{ matrix.app }} && npx cap sync android
+          cd app && npx cap sync android
       - name: Firebase (push notifications)
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
-            printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/${{ matrix.app }}/android/app/google-services.json
+            printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/app/android/app/google-services.json
           else
             echo "::notice::GOOGLE_SERVICES_JSON is not set: the Android app builds without push notifications."
           fi
@@ -112,7 +105,7 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 is not set: building an unsigned bundle (fine for checks, not for Play)."
           fi
       - name: Build the bundle
-        working-directory: mobile/${{ matrix.app }}/android
+        working-directory: mobile/app/android
         env:
           ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
           ANDROID_KEYSTORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && secrets.ANDROID_KEYSTORE_PASSWORD || '' }}
@@ -124,16 +117,16 @@ jobs:
           mkdir -p "$RUNNER_TEMP/out"
           if [ -n "$ANDROID_KEYSTORE_FILE" ]; then
             ./gradlew --no-daemon bundleRelease assembleRelease
-            cp app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.aab"
-            cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}.apk"
+            cp app/build/outputs/bundle/release/*.aab "$RUNNER_TEMP/out/buildx-hue-${VERSION_NAME}-${VERSION_CODE}.aab"
+            cp app/build/outputs/apk/release/*.apk "$RUNNER_TEMP/out/buildx-hue-${VERSION_NAME}-${VERSION_CODE}.apk"
           else
             # No key yet: a debug APK still installs on any Android phone for trying the app.
             ./gradlew --no-daemon bundleRelease assembleDebug
-            cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/out/buildx-${{ matrix.app }}-${VERSION_NAME}-${VERSION_CODE}-test.apk"
+            cp app/build/outputs/apk/debug/*.apk "$RUNNER_TEMP/out/buildx-hue-${VERSION_NAME}-${VERSION_CODE}-test.apk"
           fi
       - uses: actions/upload-artifact@v4
         with:
-          name: android-${{ matrix.app }}
+          name: android
           path: ${{ runner.temp }}/out
           retention-days: 30
 
@@ -141,16 +134,12 @@ jobs:
     needs: web
     runs-on: macos-latest
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        app: [student, team]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: www
-          path: mobile
+          path: mobile/app/www
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -161,14 +150,14 @@ jobs:
         working-directory: mobile
         run: |
           npm ci --no-audit --no-fund
-          cd ${{ matrix.app }} && npx cap sync ios
+          cd app && npx cap sync ios
       - name: Check the project builds (no signing)
         if: github.event_name == 'pull_request'
-        working-directory: mobile/${{ matrix.app }}/ios/App
+        working-directory: mobile/app/ios/App
         run: xcodebuild -project App.xcodeproj -scheme App -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -n 40
       - name: Archive and upload to TestFlight
         if: github.event_name == 'workflow_dispatch'
-        working-directory: mobile/${{ matrix.app }}/ios/App
+        working-directory: mobile/app/ios/App
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -185,10 +174,10 @@ jobs:
           AUTH=(-allowProvisioningUpdates -authenticationKeyPath "$KEY" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
           # Capabilities are opt-in (repository variables), so a missing Apple setup never breaks the upload:
           #   IOS_PUSH=1             push notifications (APNs key added in Supabase, see mobile/README.md)
-          #   IOS_UNIVERSAL_LINKS=1  buildxhue.com/app links open the student app (needs https on the site)
+          #   IOS_UNIVERSAL_LINKS=1  buildxhue.com/app links open the app (needs https on the site)
           ENT=""
           if [ "${{ vars.IOS_PUSH }}" = "1" ]; then ENT="$ENT<key>aps-environment</key><string>production</string>"; fi
-          if [ "${{ matrix.app }}" = "student" ] && [ "${{ vars.IOS_UNIVERSAL_LINKS }}" = "1" ]; then
+          if [ "${{ vars.IOS_UNIVERSAL_LINKS }}" = "1" ]; then
             ENT="$ENT<key>com.apple.developer.associated-domains</key><array><string>applinks:buildxhue.com</string></array>"
           fi
           EXTRA=()
@@ -215,4 +204,4 @@ jobs:
           xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/App.xcarchive" -exportOptionsPlist "$RUNNER_TEMP/export.plist" \
             -exportPath "$RUNNER_TEMP/export" "${AUTH[@]}" | tail -n 40
           rm -f "$KEY"
-          echo "Uploaded ${{ matrix.app }} $VERSION_NAME ($((100 + BUILD_NUMBER))) to App Store Connect. It shows up in TestFlight after Apple processes it (5–30 min)."
+          echo "Uploaded BuildX HUE $VERSION_NAME ($((100 + BUILD_NUMBER))) to App Store Connect. It shows up in TestFlight after Apple processes it (5–30 min)."

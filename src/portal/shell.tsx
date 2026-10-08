@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Mark } from "@/components/brand/logo";
 import { cn } from "@/lib/cn";
 import { Button, Card, Icon, type IconKey } from "./ui";
-import { appMode, isNative } from "./core";
+import { BASE_PATH, isNative } from "./core";
 
 export type Tab = { href: string; label: string; icon: IconKey; match: (path: string[]) => boolean };
 
@@ -35,14 +35,46 @@ export function AppShell({ tabs, path, children }: { tabs: Tab[]; path: string[]
   );
 }
 
-const APP_NAME = { student: "HUE", staff: "Team" } as const;
+/**
+ * The public website, from inside the app (signed in or not): on the web it opens in the same tab
+ * (the app session stays, so coming back to /app/ is still signed in); in the store apps it opens in
+ * the phone's browser.
+ */
+function useSiteLink() {
+  const [link, setLink] = useState({ href: `${BASE_PATH}/ar/`, external: false });
+  useEffect(() => {
+    if (isNative()) setLink({ href: "https://buildxhue.com/ar/", external: true });
+  }, []);
+  return { href: link.href, ...(link.external ? { target: "_blank", rel: "noopener" } : {}) };
+}
+
+/** Header button to the website. */
+export function SiteButton() {
+  const link = useSiteLink();
+  return (
+    <a {...link} aria-label="موقع BuildX HUE" title="موقع BuildX HUE" className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl text-mist transition hover:bg-white/[0.07] hover:text-chalk active:scale-95">
+      <Icon name="globe" size={20} />
+    </a>
+  );
+}
+
+/** A row-sized link to the website, for the menus. */
+export function SiteCard({ className }: { className?: string }) {
+  const link = useSiteLink();
+  return (
+    <a {...link} className={cn("flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-panel/70 px-4 py-3.5 text-[15px] text-chalk transition hover:border-cyan/40", className)}>
+      <Icon name="globe" size={20} className="text-cyan" />
+      <span className="flex-1">تصفّح موقع BuildX HUE</span>
+      <Icon name="chevron" size={16} className="shrink-0 rotate-180 text-fog" />
+    </a>
+  );
+}
 
 export function BrandLine({ className }: { className?: string }) {
-  // The store apps carry their own names (read after mount, so the prerendered page still matches).
+  // The store app carries its own name (read after mount, so the prerendered page still matches).
   const [name, setName] = useState("App");
   useEffect(() => {
-    const mode = appMode();
-    if (mode) setName(APP_NAME[mode]);
+    if (isNative()) setName("HUE");
   }, []);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>

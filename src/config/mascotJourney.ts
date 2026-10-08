@@ -431,6 +431,9 @@ export const LINES = {
     ar: "كده لفّينا الموقع كله 🎉 أي سؤال في دماغك دوس عليّا واسألني… أنا موجود على طول.",
   },
   askMe: { en: "Ask Baqloz", ar: "اسأل بقلظ" },
+  resumeApply: { en: "{p}, your application is still waiting 📝 Shall we finish it?", ar: "يا {p}، استمارة التقديم بتاعتك لسه مستنياك 📝 نكمّلها؟" },
+  resumeApplyAnon: { en: "You started applying and didn't finish 📝 Shall we finish it?", ar: "إنت بدأت تقدّم ومكمّلتش 📝 نكمّلها سوا؟" },
+  finishIt: { en: "Finish it", ar: "كمّل التقديم" },
 } satisfies Record<string, Text>;
 
 /**

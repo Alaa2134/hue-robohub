@@ -6,6 +6,7 @@ const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "own
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 const RPC: Record<string, unknown> = {
+  staff_usage: { db_bytes: 420 * 1024 * 1024, buckets: [{ bucket: "materials", bytes: 300 * 1024 * 1024, files: 40 }] },
   security_pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
   staff_security_overview: {
     pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
@@ -693,4 +694,122 @@ test("positions for the website admin and the head of media suggest their areas"
   await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).not.toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
   await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] });
+});
+
+test("signed in, students and the team can go back to the website and come back still signed in", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home") return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_deletion_status") return route.fulfill({ json: { pending: false } });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByRole("heading", { name: "Mona Adel" })).toBeVisible();
+  await page.getByRole("link", { name: "موقع BuildX HUE" }).click();
+  await expect(page).toHaveURL(/\/ar\/$/);
+  await expect(page.locator("main").first()).toBeVisible();
+  // Back to the app: still signed in.
+  await page.goto("/app/#/me");
+  await expect(page.getByRole("heading", { name: "Mona Adel" })).toBeVisible();
+  await page.goto("/app/#/me/account");
+  await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toHaveAttribute("href", "/ar/");
+});
+
+test("the team's home and menu link to the website", async ({ page }) => {
+  await signInAsOwner(page);
+  await page.goto("/app/#/staff");
+  await expect(page.getByRole("link", { name: "موقع BuildX HUE" })).toHaveAttribute("href", "/ar/");
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toBeVisible();
+  // How much of the free plan is used: the database is at 84%, so it warns.
+  await expect(page.getByRole("meter", { name: "قاعدة البيانات" })).toHaveAttribute("aria-valuenow", "84");
+  await expect(page.getByText("قرّبت توصل للحد المجاني")).toBeVisible();
+});
+
+test("drafts the team wrote wait at the top of the content screen for whoever publishes", async ({ page }) => {
+  await signInAsOwner(page);
+  const draft = { id: "d1", kind: "post", slug: "robot-day", title: "Robot day", title_ar: "يوم الروبوت", published: false, pinned: false, created_by: "u9", created_at: at(5), starts_at: null, publish_at: null, image_path: null, tags: [] };
+  const mine = { ...draft, id: "d2", title_ar: "مسودتي", created_by: "u1" };
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: [draft, mine] }));
+  await page.goto("/app/#/staff/site");
+  await expect(page.getByText("مستنية النشر (1)")).toBeVisible();
+  await page.getByText("يوم الروبوت").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+});
+
+test("certificates go in one tap to every student who attended enough sessions", async ({ page }) => {
+  await signInAsOwner(page);
+  const s = (id: string, name: string) => ({ id, code: id, codeKey: id, barcode: null, barcodeKey: null, name, group: "G1", phone: null, notes: null, active: true, createdAt: at(10), hasPin: true });
+  RPC.staff_list_students = [s("s1", "Mona"), s("s2", "Omar"), s("s3", "Laila")];
+  RPC.staff_attendance_rates = [
+    { student_id: "s1", attended: 9, sessions: 10 },
+    { student_id: "s2", attended: 5, sessions: 10 },
+    { student_id: "s3", attended: 8, sessions: 10 },
+  ];
+  const inserted: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/certificates/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ id: "c1" }, { id: "c2" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/certificates");
+  await page.getByRole("button", { name: "إصدار" }).first().click();
+  await page.getByLabel("عنوان الشهادة (English)").fill("Robotics Bootcamp 2026");
+  await expect(page.getByText("% أو أكتر: 2")).toBeVisible();
+  await page.getByRole("button", { name: "اختارهم" }).click();
+  await page.getByRole("button", { name: "إصدار 2 شهادة" }).click();
+  await expect.poll(() => inserted[0]?.map((r) => r.recipient_name)).toEqual(["Mona", "Laila"]);
+  delete RPC.staff_attendance_rates;
+});
+
+test("one sign-in: a student number goes to the student dashboard, an email to the team's", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  let signedIn = false;
+  await page.route(/supabase\.co/, async (route) => {
+    const url = new URL(route.request().url());
+    const fn = url.pathname.split("/rpc/")[1];
+    if (fn) {
+      calls.push({ fn, body: route.request().postDataJSON() });
+      if (fn === "app_status") return route.fulfill({ json: { ready: true } });
+      if (fn === "student_login") return route.fulfill({ json: { ok: true, token: "t", student: { name: "طالب تجربة", code: "900100", group: "تجريبي" } } });
+      return route.fulfill({ json: null });
+    }
+    if (url.pathname.endsWith("/auth/v1/token")) {
+      signedIn = true;
+      return route.fulfill({ json: { access_token: jwt, refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: 4102444800, user: { id: "u1", email: "owner@example.com", aud: "authenticated", role: "authenticated" } } });
+    }
+    if (url.pathname.endsWith("/staff")) {
+      const row = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+      return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+    }
+    return route.fulfill({ json: [], headers: { "content-range": "0-0/0" } });
+  });
+
+  // No role picker: the app opens on the sign-in form, and old links land on it too.
+  await page.goto("/app/#/login/student?c=900100");
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  const id = page.getByLabel("رقم الطالب أو البريد الإلكتروني");
+  await expect(id).toHaveValue("900100");
+  await expect(page.getByLabel("رمز الدخول (PIN)")).toBeVisible();
+  await page.getByLabel("رمز الدخول (PIN)").fill("١٢٣٤٥٦");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page).toHaveURL(/#\/me$/);
+  expect(calls.find((c) => c.fn === "student_login")?.body).toEqual({ p_code: "900100", p_pin: "123456" });
+
+  // A team member on the same form: the "@" makes it an email sign-in.
+  await page.evaluate(() => {
+    localStorage.removeItem("rh-app-student");
+    location.hash = "#/";
+  });
+  await page.reload();
+  await expect(page).toHaveURL(/#\/login$/);
+  await page.getByLabel("رقم الطالب أو البريد الإلكتروني").fill("owner@example.com");
+  await page.getByLabel("كلمة المرور").fill("a-long-password");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page).toHaveURL(/#\/staff$/);
+  expect(signedIn).toBe(true);
+  expect(calls.filter((c) => c.fn === "student_login")).toHaveLength(1);
 });

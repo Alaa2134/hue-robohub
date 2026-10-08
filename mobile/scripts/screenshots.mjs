@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Store screenshots for both apps, taken from the real app bundles (mobile/<app>/www, see
- * scripts/build-native.mjs) with made-up demo data, so no real student shows up in a store.
+ * Store screenshots for the BuildX HUE app, taken from the real app bundle (mobile/app/www, see
+ * scripts/build-native.mjs) with made-up demo data, so no real student shows up in a store. The app
+ * serves students and the training team, so the set shows both (and the one sign-in screen).
  *
- *   node mobile/scripts/screenshots.mjs   →  mobile/store/<app>/{raw,play,appstore}/*.png
+ *   node mobile/scripts/screenshots.mjs   →  mobile/store/{raw,play,appstore}/*.png
  *
  * raw:      the bare screen (1290×2796)
  * appstore: 6.9" iPhone, 1290×2796, headline + screen
@@ -125,22 +126,14 @@ const STAFF_RPC = { staff_list_students: students, staff_leaderboard: leaderboar
 
 /* ─── Shots ────────────────────────────────────────────────────────────── */
 
-const SHOTS = {
-  student: [
-    { hash: "#/me", title: "كل حاجة في مكان واحد", sub: "المحتوى والكويزات وحضورك ونقاطك" },
-    { hash: "#/me/content", title: "المحاضرات والملفات أول بأول", sub: "كل اللي المدرب بيرفعه يوصلك" },
-    { hash: "#/me/quizzes", title: "كويزات بتتصحح لوحدها", sub: "واعرف درجتك على طول" },
-    { hash: "#/me/points", title: "اجمع نقاط وأوسمة", sub: "وشوف ترتيبك في مجموعتك" },
-    { hash: "#/me/attendance", title: "سجل حضورك كله", sub: "حاضر، متأخر، أو بعذر" },
-  ],
-  team: [
-    { hash: "#/staff", title: "لوحة فريق التدريب", sub: "كل اللي محتاجه في الجيب" },
-    { hash: "#/staff/attendance", title: "الحضور بالباركود", sub: "افتح سيشن وامسح كارنيه الطالب" },
-    { hash: "#/staff/students", title: "كل الطلاب والمجموعات", sub: "أكواد الدخول والكروت في ثانية" },
-    { hash: "#/staff/leaderboard", title: "النقاط والترتيب", sub: "وكافئ المتميزين" },
-    { hash: "#/staff/stats", title: "زيارات الموقع", sub: "إحصائيات من غير تتبع" },
-  ],
-};
+const SHOTS = [
+  { as: null, hash: "#/login", title: "دخول واحد للكل", sub: "الطالب برقم الكارنيه، والفريق بالإيميل" },
+  { as: "student", hash: "#/me", title: "كل حاجة في مكان واحد", sub: "المحتوى والكويزات وحضورك ونقاطك" },
+  { as: "student", hash: "#/me/quizzes", title: "كويزات بتتصحح لوحدها", sub: "واعرف درجتك على طول" },
+  { as: "student", hash: "#/me/points", title: "اجمع نقاط وأوسمة", sub: "وشوف ترتيبك في مجموعتك" },
+  { as: "staff", hash: "#/staff", title: "لوحة فريق التدريب", sub: "كل اللي محتاجه في الجيب" },
+  { as: "staff", hash: "#/staff/attendance", title: "الحضور بالباركود", sub: "افتح سيشن وامسح كارنيه الطالب" },
+];
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "coach@buildxhue.com", role: "authenticated", aal: "aal1", exp: 4102444800 })}.sig`;
@@ -165,27 +158,26 @@ const frame = ({ w, h, png, title, sub, accent }) => `<!doctype html><html dir="
 </style></head><body><div class="t">${title}</div><div class="s">${sub}</div><img src="data:image/png;base64,${png.toString("base64")}"></body></html>`;
 
 const browser = await chromium.launch();
-for (const app of ["student", "team"]) {
-  const www = path.join(root, "mobile", app, "www");
-  if (!existsSync(path.join(www, "index.html"))) throw new Error(`${www} is missing: run scripts/build-native.mjs first`);
-  const server = await serve(www);
-  const base = `http://localhost:${server.address().port}`;
-  for (const d of ["raw", "appstore", "play"]) mkdirSync(path.join(store, app, d), { recursive: true });
+const www = path.join(root, "mobile", "app", "www");
+if (!existsSync(path.join(www, "index.html"))) throw new Error(`${www} is missing: run scripts/build-native.mjs first`);
+const server = await serve(www);
+const base = `http://localhost:${server.address().port}`;
+for (const d of ["raw", "appstore", "play"]) mkdirSync(path.join(store, d), { recursive: true });
 
+for (const [i, s] of SHOTS.entries()) {
   const ctx = await browser.newContext({ viewport: { width: 430, height: 932 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true, locale: "ar-EG", timezoneId: "Africa/Cairo" });
   await ctx.addInitScript(
-    ([mode, token]) => {
+    ([as, token]) => {
       window.CapacitorCustomPlatform = { name: "android", plugins: {} };
-      localStorage.setItem("rh-app-mode", mode);
-      if (mode === "student") localStorage.setItem("rh-app-student", JSON.stringify({ token: "demo", name: "يوسف أحمد", code: "2024100", group: "الروبوتات — المستوى 1" }));
-      else localStorage.setItem("rh-app-staff", JSON.stringify({ access_token: token, refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: 4102444800, user: { id: "u1", email: "coach@buildxhue.com", aud: "authenticated", role: "authenticated", factors: [] } }));
+      if (as === "student") localStorage.setItem("rh-app-student", JSON.stringify({ token: "demo", name: "يوسف أحمد", code: "2024100", group: "الروبوتات — المستوى 1" }));
+      if (as === "staff") localStorage.setItem("rh-app-staff", JSON.stringify({ access_token: token, refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: 4102444800, user: { id: "u1", email: "coach@buildxhue.com", aud: "authenticated", role: "authenticated", factors: [] } }));
     },
-    [app === "student" ? "student" : "staff", jwt],
+    [s.as, jwt],
   );
   await ctx.route(/supabase\.co/, async (route) => {
     const url = new URL(route.request().url());
     const fn = url.pathname.split("/rpc/")[1];
-    if (fn) return route.fulfill({ json: (app === "student" ? STUDENT_RPC : STAFF_RPC)[fn] ?? null });
+    if (fn) return route.fulfill({ json: (s.as === "staff" ? STAFF_RPC : STUDENT_RPC)[fn] ?? null });
     if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ json: { id: "u1", email: "coach@buildxhue.com", aud: "authenticated", role: "authenticated", factors: [] } });
     if (url.pathname.endsWith("/factors")) return route.fulfill({ json: [] });
     const table = url.pathname.split("/rest/v1/")[1];
@@ -197,7 +189,7 @@ for (const app of ["student", "team"]) {
     }
     if (table === "attendance_sessions" && !head) {
       const open = url.searchParams.get("closed_at") === "is.null";
-      return route.fulfill({ json: open ? sessions.filter((s) => !s.closed_at) : sessions });
+      return route.fulfill({ json: open ? sessions.filter((x) => !x.closed_at) : sessions });
     }
     const n = counts[table] ?? 0;
     // Counts come back in Content-Range, which a cross-origin page can only read when it is exposed.
@@ -205,22 +197,19 @@ for (const app of ["student", "team"]) {
   });
 
   const page = await ctx.newPage();
-  const accent = app === "student" ? "#1d3f8c" : "#2f6dff";
-  for (const [i, s] of SHOTS[app].entries()) {
-    await page.goto(`${base}/app/index.html${s.hash}`);
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1200);
-    const name = `${String(i + 1).padStart(2, "0")}-${s.hash.split("/").pop() || "home"}.png`;
-    const png = await page.screenshot({ path: path.join(store, app, "raw", name) });
-    for (const [dir, w, h] of [["appstore", 1290, 2796], ["play", 1080, 1920]]) {
-      const p = await browser.newPage({ viewport: { width: w, height: h } });
-      await p.setContent(frame({ w, h, png, title: s.title, sub: s.sub, accent }));
-      await p.screenshot({ path: path.join(store, app, dir, name) });
-      await p.close();
-    }
-    console.log(`[shots] ${app} ${name}`);
+  await page.goto(`${base}/app/index.html${s.hash}`);
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(1200);
+  const name = `${String(i + 1).padStart(2, "0")}-${s.hash.split("/").pop() || "home"}.png`;
+  const png = await page.screenshot({ path: path.join(store, "raw", name) });
+  for (const [dir, w, h] of [["appstore", 1290, 2796], ["play", 1080, 1920]]) {
+    const p = await browser.newPage({ viewport: { width: w, height: h } });
+    await p.setContent(frame({ w, h, png, title: s.title, sub: s.sub, accent: s.as === "staff" ? "#2f6dff" : "#1d3f8c" }));
+    await p.screenshot({ path: path.join(store, dir, name) });
+    await p.close();
   }
+  console.log(`[shots] ${name}`);
   await ctx.close();
-  server.close();
 }
+server.close();
 await browser.close();
