@@ -21,6 +21,7 @@ import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
 import { StudentsScreen } from "./staff-students";
 import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
+import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -202,6 +203,9 @@ export function StaffApp({
     case "apps":
       screen = <AppsSettingsScreen me={me} />;
       break;
+    case "access":
+      screen = <AccessRequestsScreen me={me} />;
+      break;
     case "deletions":
       screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
       break;
@@ -259,6 +263,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       newMessagesCount().catch(() => 0),
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
+    const access = can(me, "students") || me.role !== "lead" ? await pendingAccessRequests().catch(() => 0) : 0;
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -267,6 +272,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       applications,
       messages,
       deletions,
+      access,
     };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
@@ -336,6 +342,18 @@ function StaffHome({ me }: { me: StaffRow }) {
               : `فيه ${data.messages} رسايل جديدة من الموقع.`}
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/inbox")}>
+            افتح
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.access && (
+        <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
+          <Icon name="key" size={22} className="shrink-0 text-warn" />
+          <p className="flex-1 text-sm text-mist">
+            {data.access === 1 ? "فيه حد نسي رمز الدخول أو كلمة المرور ومستني." : `فيه ${data.access} طلبات دخول مستنية (نسيوا الرمز أو كلمة المرور).`}
+          </p>
+          <Button size="sm" variant="primary" onClick={() => go("/staff/access")}>
             افتح
           </Button>
         </Card>
@@ -461,6 +479,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
+    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access", show: can(me, "students") || me.role !== "lead" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",

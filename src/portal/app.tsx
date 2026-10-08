@@ -9,6 +9,7 @@ import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
 import { listenForNotificationTaps } from "./native-push";
+import { ForgotForm } from "./access-requests";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
 import { isNoise } from "@/lib/error-noise";
@@ -206,6 +207,7 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState<boolean | null>(null);
+  const [forgot, setForgot] = useState(false);
   const team = id.includes("@");
   const student = !team && /\S/.test(id);
 
@@ -296,8 +298,13 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
         <Button type="submit" variant="primary" size="lg" loading={busy} block>
           دخول
         </Button>
-        <p className="text-center text-xs leading-relaxed text-fog">نسيت رمز الدخول أو كلمة المرور؟ المدرّب أو المالك يقدر يعمل لك واحد جديد.</p>
+        {!forgot && (
+          <button type="button" onClick={() => setForgot(true)} className="text-center text-sm text-cyan hover:underline">
+            نسيت رمز الدخول أو كلمة المرور؟
+          </button>
+        )}
       </form>
+      {forgot && <ForgotForm initial={id} onClose={() => setForgot(false)} />}
       {ready === false && (
         <Card className="mt-6 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="key" size={22} className="shrink-0 text-warn" />

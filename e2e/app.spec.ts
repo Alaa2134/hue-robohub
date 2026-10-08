@@ -6,6 +6,10 @@ const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "own
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 const RPC: Record<string, unknown> = {
+  staff_access_requests: [
+    { id: "r1", kind: "pin", note: "01001234567", at: at(20), studentId: "s1", staffUserId: null, name: "Mona Adel", code: "2024001", group: "Robotics A", email: null, phone: null },
+  ],
+  staff_set_pins: [{ id: "s1", code: "2024001", name: "Mona Adel", group: "Robotics A", pin: "482913" }],
   staff_push_keys_status: { web: true, android: true, ios: false, devices: { android: 7, ios: 0 } },
   staff_set_push_keys: { ok: true },
   staff_usage: { db_bytes: 420 * 1024 * 1024, buckets: [{ bucket: "materials", bytes: 300 * 1024 * 1024, files: 40 }] },
@@ -835,4 +839,35 @@ test("the owner adds the phone notification keys from the app (write-only)", asy
     p_apns_key_id: "ABCDE12345",
     p_apns_team_id: "TEAM123456",
   });
+});
+
+test("forgot PIN: the student asks from the sign-in screen and a coach sends a new one", async ({ page }) => {
+  // The request, signed out.
+  const asked: unknown[] = [];
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "request_access_help") asked.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn === "request_access_help" ? { ok: true } : fn === "app_status" ? { ready: true } : null });
+  });
+  await page.goto("/app/#/login");
+  await page.getByLabel("رقم الطالب أو البريد الإلكتروني").fill("2024001");
+  await page.getByRole("button", { name: "نسيت رمز الدخول أو كلمة المرور؟" }).click();
+  await page.getByLabel("رقم موبايلك أو ملاحظة (اختياري)").fill("01001234567");
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByText("وصل طلبك للمدرّبين. هيبعتولك رمز دخول جديد.")).toBeVisible();
+  expect(asked).toEqual([{ p_ident: "2024001", p_note: "01001234567" }]);
+  await page.unrouteAll();
+
+  // The coach's side.
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff");
+  await page.reload();
+  await page.getByText("فيه حد نسي رمز الدخول أو كلمة المرور ومستني.").locator("..").getByRole("button", { name: "افتح" }).click();
+  await expect(page).toHaveURL(/#\/staff\/access$/);
+  await expect(page.getByText("2024001 · Robotics A")).toBeVisible();
+  await page.getByRole("button", { name: "رمز جديد" }).click();
+  await expect(page.getByText("482913")).toBeVisible();
+  expect(calls.find((c) => c.fn === "staff_set_pins")?.body).toEqual({ p_ids: ["s1"], p_only_missing: false });
+  expect(calls.find((c) => c.fn === "staff_access_resolve")?.body).toEqual({ p_id: "r1", p_status: "done" });
 });
