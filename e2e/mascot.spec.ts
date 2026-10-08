@@ -20,7 +20,7 @@ function collectErrors(page: Page) {
   return errors;
 }
 
-const guideButton = (page: Page) => page.getByRole("button", { name: "مرشد BuildX: افتح القائمة" });
+const guideButton = (page: Page) => page.getByRole("button", { name: "بقلظ، مرشد BuildX: افتح القائمة" });
 const bubble = (page: Page) => page.locator(".mascot-bubble");
 
 test("browsers driven by tests don't get the guide unless they ask", async ({ page }) => {
@@ -30,20 +30,25 @@ test("browsers driven by tests don't get the guide unless they ask", async ({ pa
   await expect(page.locator("[data-mascot]")).toHaveCount(0);
 });
 
-test("the guide walks in on the home page, greets in Egyptian Arabic (on English pages too), and offers a tour", async ({ page }) => {
+test("Baqloz walks in on the home page, introduces himself in Egyptian Arabic (on English pages too), and offers a tour", async ({ page }) => {
   const errors = collectErrors(page);
   await withGuide(page);
   await page.goto("/");
   await page.mouse.move(500, 400);
-  await expect(bubble(page)).toContainText("نوّرت BuildX HUE", { timeout: 15_000 });
+  await expect(bubble(page)).toContainText("أنا بقلظ، مرشدك في BuildX HUE", { timeout: 15_000 });
+  await expect(bubble(page)).toContainText("بقلظ");
   await expect(bubble(page).locator("[lang=ar][dir=rtl]")).toBeVisible();
   await expect(bubble(page)).toContainText("تيجي أفرّجك على المكان؟", { timeout: 15_000 });
   await expect(bubble(page).getByRole("button", { name: "يلا فرّجني" })).toBeVisible();
   // The tour scrolls to the next section and explains it.
+  // The tour goes section by section with Next / End tour.
   await bubble(page).getByRole("button", { name: "يلا فرّجني" }).click();
-  await expect(bubble(page)).toContainText("الأفكار بتتحوّل لمشاريع بجد", { timeout: 10_000 });
+  await expect(bubble(page).getByRole("button", { name: "اللي بعده" })).toBeVisible({ timeout: 10_000 });
+  const first = await bubble(page).innerText();
+  await bubble(page).getByRole("button", { name: "اللي بعده" }).click();
+  await expect.poll(() => bubble(page).innerText(), { timeout: 10_000 }).not.toBe(first);
   await bubble(page).getByRole("button", { name: "كفاية كده" }).click();
-  await expect(bubble(page)).not.toContainText("الأفكار بتتحوّل لمشاريع بجد");
+  await expect(bubble(page).getByRole("button", { name: "كفاية كده" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -65,20 +70,20 @@ test("clicking the mascot opens the guide menu; it answers questions and takes y
   await page.goto("/");
   await page.mouse.move(500, 400);
   await guideButton(page).click({ timeout: 15_000 });
-  const menu = page.getByRole("dialog", { name: "مرشد BuildX" });
+  const menu = page.getByRole("dialog", { name: "بقلظ" });
   await expect(menu).toBeVisible();
   await expect(menu.getByRole("button", { name: "خليك عضو معانا" })).toBeVisible();
   // Keyboard: the first option has focus, arrows move, Escape closes and returns focus.
-  await expect(menu.getByRole("button", { name: "اتفرّج على BuildX" })).toBeFocused();
+  await expect(menu.getByRole("button", { name: "البحث" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
-  await expect(menu.getByRole("button", { name: "التراكات" })).toBeFocused();
+  await expect(menu.getByRole("button", { name: "English" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   await expect(guideButton(page)).toBeFocused();
 
   await guideButton(page).click();
   // Questions in English or Arabic, answers in Egyptian Arabic.
-  await menu.getByLabel("اسألني أي حاجة عن BuildX").fill("When is the next workshop?");
+  await menu.getByLabel("اسأل بقلظ أي حاجة…").fill("When is the next workshop?");
   await menu.getByRole("button", { name: "اسأل", exact: true }).click();
   await expect(menu).toContainText("بص على اللي جاي");
   await menu.locator("form").getByRole("button", { name: "الإيفنتات الجاية" }).click();
@@ -91,7 +96,7 @@ test("menu items scroll to the section on the home page", async ({ page }) => {
   await page.goto("/");
   await page.mouse.move(500, 400);
   await guideButton(page).click({ timeout: 15_000 });
-  await page.getByRole("dialog", { name: "مرشد BuildX" }).getByRole("button", { name: "التراكات" }).click();
+  await page.getByRole("dialog", { name: "بقلظ" }).getByRole("button", { name: "التراكات", exact: true }).click();
   await expect.poll(() => page.evaluate(() => Math.round(document.querySelector("#tracks")!.getBoundingClientRect().top)), { timeout: 8000 }).toBeLessThan(200);
   await expect(page).toHaveURL(/\/$/);
 });
@@ -101,14 +106,14 @@ test("the guide can be hidden and brought back, and it remembers", async ({ page
   await page.goto("/");
   await page.mouse.move(500, 400);
   await guideButton(page).click({ timeout: 15_000 });
-  await page.getByRole("button", { name: "خبّي المرشد" }).click();
+  await page.getByRole("button", { name: "خبّي بقلظ" }).click();
   await expect(guideButton(page)).toBeHidden();
-  await expect(page.getByRole("button", { name: "رجّع المرشد" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "رجّع بقلظ" })).toBeVisible();
   await page.reload();
   await page.mouse.move(500, 400);
-  await expect(page.getByRole("button", { name: "رجّع المرشد" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "رجّع بقلظ" })).toBeVisible({ timeout: 15_000 });
   await expect(guideButton(page)).toBeHidden();
-  await page.getByRole("button", { name: "رجّع المرشد" }).click();
+  await page.getByRole("button", { name: "رجّع بقلظ" }).click();
   await expect(guideButton(page)).toBeVisible();
 });
 
@@ -131,7 +136,7 @@ test("the guide speaks Arabic on Arabic pages", async ({ page }) => {
   await expect(bubble(page)).toContainText("BuildX HUE", { timeout: 15_000 });
   await expect(bubble(page).locator("[dir=rtl]")).toBeVisible();
   await guideButton(page).click();
-  await expect(page.getByRole("dialog", { name: "مرشد BuildX" })).toContainText("اتعرّف على الفريق");
+  await expect(page.getByRole("dialog", { name: "بقلظ" })).toContainText("اتعرّف على الفريق");
 });
 
 test("with the guide on, pages have no serious accessibility problems (reduced motion: still guide)", async ({ browser }) => {
@@ -186,6 +191,70 @@ test("the 3D guide loads its model and renders without errors", async ({ page })
     // No WebGL in this browser: the still guide takes over.
     await expect(page.locator("[data-mascot] img.mascot-still")).toBeVisible({ timeout: 10_000 });
   }
-  await expect(bubble(page)).toContainText("نوّرت BuildX HUE", { timeout: 15_000 });
+  await expect(bubble(page)).toContainText(/أنا بقلظ|تيجي أفرّجك/, { timeout: 15_000 });
   expect(errors).toEqual([]);
+});
+
+test("Baqloz talks about the card under the cursor (tracks, teams, people)", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "hover needs a mouse");
+  await withGuide(page);
+  await page.goto("/tracks/");
+  await page.mouse.move(500, 400);
+  await expect(guideButton(page)).toBeVisible({ timeout: 15_000 });
+  // Let the arrival line finish, then rest the cursor on the Robotics card.
+  await expect(bubble(page)).toContainText("سبع تراكات", { timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "إغلاق" }).click();
+  const card = page.locator("main a[href*='/tracks/robotics-embedded']").first();
+  await card.scrollIntoViewIfNeeded();
+  await card.hover();
+  await expect(bubble(page)).toContainText("روبوتكس وإمبيدد", { timeout: 6000 });
+});
+
+test("Baqloz helps while filling in the application form", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "phones hide him while typing");
+  await withGuide(page);
+  await page.goto("/join/");
+  await page.mouse.move(500, 400);
+  await expect(guideButton(page)).toBeVisible({ timeout: 15_000 });
+  await expect(bubble(page)).toContainText("جاهز تبني معانا", { timeout: 15_000 });
+  await page.waitForTimeout(7000);
+  await page.locator("#ap-full_name").focus();
+  await expect(bubble(page)).toContainText("اسمك الرباعي", { timeout: 6000 });
+});
+
+test("every section gets a scene: sections Baqloz finds on the page by their heading", async ({ page }) => {
+  await withGuide(page);
+  await page.goto("/sponsors/");
+  await page.mouse.move(500, 400);
+  await expect(guideButton(page)).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(6000);
+  await page.getByRole("heading", { name: "Partnership tiers" }).scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 200);
+  await expect(bubble(page)).toContainText("الشراكة معانا", { timeout: 10_000 });
+});
+
+test("his menu lists the page's sections and quick actions", async ({ page }) => {
+  await withGuide(page);
+  await page.goto("/about/");
+  await page.mouse.move(500, 400);
+  await guideButton(page).click({ timeout: 15_000 });
+  const menu = page.getByRole("dialog", { name: "بقلظ" });
+  await expect(menu.getByText("في الصفحة دي")).toBeVisible();
+  await menu.getByRole("button", { name: /From learning to real impact/ }).click();
+  await expect.poll(() => page.evaluate(() => Math.round(document.querySelector("#why")!.getBoundingClientRect().top)), { timeout: 8000 }).toBeLessThan(250);
+  await expect(bubble(page)).toContainText(/الأفكار|النظري|بنتعلم/, { timeout: 10_000 });
+  // Quick action: the site search.
+  await guideButton(page).click();
+  await page.getByRole("dialog", { name: "بقلظ" }).getByRole("button", { name: "البحث" }).click();
+  await expect(page.getByRole("dialog").filter({ has: page.locator("input[type=search], input[role=combobox], input") }).first()).toBeVisible();
+});
+
+test("ask Baqloz who he is", async ({ page }) => {
+  await withGuide(page);
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await guideButton(page).click({ timeout: 15_000 });
+  const menu = page.getByRole("dialog", { name: "بقلظ" });
+  await menu.getByRole("button", { name: "إنت مين؟" }).click();
+  await expect(menu).toContainText("أنا بقلظ");
 });
