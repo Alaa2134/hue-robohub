@@ -10,6 +10,7 @@ import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
 import { CheckinCard, StudentCheckin } from "./self-checkin";
 import { StudentTasks, TasksCard } from "./tasks";
+import { StudentProjects } from "./student-projects";
 import { Announcements, NextUpCard, StudentSchedule } from "./schedule";
 import { AppShell, BrandLine, InstallCard, SiteButton, SiteCard, type Tab } from "./shell";
 import { kindIcon } from "./staff-content";
@@ -115,6 +116,7 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
   if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
   else if (section === "tasks") screen = <StudentTasks id={id} />;
   else if (section === "schedule") screen = <StudentSchedule />;
+  else if (section === "projects") screen = <StudentProjects />;
   else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
   else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
@@ -539,6 +541,14 @@ function Account({ session }: { session: StudentSession }) {
           </Button>
         </form>
       </Card>
+      <a href="#/me/projects" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+        <Icon name="star" size={20} className="shrink-0 text-gold" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">مشاريعي وفرق المسابقات</span>
+          <span className="block text-xs text-fog">اعرض مشروعك على الموقع، وقدّم في فرق المسابقات</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
       <SiteCard className="mt-4" />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={logout}>
         تسجيل الخروج

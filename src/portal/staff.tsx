@@ -22,6 +22,7 @@ import { StudentsScreen } from "./staff-students";
 import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
+import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -203,6 +204,9 @@ export function StaffApp({
     case "apps":
       screen = <AppsSettingsScreen me={me} />;
       break;
+    case "projects":
+      screen = can(me, "content") ? <StudentProjectsReview me={me} /> : <NotAllowed />;
+      break;
     case "access":
       screen = <AccessRequestsScreen me={me} />;
       break;
@@ -264,6 +268,7 @@ function StaffHome({ me }: { me: StaffRow }) {
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
     const access = can(me, "students") || me.role !== "lead" ? await pendingAccessRequests().catch(() => 0) : 0;
+    const projects = can(me, "content") ? await pendingStudentProjects().catch(() => 0) : 0;
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -273,6 +278,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       messages,
       deletions,
       access,
+      projects,
     };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
@@ -355,6 +361,16 @@ function StaffHome({ me }: { me: StaffRow }) {
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/access")}>
             افتح
+          </Button>
+        </Card>
+      )}
+
+      {!!data?.projects && (
+        <Card className="mt-4 flex items-center gap-3 border-gold/30 bg-gold/[0.06]">
+          <Icon name="star" size={22} className="shrink-0 text-gold" />
+          <p className="flex-1 text-sm text-mist">{data.projects === 1 ? "طالب بعت مشروع للموقع ومستني المراجعة." : `فيه ${data.projects} مشاريع طلاب مستنية المراجعة.`}</p>
+          <Button size="sm" variant="primary" onClick={() => go("/staff/projects")}>
+            راجِع
           </Button>
         </Card>
       )}
@@ -459,6 +475,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
+    { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects", show: can(me, "content") },
     {
       icon: "settings",
       label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)",

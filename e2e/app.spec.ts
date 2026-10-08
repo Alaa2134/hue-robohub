@@ -957,3 +957,64 @@ test("the store app shows four first-run screens once, then the sign-in form", a
   await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "أهلاً بيك في BuildX HUE" })).toHaveCount(0);
 });
+
+test("a student sends a project for the website and sees the open team tryouts", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const sent: unknown[] = [];
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] },
+    student_projects_mine: [{ id: "p0", title: "Line follower", status: "published", note: null, at: at(600), slug: "student-line-follower-ab12" }],
+    public_forms: [
+      { slug: "robocup-tryouts", title_ar: "اختبارات فريق RoboCup", intro_ar: "انضم لفريق المسابقة", team: "robocup", open: true },
+      { slug: "volunteers", title_ar: "متطوعين يوم الروبوت", intro_ar: null, team: null, open: true },
+      { slug: "old", title_ar: "فورم قديم", intro_ar: null, team: null, open: false },
+    ],
+    student_project_submit: { ok: true },
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_project_submit") sent.push(route.request().postDataJSON());
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByText("مشاريعي وفرق المسابقات").click();
+  await expect(page.getByText("اتنشر على الموقع ✓")).toBeVisible();
+  await expect(page.getByRole("link", { name: "شوفه على الموقع" })).toHaveAttribute("href", "/ar/projects/student-line-follower-ab12/");
+  await expect(page.getByRole("link", { name: /اختبارات فريق RoboCup/ })).toHaveAttribute("href", "/ar/form/?f=robocup-tryouts");
+  await expect(page.getByText("متطوعين يوم الروبوت")).toBeVisible();
+  await expect(page.getByText("فورم قديم")).toHaveCount(0);
+  await page.getByLabel("اسم المشروع").fill("Smart plant");
+  await page.getByLabel("بيعمل إيه؟").fill("Waters itself");
+  await page.getByLabel("لينك (GitHub، فيديو، Drive…) — اختياري").fill("github.com/mona/plant");
+  await page.getByRole("button", { name: "ابعت المشروع" }).click();
+  await expect(page.getByText("اتبعت ✓ الفريق هيراجعه وينشره على الموقع")).toBeVisible();
+  expect(sent).toEqual([{ p_token: "a".repeat(64), p_title: "Smart plant", p_description: "Waters itself", p_url: "github.com/mona/plant", p_photo: null }]);
+});
+
+test("content staff publish a student's project on the website or decline it", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_student_projects = [
+    { id: "sp1", title: "Smart plant", description: "Waters itself", url: "https://github.com/mona/plant", photo: null, at: at(30), student: "Mona Adel", group: "G1" },
+    { id: "sp2", title: "Spam", description: "", url: null, photo: null, at: at(20), student: "Omar", group: "G1" },
+  ];
+  await signInAsOwner(page, calls);
+  const inserted: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_content/, async (route) => {
+    if (route.request().method() === "POST") {
+      inserted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: { id: "sc1" } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/projects");
+  const card = (t: string) => page.locator("div", { has: page.getByText(t, { exact: true }) }).filter({ has: page.getByRole("button") }).last();
+  await card("Smart plant").getByRole("button", { name: "انشر على الموقع" }).click();
+  await expect(page.getByText("اتنشر على الموقع ✓")).toBeVisible();
+  expect(inserted[0]).toMatchObject({ kind: "project", title_ar: "Smart plant", url: "https://github.com/mona/plant", published: true, tags: ["students"] });
+  expect(String(inserted[0]?.slug)).toMatch(/^student-smart-plant-[a-z0-9]+$/);
+  expect(calls.find((c) => c.fn === "staff_review_project")?.body).toEqual({ p_id: "sp1", p_status: "published", p_note: null, p_site: "sc1" });
+  await card("Spam").getByPlaceholder("ملاحظة للطالب لو مش هينتشر (اختياري)").fill("مش مشروع");
+  await card("Spam").getByRole("button", { name: "مش هينتشر" }).click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_review_project").map((c) => c.body)).toContainEqual({ p_id: "sp2", p_status: "declined", p_note: "مش مشروع", p_site: null });
+  delete RPC.staff_student_projects;
+});
