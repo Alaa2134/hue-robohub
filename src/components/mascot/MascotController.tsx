@@ -35,7 +35,7 @@ import type { BrainReply } from "@/lib/mascot/brain";
 import type { GuideAction } from "@/lib/mascot/guide";
 import { BADGES, play, visitToday } from "@/lib/mascot/games";
 import { OCCASION_LINES, wardrobe } from "@/lib/mascot/wardrobe";
-import { activated, hush, speak as speakAloud } from "@/lib/mascot/voice";
+import { activated, hush, speak as speakAloud, speaking, unlock } from "@/lib/mascot/voice";
 import { BODY, center, discoverSections, findSpot, overlap, pointClip, routeKey, scenesFor, scrollToSection, stageSize, visibleTarget, type Spot } from "@/lib/mascotScenes";
 import { MascotGuide } from "./MascotGuide";
 import type { Quality } from "./Mascot3D";
@@ -239,6 +239,25 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
   useEffect(() => {
     soundOn.current = sound;
   }, [sound]);
+  // The visitor's first tap, click or key: from now on the browser lets him talk, so he says the line
+  // that's on screen (unless the tap itself made him say something else).
+  useEffect(() => {
+    let done = false;
+    const first = () => {
+      if (done) return;
+      done = true;
+      unlock();
+      const id = mascot.get().speech?.id;
+      if (!soundOn.current || id === undefined) return;
+      setTimeout(() => {
+        const now = mascot.get().speech;
+        if (soundOn.current && now && now.id === id && !speaking()) void speakAloud(now[voice]);
+      }, 200);
+    };
+    const events = ["pointerup", "click", "keydown"] as const;
+    events.forEach((e) => window.addEventListener(e, first, { capture: true, passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, first, { capture: true }));
+  }, [voice]);
 
   // ── Position ──
   const apply = useCallback(() => {

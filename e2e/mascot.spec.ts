@@ -538,3 +538,29 @@ test("left alone he keeps busy (push-ups, reading, coding…); click him and he 
   await expect(page.getByRole("dialog", { name: "بقلظ" })).toBeVisible({ timeout: 5_000 });
   expect(errors).toEqual([]);
 });
+
+test("he talks: silent until the first tap (the browser's rule) and says so; the tap makes him say the line on screen", async ({ page }) => {
+  await withGuide(page);
+  // Record what he says instead of playing it (and pretend the device lists no voices yet, as many
+  // Android phones do: he must still try).
+  await page.addInitScript(() => {
+    const said: string[] = [];
+    (window as unknown as { said: string[] }).said = said;
+    Object.defineProperty(window.speechSynthesis, "getVoices", { value: () => [] });
+    Object.defineProperty(window.speechSynthesis, "speak", { value: (u: SpeechSynthesisUtterance) => u.text.trim() && said.push(u.text) });
+    // The browser's rule as a real visitor meets it (automated browsers count as already active).
+    let tapped = false;
+    window.addEventListener("pointerdown", () => (tapped = true), true);
+    Object.defineProperty(navigator, "userActivation", { value: { get hasBeenActive() { return tapped; } } });
+  });
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page)).toContainText("أنا بقلظ", { timeout: 15_000 });
+  await expect(bubble(page)).toContainText("دوس في أي حتة عشان تسمع صوتي");
+  await expect(bubble(page).getByRole("button", { name: "اسمعها بصوت بقلظ" })).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { said: string[] }).said)).toEqual([]);
+  // A tap on the page (not on a button).
+  await page.mouse.click(700, 300);
+  await expect(bubble(page)).not.toContainText("دوس في أي حتة");
+  await expect.poll(() => page.evaluate(() => (window as unknown as { said: string[] }).said.join(" | ")), { timeout: 8000 }).toMatch(/بقلظ|بيلد إكس|جولة/);
+});

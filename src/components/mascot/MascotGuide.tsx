@@ -19,13 +19,13 @@ import type { BrainReply } from "@/lib/mascot/brain";
 import { ask, rememberedName, type ChatMsg } from "@/lib/mascot/chat";
 import type { GuideAction } from "@/lib/mascot/guide";
 import { play } from "@/lib/mascot/games";
-import { canSpeak } from "@/lib/mascot/voice";
+import { canSpeak, noArabicVoice } from "@/lib/mascot/voice";
 import { pageToc } from "@/lib/mascotScenes";
 import { MascotPlay } from "./MascotPlay";
 
 const COPY = {
-  en: { tag: "Your BuildX guide", chat: "Talk to me", explore: "Go to", play: "Play", ask: "Ask Baqloz anything…", send: "Send", here: "On this page", go: "Pages", tour: "Site tour", pagetour: "Tour this page", search: "Search", lang: "عربي", top: "Top", sound: "Baqloz's voice", hide: "Hide Baqloz", close: "Close", on: "On", off: "Off", typing: "Baqloz is typing…", listen: "Read aloud", hello: (n?: string) => `Hi${n ? ` ${n}` : ""}! I'm Baqloz 👋 Ask me anything about BuildX: tracks, competitions, events or joining.`, explored: (a: number, b: number) => `Explored ${a} of ${b} pages` },
-  ar: { tag: "مرشدك في BuildX", chat: "اتكلم معايا", explore: "روح على", play: "العب", ask: "اسأل بقلظ أي حاجة…", send: "ابعت", here: "في الصفحة دي", go: "كل الصفحات", tour: "جولة في الموقع", pagetour: "لفّة في الصفحة دي", search: "البحث", lang: "English", top: "لفوق", sound: "صوت بقلظ", hide: "خبّي بقلظ", close: "اقفل", on: "شغّال", off: "مقفول", typing: "بقلظ بيكتب…", listen: "اسمع الرد", hello: (n?: string) => `أهلاً${n ? ` يا ${n}` : ""}! أنا بقلظ 👋 اسألني عن أي حاجة في BuildX: التراكات، المسابقات، الإيفنتات، أو إزاي تنضم.`, explored: (a: number, b: number) => `لفّيت ${a} من ${b} صفحة` },
+  en: { tag: "Your BuildX guide", chat: "Talk to me", explore: "Go to", play: "Play", ask: "Ask Baqloz anything…", send: "Send", here: "On this page", go: "Pages", tour: "Site tour", pagetour: "Tour this page", search: "Search", lang: "عربي", top: "Top", sound: "Baqloz's voice", hide: "Hide Baqloz", close: "Close", on: "On", off: "Off", typing: "Baqloz is typing…", listen: "Read aloud", noVoice: "No Arabic voice on this browser; try a phone, Edge or Safari", hello: (n?: string) => `Hi${n ? ` ${n}` : ""}! I'm Baqloz 👋 Ask me anything about BuildX: tracks, competitions, events or joining.`, explored: (a: number, b: number) => `Explored ${a} of ${b} pages` },
+  ar: { tag: "مرشدك في BuildX", chat: "اتكلم معايا", explore: "روح على", play: "العب", ask: "اسأل بقلظ أي حاجة…", send: "ابعت", here: "في الصفحة دي", go: "كل الصفحات", tour: "جولة في الموقع", pagetour: "لفّة في الصفحة دي", search: "البحث", lang: "English", top: "لفوق", sound: "صوت بقلظ", hide: "خبّي بقلظ", close: "اقفل", on: "شغّال", off: "مقفول", typing: "بقلظ بيكتب…", listen: "اسمع الرد", noVoice: "المتصفح ده مفيهوش صوت عربي؛ جرّب من الموبايل أو Edge أو Safari", hello: (n?: string) => `أهلاً${n ? ` يا ${n}` : ""}! أنا بقلظ 👋 اسألني عن أي حاجة في BuildX: التراكات، المسابقات، الإيفنتات، أو إزاي تنضم.`, explored: (a: number, b: number) => `لفّيت ${a} من ${b} صفحة` },
 };
 
 const CHAT_KEY = "bx-guide-chat";
@@ -112,6 +112,7 @@ export function MascotGuide({
   const [fresh, setFresh] = useState<number | null>(null);
   const [toc] = useState(() => pageToc());
   const [voice] = useState(canSpeak);
+  const [noVoice] = useState(noArabicVoice);
   const suggestions = (SUGGESTIONS.find((s) => s.match.test(path)) ?? SUGGESTIONS[SUGGESTIONS.length - 1]).ask;
   const here = PAGES.find((p) => p.href === path)?.id;
 
@@ -391,6 +392,7 @@ export function MascotGuide({
           <Icon name={sound ? "volume" : "mute"} size={15} />
           {t.sound}: {sound ? t.on : t.off}
         </button>
+        {sound && noVoice && <span className="text-[0.7rem] leading-tight text-fog">{t.noVoice}</span>}
         <button type="button" data-item onClick={onHide} className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-mist transition hover:bg-white/[0.06] hover:text-chalk">
           <Icon name="eye" size={15} />
           {t.hide}
