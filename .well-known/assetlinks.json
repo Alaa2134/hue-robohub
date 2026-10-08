@@ -5,9 +5,9 @@
     ],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.buildxhue.student",
+      "package_name": "buildx.hue.app",
       "sha256_cert_fingerprints": [
-        "0D:A3:37:DD:5D:49:E7:CA:2B:9A:EC:34:EA:BE:E4:7F:62:B9:A6:0F:B1:F6:66:DF:8D:4C:7B:78:DF:07:61:90"
+        "E9:A5:15:21:F2:DF:63:84:53:DE:69:CD:B9:8B:80:61:6C:F6:B9:B1:9F:A5:C9:48:C1:8D:28:7E:ED:7E:01:67"
       ]
     }
   }
