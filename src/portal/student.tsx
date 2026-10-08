@@ -6,6 +6,7 @@ import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, student
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard } from "./points";
 import { PushCard } from "./push";
+import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
 import { CheckinCard, StudentCheckin } from "./self-checkin";
 import { StudentTasks, TasksCard } from "./tasks";
@@ -682,6 +683,7 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
             /* ignore */
           }
           onSubmitted(r);
+          if (r.max > 0 && r.score / r.max >= 0.8) goodMoment();
           return;
         } catch (e) {
           if (tryNo === 3) {

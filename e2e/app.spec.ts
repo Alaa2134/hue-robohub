@@ -871,3 +871,21 @@ test("forgot PIN: the student asks from the sign-in screen and a coach sends a n
   expect(calls.find((c) => c.fn === "staff_set_pins")?.body).toEqual({ p_ids: ["s1"], p_only_missing: false });
   expect(calls.find((c) => c.fn === "staff_access_resolve")?.body).toEqual({ p_id: "r1", p_status: "done" });
 });
+
+test("the store app shows four first-run screens once, then the sign-in form", async ({ page }) => {
+  await page.addInitScript(() => {
+    (window as unknown as { CapacitorCustomPlatform: unknown }).CapacitorCustomPlatform = { name: "android", plugins: {} };
+  });
+  await page.route(/supabase\.co/, (route) => route.fulfill({ json: { ready: true } }));
+  await page.goto("/app/");
+  await expect(page.getByRole("heading", { name: "أهلاً بيك في BuildX HUE" })).toBeVisible();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("heading", { name: "خليك عارف كل جديد" })).toBeVisible();
+  // This build has no push set up (no app/push.json), so it never asks.
+  await expect(page.getByRole("button", { name: "شغّل الإشعارات" })).toHaveCount(0);
+  await page.getByRole("button", { name: "يلا نبدأ" }).click();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "تسجيل الدخول" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "أهلاً بيك في BuildX HUE" })).toHaveCount(0);
+});

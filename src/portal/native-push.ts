@@ -79,3 +79,10 @@ export function listenForNotificationTaps() {
     }).catch(() => undefined);
   });
 }
+
+/** Asks for the notification permission only (from the first-run screens, before signing in). */
+export async function askNativePermission(): Promise<NativeState> {
+  if (!(await nativePushReady())) return "unsupported";
+  const { receive } = await PushNotifications.requestPermissions();
+  return receive === "granted" ? "on" : receive === "denied" ? "denied" : "off";
+}

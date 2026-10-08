@@ -20,6 +20,7 @@ import {
   type Session,
   type Student,
 } from "./core";
+import { goodMoment } from "./review";
 import { SelfCheckinScreen } from "./self-checkin";
 import { Scanner } from "./scanner";
 import { GroupSelect, makeFinder, patchStudents, refreshStudents, scanQueue, useGroups, useStudents } from "./staff-data";
@@ -424,6 +425,7 @@ export function SessionScreen({ id }: { id: string }) {
       const s = must(await sb().from("attendance_sessions").update({ closed_at: closing ? new Date().toISOString() : null }).eq("id", id).select().single()) as Session;
       setSession(s);
       toast(closing ? "تم إنهاء الجلسة" : "تمت إعادة فتح الجلسة");
+      if (closing) goodMoment(3);
     } catch (e) {
       toast.error(e);
     }

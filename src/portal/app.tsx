@@ -8,7 +8,8 @@ import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
 import { StudentApp } from "./student";
 import { UpdateGate } from "./app-update";
-import { listenForNotificationTaps } from "./native-push";
+import { enableNativePush, listenForNotificationTaps } from "./native-push";
+import { Onboarding, needsOnboarding } from "./onboarding";
 import { ForgotForm } from "./access-requests";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
@@ -40,9 +41,11 @@ export default function PortalApp() {
   const [noAccess, setNoAccess] = useState<string | null>(null);
   const [gate, setGate] = useState<MfaGateMode | null>(null);
   const [student, setStudent] = useState<StudentSession | null>(null);
+  const [onboarding, setOnboarding] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    setOnboarding(needsOnboarding());
     const sync = () => setStudent(studentStore.get());
     sync();
     window.addEventListener("rh-student", sync);
@@ -134,7 +137,14 @@ export default function PortalApp() {
     };
   }, [loadStaff]);
 
+  // In the store app, register this phone for notifications for whoever is signed in (if allowed).
+  const who = staff ? "staff" : student ? "student" : null;
+  useEffect(() => {
+    if (who && isNative()) enableNativePush(who, false).catch(() => undefined);
+  }, [who]);
+
   if (!mounted || staff === undefined) return <Splash />;
+  if (onboarding && !staff && !student) return <Onboarding onDone={() => setOnboarding(false)} />;
 
   const [head, ...rest] = route.path;
   // One sign-in for everyone: students land on their dashboard (/me), the team on theirs (/staff).

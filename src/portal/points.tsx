@@ -2,7 +2,7 @@
 /** Points and badges: the student's own screen and the staff leaderboard (computed in the database, see 20261007170000_points_badges.sql). */
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
-import { errorText, must, rpc, sb, studentRpc } from "./core";
+import { errorText, must, rpc, sb, studentRpc, studentRpcOffline } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
 import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Sheet, Stat, Toggle, TopBar, toast, useAsync, type IconKey } from "./ui";
 
@@ -37,7 +37,7 @@ function Badge_({ k, dim }: { k: string; dim?: boolean }) {
 type Mine = { points: number; rank?: number; of?: number; group?: string; breakdown?: Record<string, number>; badges: string[]; top: { name: string; points: number; me: boolean }[] };
 
 export function useMyPoints() {
-  return useAsync(() => studentRpc<Mine>("student_points"), []);
+  return useAsync(() => studentRpcOffline<Mine>("student_points"), []);
 }
 
 /** Small card on the student home. */

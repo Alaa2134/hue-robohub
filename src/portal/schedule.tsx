@@ -4,7 +4,7 @@
  * and announcements from the coaches. See 20261008130000_schedule_announcements.sql.
  */
 import { useMemo, useState, type FormEvent } from "react";
-import { can, download, errorText, fmt, must, sb, studentRpc, type StaffRow } from "./core";
+import { can, download, errorText, fmt, must, sb, studentRpc, studentRpcOffline, type StaffRow } from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
@@ -14,7 +14,7 @@ type Note = { id: string; title: string; body: string; pinned: boolean; at: stri
 
 /** Student home: the coaches' announcements for their group. */
 export function Announcements() {
-  const { data } = useAsync(() => studentRpc<Note[]>("student_announcements"), []);
+  const { data } = useAsync(() => studentRpcOffline<Note[]>("student_announcements"), []);
   if (!data?.length) return null;
   return (
     <div className="mt-4 grid gap-2">
@@ -69,7 +69,7 @@ const googleLink = (it: Item) =>
   `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${it.title} · BuildX HUE`)}&dates=${icsDate(new Date(it.startsAt))}/${icsDate(endOf(it))}${it.location ? `&location=${encodeURIComponent(it.location)}` : ""}`;
 
 export function useSchedule() {
-  return useAsync(() => studentRpc<Item[]>("student_schedule"), []);
+  return useAsync(() => studentRpcOffline<Item[]>("student_schedule"), []);
 }
 
 /** Student home: the next thing on the schedule. */
