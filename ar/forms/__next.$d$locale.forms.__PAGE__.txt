@@ -1,0 +1,37 @@
+1:"$Sreact.fragment"
+2:I[22016,["/_next/static/chunks/0bq-hn-v7rytr.js","/_next/static/chunks/22sirz-zcmixb.js","/_next/static/chunks/3a9dutf8c0hh1.js","/_next/static/chunks/1x0smj8o3l0vq.js","/_next/static/chunks/37f_jy29187eh.js"],""]
+3:I[84108,["/_next/static/chunks/0bq-hn-v7rytr.js","/_next/static/chunks/22sirz-zcmixb.js","/_next/static/chunks/3a9dutf8c0hh1.js","/_next/static/chunks/1x0smj8o3l0vq.js","/_next/static/chunks/37f_jy29187eh.js"],"MaskText"]
+4:I[51579,["/_next/static/chunks/0bq-hn-v7rytr.js","/_next/static/chunks/22sirz-zcmixb.js","/_next/static/chunks/3a9dutf8c0hh1.js","/_next/static/chunks/1x0smj8o3l0vq.js","/_next/static/chunks/37f_jy29187eh.js"],"OpenForms"]
+5:I[97367,["/_next/static/chunks/3fntmmi971322.js"],"OutletBoundary"]
+6:"$Sreact.suspense"
+a:I[97367,["/_next/static/chunks/3fntmmi971322.js"],"ViewportBoundary"]
+b:I[97367,["/_next/static/chunks/3fntmmi971322.js"],"MetadataBoundary"]
+9:X
+1c:X
+1c:C
+0:{"buildId":"sXR0Fwgj8JQYQeJTnEVyV","data":[{"rsc":["$","$1","c",{"children":[[["$","section",null,{"className":"relative isolate flex overflow-hidden bg-void min-h-[30rem] lg:min-h-[34rem]","children":["$undefined",["$","div",null,{"aria-hidden":true,"className":"grid-lines mask-radial absolute inset-0 -z-10 opacity-40"}],["$","div",null,{"className":"mx-auto flex w-full max-w-[1680px] flex-col justify-end px-5 pb-12 pt-28 sm:px-8 lg:pb-16 lg:pt-36","children":[["$","nav",null,{"aria-label":"Breadcrumb","className":"enter mb-8","style":{"--d":"100ms"},"children":["$","ol",null,{"className":"flex flex-wrap items-center gap-2 font-mono text-[0.68rem] uppercase tracking-[0.18em] text-fog","children":[["$","li","0",{"className":"flex items-center gap-2","children":[false,["$","$L2",null,{"href":"/ar","className":"transition-colors hover:text-chalk","children":"الرئيسية"}]]}],["$","li","1",{"className":"flex items-center gap-2","children":[["$","span",null,{"aria-hidden":true,"className":"text-steel","children":"/"}],["$","span",null,{"aria-current":"page","className":"text-mist","children":"الفورمات المفتوحة"}]]}]]}]}],["$","p",null,{"className":"enter t-eyebrow mb-5 flex items-center gap-3","style":{"color":"var(--color-cyan)","--d":"200ms"},"children":[["$","span",null,{"className":"h-px w-8","style":{"background":"var(--color-cyan)"}}],"الفورمات"]}],["$","h1",null,{"className":"t-display max-w-5xl text-[clamp(2.15rem,7.4vw,6.6rem)] text-chalk","children":["$","$L3",null,{"text":"الفورمات المفتوحة","delay":250}]}],["$","div",null,{"className":"enter mt-6 max-w-2xl text-pretty text-base leading-relaxed text-mist sm:text-lg","style":{"--d":"500ms"},"children":"اختبارات الفرق، تجديد العضوية، التطوع والاستبيانات… كل الفورمات المفتوحة دلوقتي هنا."}],"$undefined","$undefined","$undefined"]}]]}],["$","section",null,{"className":"","children":["$","div",null,{"className":"mx-auto max-w-[1680px] px-5 sm:px-8 py-16 lg:py-24","children":["$","$L4",null,{"locale":"ar","base":"/ar/form/"}]}]}]],[["$","script","script-0",{"src":"/_next/static/chunks/37f_jy29187eh.js","async":true}]],["$","$L5",null,{"children":["$","$6",null,{"name":"Next.MetadataOutlet","children":"$@7"}]}]]}],"isPartial":"$@8","staleTime":"$9","varyParams":null},{"rsc":["$","$1","h",{"children":[null,["$","$La",null,{"children":[["$","meta","0",{"charSet":"utf-8"}],["$","meta","1",{"name":"viewport","content":"width=device-width, initial-scale=1, viewport-fit=cover"}],["$","meta","2",{"name":"theme-color","content":"#050e26"}],["$","meta","3",{"name":"color-scheme","content":"dark"}]]}],["$","div",null,{"hidden":true,"children":["$","$Lb",null,{"children":["$","$6",null,{"name":"Next.Metadata","children":[["$","title","0",{"children":"الفورمات المفتوحة — BuildX HUE"}],["$","meta","1",{"name":"description","content":"اختبارات الفرق، تجديد العضوية، التطوع والاستبيانات… كل الفورمات المفتوحة دلوقتي هنا."}],["$","meta","2",{"name":"application-name","content":"BuildX HUE"}],["$","link","3",{"rel":"manifest","href":"/manifest.webmanifest"}],["$","meta","4",{"name":"keywords","content":"BuildX HUE,robotics,Horus University,AI,IoT,student community,Egypt,روبوتات,جامعة حورس,ذكاء اصطناعي,مجتمع طلابي,دمياط الجديدة"}],["$","link","5",{"rel":"canonical","href":"https://buildxhue.com/ar/forms/"}],["$","link","6",{"rel":"alternate","hrefLang":"en","href":"https://buildxhue.com/forms/"}],["$","link","7",{"rel":"alternate","hrefLang":"ar","href":"https://buildxhue.com/ar/forms/"}],["$","link","8",{"rel":"alternate","hrefLang":"x-default","href":"https://buildxhue.com/forms/"}],["$","meta","9",{"name":"format-detection","content":"telephone=no"}],["$","meta","10",{"name":"mobile-web-app-capable","content":"yes"}],["$","meta","11",{"name":"apple-mobile-web-app-title","content":"BuildX HUE"}],["$","meta","12",{"name":"apple-mobile-web-app-status-bar-style","content":"black-translucent"}],["$","meta","13",{"property":"og:title","content":"الفورمات المفتوحة — BuildX HUE"}],["$","meta","14",{"property":"og:description","content":"اختبارات الفرق، تجديد العضوية، التطوع والاستبيانات… كل الفورمات المفتوحة دلوقتي هنا."}],["$","meta","15",{"property":"og:url","content":"https://buildxhue.com/ar/forms/"}],["$","meta","16",{"property":"og:site_name","content":"BuildX HUE"}],["$","meta","17",{"property":"og:locale","content":"ar_EG"}],["$","meta","18",{"property":"og:image","content":"https://buildxhue.com/media/library/hero/hero-6ff47d3b-og.jpg"}],"$Lc","$Ld","$Le","$Lf","$L10","$L11","$L12","$L13","$L14","$L15","$L16","$L17"]}]}]}],"$L18"]}],"isPartial":"$@19","staleTime":"$9","varyParams":null},{"rsc":"$L1a","isPartial":"$@1b","staleTime":"$9","varyParams":"$1c"}],"isUpgradeableISRFallback":false,"a":"$@1d","rootVaryParams":null,"needsRuntimeRequest":"$@1e"}
+1f:I[27201,["/_next/static/chunks/3fntmmi971322.js"],"IconMark"]
+20:I[39756,["/_next/static/chunks/3fntmmi971322.js"],"default"]
+21:I[37457,["/_next/static/chunks/3fntmmi971322.js"],"default"]
+7:null
+c:["$","meta","19",{"property":"og:image:width","content":"1200"}]
+d:["$","meta","20",{"property":"og:image:height","content":"675"}]
+e:["$","meta","21",{"property":"og:locale:alternate","content":"en_US"}]
+f:["$","meta","22",{"property":"og:type","content":"website"}]
+10:["$","meta","23",{"name":"twitter:card","content":"summary_large_image"}]
+11:["$","meta","24",{"name":"twitter:title","content":"الفورمات المفتوحة"}]
+12:["$","meta","25",{"name":"twitter:description","content":"اختبارات الفرق، تجديد العضوية، التطوع والاستبيانات… كل الفورمات المفتوحة دلوقتي هنا."}]
+13:["$","meta","26",{"name":"twitter:image","content":"https://buildxhue.com/media/library/hero/hero-6ff47d3b-og.jpg"}]
+14:["$","link","27",{"rel":"icon","href":"/brand/favicon.svg","type":"image/svg+xml"}]
+15:["$","link","28",{"rel":"icon","href":"/brand/favicon-32.png","sizes":"32x32","type":"image/png"}]
+16:["$","link","29",{"rel":"apple-touch-icon","href":"/brand/apple-touch-icon.png","sizes":"180x180"}]
+17:["$","$L1f","30",{}]
+18:["$","meta",null,{"name":"next-size-adjust","content":""}]
+1a:["$","$1","c",{"children":[null,["$","$L20",null,{"parallelRouterKey":"children","template":["$","$L21",null,{}]}]]}]
+1e:true
+9:300
+9:C
+1d:0
+19:"$undefined"
+1b:"$undefined"
+8:"$undefined"

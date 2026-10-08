@@ -67,4 +67,4 @@ BuildX HUE: مجتمع طلابي في جامعة حورس – مصر للروب
   ج: BuildX HUE مجتمع طلابي في جامعة حورس، والموقع ده مش منشور رسمي للجامعة.
 
 ## الصفحات
-/ الرئيسية، /about عن BuildX، /tracks التراكات، /competitions المسابقات، /bootcamp البوتكامب، /events الإيفنتات، /projects المشاريع، /team الفريق، /achievements الإنجازات، /news الأخبار، /gallery الصور، /films الفيديوهات، /resources المصادر، /sponsors الشركاء، /faq الأسئلة الشائعة، /contact التواصل، /join التقديم، /join/status متابعة الطلب، /verify التحقق من شهادة، /privacy الخصوصية، /brand الهوية. التطبيق: /app (للطلبة والفريق: حضور وتاسكات ونقط وشهادات).
+/ الرئيسية، /about عن BuildX، /tracks التراكات، /competitions المسابقات، /bootcamp البوتكامب، /events الإيفنتات، /projects المشاريع، /team الفريق، /achievements الإنجازات، /news الأخبار، /gallery الصور، /films الفيديوهات، /resources المصادر، /sponsors الشركاء، /faq الأسئلة الشائعة، /contact التواصل، /join التقديم، /join/status متابعة الطلب، /verify التحقق من شهادة، /forms الفورمات المفتوحة (اختبارات الفرق والتطوع والتجديد)، /privacy الخصوصية، /brand الهوية. التطبيق: /app (للطلبة والفريق: حضور وتاسكات ونقط وشهادات).
