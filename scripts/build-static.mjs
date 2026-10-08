@@ -123,6 +123,9 @@ if (existsSync(en)) {
 // clean URLs of items published after this build to their live pages).
 if (existsSync(path.join(out, "lost/index.html"))) {
   renameSync(path.join(out, "lost/index.html"), path.join(out, "404.html"));
+  // Its language switch pointed at the page's own build path; send it to the other home page.
+  const nf = path.join(out, "404.html");
+  writeFileSync(nf, readFileSync(nf, "utf8").replaceAll('href="/ar/lost/"', 'href="/ar/"').replaceAll('href="/lost/"', 'href="/"'));
   for (const d of [path.join(out, "lost"), path.join(out, "ar/lost"), path.join(out, "404")]) rmSync(d, { recursive: true, force: true });
 }
 
@@ -156,6 +159,18 @@ if (base) {
     if (t !== s) (writeFileSync(f, t), n++);
   }
   log(`prefixed media/brand URLs in ${n} files`);
+}
+
+// 7b. The Content-Security-Policy meta tag first in <head> (right after the charset), so it
+// applies before the first script or preload the page lists.
+for (const f of walk(out).filter((x) => x.endsWith(".html"))) {
+  const html = readFileSync(f, "utf8");
+  const m = html.match(/<meta http-equiv="Content-Security-Policy" content="[^"]*"\/?>/);
+  if (!m) continue;
+  const without = html.replace(m[0], "");
+  const at = without.match(/<meta charSet="utf-8"\/?>/i);
+  const next = at ? without.replace(at[0], `${at[0]}${m[0]}`) : without.replace(/<head[^>]*>/, (h) => `${h}${m[0]}`);
+  if (next !== html) writeFileSync(f, next);
 }
 
 // 8. A new service-worker version per build, so phones drop old app files.

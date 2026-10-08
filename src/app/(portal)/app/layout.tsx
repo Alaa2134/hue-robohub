@@ -21,6 +21,7 @@ const CSP = [
   "manifest-src 'self'",
   "frame-src 'none'",
   "object-src 'none'",
+  "script-src-attr 'none'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join("; ");

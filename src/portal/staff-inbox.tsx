@@ -4,6 +4,7 @@
  * "tell me when applications open" waitlist.
  */
 import { useMemo, useState } from "react";
+import { safeHref } from "@/components/brand/social-icons";
 import { mailtoLink, whatsappLink } from "@/lib/contact";
 import { downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Sheet, Textarea, TopBar, confirmDialog, copyText, toast, useAsync } from "./ui";
@@ -162,8 +163,8 @@ function MessageSheet({ m, me, onClose, onUpdate, onDelete }: { m: Message; me: 
           <Card className="grid gap-1 text-sm">
             {m.extra.tier && <p><span className="text-fog">الباقة: </span><span className="text-chalk">{TIER[m.extra.tier] ?? m.extra.tier}</span></p>}
             {m.extra.interest && <p><span className="text-fog">مهتمين بـ: </span><span className="text-chalk">{m.extra.interest}</span></p>}
-            {m.extra.website && (
-              <a href={m.extra.website} target="_blank" rel="noopener noreferrer nofollow" className="text-cyan underline" dir="ltr">
+            {safeHref(m.extra.website) && (
+              <a href={safeHref(m.extra.website)!} target="_blank" rel="noopener noreferrer nofollow" className="text-cyan underline" dir="ltr">
                 {m.extra.website}
               </a>
             )}

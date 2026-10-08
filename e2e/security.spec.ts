@@ -101,3 +101,18 @@ test("public forms tell the server how long they took (bot timer)", async ({ pag
   expect(p?.elapsed).toBeGreaterThan(500);
   expect(p?.website).toBe("");
 });
+
+test("registering again with someone's phone doesn't hand over their ticket", async ({ page }) => {
+  await page.route(/supabase\.co\//, (route) => route.fulfill({ json: [] }));
+  const event = { id: "e1", kind: "event", slug: "kickoff", title: "Kickoff meeting", title_ar: "اجتماع البداية", summary: null, summary_ar: null, body: null, body_ar: null, result: null, result_ar: null, image_path: null, url: null, starts_at: "2030-01-10T15:00:00Z", ends_at: null, location: "Hall B", location_ar: "قاعة ب", track: null, tags: [], pinned: false, published: true, sort_order: 0, created_at: "2026-10-01T00:00:00Z", rsvp_open: true, capacity: 40 };
+  await page.route("**/rest/v1/site_content**", (route) => route.fulfill({ json: route.request().headers().accept?.includes("vnd.pgrst.object") ? event : [event] }));
+  await page.route("**/rest/v1/rpc/event_rsvp", (route) => route.fulfill({ json: { open: true, capacity: 40, going: 10 } }));
+  // The server answers a repeat the way it does now: no ticket, no status.
+  await page.route("**/rest/v1/rpc/register_event", (route) => route.fulfill({ json: { ok: true, duplicate: true } }));
+  await page.goto("/ar/events/item/?s=kickoff");
+  await page.getByLabel("الاسم بالكامل").fill("Someone Else");
+  await page.getByLabel("الموبايل (واتساب)").fill("01012345678");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByText("تذكرتك على الجهاز اللي سجّلت منه")).toBeVisible();
+  await expect(page.getByRole("link", { name: "افتح تذكرتي" })).toHaveCount(0);
+});
