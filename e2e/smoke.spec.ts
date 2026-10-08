@@ -150,6 +150,8 @@ test("a student registers for an event and opens a QR ticket", async ({ page }) 
   await expect(page).toHaveURL(/\/ar\/ticket\/\?t=BXT-1A2B3C4D$/);
   await expect(page.getByText("مؤكَّد")).toBeVisible();
   await expect(page.getByRole("img", { name: "BXT-1A2B3C4D" })).toBeVisible();
+  // Sending it to yourself on WhatsApp (free share link with the ticket's address).
+  await expect(page.getByRole("link", { name: "ابعتها لنفسي على واتساب" })).toHaveAttribute("href", /^https:\/\/wa\.me\/\?text=.*BXT-1A2B3C4D/);
   // Coming back to the event page shows the saved ticket instead of the form.
   await page.goto("/ar/events/item/?s=kickoff");
   await expect(page.getByText("انت متسجل في الفعالية دي")).toBeVisible();

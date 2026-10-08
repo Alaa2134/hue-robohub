@@ -6,7 +6,7 @@ import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
-import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen } from "./staff-insights";
+import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen, UsageCard } from "./staff-insights";
 import { SiteContentScreen } from "./staff-site";
 import { SiteSettingsScreen } from "./staff-settings";
 import { TwoFactorScreen } from "./staff-2fa";
@@ -499,6 +499,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
             </Row>
           ))}
       </List>
+      {me.role !== "lead" && <UsageCard />}
       <SiteCard className="mt-4" />
       <PushCard kind="staff" />
       <div className="mt-4">

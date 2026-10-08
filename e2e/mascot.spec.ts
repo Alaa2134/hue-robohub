@@ -603,3 +603,15 @@ test("his recorded Egyptian voice plays the line on screen; the robotic device v
   expect(played.every((f) => clips.includes(f.replace(".mp3", "")))).toBe(true);
   expect(await page.evaluate(() => (window as unknown as { said: string[] }).said)).toEqual([]);
 });
+
+test("an application started and not sent: he offers to finish it, and takes you back to the form", async ({ page }) => {
+  await withGuide(page);
+  await page.addInitScript(() => localStorage.setItem("buildx_apply_draft_v1", JSON.stringify({ full_name: "Mona Adel", phone: "010" })));
+  await page.goto("/ar/about/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  await expect(bubble(page)).toContainText("يا Mona، استمارة التقديم بتاعتك لسه مستنياك", { timeout: 25_000 });
+  await bubble(page).getByRole("button", { name: "كمّل التقديم" }).click();
+  await expect(page).toHaveURL(/\/join\/$/, { timeout: 10_000 });
+});

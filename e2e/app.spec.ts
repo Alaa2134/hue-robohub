@@ -6,6 +6,7 @@ const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "own
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 const RPC: Record<string, unknown> = {
+  staff_usage: { db_bytes: 420 * 1024 * 1024, buckets: [{ bucket: "materials", bytes: 300 * 1024 * 1024, files: 40 }] },
   security_pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
   staff_security_overview: {
     pulse: { level: "attack", last_hour: { rate_limited: 24 }, at: at(0) },
@@ -721,6 +722,9 @@ test("the team's home and menu link to the website", async ({ page }) => {
   await expect(page.getByRole("link", { name: "موقع BuildX HUE" })).toHaveAttribute("href", "/ar/");
   await page.goto("/app/#/staff/more");
   await expect(page.getByRole("link", { name: /تصفّح موقع BuildX HUE/ })).toBeVisible();
+  // How much of the free plan is used: the database is at 84%, so it warns.
+  await expect(page.getByRole("meter", { name: "قاعدة البيانات" })).toHaveAttribute("aria-valuenow", "84");
+  await expect(page.getByText("قرّبت توصل للحد المجاني")).toBeVisible();
 });
 
 test("drafts the team wrote wait at the top of the content screen for whoever publishes", async ({ page }) => {
