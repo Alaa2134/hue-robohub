@@ -202,7 +202,7 @@ function PushKeysCard() {
 export function NotifyScreen({ me }: { me: StaffRow }) {
   const students = useStudents();
   const groups = groupsOf(students.list);
-  const history = useAsync(async () => (await sb().from("push_messages").select("id,title,body,audience,group_name,created_at,targets,delivered").order("created_at", { ascending: false }).limit(50).then(must)) as Msg[], []);
+  const history = useAsync(async () => (await sb().from("push_messages").select("id,title,body,audience,group_name,created_at,targets,delivered").is("to_staff", null).order("created_at", { ascending: false }).limit(50).then(must)) as Msg[], []);
   const devices = useAsync(async () => {
     const r = await sb().from("push_subscriptions").select("audience", { count: "exact", head: false }).is("disabled_at", null).limit(5000);
     const rows = (r.data ?? []) as { audience: string }[];
