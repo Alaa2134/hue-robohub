@@ -20,8 +20,12 @@ export async function generateMetadata({ params }: P): Promise<Metadata> {
   const m = await buildMember(slug);
   if (!m) return { robots: { index: false } };
   const p = m.profile;
-  const description = (headlineOf(p, locale) || bioOf(p, locale)).slice(0, 160);
-  return pageMeta({ locale, path: `/team/${slug}`, title: nameOf(p, locale), description, image: p.photo_path ? teamImageUrl(p.photo_path) : undefined, type: "profile" });
+  const name = nameOf(p, locale);
+  // A short headline ("Website manager") alone is too thin for search results: say who and where.
+  const about = [headlineOf(p, locale), bioOf(p, locale)].filter(Boolean).join(" — ");
+  const team = locale === "ar" ? `${name} في فريق BuildX HUE للروبوتات والذكاء الاصطناعي بجامعة حورس.` : `${name} on the BuildX HUE robotics and AI team at Horus University.`;
+  const description = (about.length >= 60 ? about : [about, team].filter(Boolean).join(" · ")).slice(0, 160);
+  return pageMeta({ locale, path: `/team/${slug}`, title: name, description, image: p.photo_path ? teamImageUrl(p.photo_path) : undefined, type: "profile" });
 }
 
 /** A team member's portfolio, pre-rendered from the published profile. */
