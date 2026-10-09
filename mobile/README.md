@@ -8,7 +8,8 @@
 
 | | BuildX HUE |
 |---|---|
-| المعرّف (Bundle ID / Package) | `com.buildxhue.student` (سايبينه زي ما هو عشان ميتغيرش بعد ما اتسجّل) |
+| Package (Android / Google Play) | `buildx.hue.app` (زي ما اتعمل في Play Console) |
+| Bundle ID (iPhone / App Store) | `com.buildxhue.student` |
 | المجلد | `mobile/app` |
 
 التطبيق هو نفس BuildX App (`/app/`) متغلّف بـ [Capacitor](https://capacitorjs.com): الملفات جوه التطبيق نفسه، والبيانات من نفس قاعدة Supabase. أي تعديل في `src/portal` بيوصل للتطبيق في الإصدار الجاي. وشاشة الدخول الموحّدة نفسها موجودة على الموقع في `buildxhue.com/app`.
@@ -27,21 +28,22 @@
 
 | السر | منين |
 |---|---|
-| `ANDROID_KEYSTORE_BASE64` | محتوى ملف `ANDROID_KEYSTORE_BASE64.txt` اللي اتبعتلك |
-| `ANDROID_KEYSTORE_PASSWORD` | محتوى `ANDROID_KEYSTORE_PASSWORD.txt` |
-| `ANDROID_KEY_ALIAS` | `buildx-upload` |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 upload.jks` (ملف المفتاح اللي اتعمل بـ `keytool -genkeypair -keystore upload.jks -alias upload -keyalg RSA -keysize 2048 -validity 10000`) |
+| `ANDROID_KEYSTORE_PASSWORD` | باسورد الـ keystore |
+| `ANDROID_KEY_ALIAS` | `upload` |
+| `ANDROID_KEY_PASSWORD` | باسورد المفتاح (غالباً نفس باسورد الـ keystore) |
 | `APPLE_TEAM_ID` | developer.apple.com ← Membership details ← Team ID (10 حروف) |
 | `ASC_KEY_ID` | App Store Connect ← Users and Access ← Integrations ← App Store Connect API ← مفتاح جديد بصلاحية **Admin** ← Key ID |
 | `ASC_ISSUER_ID` | نفس الصفحة، فوق: Issuer ID |
 | `ASC_KEY_P8` | افتح ملف `AuthKey_XXXX.p8` اللي نزل (بيتنزل مرة واحدة بس) وانسخ كل محتواه |
 
-> احتفظ بملف `buildx-upload.jks` والباسورد في مكان آمن برّه الريبو (مثلاً Google Drive خاص). ده مفتاح الرفع على Google Play. لو ضاع، Google بيقدر يغيّره، بس بياخد أيام.
+> احتفظ بملف `upload.jks` والباسورد في مكان آمن برّه الريبو (مثلاً Google Drive خاص). ده مفتاح الرفع على Google Play، وبصمته (SHA-256) مكتوبة في `scripts/build-static.mjs` عشان روابط التطبيق؛ لو غيّرت المفتاح غيّرها هناك. لو ضاع، Google بيقدر يغيّره، بس بياخد أيام.
 
 ## إشعارات الموبايل (مرة واحدة)
 
 **Android (Firebase، مجاني):**
 1. console.firebase.google.com ← Add project (مثلاً `buildx-hue`) ← من غير Analytics.
-2. Add app ← Android ← Package name: `com.buildxhue.student` ← نزّل `google-services.json`.
+2. Add app ← Android ← Package name: `buildx.hue.app` ← نزّل `google-services.json`. (لو الملف مفيهوش `buildx.hue.app` البناء بيكمّل من غير إشعارات وبيكتب تحذير.)
 3. في الريبو: secret جديد اسمه `GOOGLE_SERVICES_JSON` وحط فيه محتوى الملف كله.
 4. Firebase ← ⚙️ Project settings ← Service accounts ← **Generate new private key** ← ملف JSON.
 5. في تطبيق BuildX HUE (حساب المالك): **المزيد ← إرسال إشعار ← إشعارات التطبيق على الموبايل ← إضافة المفاتيح** وارفع ملف الـ JSON ده.

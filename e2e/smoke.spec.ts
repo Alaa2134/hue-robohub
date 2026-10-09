@@ -173,7 +173,7 @@ test("success stories page shows the team's stories, and the footer offers the a
   const errors = collectErrors(page);
   await mockSupabase(page);
   await page.route("**/rest/v1/site_settings**", (route) =>
-    route.fulfill({ json: new URL(route.request().url()).searchParams.get("key") === "eq.apps" ? [{ value: { student_android: "https://play.google.com/store/apps/details?id=com.buildxhue.student" } }] : [{ value: { open: true } }] }),
+    route.fulfill({ json: new URL(route.request().url()).searchParams.get("key") === "eq.apps" ? [{ value: { student_android: "https://play.google.com/store/apps/details?id=buildx.hue.app" } }] : [{ value: { open: true } }] }),
   );
   await page.route("**/rest/v1/site_content**", (route) =>
     route.fulfill({
@@ -188,7 +188,7 @@ test("success stories page shows the team's stories, and the footer offers the a
   await page.getByRole("button", { name: "القصة كاملة" }).click();
   await expect(page.getByText("القصة كاملة هنا")).toBeVisible();
   // Desktop shows every store that has a link; only Google Play is set here.
-  await expect(page.locator("footer").getByRole("link", { name: /Google Play/ })).toHaveAttribute("href", /com\.buildxhue\.student/);
+  await expect(page.locator("footer").getByRole("link", { name: /Google Play/ })).toHaveAttribute("href", /buildx\.hue\.app/);
   await expect(page.locator("footer").getByRole("link", { name: /App Store/ })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
