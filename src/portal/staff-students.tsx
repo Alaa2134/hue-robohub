@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { ReportSheet } from "./report";
@@ -289,7 +289,7 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
             <Button icon="file" onClick={() => setReporting(true)} block>
               تقرير شهري PDF
             </Button>
-            {(me.role === "owner" || me.role === "admin") && (
+            {isFull(me) && (
               <Button variant="danger" icon="trash" onClick={remove} block>
                 حذف الطالب
               </Button>

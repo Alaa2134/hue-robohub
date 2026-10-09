@@ -2,7 +2,7 @@
 /** Team accounts, my account, activity log and attendance reports. */
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { APP_PATH, AREAS, POSITIONS, publicOrigin, ROLE_LABEL, can, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type Area, type AttStatus, type Role, type StaffRow, type Student } from "./core";
+import { APP_PATH, AREAS, POSITIONS, publicOrigin, ROLE_LABEL, can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type Area, type AttStatus, type Role, type StaffRow, type Student } from "./core";
 import { DeleteAccountCard } from "./account-deletion";
 import { BiometricToggle } from "./biometric";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
@@ -61,7 +61,7 @@ export function TeamScreen({ me }: { me: StaffRow }) {
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState<StaffRow | null>(null);
   const [creds, setCreds] = useState<Credentials | null>(null);
-  const canManage = me.role === "owner" || me.role === "admin";
+  const canManage = isFull(me);
 
   return (
     <>
@@ -79,8 +79,8 @@ export function TeamScreen({ me }: { me: StaffRow }) {
       />
       <Card className="mb-4 grid gap-1 text-xs leading-relaxed text-fog">
         <p>
-          <b className="text-mist">المالك:</b> كل شيء، ومنها إدارة الفريق. <b className="text-mist">المشرف:</b> كل شيء ما عدا تعديل المالك والمشرفين.{" "}
-          <b className="text-mist">المدرّب:</b> الحضور والطلاب والمحتوى والكويزات.
+          <b className="text-mist">المالك</b> بيحدد كل عضو يشوف إيه ويشتغل في إيه: اضغط على الاسم واختار صلاحياته.{" "}
+          <b className="text-mist">المشرف</b> من غير صلاحيات محددة بيشوف كل حاجة (ما عدا تعديل المالك والمشرفين)، ولو اتحددتله صلاحيات بيشوفها هي بس.
         </p>
       </Card>
       {loading && !data ? (
@@ -100,11 +100,11 @@ export function TeamScreen({ me }: { me: StaffRow }) {
                   <p className="truncate font-mono text-xs text-fog" dir="ltr">
                     {s.email}
                   </p>
-                  {(s.title || (s.role === "lead" && s.permissions)) && (
+                  {(s.title || (s.role !== "owner" && s.permissions)) && (
                     <p className="mt-0.5 truncate text-xs text-mist">
                       {s.title}
-                      {s.title && s.role === "lead" && s.permissions ? " · " : ""}
-                      {s.role === "lead" && s.permissions ? AREAS.filter((a) => can(s, a.key)).map((a) => a.label).join("، ") || "بدون صلاحيات" : ""}
+                      {s.title && s.role !== "owner" && s.permissions ? " · " : ""}
+                      {s.role !== "owner" && s.permissions ? AREAS.filter((a) => can(s, a.key)).map((a) => a.label).join("، ") || "بدون صلاحيات" : ""}
                     </p>
                   )}
                 </div>
@@ -169,20 +169,23 @@ function AddMember({ open, me, onClose, onCreated }: { open: boolean; me: StaffR
 }
 
 /**
- * The owner sets each person's position (shown in the team list and on their home screen) and, for
- * trainers, exactly which areas they work in. The database enforces the same areas.
+ * The owner sets each person's position (shown in the team list and on their home screen) and exactly
+ * which areas they work in, admins included. All areas ticked = no list (an admin then has everything).
+ * The database enforces the same areas.
  */
 function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: boolean; onSave: (patch: Partial<StaffRow>) => void }) {
   const [title, setTitle] = useState(m.title ?? "");
-  const [areas, setAreas] = useState<Area[]>(m.permissions ?? AREAS.map((a) => a.key));
-  const lead = m.role === "lead";
+  // What they have now (a trainer with no list has the basic areas, an admin with no list has all).
+  const current = AREAS.filter((a) => can(m, a.key)).map((a) => a.key);
+  const [areas, setAreas] = useState<Area[]>(current);
+  const lead = m.role !== "owner";
   const pickTitle = (t: string) => {
     setTitle(t);
     const p = POSITIONS.find((x) => x.title === t);
     if (p && lead) setAreas(p.areas);
   };
   const toggle = (a: Area) => setAreas((list) => (list.includes(a) ? list.filter((x) => x !== a) : [...list, a]));
-  const changed = title.trim() !== (m.title ?? "") || (lead && [...areas].sort().join() !== [...(m.permissions ?? AREAS.map((a) => a.key))].sort().join());
+  const changed = title.trim() !== (m.title ?? "") || (lead && [...areas].sort().join() !== [...current].sort().join());
   return (
     <Card className="grid gap-3">
       <Field label="المنصب" hint="بيظهر في قائمة الفريق وعلى الصفحة الرئيسية بتاعته. اختيار منصب بيقترح صلاحياته.">
@@ -205,16 +208,19 @@ function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: b
               </span>
             </label>
           ))}
-          <p className="text-xs text-fog">البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.</p>
+          <p className="text-xs text-fog">
+            البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.
+            {m.role === "admin" && " مشرف وكل الصلاحيات متعلّمة = مشرف كامل (بيدير المدرّبين ويقدر يمسح)."}
+          </p>
         </fieldset>
       ) : (
-        <p className="text-xs text-fog">{ROLE_LABEL[m.role]}: كل الصلاحيات. الصلاحيات المحددة للمدرّبين بس.</p>
+        <p className="text-xs text-fog">{ROLE_LABEL.owner}: كل الصلاحيات دايمًا.</p>
       )}
       <Button
         variant="primary"
         disabled={!changed}
         loading={busy}
-        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: areas.length === AREAS.length ? null : areas } : {}) })}
+        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: m.role === "admin" && areas.length === AREAS.length ? null : areas } : {}) })}
       >
         احفظ المنصب والصلاحيات
       </Button>

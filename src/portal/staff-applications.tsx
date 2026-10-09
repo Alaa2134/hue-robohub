@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { DAYS, HEARD_FROM, HOURS, LEVELS, STATUSES, TEAM_ROLES, YEARS, label } from "@/content/application";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
-import { downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
+import { isFull, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { PinResults, type PinItem } from "./staff-students";
 import { WaitlistCard } from "./staff-inbox";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
@@ -121,7 +121,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
           </Button>
         }
       />
-      {(me.role === "owner" || me.role === "admin") && <IntakeCard />}
+      {isFull(me) && <IntakeCard />}
       <WaitlistCard />
       {loading && !data ? (
         <Loading />
@@ -345,7 +345,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         </Card>
       </Section>
 
-      {me.role !== "lead" && (
+      {isFull(me) && (
         <Button variant="danger" icon="trash" className="mt-8" block onClick={remove}>
           حذف الطلب
         </Button>

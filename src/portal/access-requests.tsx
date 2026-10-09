@@ -5,7 +5,7 @@
  * ready to send on WhatsApp. See supabase/migrations/20261009110000_access_requests.sql.
  */
 import { useState } from "react";
-import { errorText, fmt, rpc, tempPassword, type StaffRow } from "./core";
+import { isFull, errorText, fmt, rpc, tempPassword, type StaffRow } from "./core";
 import { PinResults, type PinItem } from "./staff-students";
 import { CredentialsSheet, staffAdmin, type Credentials } from "./staff-team";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, TopBar, confirmDialog, toast, useAsync } from "./ui";
@@ -146,7 +146,7 @@ export function AccessRequestsScreen({ me }: { me: StaffRow }) {
           ))}
         </List>
       )}
-      {me.role === "lead" && <p className="mt-4 text-xs text-fog">طلبات كلمات مرور الفريق بتظهر للمالك والمشرفين بس.</p>}
+      {!isFull(me) && <p className="mt-4 text-xs text-fog">طلبات كلمات مرور الفريق بتظهر للمالك والمشرفين بس.</p>}
       <PinResults items={pins} onClose={() => setPins(null)} />
       <CredentialsSheet creds={creds} onClose={() => setCreds(null)} />
     </>

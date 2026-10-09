@@ -2,7 +2,7 @@
 /** Content library: upload files (PDF, slides, video, code…) or add links, per group. */
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { MAX_UPLOAD, fileUrl, fmt, fromLocalInput, must, removeObjects, safeName, sb, uid, uploadObject, type Material, type StaffRow } from "./core";
+import { isFull, MAX_UPLOAD, fileUrl, fmt, fromLocalInput, must, removeObjects, safeName, sb, uid, uploadObject, type Material, type StaffRow } from "./core";
 import { GroupSelect, useGroups } from "./staff-data";
 import {
   Badge,
@@ -177,7 +177,7 @@ function MaterialSheet({
   const [edit, setEdit] = useState<{ title: string; description: string; group: string } | null>(null);
   if (!m) return null;
   const href = m.kind === "link" ? m.url! : fileUrl(m.storage_path!);
-  const canDelete = me.role !== "lead" || m.created_by === me.user_id;
+  const canDelete = isFull(me) || m.created_by === me.user_id;
   return (
     <Sheet
       open

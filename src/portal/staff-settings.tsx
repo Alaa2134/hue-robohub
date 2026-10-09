@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { GoalSetting, SiteSettings } from "@/lib/site-settings";
 import { siteImageUrl } from "@/lib/site-content";
-import { can, errorText, must, removeObjects, savedText, sb, uploadImage, type StaffRow } from "./core";
+import { isFull, can, errorText, must, removeObjects, savedText, sb, uploadImage, type StaffRow } from "./core";
 import { SponsorDeckCard } from "./staff-inbox";
 import { GuideAiCard } from "./staff-guide";
 import { Button, Card, Empty, ErrorBox, Field, IconButton, Input, Loading, Section, Textarea, Toggle, TopBar, toast, useAsync } from "./ui";
@@ -212,7 +212,7 @@ export function SiteSettingsScreen({ me }: { me: StaffRow }) {
             <SponsorDeckCard />
           </Section>
 
-          {me.role !== "lead" && (
+          {isFull(me) && (
             <Section title="بقلظ: ردود الـ AI">
               <GuideAiCard />
             </Section>
