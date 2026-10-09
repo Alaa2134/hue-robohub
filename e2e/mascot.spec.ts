@@ -535,7 +535,9 @@ test("left alone he keeps busy (push-ups, reading, coding…); click him and he 
   }
   await expect(stage).toHaveAttribute("data-activity", /.+/);
   await guideButton(page).click();
-  await expect(bubble(page)).toContainText(/كنت|قطعت|ضيّعتلي|مسكتني/);
+  // Any of his "you interrupted me" lines (one is picked at random).
+  const interrupted = [...journey.ACTIVITIES, journey.TEA].flatMap((a) => a.interrupted.map((t) => t.ar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  await expect(bubble(page)).toContainText(new RegExp(interrupted.join("|")));
   await expect(stage).not.toHaveAttribute("data-activity", /.+/);
   // Then he's all yours: the menu opens.
   await expect(page.getByRole("dialog", { name: "بقلظ" })).toBeVisible({ timeout: 5_000 });
