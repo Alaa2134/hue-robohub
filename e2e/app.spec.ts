@@ -661,11 +661,11 @@ test("the owner sets a member's position and areas", async ({ page }) => {
   await page.getByText("Lead Two").click();
   await page.getByLabel("المنصب").fill("مسؤول الإعلام والتصميم");
   // Picking a position suggests its areas: media gets the website content only.
-  await expect(page.getByRole("checkbox", { name: /محتوى الموقع والفورمات/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /رسائل الموقع/ }).check();
+  await expect(page.getByRole("checkbox", { name: /^محتوى الموقع/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: /^رسائل الموقع/ }).check();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["content", "inbox"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["site", "inbox"] });
 });
 
 test("the head of media publishes, edits the team's pages and sends notifications, and nothing else", async ({ page }) => {
@@ -711,11 +711,11 @@ test("positions for the website admin and the head of media suggest their areas"
   await page.getByLabel("المنصب").fill("إداري الموقع");
   await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).toBeChecked();
   await expect(page.getByRole("checkbox", { name: /النشر على الموقع/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).not.toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).not.toBeChecked();
   await page.getByLabel("المنصب").fill("هيد الميديا");
   await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).not.toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["site", "publish", "portfolios", "notify"] });
 });
 
 test("the owner limits an admin to chosen areas too (all ticked keeps them a full admin)", async ({ page }) => {
@@ -735,12 +735,12 @@ test("the owner limits an admin to chosen areas too (all ticked keeps them a ful
   await page.getByText("Admin Three").click();
   // A full admin starts with every area ticked, the new security area included.
   await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).toBeChecked();
   await expect(page.getByRole("button", { name: "احفظ المنصب والصلاحيات" })).toBeDisabled();
   await page.getByLabel("المنصب").fill("مسؤول الروبوتكس");
   await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).not.toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الروبوتكس", permissions: ["students"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الروبوتكس", permissions: ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"] });
 });
 
 test("an admin the owner limited sees only those areas: no security, activity log, deleting or team management", async ({ page }) => {
@@ -769,6 +769,49 @@ test("an admin the owner limited sees only those areas: no security, activity lo
   await page.getByText("Lead Two").click();
   await expect(page.getByRole("button", { name: "احفظ المنصب والصلاحيات" })).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("permissions come in small parts: someone with quizzes only gets the quizzes and nothing else of the training", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const me = { user_id: "u1", email: "quiz@example.com", full_name: "Quiz Coach", role: "lead", active: true, created_at: at(9999), title: null, permissions: ["quizzes"] };
+  await page.route(/\/rest\/v1\/staff/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? me : [me] }));
+  await page.goto("/app/#/staff");
+  const nav = page.getByRole("navigation", { name: "التنقل" });
+  await expect(nav.getByRole("link", { name: "الكويزات" })).toBeVisible();
+  for (const tab of ["الحضور", "الطلاب", "المحتوى"]) await expect(nav.getByRole("link", { name: tab })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /تسجيل حضور جديد/ })).toHaveCount(0);
+  for (const path of ["attendance", "students", "tasks", "content", "announcements", "site", "forms"]) {
+    await page.goto(`/app/#/staff/${path}`);
+    await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  }
+  expect(errors).toEqual([]);
+});
+
+test("the owner ticks a whole group at once, and older lists show as all their parts", async ({ page }) => {
+  await signInAsOwner(page);
+  const owner = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+  // Saved before the split: "content" means website content and forms.
+  const lead = { user_id: "u2", email: "lead@example.com", full_name: "Lead Two", role: "lead", active: true, created_at: at(10), title: null, permissions: ["content"] };
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...lead, ...(route.request().postDataJSON() as object) }] });
+    }
+    const list = route.request().url().includes("order=created_at");
+    return route.fulfill({ json: list ? [owner, lead] : [owner] });
+  });
+  await page.goto("/app/#/staff/team");
+  await page.getByText("Lead Two").click();
+  await expect(page.getByRole("checkbox", { name: /^محتوى الموقع/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^الفورمات/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /^الحضور/ })).not.toBeChecked();
+  await page.getByRole("button", { name: "علّم الكل" }).first().click();
+  await page.getByRole("checkbox", { name: /^الفورمات/ }).uncheck();
+  await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
+  await expect.poll(() => patches[0]).toEqual({ title: null, permissions: ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points", "site"] });
 });
 
 test("signed in, students and the team can go back to the website and come back still signed in", async ({ page }) => {

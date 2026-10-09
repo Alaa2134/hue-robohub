@@ -55,20 +55,21 @@ const MORE_TAB: Tab = { href: "/staff/more", label: "المزيد", icon: "list"
 
 /** The area each section belongs to (sections not listed are open to every staff member). */
 const AREA_OF: Record<string, Area> = {
-  attendance: "students",
-  students: "students",
-  content: "students",
-  quizzes: "students",
-  tasks: "students",
-  announcements: "students",
-  leaderboard: "students",
-  reports: "students",
-  "at-risk": "students",
+  attendance: "attendance",
+  reports: "attendance",
+  students: "roster",
+  "at-risk": "roster",
+  access: "roster",
+  content: "materials",
+  quizzes: "quizzes",
+  tasks: "tasks",
+  announcements: "announcements",
+  leaderboard: "points",
   applications: "applications",
   events: "events",
-  site: "content",
-  forms: "content",
-  projects: "content",
+  site: "site",
+  projects: "site",
+  forms: "forms",
   inbox: "inbox",
   certificates: "certificates",
   settings: "settings",
@@ -277,9 +278,9 @@ function StaffHome({ me }: { me: StaffRow }) {
       newMessagesCount().catch(() => 0),
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
-    const access = can(me, "students") || isFull(me) ? await pendingAccessRequests().catch(() => 0) : 0;
-    const projects = can(me, "content") ? await pendingStudentProjects().catch(() => 0) : 0;
-    const atRisk = can(me, "students") ? await atRiskCount().catch(() => 0) : 0;
+    const access = can(me, "roster") || isFull(me) ? await pendingAccessRequests().catch(() => 0) : 0;
+    const projects = can(me, "site") ? await pendingStudentProjects().catch(() => 0) : 0;
+    const atRisk = can(me, "roster") ? await atRiskCount().catch(() => 0) : 0;
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -316,7 +317,7 @@ function StaffHome({ me }: { me: StaffRow }) {
         </Badge>
       </div>
 
-      {can(me, "students") && (
+      {can(me, "attendance") && (
         <button
           type="button"
           onClick={() => setCreating(true)}
@@ -432,7 +433,7 @@ function StaffHome({ me }: { me: StaffRow }) {
         </Section>
       )}
 
-      {can(me, "students") && (
+      {can(me, "training") && (
         <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
           <Stat label="طالب نشط" value={students.list ? active.length : "…"} icon="users" />
           <Stat label="جلسات الأسبوع" value={data?.week ?? "…"} icon="calendar" />
@@ -441,7 +442,7 @@ function StaffHome({ me }: { me: StaffRow }) {
         </div>
       )}
 
-      {noPin > 0 && can(me, "students") && (
+      {noPin > 0 && can(me, "roster") && (
         <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="key" size={20} className="shrink-0 text-warn" />
           <p className="flex-1 text-sm text-mist">{noPin} طالب بدون رمز دخول للتطبيق.</p>
@@ -453,11 +454,11 @@ function StaffHome({ me }: { me: StaffRow }) {
 
       <Section title="اختصارات">
         <div className="grid grid-cols-3 gap-2">
-          {can(me, "students") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
-          {can(me, "content") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
-          {can(me, "students") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
-          {can(me, "students") && <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />}
-          {can(me, "content") && <Shortcut icon="list" label="الفورمات" to="/staff/forms" />}
+          {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
+          {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
+          {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
+          {can(me, "tasks") && <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />}
+          {can(me, "forms") && <Shortcut icon="list" label="الفورمات" to="/staff/forms" />}
           {can(me, "events") && <Shortcut icon="calendar" label="الفعاليات" to="/staff/events" />}
           {can(me, "inbox") && <Shortcut icon="bell" label="الرسائل" to="/staff/inbox" />}
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
@@ -497,7 +498,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
-    { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects", show: can(me, "content") },
+    { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },
     {
       icon: "settings",
       label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)",
@@ -512,14 +513,14 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
-    { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk", show: can(me, "students") },
+    { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
-    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access", show: can(me, "students") || isFull(me) },
+    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",
