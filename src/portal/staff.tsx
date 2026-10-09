@@ -1,7 +1,7 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
 import { useState } from "react";
-import { ROLE_LABEL, can, fmt, must, sb, type Area, type Session, type StaffRow } from "./core";
+import { isFull, ROLE_LABEL, can, fmt, must, sb, type Area, type Session, type StaffRow } from "./core";
 import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
@@ -75,6 +75,10 @@ const AREA_OF: Record<string, Area> = {
   apps: "settings",
   portfolios: "portfolios",
   notify: "notify",
+  security: "security",
+  audit: "security",
+  stats: "security",
+  errors: "security",
 };
 
 /** A section outside this person's permissions. */
@@ -273,7 +277,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       newMessagesCount().catch(() => 0),
     ]);
     const deletions = me.role === "owner" ? await pendingDeletions().catch(() => 0) : 0;
-    const access = can(me, "students") || me.role !== "lead" ? await pendingAccessRequests().catch(() => 0) : 0;
+    const access = can(me, "students") || isFull(me) ? await pendingAccessRequests().catch(() => 0) : 0;
     const projects = can(me, "content") ? await pendingStudentProjects().catch(() => 0) : 0;
     const atRisk = can(me, "students") ? await atRiskCount().catch(() => 0) : 0;
     return {
@@ -331,7 +335,7 @@ function StaffHome({ me }: { me: StaffRow }) {
         </button>
       )}
 
-      {me.role !== "lead" && <SecurityAlert />}
+      {can(me, "security") && <SecurityAlert />}
 
       {!!data?.applications && (
         <Card className="mt-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">
@@ -510,12 +514,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk", show: can(me, "students") },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
-    { icon: "shield", label: "الأمان والهجمات", to: "/staff/security", show: me.role !== "lead" },
+    { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
-    { icon: "list", label: "سجل النشاط", to: "/staff/audit", show: me.role !== "lead" },
+    { icon: "list", label: "سجل النشاط", to: "/staff/audit" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
-    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access", show: can(me, "students") || me.role !== "lead" },
+    { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access", show: can(me, "students") || isFull(me) },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",
@@ -554,7 +558,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
             </Row>
           ))}
       </List>
-      {me.role !== "lead" && <UsageCard />}
+      {can(me, "security") && <UsageCard />}
       <SiteCard className="mt-4" />
       <PushCard kind="staff" />
       <div className="mt-4">

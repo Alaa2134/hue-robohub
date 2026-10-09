@@ -1,7 +1,7 @@
 "use client";
 /** Staff dashboards for the website itself: security (attacks and responses), visits, and browser errors. */
 import { useState } from "react";
-import { errorText, fmt, rpc, type StaffRow } from "./core";
+import { can, errorText, fmt, rpc, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Section, Sheet, Stat, TopBar, confirmDialog, copyText, go, toast, useAsync, type IconKey } from "./ui";
 
 /* ─── Shared ───────────────────────────────────────────────────────────── */
@@ -62,7 +62,7 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
   const [hours, setHours] = useState(24);
   const [blocking, setBlocking] = useState<string | null>(null);
   const { data, error, loading, reload } = useAsync(() => rpc<Overview>("staff_security_overview", { p_hours: hours }), [hours]);
-  const admin = me.role !== "lead";
+  const admin = can(me, "security");
 
   const unblock = async (ip: string) => {
     if (!(await confirmDialog({ title: `فك الحظر عن ${ip}؟`, ok: "فك الحظر" }))) return;

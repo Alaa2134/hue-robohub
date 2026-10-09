@@ -2,7 +2,7 @@
 /** BuildX App → certificates: issue (one name, a list of names, or students picked from the app), print, revoke. */
 import { useMemo, useState } from "react";
 import { CERT_DESIGNS, CERT_KINDS, CertificatePrint, certArt, designKeyFor, verifyUrl, type Certificate } from "./certificate";
-import { errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
+import { isFull, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, IconButton, Input, List, Loading, Row, SearchBox, Sheet, Textarea, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
@@ -15,7 +15,7 @@ export function CertificatesScreen({ me }: { me: StaffRow }) {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("certificates").select(COLS).order("created_at", { ascending: false }).limit(2000).then(must)) as Row_[], []);
   const [q, setQ] = useState("");
   const [issuing, setIssuing] = useState(false);
-  const admin = me.role !== "lead";
+  const admin = isFull(me);
 
   const list = useMemo(() => {
     const n = q.trim().toLowerCase();

@@ -718,6 +718,59 @@ test("positions for the website admin and the head of media suggest their areas"
   await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["content", "publish", "portfolios", "notify"] });
 });
 
+test("the owner limits an admin to chosen areas too (all ticked keeps them a full admin)", async ({ page }) => {
+  await signInAsOwner(page);
+  const owner = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
+  const admin = { user_id: "u3", email: "admin@example.com", full_name: "Admin Three", role: "admin", active: true, created_at: at(10), title: null, permissions: null };
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...admin, ...(route.request().postDataJSON() as object) }] });
+    }
+    const list = route.request().url().includes("order=created_at");
+    return route.fulfill({ json: list ? [owner, admin] : [owner] });
+  });
+  await page.goto("/app/#/staff/team");
+  await page.getByText("Admin Three").click();
+  // A full admin starts with every area ticked, the new security area included.
+  await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: /الطلاب والتدريب/ })).toBeChecked();
+  await expect(page.getByRole("button", { name: "احفظ المنصب والصلاحيات" })).toBeDisabled();
+  await page.getByLabel("المنصب").fill("مسؤول الروبوتكس");
+  await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).not.toBeChecked();
+  await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
+  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الروبوتكس", permissions: ["students"] });
+});
+
+test("an admin the owner limited sees only those areas: no security, activity log, deleting or team management", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const me = { user_id: "u1", email: "coach@example.com", full_name: "Coach Admin", role: "admin", active: true, created_at: at(9999), title: "مسؤول الروبوتكس", permissions: ["students"] };
+  const other = { user_id: "u2", email: "lead@example.com", full_name: "Lead Two", role: "lead", active: true, created_at: at(10), title: null, permissions: null };
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const list = route.request().url().includes("order=created_at");
+    if (list) return route.fulfill({ json: [me, other] });
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? me : [me] });
+  });
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByText("التاسكات (تسليم وتصحيح)")).toBeVisible();
+  for (const item of ["الأمان والهجمات", "سجل النشاط", "زيارات الموقع (مين بيزور وبيشوف إيه)", "أخطاء الموقع", "طلبات الانضمام", "رسائل الموقع وطلبات الرعاية"])
+    await expect(page.getByText(item, { exact: true })).toHaveCount(0);
+  for (const path of ["security", "audit", "stats", "errors"]) {
+    await page.goto(`/app/#/staff/${path}`);
+    await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  }
+  // The team list is read-only for them: no adding members, no opening someone's settings.
+  await page.goto("/app/#/staff/team");
+  await expect(page.getByText("Lead Two")).toBeVisible();
+  await expect(page.getByRole("button", { name: "عضو" })).toHaveCount(0);
+  await page.getByText("Lead Two").click();
+  await expect(page.getByRole("button", { name: "احفظ المنصب والصلاحيات" })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("signed in, students and the team can go back to the website and come back still signed in", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
   await page.route(/supabase\.co/, async (route) => {

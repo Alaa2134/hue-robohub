@@ -53,10 +53,11 @@ export type Role = "owner" | "admin" | "lead";
 export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string; title?: string | null; permissions?: Area[] | null };
 
 /**
- * What a trainer (role lead) may work in. Owners and admins have every area; a trainer with no list
- * has every area too (as before). The database enforces the same areas (private.can).
+ * What a team member may work in. The owner has everything and sets a list for anyone else; an admin
+ * with no list has everything (including the admin tools), a trainer with no list has the basic areas.
+ * The database enforces the same areas (private.member_can).
  */
-export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates" | "publish" | "settings" | "portfolios" | "notify";
+export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates" | "publish" | "settings" | "portfolios" | "notify" | "security";
 export const AREAS: { key: Area; label: string; hint: string }[] = [
   { key: "students", label: "الطلاب والتدريب", hint: "الطلاب، الحضور، التاسكات، الكويزات، الملفات، الإعلانات والنقاط" },
   { key: "applications", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
@@ -68,15 +69,18 @@ export const AREAS: { key: Area; label: string; hint: string }[] = [
   { key: "notify", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
   { key: "inbox", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
   { key: "certificates", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
+  { key: "security", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة" },
 ];
 /** A trainer with no list keeps the areas trainers always had; the newer ones are given by name. */
 const BASIC: Area[] = ["applications", "students", "events", "content", "inbox", "certificates"];
-export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => me.role !== "lead" || (me.permissions ?? BASIC).includes(area);
+/** The owner, or an admin the owner hasn't limited: every area plus the admin tools (team, deleting, security…). */
+export const isFull = (me: Pick<StaffRow, "role" | "permissions">) => me.role === "owner" || (me.role === "admin" && !me.permissions);
+export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => isFull(me) || (me.permissions ?? BASIC).includes(area);
 
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[] }[] = [
-  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "publish", "portfolios", "settings", "notify", "inbox", "certificates"] },
-  { title: "إداري الموقع", areas: ["content", "publish", "portfolios", "settings", "notify", "inbox"] },
+  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "publish", "portfolios", "settings", "notify", "inbox", "certificates", "security"] },
+  { title: "إداري الموقع", areas: ["content", "publish", "portfolios", "settings", "notify", "inbox", "security"] },
   { title: "هيد الميديا", areas: ["content", "publish", "portfolios", "notify"] },
   { title: "المدير التقني", areas: ["students", "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: ["students"] },

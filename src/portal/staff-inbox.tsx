@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { safeHref } from "@/components/brand/social-icons";
 import { mailtoLink, whatsappLink } from "@/lib/contact";
-import { downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
+import { isFull, downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
 import {
   Badge,
   Button,
@@ -376,7 +376,7 @@ function MessageSheet({
               رجّعها من الأرشيف
             </Button>
           )}
-          {me.role !== "lead" && (
+          {isFull(me) && (
             <Button size="sm" variant="danger" icon="trash" onClick={onDelete}>
               مسح
             </Button>

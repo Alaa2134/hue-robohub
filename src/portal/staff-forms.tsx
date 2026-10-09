@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { coreTeams } from "@/content/core-content";
 import type { FieldType, FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
-import { downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
+import { isFull, downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -380,7 +380,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
         >
           {x.archived ? "رجّعه من الأرشيف" : "أرشيف"}
         </Button>
-        {me.role !== "lead" && (
+        {isFull(me) && (
           <Button
             variant="danger"
             icon="trash"

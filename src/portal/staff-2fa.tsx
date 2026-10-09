@@ -5,7 +5,7 @@
  * 20261007140000_staff_two_factor.sql); owners/admins can require it for the whole team.
  */
 import { useEffect, useState, type FormEvent } from "react";
-import { asciiDigits, errorText, must, rpc, sb, type StaffRow } from "./core";
+import { isFull, asciiDigits, errorText, must, rpc, sb, type StaffRow } from "./core";
 import { BrandLine } from "./shell";
 import { Badge, Button, Card, Empty, ErrorBox, Field, IconButton, Input, List, Loading, Row, Section, Toggle, TopBar, confirmDialog, copyText, toast, useAsync } from "./ui";
 
@@ -176,7 +176,7 @@ type Overview = { require: boolean; staff: { user_id: string; name: string; role
 
 /** BuildX App → More → التحقق بخطوتين: own authenticators, and the team-wide switch for owners/admins. */
 export function TwoFactorScreen({ me }: { me: StaffRow }) {
-  const admin = me.role !== "lead";
+  const admin = isFull(me);
   const mine = useAsync(async () => {
     const { data, error } = await sb().auth.mfa.listFactors();
     if (error) throw error;

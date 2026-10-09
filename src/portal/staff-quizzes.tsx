@@ -8,6 +8,7 @@ import {
   fileUrl,
   fmt,
   fromLocalInput,
+  isFull,
   must,
   publicOrigin,
   rpc,
@@ -484,7 +485,7 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
           <Button variant="primary" icon="check" onClick={() => setSettingsOpen(false)} block>
             تم
           </Button>
-          {(me.role !== "lead" || quiz.created_by === me.user_id) && (
+          {(isFull(me) || quiz.created_by === me.user_id) && (
             <Button variant="danger" icon="trash" onClick={remove} block>
               حذف الكويز
             </Button>
