@@ -198,16 +198,34 @@ function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: b
       </Field>
       {lead ? (
         <fieldset className="grid gap-1.5">
-          <legend className="mb-1 text-sm font-semibold text-chalk">الصلاحيات: يقدر يشتغل في</legend>
-          {AREAS.map((a) => (
-            <label key={a.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] px-3 py-2.5 transition hover:border-cyan/40">
-              <input type="checkbox" checked={areas.includes(a.key)} onChange={() => toggle(a.key)} className="mt-1 size-4 accent-[#2f7bff]" />
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-chalk">{a.label}</span>
-                <span className="block text-xs text-fog">{a.hint}</span>
-              </span>
-            </label>
-          ))}
+          <legend className="mb-1 text-sm font-semibold text-chalk">الصلاحيات: علّم ✓ على اللي يقدر يشوفه ويشتغل فيه</legend>
+          {[...new Set(AREAS.map((a) => a.group))].map((group) => {
+            const keys = AREAS.filter((a) => a.group === group).map((a) => a.key);
+            const all = keys.every((k) => areas.includes(k));
+            return (
+              <div key={group} className="grid gap-1.5">
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-mist">{group}</span>
+                  <button
+                    type="button"
+                    className="text-xs text-cyan"
+                    onClick={() => setAreas((list) => (all ? list.filter((x) => !keys.includes(x)) : [...new Set([...list, ...keys])]))}
+                  >
+                    {all ? "شيل الكل" : "علّم الكل"}
+                  </button>
+                </div>
+                {AREAS.filter((a) => a.group === group).map((a) => (
+                  <label key={a.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] px-3 py-2.5 transition hover:border-cyan/40">
+                    <input type="checkbox" checked={areas.includes(a.key)} onChange={() => toggle(a.key)} className="mt-1 size-4 accent-[#2f7bff]" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-chalk">{a.label}</span>
+                      <span className="block text-xs text-fog">{a.hint}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            );
+          })}
           <p className="text-xs text-fog">
             البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.
             {m.role === "admin" && " مشرف وكل الصلاحيات متعلّمة = مشرف كامل (بيدير المدرّبين ويقدر يمسح)."}
@@ -220,7 +238,7 @@ function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: b
         variant="primary"
         disabled={!changed}
         loading={busy}
-        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: m.role === "admin" && areas.length === AREAS.length ? null : areas } : {}) })}
+        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: m.role === "admin" && areas.length === AREAS.length ? null : AREAS.map((x) => x.key).filter((k) => areas.includes(k)) } : {}) })}
       >
         احفظ المنصب والصلاحيات
       </Button>

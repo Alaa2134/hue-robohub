@@ -50,48 +50,64 @@ export function sb(): SupabaseClient {
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
 export type Role = "owner" | "admin" | "lead";
-export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string; title?: string | null; permissions?: Area[] | null };
+export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string; title?: string | null; permissions?: string[] | null };
 
 /**
  * What a team member may work in. The owner has everything and sets a list for anyone else; an admin
  * with no list has everything (including the admin tools), a trainer with no list has the basic areas.
  * The database enforces the same areas (private.member_can).
  */
-export type Area = "applications" | "students" | "events" | "content" | "inbox" | "certificates" | "publish" | "settings" | "portfolios" | "notify" | "security";
-export const AREAS: { key: Area; label: string; hint: string }[] = [
-  { key: "students", label: "الطلاب والتدريب", hint: "الطلاب، الحضور، التاسكات، الكويزات، الملفات، الإعلانات والنقاط" },
-  { key: "applications", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
-  { key: "events", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
-  { key: "content", label: "محتوى الموقع والفورمات", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، والفورمات وردودها" },
-  { key: "publish", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى، وتعديل وحذف المنشور" },
-  { key: "portfolios", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
-  { key: "settings", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات" },
-  { key: "notify", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
-  { key: "inbox", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
-  { key: "certificates", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
-  { key: "security", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة" },
+export type Area =
+  | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
+  | "site" | "forms" | "publish" | "portfolios" | "settings"
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security";
+export const AREAS: { key: Area; group: string; label: string; hint: string }[] = [
+  { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة" },
+  { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور" },
+  { key: "quizzes", group: "الطلاب والتدريب", label: "الكويزات", hint: "عمل الكويزات ونتايجها ومسابقة الأسبوع" },
+  { key: "tasks", group: "الطلاب والتدريب", label: "التاسكات", hint: "التاسكات وتسليمات الطلاب وتصحيحها" },
+  { key: "materials", group: "الطلاب والتدريب", label: "المحاضرات والملفات", hint: "رفع ونشر وجدولة المحاضرات والملفات والروابط" },
+  { key: "announcements", group: "الطلاب والتدريب", label: "إعلانات الطلاب", hint: "الإعلانات اللي بتظهر في تطبيق الطالب" },
+  { key: "points", group: "الطلاب والتدريب", label: "النقاط والأوسمة", hint: "ترتيب الطلاب وإضافة نقاط إضافية" },
+  { key: "site", group: "الموقع", label: "محتوى الموقع", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، ومشاريع الطلاب" },
+  { key: "publish", group: "الموقع", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى، وتعديل وحذف المنشور" },
+  { key: "forms", group: "الموقع", label: "الفورمات", hint: "الفورمات (اختبارات الفرق، متطوعين…) وردودها" },
+  { key: "portfolios", group: "الموقع", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
+  { key: "settings", group: "الموقع", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات" },
+  { key: "applications", group: "تاني", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
+  { key: "events", group: "تاني", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
+  { key: "inbox", group: "تاني", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
+  { key: "certificates", group: "تاني", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
+  { key: "notify", group: "تاني", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
+  { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة" },
 ];
+export const TRAINING: Area[] = ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"];
+/** Older lists name the two big areas ("students", "content"); they still mean every part of them. */
+const OLD: Record<string, Area[]> = { students: TRAINING, content: ["site", "forms"] };
 /** A trainer with no list keeps the areas trainers always had; the newer ones are given by name. */
-const BASIC: Area[] = ["applications", "students", "events", "content", "inbox", "certificates"];
+const BASIC = ["applications", "students", "events", "content", "inbox", "certificates"];
 /** The owner, or an admin the owner hasn't limited: every area plus the admin tools (team, deleting, security…). */
 export const isFull = (me: Pick<StaffRow, "role" | "permissions">) => me.role === "owner" || (me.role === "admin" && !me.permissions);
-export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area) => isFull(me) || (me.permissions ?? BASIC).includes(area);
+const granted = (me: Pick<StaffRow, "role" | "permissions">) => (me.permissions ?? BASIC).flatMap((a) => OLD[a] ?? [a as Area]);
+/** "training" = any of the student and training areas (enough to see the student list). */
+export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "training") =>
+  isFull(me) || (area === "training" ? TRAINING.some((a) => granted(me).includes(a)) : granted(me).includes(area));
 
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[] }[] = [
-  { title: "نائب القائد", areas: ["students", "applications", "events", "content", "publish", "portfolios", "settings", "notify", "inbox", "certificates", "security"] },
-  { title: "إداري الموقع", areas: ["content", "publish", "portfolios", "settings", "notify", "inbox", "security"] },
-  { title: "هيد الميديا", areas: ["content", "publish", "portfolios", "notify"] },
-  { title: "المدير التقني", areas: ["students", "events", "certificates"] },
-  { title: "مسؤول الروبوتكس", areas: ["students"] },
-  { title: "مسؤول Embedded وIoT", areas: ["students"] },
-  { title: "مسؤول الذكاء الاصطناعي", areas: ["students"] },
-  { title: "مسؤول البرمجة", areas: ["students"] },
-  { title: "مسؤول الطباعة والتصميم ثلاثي الأبعاد", areas: ["students"] },
-  { title: "مسؤول التنظيم والعمليات", areas: ["events"] },
-  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "students"] },
-  { title: "مسؤول الإعلام والتصميم", areas: ["content"] },
-  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "content"] },
+  { title: "نائب القائد", areas: AREAS.map((a) => a.key) },
+  { title: "إداري الموقع", areas: ["site", "publish", "forms", "portfolios", "settings", "notify", "inbox", "security"] },
+  { title: "هيد الميديا", areas: ["site", "publish", "portfolios", "notify"] },
+  { title: "المدير التقني", areas: [...TRAINING, "events", "certificates"] },
+  { title: "مسؤول الروبوتكس", areas: TRAINING },
+  { title: "مسؤول Embedded وIoT", areas: TRAINING },
+  { title: "مسؤول الذكاء الاصطناعي", areas: TRAINING },
+  { title: "مسؤول البرمجة", areas: TRAINING },
+  { title: "مسؤول الطباعة والتصميم ثلاثي الأبعاد", areas: TRAINING },
+  { title: "مسؤول التنظيم والعمليات", areas: ["events", "attendance"] },
+  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"] },
+  { title: "مسؤول الإعلام والتصميم", areas: ["site"] },
+  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site"] },
   { title: "منظّم", areas: ["events"] },
   { title: "متطوع", areas: ["events"] },
 ];
