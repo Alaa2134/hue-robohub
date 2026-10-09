@@ -118,7 +118,7 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   await page.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByLabel("الاسم بالكامل")).toBeFocused();
   await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
-  await page.getByLabel("رقم الموبايل").fill("01112223334");
+  await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
   await page.getByLabel("السنة الدراسية").selectOption("تانية");
   await page.getByRole("button", { name: "إلكترونيات" }).click();
   await page.getByLabel("موافق إن الفريق يتواصل معايا").check();
@@ -232,4 +232,80 @@ test("Baqloz answers from live data: the next event and places left", async ({ p
   await menu.getByRole("button", { name: "ابعت", exact: true }).click();
   await expect(menu).toContainText("سهرة أردوينو", { timeout: 10_000 });
   await expect(menu).toContainText("فاضل 3 أماكن بس");
+});
+
+const EXPO_FORM = {
+  slug: "robotex-2026",
+  title_ar: "زيارة معرض Robotex & NDTX 2026",
+  intro_ar: "BuildX HUE رايح زيارة لمعرض Robotex 2026",
+  success_ar: "وصلنا طلبك 🎉",
+  team: null,
+  listed: true,
+  open: true,
+  closes_at: inHours(200),
+  fields: [
+    { id: "name", type: "name", label_ar: "الاسم بالكامل (بالعربي)", required: true },
+    { id: "name_en", type: "text", label_ar: "الاسم بالإنجليزي (زي ما هيتكتب على بادج المعرض)", required: true },
+    { id: "phone", type: "phone", label_ar: "رقم الموبايل (واتساب)", required: true },
+    { id: "email", type: "email", label_ar: "الإيميل", required: true },
+    { id: "day", type: "select", label_ar: "اليوم اللي تقدر تيجي فيه", required: true, options: [{ ar: "السبت 14 نوفمبر" }, { ar: "أي يوم" }] },
+    { id: "agree", type: "checkbox", label_ar: "موافق ألتزم بمواعيد وتعليمات الفريق يوم الزيارة", required: true },
+  ],
+};
+
+test("Robotex expo visit page: apply, get a reference code, then check the status", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_form: () => EXPO_FORM,
+      submit_form: () => ({ ok: true, ref: "F-1A2B3C4D" }),
+      form_status: (b) => (b.p_ref === "F-1A2B3C4D" && b.p_phone === "01012345678" ? { ok: true, status: "new", title_ar: EXPO_FORM.title_ar } : { ok: false, error: "not_found" }),
+    },
+  });
+  await page.goto("/ar/robotex/");
+  await expect(page.getByRole("heading", { level: 1, name: "Robotex & NDTX Expo 2026" })).toBeVisible();
+  await expect(page.getByText("مركز مصر للمعارض الدولية").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "موقع المعرض الرسمي" })).toHaveAttribute("href", "https://expo.ndtcorner.com");
+  // The form is right on the page.
+  await page.getByLabel("الاسم بالكامل (بالعربي)").fill("منى عادل");
+  await page.getByLabel("الاسم بالإنجليزي (زي ما هيتكتب على بادج المعرض)").fill("Mona Adel");
+  await page.getByLabel("رقم الموبايل (واتساب)").fill("01012345678");
+  await page.getByLabel("الإيميل").fill("mona@example.com");
+  await page.getByLabel("اليوم اللي تقدر تيجي فيه").selectOption("أي يوم");
+  await page.getByLabel("موافق ألتزم بمواعيد وتعليمات الفريق يوم الزيارة").check();
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("وصلنا طلبك 🎉")).toBeVisible();
+  await expect(page.getByTestId("form-ref")).toHaveText("F-1A2B3C4D");
+  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({ p_slug: "robotex-2026", p_answers: { name: "منى عادل", name_en: "Mona Adel", email: "mona@example.com", day: "أي يوم", agree: true } });
+  // The status link fills in the code; with the phone it shows the status.
+  await page.getByRole("link", { name: "تابع حالة طلبك" }).click();
+  await expect(page.getByLabel("كود الطلب")).toHaveValue("F-1A2B3C4D");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01099999999");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.getByText("مش لاقيين طلب بالكود والرقم دول")).toBeVisible();
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.getByText("طلبك وصل وبيتراجع")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("accepted for the expo visit: the next step is the expo's own registration, then «I've registered»", async ({ page }) => {
+  let done = false;
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_form: () => EXPO_FORM,
+      form_status: () => ({ ok: true, status: "accepted", title_ar: EXPO_FORM.title_ar, accepted_ar: "اتقبلت في زيارة المعرض 🎉 سجّل كزائر في موقع المعرض.", accepted_url: "https://expo.ndtcorner.com/visitor", external_done: done }),
+      form_external_done: () => ((done = true), { ok: true }),
+    },
+  });
+  await page.goto("/ar/robotex/?ref=F-1A2B3C4D#status");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.getByText("اتقبلت 🎉")).toBeVisible();
+  await expect(page.getByText("سجّل كزائر في موقع المعرض.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "افتح موقع التسجيل" })).toHaveAttribute("href", "https://expo.ndtcorner.com/visitor");
+  await page.getByRole("button", { name: "سجّلت في موقع المعرض" }).click();
+  await expect(page.getByText("الفريق عرف إنك سجّلت")).toBeVisible();
+  expect(calls.find((c) => c.fn === "form_external_done")!.body).toEqual({ p_ref: "F-1A2B3C4D", p_phone: "01012345678" });
 });

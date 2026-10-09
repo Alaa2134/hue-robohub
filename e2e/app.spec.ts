@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
 /** BuildX App staff screens, signed in as a mocked owner with mocked Supabase data. */
@@ -1154,4 +1155,51 @@ test("a lecture can be scheduled: hidden until its time, then it publishes itsel
   await page.getByRole("dialog").getByRole("button", { name: "إضافة", exact: true }).click();
   await expect.poll(() => inserted[0]).toMatchObject({ title: "Lecture 7", published: false });
   expect(new Date(String(inserted[0]?.publish_at)).getTime()).toBeGreaterThan(Date.now() + 864e5);
+});
+
+test("expo visit responses: accepted list as Excel, WhatsApp acceptance with the expo link, and who registered there", async ({ page }) => {
+  await signInAsOwner(page);
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex & NDTX 2026", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100),
+    accepted_ar: "اتقبلت", accepted_url: "https://expo.ndtcorner.com/visitor",
+    fields: [
+      { id: "name", type: "name", label_ar: "الاسم بالكامل (بالعربي)", required: true },
+      { id: "name_en", type: "text", label_ar: "الاسم بالإنجليزي", required: true },
+      { id: "phone", type: "phone", label_ar: "رقم الموبايل (واتساب)", required: true },
+    ],
+  };
+  const resp = (id: string, name: string, status: string, ref: string, done: string | null = null) => ({
+    id, form_id: "f1", ref, answers: { name, name_en: "X", phone: "+201012345678" }, name, phone: "+201012345678", email: null, locale: "ar", status, note: null, external_done_at: done, created_at: at(50),
+  });
+  const rows = [resp("r1", "منى عادل", "accepted", "F-1A2B3C4D"), resp("r2", "علي حسن", "accepted", "F-22222222", at(10)), resp("r3", "سارة", "new", "F-33333333")];
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await expect(page.getByText("2 مقبول · 1 سجّلوا في اللينك")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Excel المقبولين" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^buildx-robotex-2026-accepted-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const bytes = readFileSync((await file.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  expect(bytes.toString("utf8")).toContain("منى عادل");
+  expect(bytes.toString("utf8")).not.toContain("سارة");
+  await page.getByText("منى عادل").click();
+  const wa = page.getByRole("link", { name: "ابعتله رسالة القبول على واتساب" });
+  await expect(wa).toHaveAttribute("href", /wa\.me\/201012345678/);
+  const text = decodeURIComponent((await wa.getAttribute("href"))!.split("text=")[1]!);
+  expect(text).toContain("https://expo.ndtcorner.com/visitor");
+  expect(text).toContain("F-1A2B3C4D");
+  expect(text).toContain("https://buildxhue.com/ar/robotex/?ref=F-1A2B3C4D#status");
+  await page.getByRole("switch", { name: /سجّل في اللينك/ }).click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect((patches[0] as { external_done_at: string }).external_done_at).toMatch(/^\d{4}-/);
 });

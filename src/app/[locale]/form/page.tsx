@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { FormFiller } from "@/components/forms/site-forms";
+import { FormFiller, FormStatus } from "@/components/forms/site-forms";
 import { Band } from "@/components/pages/section";
 import { resolvePage, type Params } from "@/lib/page";
 import { pageMeta } from "@/lib/seo";
@@ -17,7 +17,11 @@ export default async function FormPage({ params }: Params) {
   return (
     <Band tight className="pt-24">
       <div className="mx-auto max-w-3xl">
-        <FormFiller locale={locale} listHref={href("/forms")} />
+        <FormFiller locale={locale} listHref={href("/forms")} statusHref={href("/form")} />
+        <section id="status" className="mt-14 grid gap-4">
+          <h2 className="t-headline text-2xl text-chalk">{locale === "ar" ? "تابع طلبك" : "Check your application"}</h2>
+          <FormStatus locale={locale} />
+        </section>
       </div>
     </Band>
   );
