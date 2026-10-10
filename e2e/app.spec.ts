@@ -2334,3 +2334,51 @@ test("expo delegation runs by itself: dates per visit day, waiting list, WhatsAp
   });
   expect(errors).toEqual([]);
 });
+
+test("page builder: schedule a page to show and hide, bring back an older version, and copy a page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const row = {
+    id: "p1", slug: "cairo-ict", title_ar: "زيارة Cairo ICT", title_en: null, description_ar: null, description_en: null, accent: "#2b6dff", settings: {},
+    blocks: [{ id: "h", type: "hero", eyebrow: { ar: "" }, title: { ar: "زيارة Cairo ICT" }, body: { ar: "" }, image: { src: "" }, buttons: [], facts: [] }],
+    published: false, archived: false, updated_at: at(5), publish_at: null, unpublish_at: null,
+  };
+  const old = { id: 7, title_ar: "النسخة القديمة", title_en: null, description_ar: null, description_en: null, accent: "#ff7a45", settings: {}, saved_by: "u1", saved_at: at(60),
+    blocks: [{ id: "h", type: "hero", eyebrow: { ar: "" }, title: { ar: "عنوان قديم" }, body: { ar: "" }, image: { src: "" }, buttons: [], facts: [] }, { id: "t", type: "text", eyebrow: { ar: "" }, title: { ar: "نص" }, body: { ar: "" } }] };
+  const patches: Record<string, unknown>[] = [];
+  const inserts: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_page_versions/, (route) => route.fulfill({ json: [old] }));
+  await page.route(/\/rest\/v1\/site_pages/, (route) => {
+    const m = route.request().method();
+    if (m === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ...row, ...(route.request().postDataJSON() as object) } });
+    }
+    if (m === "POST") {
+      inserts.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: "p2" } });
+    }
+    return route.fulfill({ json: route.request().url().includes("select=slug") ? [{ slug: "cairo-ict" }, { slug: "cairo-ict-copy" }] : [row] });
+  });
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/pages/p1");
+  // Schedule: up on 1 Nov, down after the visit (Cairo time).
+  const sched = page.getByTestId("page-schedule");
+  await sched.locator("summary").click();
+  await sched.getByLabel("تظهر على الموقع من").fill("2026-11-01T09:00");
+  await sched.getByLabel("وتختفي بعد").fill("2026-11-17T00:00");
+  await sched.getByRole("button", { name: "احفظ الجدولة" }).click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ publish_at: "2026-11-01T07:00:00.000Z", unpublish_at: "2026-11-16T22:00:00.000Z" });
+  // An older version comes back into the editor; saving puts it on the site.
+  await page.getByRole("button", { name: "النسخ القديمة" }).click();
+  await page.getByTestId("page-versions").getByRole("button", { name: "رجّعها" }).click();
+  await expect(page.getByTestId("page-blocks").getByTestId("block-card")).toHaveCount(2);
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ title_ar: "النسخة القديمة", accent: "#ff7a45" });
+  // A copy starts as a draft at a free address.
+  await page.getByRole("button", { name: "اعمل نسخة من الصفحة" }).click();
+  await expect.poll(() => inserts[0]).toMatchObject({ slug: "cairo-ict-copy-2", published: false });
+  await expect(page).toHaveURL(/#\/staff\/pages\/p2$/);
+  expect(errors).toEqual([]);
+});

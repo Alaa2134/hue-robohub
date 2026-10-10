@@ -11,6 +11,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { ICON_NAMES } from "@/components/brand/icons";
 import photos from "@/content/expo-photos.json";
 import { BLOCK_KINDS, BUILT_IN, TEMPLATES, imageOf, newBlock, robotexPage, uidOf, type Block, type BlockType, type Btn, type Countdown, type Img, type PageSettings, type SitePage, type T } from "@/lib/site-pages";
+import { fromZonedInput, toZonedInput } from "@/lib/zoned";
 import { SITE_ORIGIN, can, errorText, fmt, must, sb, savedText, uploadImage, type StaffRow } from "./core";
 import { Sortable, moved, type HandleProps } from "./sortable";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync, type IconKey } from "./ui";
@@ -30,7 +31,12 @@ type PageRow = {
   published: boolean;
   archived: boolean;
   updated_at: string;
+  /** Goes up / comes down by itself (Cairo time in the editor). */
+  publish_at?: string | null;
+  unpublish_at?: string | null;
 };
+type Version = { id: number; title_ar: string; title_en: string | null; description_ar: string | null; description_en: string | null; accent: string; blocks: Block[]; settings: PageSettings; saved_by: string | null; saved_at: string };
+const COLS = "id, slug, title_ar, title_en, description_ar, description_en, accent, blocks, settings, published, archived, updated_at, publish_at, unpublish_at";
 type FormLite = { id: string; slug: string; title_ar: string; open: boolean; archived: boolean; opens_at: string | null; closes_at: string | null };
 
 const formsOf = (blocks: Block[]) => [...new Set(blocks.flatMap((b) => (b.type === "form" && b.form ? [b.form] : [])))];
@@ -44,7 +50,7 @@ const asPage = (r: Pick<PageRow, "slug" | "title_ar" | "title_en" | "description
   blocks: r.blocks,
   settings: r.settings,
 });
-const fromPage = (p: SitePage): Omit<PageRow, "id" | "published" | "archived" | "updated_at"> => ({
+const fromPage = (p: SitePage): Omit<PageRow, "id" | "published" | "archived" | "updated_at" | "publish_at" | "unpublish_at"> => ({
   slug: p.slug,
   title_ar: p.title.ar,
   title_en: p.title.en || null,
@@ -88,7 +94,7 @@ function FormSwitch({ form, onChange }: { form: FormLite; onChange: (f: FormLite
 export function PagesScreen({ me }: { me: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [pages, forms] = await Promise.all([
-      sb().from("site_pages").select("id, slug, title_ar, title_en, description_ar, description_en, accent, blocks, settings, published, archived, updated_at").order("updated_at", { ascending: false }).then(must) as Promise<PageRow[]>,
+      sb().from("site_pages").select(COLS).order("updated_at", { ascending: false }).then(must) as Promise<PageRow[]>,
       sb().from("forms").select("id, slug, title_ar, open, archived, opens_at, closes_at").then(must) as Promise<FormLite[]>,
     ]);
     return { pages, forms };
@@ -197,13 +203,126 @@ function NewPageSheet({ open, onClose, taken }: { open: boolean; onClose: () => 
   );
 }
 
+/** Up and down by itself: two times in Cairo time (empty = no schedule). */
+function Schedule({ row, busy, onSave }: { row: PageRow; busy: boolean; onSave: (p: Pick<PageRow, "publish_at" | "unpublish_at">) => void }) {
+  const [from, setFrom] = useState(toZonedInput(row.publish_at ?? null));
+  const [to, setTo] = useState(toZonedInput(row.unpublish_at ?? null));
+  const changed = from !== toZonedInput(row.publish_at ?? null) || to !== toZonedInput(row.unpublish_at ?? null);
+  const now = Date.now();
+  const live = !row.archived && (row.published || (!!row.publish_at && new Date(row.publish_at).getTime() <= now)) && (!row.unpublish_at || new Date(row.unpublish_at).getTime() > now);
+  return (
+    <details className="rounded-xl border border-[var(--line-2)] p-3" data-testid="page-schedule" open={!!(row.publish_at || row.unpublish_at)}>
+      <summary className="cursor-pointer text-sm font-semibold text-chalk">
+        جدولة (تظهر وتختفي لوحدها) {(row.publish_at || row.unpublish_at) && <Badge tone={live ? "ok" : "info"}>{live ? "ظاهرة دلوقتي" : "مجدولة"}</Badge>}
+      </summary>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="تظهر على الموقع من" hint="بتوقيت القاهرة. فاضي = حسب «منشورة».">
+          <Input type="datetime-local" dir="ltr" value={from} onChange={(e) => setFrom(e.target.value)} />
+        </Field>
+        <Field label="وتختفي بعد" hint="مثلاً بعد ما المعرض يخلص.">
+          <Input type="datetime-local" dir="ltr" value={to} onChange={(e) => setTo(e.target.value)} />
+        </Field>
+      </div>
+      <div className="mt-3 flex gap-2">
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={!changed || busy}
+          onClick={() => {
+            const a = fromZonedInput(from);
+            const b = fromZonedInput(to);
+            if (a && b && b <= a) return toast("ميعاد الاختفاء لازم يبقى بعد ميعاد الظهور", "error");
+            onSave({ publish_at: a?.toISOString() ?? null, unpublish_at: b?.toISOString() ?? null });
+          }}
+        >
+          احفظ الجدولة
+        </Button>
+        {(row.publish_at || row.unpublish_at) && (
+          <Button size="sm" disabled={busy} onClick={() => (setFrom(""), setTo(""), onSave({ publish_at: null, unpublish_at: null }))}>
+            شيل الجدولة
+          </Button>
+        )}
+      </div>
+    </details>
+  );
+}
+
+/** Every save keeps the version before it: the last 30, each one can come back into the editor. */
+function VersionsSheet({ open, pageId, onClose, onRestore }: { open: boolean; pageId: string; onClose: () => void; onRestore: (v: Version) => void }) {
+  const { data, error, loading, reload } = useAsync(
+    async () =>
+      open
+        ? ((await sb().from("site_page_versions").select("id, title_ar, title_en, description_ar, description_en, accent, blocks, settings, saved_by, saved_at").eq("page_id", pageId).order("saved_at", { ascending: false }).limit(30).then(must)) as Version[])
+        : null,
+    [open, pageId],
+  );
+  return (
+    <Sheet open={open} onClose={onClose} title="النسخ القديمة">
+      {loading && !data ? (
+        <Loading />
+      ) : error ? (
+        <ErrorBox error={error} retry={reload} />
+      ) : !data?.length ? (
+        <Empty icon="refresh" title="مفيش نسخ قديمة لسه" body="كل ما تحفظ، النسخة اللي قبلها بتتحفظ هنا." />
+      ) : (
+        <div className="grid gap-2" data-testid="page-versions">
+          {data.map((v) => (
+            <Card key={v.id} className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-chalk">{v.title_ar}</p>
+                <p className="text-xs text-fog">
+                  {fmt.dateTime(v.saved_at)} · {v.blocks.length} جزء
+                </p>
+              </div>
+              <Button size="sm" onClick={() => onRestore(v)}>
+                رجّعها
+              </Button>
+            </Card>
+          ))}
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** A copy of the page (as a draft) to start the next event from. */
+function DuplicateButton({ row }: { row: PageRow }) {
+  const [busy, setBusy] = useState(false);
+  const copy = async () => {
+    setBusy(true);
+    try {
+      const taken = new Set(((await sb().from("site_pages").select("slug").then(must)) as { slug: string }[]).map((x) => x.slug));
+      const base = `${row.slug.replace(/-copy(-\d+)?$/, "").slice(0, 40)}-copy`;
+      let slug = base;
+      for (let n = 2; taken.has(slug) || BUILT_IN[slug]; n++) slug = `${base}-${n}`;
+      const out = (await sb()
+        .from("site_pages")
+        .insert({ ...fromPage(asPage(row)), slug, title_ar: `${row.title_ar} (نسخة)`.slice(0, 160), published: false })
+        .select("id")
+        .single()
+        .then(must)) as { id: string };
+      toast("اتعملت نسخة (مسودة)");
+      go(`/staff/pages/${out.id}`);
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Button icon="copy" loading={busy} onClick={() => void copy()}>
+      اعمل نسخة من الصفحة
+    </Button>
+  );
+}
+
 /* ─── The editor ───────────────────────────────────────────────────────── */
 
 type Ctx = { en: boolean; forms: FormLite[] };
 
 export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
-    const q = sb().from("site_pages").select("id, slug, title_ar, title_en, description_ar, description_en, accent, blocks, settings, published, archived, updated_at");
+    const q = sb().from("site_pages").select(COLS);
     const [rows, forms] = await Promise.all([
       (id === "robotex" ? q.eq("slug", "robotex") : q.eq("id", id)).then(must) as Promise<PageRow[]>,
       sb().from("forms").select("id, slug, title_ar, open, archived, opens_at, closes_at").order("created_at", { ascending: false }).then(must) as Promise<FormLite[]>,
@@ -217,6 +336,7 @@ export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [versions, setVersions] = useState(false);
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
   if (!data.row) return <ErrorBox error={new Error("الصفحة دي مش موجودة")} />;
@@ -234,7 +354,12 @@ export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
     if (!next.title_ar.trim()) return toast("اكتب اسم الصفحة", "error");
     setBusy(extra.published !== undefined ? "publish" : "save");
     try {
-      const body = { ...fromPage(asPage(next)), ...(extra.published !== undefined || !data.saved ? { published: next.published && canPublish } : {}), ...(extra.archived !== undefined ? { archived: next.archived } : {}) };
+      const body = {
+        ...fromPage(asPage(next)),
+        ...(extra.published !== undefined || !data.saved ? { published: next.published && canPublish } : {}),
+        ...(extra.archived !== undefined ? { archived: next.archived } : {}),
+        ...("publish_at" in extra || "unpublish_at" in extra ? { publish_at: next.publish_at ?? null, unpublish_at: next.unpublish_at ?? null } : {}),
+      };
       const out = (data.saved
         ? await sb().from("site_pages").update(body).eq("id", row.id).select("*").single().then(must)
         : await sb().from("site_pages").insert(body).select("*").single().then(must)) as PageRow;
@@ -278,6 +403,7 @@ export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
           label={row.published ? "منشورة على الموقع" : "مسودة (مش ظاهرة على الموقع)"}
           hint={canPublish ? "التعديلات بتظهر على الموقع أول ما تحفظ." : "النشر محتاج صلاحية «النشر على الموقع»."}
         />
+        {canPublish && data.saved && <Schedule row={row} busy={!!busy} onSave={(p) => void save(p, p.publish_at || p.unpublish_at ? "اتجدولت ✓" : "اتشالت الجدولة")} />}
         <div className="flex flex-wrap gap-2">
           <Button size="sm" icon="copy" onClick={() => copyText(siteLink(row.slug), "اتنسخ لينك الصفحة")}>
             انسخ اللينك
@@ -376,7 +502,24 @@ export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
         {!builtIn && data.saved && (
           <Button onClick={() => void save({ archived: !row.archived, ...(row.archived ? {} : { published: false }) }, row.archived ? "رجعت من الأرشيف" : "اتنقلت للأرشيف")}>{row.archived ? "رجّعها من الأرشيف" : "أرشيف"}</Button>
         )}
+        {data.saved && (
+          <Button icon="refresh" onClick={() => setVersions(true)}>
+            النسخ القديمة
+          </Button>
+        )}
+        {data.saved && can(me, "pages") && <DuplicateButton row={row} />}
       </div>
+
+      <VersionsSheet
+        open={versions}
+        pageId={row.id}
+        onClose={() => setVersions(false)}
+        onRestore={(v) => {
+          edit({ title_ar: v.title_ar, title_en: v.title_en, description_ar: v.description_ar, description_en: v.description_en, accent: v.accent, blocks: v.blocks, settings: v.settings });
+          setVersions(false);
+          toast("رجعت النسخة دي في المحرر. احفظ عشان تظهر على الموقع.", "info");
+        }}
+      />
 
       <Sheet open={adding} onClose={() => setAdding(false)} title="ضيف جزء">
         <div className="grid gap-2 sm:grid-cols-2" data-testid="block-palette">
