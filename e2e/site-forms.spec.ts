@@ -290,7 +290,7 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
   expect(errors).toEqual([]);
 });
 
-test("accepted for the expo visit: the next step is the expo's own registration, then «I've registered»", async ({ page }) => {
+test("accepted with a next step on another site: open it, then «I've registered»", async ({ page }) => {
   let done = false;
   const calls = await mockSupabase(page, {
     rpc: {
@@ -308,4 +308,43 @@ test("accepted for the expo visit: the next step is the expo's own registration,
   await page.getByRole("button", { name: "سجّلت في موقع المعرض" }).click();
   await expect(page.getByText("الفريق عرف إنك سجّلت")).toBeVisible();
   expect(calls.find((c) => c.fn === "form_external_done")!.body).toEqual({ p_ref: "F-1A2B3C4D", p_phone: "01012345678" });
+});
+
+test("Robotex: accepted means registered — the delegation pass with the number, the live count, the day plan and the album", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await mockSupabase(page, {
+    rpc: {
+      public_form: () => EXPO_FORM,
+      form_delegation: () => ({ accepted: 12, capacity: 40, days: { "السبت 14 نوفمبر": 7, "أي يوم": 5 } }),
+      form_status: () => ({
+        ok: true, status: "accepted", title_ar: EXPO_FORM.title_ar, accepted_ar: "اتقبلت واتسجلت في وفد BuildX HUE 🎉", accepted_url: null, external_done: true,
+        pass: { no: "BX-007", ref: "F-1A2B3C4D", name: "منى عادل", name_en: "Mona Adel", day: "السبت 14 نوفمبر", org: "Horus University", event: "Robotex & NDTX Expo 2026", dates: "14–16 November 2026", venue: "Egypt International Exhibition Center (EIEC), New Cairo", meet_ar: "التجمع 8:30 قدام بوابة الجامعة" },
+      }),
+    },
+  });
+  await page.goto("/ar/robotex/?ref=F-1A2B3C4D");
+  // Live: how many are going, and the places left.
+  const counter = page.getByTestId("delegation-counter");
+  await expect(counter).toContainText("12");
+  await expect(counter).toContainText("فاضل 28 مكان");
+  await expect(counter).toContainText("السبت 14 نوفمبر: 7");
+  // The day's plan and what to bring.
+  await expect(page.getByRole("heading", { name: "اليوم هيمشي إزاي" })).toBeVisible();
+  await expect(page.getByText("تصريح الوفد (سكرين شوت)")).toBeVisible();
+  // No step on the expo's site any more: accepted = registered, with a pass.
+  await expect(page.getByText("اتسجّلت علطول", { exact: true })).toBeVisible();
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  const pass = page.getByTestId("delegation-pass");
+  await expect(pass).toContainText("BX-007");
+  await expect(pass).toContainText("منى عادل");
+  await expect(pass).toContainText("Mona Adel");
+  await expect(pass).toContainText("التجمع 8:30 قدام بوابة الجامعة");
+  await expect(pass).toContainText("اتسجّلت في موقع المعرض");
+  await expect(pass.locator("img")).toHaveAttribute("src", /^data:image\/png/);
+  await expect(page.getByRole("link", { name: "افتح موقع التسجيل" })).toHaveCount(0);
+  // The album waits for the visit's photos.
+  await expect(page.getByText("صور الوفد من المعرض هتنزل هنا بعد الزيارة")).toBeVisible();
+  expect(errors).toEqual([]);
 });

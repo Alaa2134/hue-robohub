@@ -244,10 +244,11 @@ export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { k
 
 /* ─── Gallery ──────────────────────────────────────────────────────────── */
 
-export function LiveGallery({ locale, initial }: { locale: string; initial?: SiteItem[] }) {
+export function LiveGallery({ locale, initial, tag, empty }: { locale: string; initial?: SiteItem[]; /** Only this album (e.g. one event's photos). */ tag?: string; empty?: string }) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("photo", 500), [], initial?.length ? initial : undefined);
-  const [album, setAlbum] = useState("");
+  const [picked, setAlbum] = useState("");
+  const album = tag ?? picked;
   const [open, setOpen] = useState<number | null>(null);
   const photos = (s.data ?? []).filter((p) => p.image_path && (!album || p.tags.includes(album)));
   useEffect(() => {
@@ -262,8 +263,8 @@ export function LiveGallery({ locale, initial }: { locale: string; initial?: Sit
   }, [open, photos.length]);
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton n={6} />;
-  if (!s.data.length) return <Note>{t.empty}</Note>;
-  const albums = [...new Set(s.data.flatMap((p) => p.tags))];
+  if (!s.data.length || (tag && !photos.length)) return <Note>{empty ?? t.empty}</Note>;
+  const albums = tag ? [] : [...new Set(s.data.flatMap((p) => p.tags))];
   const cur = open !== null ? photos[open] : null;
   return (
     <>

@@ -138,3 +138,95 @@ export function xlsxBytes(rows: Cell[][], { sheet = "Sheet1", rtl = true } = {})
 export function downloadXlsx(filename: string, rows: Cell[][], opts?: { sheet?: string; rtl?: boolean }) {
   download(new Blob([xlsxBytes(rows, opts) as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
 }
+
+/* ─── Formatted workbooks (for sending outside the team) ───────────────── */
+
+/** Cell looks: a title band, a subtitle, info labels, a coloured header, bordered (and striped) rows, totals. */
+export type XStyle = "text" | "bold" | "title" | "sub" | "label" | "th" | "td" | "tdAlt" | "total";
+const XF: Record<XStyle, number> = { text: 0, bold: 1, title: 2, sub: 3, label: 4, th: 5, td: 6, tdAlt: 7, total: 8 };
+export type XRow = { cells: Cell[]; style?: XStyle; styles?: (XStyle | undefined)[]; height?: number };
+export type XSheet = { name: string; rows: XRow[]; widths: number[]; merges?: string[]; freeze?: number; rtl?: boolean; landscape?: boolean };
+
+const STYLED_CSS =
+  `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+  `<fonts count="6"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font>` +
+  `<font><b/><sz val="18"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><sz val="11"/><color rgb="FF45526B"/><name val="Calibri"/></font>` +
+  `<font><b/><sz val="11"/><color rgb="FF0B1F4D"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>` +
+  `<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FF0B1F4D"/><bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFF4F7FB"/><bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FF2B6DFF"/><bgColor indexed="64"/></patternFill></fill>` +
+  `<fill><patternFill patternType="solid"><fgColor rgb="FFE8EEF9"/><bgColor indexed="64"/></patternFill></fill></fills>` +
+  `<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>` +
+  `<border><left style="thin"><color rgb="FFC9D3E3"/></left><right style="thin"><color rgb="FFC9D3E3"/></right><top style="thin"><color rgb="FFC9D3E3"/></top><bottom style="thin"><color rgb="FFC9D3E3"/></bottom><diagonal/></border></borders>` +
+  `<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9">` +
+  `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="center"/></xf>` +
+  `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"><alignment vertical="center"/></xf>` +
+  `<xf numFmtId="0" fontId="2" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>` +
+  `<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>` +
+  `<xf numFmtId="0" fontId="4" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+  `<xf numFmtId="0" fontId="5" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>` +
+  `<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>` +
+  `<xf numFmtId="0" fontId="0" fillId="3" borderId="1" xfId="0" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>` +
+  `<xf numFmtId="0" fontId="4" fillId="5" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+  `</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+
+function styledSheetXml(s: XSheet) {
+  const last = colName(Math.max(0, s.widths.length - 1));
+  const body = s.rows
+    .map((r, ri) => {
+      const n = ri + 1;
+      const cells = r.cells
+        .map((v, ci) => {
+          const ref = `${colName(ci)}${n}`;
+          const st = ` s="${XF[r.styles?.[ci] ?? r.style ?? "text"]}"`;
+          if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"${st}><v>${v}</v></c>`;
+          const text = v == null ? "" : String(v);
+          return text ? `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${esc(text)}</t></is></c>` : `<c r="${ref}"${st}/>`;
+        })
+        .join("");
+      return `<row r="${n}"${r.height ? ` ht="${r.height}" customHeight="1"` : ""}>${cells}</row>`;
+    })
+    .join("");
+  const pane = s.freeze ? `<pane ySplit="${s.freeze}" topLeftCell="A${s.freeze + 1}" activePane="bottomLeft" state="frozen"/>` : "";
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">` +
+    `<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:${last}${Math.max(1, s.rows.length)}"/>` +
+    `<sheetViews><sheetView workbookViewId="0" showGridLines="0"${s.rtl ? ' rightToLeft="1"' : ""}>${pane}</sheetView></sheetViews>` +
+    `<sheetFormatPr defaultRowHeight="20"/>` +
+    `<cols>${s.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>` +
+    `<sheetData>${body}</sheetData>` +
+    (s.merges?.length ? `<mergeCells count="${s.merges.length}">${s.merges.map((m) => `<mergeCell ref="${m}"/>`).join("")}</mergeCells>` : "") +
+    `<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/>` +
+    `<pageSetup paperSize="9" orientation="${s.landscape === false ? "portrait" : "landscape"}" fitToWidth="1" fitToHeight="0"/>` +
+    `</worksheet>`
+  );
+}
+
+/** The .xlsx bytes for formatted sheets. */
+export function styledXlsxBytes(sheets: XSheet[]) {
+  const ids = sheets.map((_, i) => i + 1);
+  const files: [string, string][] = [
+    [
+      "[Content_Types].xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${ids.map((i) => `<Override PartName="/xl/worksheets/sheet${i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+    ],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+    [
+      "xl/workbook.xml",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s, i) => `<sheet name="${esc(s.name.replace(/[\\/?*[\]:]/g, " ").slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets></workbook>`,
+    ],
+    [
+      "xl/_rels/workbook.xml.rels",
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${ids.map((i) => `<Relationship Id="rId${i}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    ],
+    ["xl/styles.xml", STYLED_CSS],
+    ...sheets.map((s, i): [string, string] => [`xl/worksheets/sheet${i + 1}.xml`, styledSheetXml(s)]),
+  ];
+  return zip(files);
+}
+
+export function downloadStyledXlsx(filename: string, sheets: XSheet[]) {
+  download(new Blob([styledXlsxBytes(sheets) as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+}
