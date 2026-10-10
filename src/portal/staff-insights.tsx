@@ -22,6 +22,7 @@ const KIND: Record<string, string> = {
   login_failed: "محاولة دخول طالب غلط",
   account_locked: "حساب طالب اتقفل مؤقتًا",
   pin_change_failed: "محاولة تغيير رمز بالرمز الغلط",
+  auto_blocked: "عنوان اتحظر لوحده (هجوم متكرر)",
 };
 const BUCKET: Record<string, string> = { apply: "التقديم", login: "دخول الطلاب", pin_change: "تغيير الرمز", view: "زيارات الموقع", client_error: "تقارير الأخطاء" };
 const SEVERITY_TONE = { 1: "muted", 2: "warn", 3: "danger" } as const;
@@ -55,6 +56,7 @@ function eventDetail(e: SecEvent) {
   if (e.kind === "rate_limited" || e.kind === "blocked_ip") return BUCKET[String(d.bucket)] ?? String(d.bucket ?? "");
   if (e.kind === "account_locked" || e.kind === "login_failed") return d.code ? `كود ${String(d.code)}${d.attempts ? ` · محاولة ${String(d.attempts)}` : ""}` : "كود مش موجود";
   if (e.kind === "apply_flood") return `${String(d.last_minute ?? "")} طلب في دقيقة`;
+  if (e.kind === "auto_blocked") return `${String(d.hours ?? "")} ساعة`;
   return "";
 }
 

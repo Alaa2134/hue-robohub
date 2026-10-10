@@ -390,6 +390,7 @@ test("a page built in the app: /p/<slug> opens it, with its parts in the team's 
       { id: "q", type: "faq", anchor: "faq", nav: { ar: "أسئلة" }, eyebrow: { ar: "" }, title: { ar: "أسئلة الزيارة" }, items: [{ q: { ar: "الزيارة مجانية؟" }, a: { ar: "أيوه مجانية." } }] },
       { id: "s", type: "steps", anchor: "how", nav: { ar: "الخطوات" }, eyebrow: { ar: "" }, title: { ar: "ماشية إزاي" }, items: [{ title: { ar: "قدّم" }, body: { ar: "املأ الفورم" } }] },
       { id: "x", type: "text", hidden: true, eyebrow: { ar: "" }, title: { ar: "جزء مخفي" }, body: { ar: "مش ظاهر" } },
+      { id: "l", type: "buttons", eyebrow: { ar: "" }, title: { ar: "لينكات" }, buttons: [{ label: { ar: "لينك خبيث" }, href: "javascript:alert(1)" }, { label: { ar: "لينك سليم" }, href: "https://example.com/" }] },
       { id: "bad", type: "script", title: { ar: "x" } },
     ],
   };
@@ -401,6 +402,9 @@ test("a page built in the app: /p/<slug> opens it, with its parts in the team's 
   expect(titles.findIndex((t) => t.includes("أسئلة الزيارة"))).toBeLessThan(titles.findIndex((t) => t.includes("ماشية إزاي")));
   await expect(page.getByTestId("page-nav").getByRole("link", { name: "أسئلة" })).toHaveAttribute("href", "#faq");
   await expect(page.getByText("جزء مخفي")).toHaveCount(0);
+  // A link someone saved as javascript: never runs; real links stay.
+  await expect(page.getByRole("link", { name: "لينك خبيث" })).toHaveAttribute("href", "#");
+  await expect(page.getByRole("link", { name: "لينك سليم" })).toHaveAttribute("href", "https://example.com/");
   await page.getByText("الزيارة مجانية؟").click();
   await expect(page.getByText("أيوه مجانية.")).toBeVisible();
   expect(calls.some((c) => c.fn === "site_page")).toBe(true);

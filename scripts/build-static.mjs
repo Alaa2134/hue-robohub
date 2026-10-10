@@ -142,8 +142,14 @@ for (const sec of ["team", "news", "projects", "events"]) for (const l of ["", "
   if (ar.length === 2 && existsSync(path.join(out, "ar")))
     for (const f of walk(path.join(out, "ar")).filter((f) => f.endsWith(".html"))) {
       const s = readFileSync(f, "utf8");
-      let i = 0;
-      const t = s.replace(latin, (_m, dir) => (i < ar.length ? `<link rel="preload" href="${dir}${ar[i++]}" as="font" crossorigin="" type="font/woff2"/>` : ""));
+      // Each Latin font file becomes an Arabic one everywhere in the page: in the preload tags and
+      // in the page data's font hints, so React doesn't add the Latin preloads back into <head>
+      // while it hydrates (that raced with hydration and made it start over on slow phones).
+      const files = [...new Set([...s.matchAll(latin)].map((m) => m[0].match(/media\/([^"]+)"/)?.[1]).filter(Boolean))];
+      let t = s;
+      files.forEach((file, i) => {
+        if (i < ar.length) t = t.split(file).join(ar[i]);
+      });
       if (t !== s) (writeFileSync(f, t), n++);
     }
   log(`arabic font preloads in ${n} pages`);
