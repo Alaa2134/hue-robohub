@@ -12,9 +12,28 @@ import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { downloadStyledXlsx, type XRow } from "./xlsx";
 import { Scanner } from "./scanner";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, List, Loading, Row, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, List, Loading, Row, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
-export type Delegation = { event?: string; venue?: string; dates?: string; org?: string; lead_name?: string; lead_phone?: string; meet_ar?: string; /** The expo's own visitor registration, filled in by the team for each delegate. */ register_url?: string };
+export type Delegation = {
+  event?: string;
+  venue?: string;
+  dates?: string;
+  org?: string;
+  lead_name?: string;
+  lead_phone?: string;
+  meet_ar?: string;
+  /** The expo's own visitor registration, filled in by the team for each delegate. */
+  register_url?: string;
+  /** Each visit-day choice's date (YYYY-MM-DD), or one date when the form doesn't ask for a day. */
+  day_dates?: Record<string, string>;
+  visit_date?: string;
+  /** Running by itself (20261011210000_expo_automation.sql). Templates are "name|language". */
+  auto_waitlist?: boolean;
+  accept_template?: string;
+  remind?: boolean;
+  remind_template?: string;
+  auto_no_show?: boolean;
+};
 type Answers = Record<string, string | string[]>;
 export type DelegateResponse = { id: string; ref: string; name: string | null; phone: string | null; email: string | null; status: string; member_no: number | null; accepted_at: string | null; external_done_at?: string | null; checked_in_at?: string | null; messaged_at?: string | null; answers: Answers };
 type DelegationForm = { title_ar: string; slug: string; delegation: Delegation | null; capacity: number | null };
@@ -298,9 +317,9 @@ export function DelegationCard({ form, responses, actions }: { form: DelegationF
 }
 
 /** Form editor: make the form a delegation and fill its details. */
-export function DelegationSettings({ delegation, capacity, onChange }: { delegation: Delegation | null; capacity: number | null; onChange: (p: { delegation?: Delegation | null; capacity?: number | null }) => void }) {
+export function DelegationSettings({ delegation, capacity, dayOptions = [], onChange }: { delegation: Delegation | null; capacity: number | null; dayOptions?: string[]; onChange: (p: { delegation?: Delegation | null; capacity?: number | null }) => void }) {
   const g = delegation ?? {};
-  const set = (k: keyof Delegation, v: string) => onChange({ delegation: { ...g, [k]: v } });
+  const set = <K extends keyof Delegation>(k: K, v: Delegation[K]) => onChange({ delegation: { ...g, [k]: v } });
   return (
     <Card className="grid gap-3">
       <Toggle
@@ -340,6 +359,7 @@ export function DelegationSettings({ delegation, capacity, onChange }: { delegat
           <Field label="التجمع والمواعيد (بيظهر في تصريح المقبولين)">
             <Textarea rows={2} maxLength={500} value={g.meet_ar ?? ""} placeholder="التجمع 8:30 الصبح قدام بوابة الجامعة، والأتوبيس بيتحرك 9 بالظبط." onChange={(e) => set("meet_ar", e.target.value)} />
           </Field>
+          <DelegationAutomation g={g} capacity={capacity} dayOptions={dayOptions} set={set} />
         </>
       )}
     </Card>
@@ -424,6 +444,76 @@ export function MessageQueue({ responses, message, phoneLink, onSent, onClose }:
         })}
       </div>
     </Sheet>
+  );
+}
+
+type WaTemplate = { name: string; language: string; body?: string | null };
+
+/** What runs by itself: dates per day, waiting list, WhatsApp acceptance and reminder, no-show bans. */
+function DelegationAutomation({ g, capacity, dayOptions, set }: { g: Delegation; capacity: number | null; dayOptions: string[]; set: <K extends keyof Delegation>(k: K, v: Delegation[K]) => void }) {
+  // The approved WhatsApp templates (only for people who can see the WhatsApp screen; others type the name).
+  const wa = useAsync(async () => {
+    try {
+      return await rpc<{ connected: boolean; templates: WaTemplate[] }>("staff_whatsapp_status");
+    } catch {
+      return null;
+    }
+  }, []);
+  const dated = dayOptions.length ? dayOptions.some((d) => g.day_dates?.[d]) : !!g.visit_date;
+  const pick = (k: "accept_template" | "remind_template", label: string, hint: string) => (
+    <Field label={label} hint={hint}>
+      {wa.data?.templates.length ? (
+        <Select value={g[k] ?? ""} onChange={(e) => set(k, e.target.value || undefined)}>
+          <option value="">من غير رسالة</option>
+          {wa.data.templates.map((t) => (
+            <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+              {t.name} ({t.language})
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <Input dir="ltr" value={g[k] ?? ""} placeholder="template_name|ar" maxLength={120} onChange={(e) => set(k, e.target.value.trim() || undefined)} />
+      )}
+    </Field>
+  );
+  return (
+    <div className="grid gap-3 rounded-xl border border-[var(--line)] p-3" data-testid="delegation-auto">
+      <p className="text-sm font-semibold text-chalk">بيشتغل لوحده</p>
+      {dayOptions.length ? (
+        <div className="grid gap-2">
+          <p className="text-xs text-fog">تاريخ كل يوم من أيام الزيارة (التذكير والحظر بيمشوا على يوم كل واحد):</p>
+          {dayOptions.map((d) => (
+            <label key={d} className="flex items-center gap-2 text-sm text-mist">
+              <span className="min-w-0 flex-1 truncate">{d}</span>
+              <Input type="date" className="w-44" dir="ltr" aria-label={`تاريخ ${d}`} value={g.day_dates?.[d] ?? ""} onChange={(e) => set("day_dates", { ...(g.day_dates ?? {}), [d]: e.target.value })} />
+            </label>
+          ))}
+          <p className="text-[11px] text-fog">لـ «أي يوم» حط آخر يوم، عشان الحظر مايتحسبش عليهم بدري.</p>
+        </div>
+      ) : (
+        <Field label="تاريخ الزيارة">
+          <Input type="date" dir="ltr" value={g.visit_date ?? ""} onChange={(e) => set("visit_date", e.target.value || undefined)} />
+        </Field>
+      )}
+      <Toggle
+        checked={!!g.auto_waitlist}
+        onChange={(v) => set("auto_waitlist", v)}
+        disabled={!capacity}
+        label="قائمة انتظار تلقائية"
+        hint={capacity ? "لما الوفد يكمل، اللي يتقبل يروح قايمة الانتظار. ولو حد اتشال أو زوّدت العدد، أول واحد في الانتظار ياخد مكانه برقمه." : "حط أقصى عدد للوفد الأول."}
+      />
+      {pick("accept_template", "رسالة القبول على الواتساب", "بتتبعت لوحدها لكل واحد يتقبل (واللي يطلع من الانتظار). {{1}} الاسم، {{2}} اليوم، {{3}} التجمع، {{4}} رقم الوفد، {{5}} المعرض.")}
+      <Toggle checked={!!g.remind} onChange={(v) => set("remind", v)} disabled={!dated} label="تذكير قبلها بيوم على الواتساب" hint={dated ? "من الضهر في اليوم اللي قبل زيارة كل واحد." : "حط تاريخ الزيارة الأول."} />
+      {g.remind && pick("remind_template", "قالب التذكير", "نفس الأماكن: {{1}} الاسم، {{2}} اليوم، {{3}} التجمع، {{4}} رقم الوفد، {{5}} المعرض.")}
+      <Toggle
+        checked={!!g.auto_no_show}
+        onChange={(v) => set("auto_no_show", v)}
+        disabled={!dated}
+        label="اللي مجاش ياخد الحظر لوحده"
+        hint={dated ? "بعد يومه الساعة 10 بالليل: اللي اتقبل ومعملش سكان بالـ QR بيتحظر من الكميونيتي وتتسحب عضويته (وافق على كده وهو بيقدّم). بس في يوم الفريق استخدم فيه السكان." : "حط تاريخ الزيارة الأول."}
+      />
+      {wa.data && !wa.data.connected && (g.accept_template || g.remind) && <p className="text-xs text-warn">واتساب مش مربوط، فالرسايل مش هتطلع لحد ما المالك يربطه.</p>}
+    </div>
   );
 }
 

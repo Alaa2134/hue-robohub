@@ -39,10 +39,37 @@ async function shareFile(blob: Blob, name: string) {
   await Share.share({ title: name, files: [uri], dialogTitle: name });
 }
 
+/**
+ * A screen opened with "view only" permission: changes to its tables (and file uploads) are stopped
+ * here with a clear message, before they reach the database (which refuses them anyway: an update it
+ * refuses would otherwise look like it saved nothing).
+ */
+const viewOnlyTables = new Set<string>();
+let viewOnlyFiles = 0;
+export function holdViewOnly(tables: string[]) {
+  tables.forEach((t) => viewOnlyTables.add(t));
+  viewOnlyFiles++;
+  return () => {
+    tables.forEach((t) => viewOnlyTables.delete(t));
+    viewOnlyFiles--;
+  };
+}
+const guardedFetch: typeof fetch = (input, init) => {
+  const method = (init?.method ?? (input instanceof Request ? input.method : "GET")).toUpperCase();
+  if (method !== "GET" && method !== "HEAD" && (viewOnlyTables.size || viewOnlyFiles)) {
+    const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+    const table = path.match(/\/rest\/v1\/(?!rpc\/)([a-z_]+)/)?.[1];
+    if ((table && viewOnlyTables.has(table)) || (viewOnlyFiles && /\/storage\/v1\/object\//.test(path)))
+      return Promise.resolve(new Response(JSON.stringify({ message: "view_only", code: "42501" }), { status: 403, headers: { "Content-Type": "application/json" } }));
+  }
+  return fetch(input, init);
+};
+
 let client: SupabaseClient | null = null;
 export function sb(): SupabaseClient {
   client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "rh-app-staff" },
+    global: { fetch: guardedFetch },
   });
   return client;
 }
@@ -55,65 +82,92 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
 /**
  * What a team member may work in. The owner has everything and sets a list for anyone else; an admin
  * with no list has everything (including the admin tools), a trainer with no list has the basic areas.
- * The database enforces the same areas (private.member_can).
+ * Each area is given in full ("forms": see and change) or to look at only ("forms:view": see, change
+ * nothing). The database enforces the same areas and levels (private.member_can, private.member_can_read).
  */
 export type Area =
   | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
-  | "site" | "forms" | "publish" | "portfolios" | "settings"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security" | "sectors" | "inventory" | "voice";
-export const AREAS: { key: Area; group: string; label: string; hint: string }[] = [
-  { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة" },
-  { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور" },
-  { key: "quizzes", group: "الطلاب والتدريب", label: "الكويزات", hint: "عمل الكويزات ونتايجها ومسابقة الأسبوع" },
-  { key: "tasks", group: "الطلاب والتدريب", label: "التاسكات", hint: "التاسكات وتسليمات الطلاب وتصحيحها" },
-  { key: "materials", group: "الطلاب والتدريب", label: "المحاضرات والملفات", hint: "رفع ونشر وجدولة المحاضرات والملفات والروابط" },
-  { key: "announcements", group: "الطلاب والتدريب", label: "إعلانات الطلاب", hint: "الإعلانات اللي بتظهر في تطبيق الطالب" },
-  { key: "points", group: "الطلاب والتدريب", label: "النقاط والأوسمة", hint: "ترتيب الطلاب وإضافة نقاط إضافية" },
-  { key: "site", group: "الموقع", label: "محتوى الموقع", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، ومشاريع الطلاب" },
-  { key: "publish", group: "الموقع", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى، وتعديل وحذف المنشور" },
-  { key: "forms", group: "الموقع", label: "الفورمات", hint: "الفورمات (اختبارات الفرق، متطوعين…) وردودها" },
+  | "site" | "pages" | "publish" | "forms" | "expo" | "portfolios" | "settings" | "voice"
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "security" | "sectors" | "inventory";
+export type Level = "none" | "view" | "full";
+/** `view`: what "view only" lets them see (absent = the area has no view-only level). */
+export const AREAS: { key: Area; group: string; label: string; hint: string; view?: string }[] = [
+  { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة", view: "يشوف الطلاب وبياناتهم والمحتاجين متابعة" },
+  { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور", view: "يشوف الجلسات والحضور والتقارير" },
+  { key: "quizzes", group: "الطلاب والتدريب", label: "الكويزات", hint: "عمل الكويزات ونتايجها ومسابقة الأسبوع", view: "يشوف الكويزات والنتايج" },
+  { key: "tasks", group: "الطلاب والتدريب", label: "التاسكات", hint: "التاسكات وتسليمات الطلاب وتصحيحها", view: "يشوف التاسكات والتسليمات" },
+  { key: "materials", group: "الطلاب والتدريب", label: "المحاضرات والملفات", hint: "رفع ونشر وجدولة المحاضرات والملفات والروابط", view: "يفتح المحاضرات والملفات" },
+  { key: "announcements", group: "الطلاب والتدريب", label: "إعلانات الطلاب", hint: "الإعلانات اللي بتظهر في تطبيق الطالب", view: "يشوف الإعلانات" },
+  { key: "points", group: "الطلاب والتدريب", label: "النقاط والأوسمة", hint: "ترتيب الطلاب وإضافة نقاط إضافية", view: "يشوف الترتيب والنقاط" },
+  { key: "site", group: "الموقع", label: "محتوى الموقع", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، ومشاريع الطلاب", view: "يشوف المحتوى والمسودات" },
+  { key: "pages", group: "الموقع", label: "منشئ الصفحات", hint: "يبني صفحات الموقع بالسحب والإفلات ويعدّلها (صفحة روبوتكس وأي صفحة جديدة)", view: "يفتح الصفحات ويشوفها من غير تعديل" },
+  { key: "publish", group: "الموقع", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى والصفحات، وتعديل وحذف المنشور" },
+  { key: "forms", group: "الموقع", label: "الفورمات", hint: "كل الفورمات (اختبارات الفرق، متطوعين…) وردودها", view: "يشوف الفورمات والردود" },
+  { key: "expo", group: "الموقع", label: "وفود المعارض", hint: "فورم المعرض بس: قبول ورفض، أرقام الوفد، الدخول بالـ QR، اللي محضروش والحظر", view: "يشوف الوفد والمقبولين والحضور" },
   { key: "portfolios", group: "الموقع", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
-  { key: "settings", group: "الموقع", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات" },
-  { key: "voice", group: "الموقع", label: "صوت بقلظ", hint: "يسجّل كلام بقلظ بصوته أو يرفع ملفات صوت، والموقع يشغّلها بدل الصوت الآلي" },
-  { key: "applications", group: "تاني", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
-  { key: "events", group: "تاني", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
-  { key: "inbox", group: "تاني", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
-  { key: "certificates", group: "تاني", label: "الشهادات", hint: "إصدار وطباعة الشهادات" },
+  { key: "settings", group: "الموقع", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات", view: "يشوف الإعدادات" },
+  { key: "voice", group: "الموقع", label: "صوت بقلظ", hint: "يسجّل كلام بقلظ بصوته أو يرفع ملفات صوت، والموقع يشغّلها بدل الصوت الآلي", view: "يسمع التسجيلات" },
+  { key: "applications", group: "تاني", label: "طلبات الانضمام", hint: "مراجعة الطلبات (قبول ورفض) وقائمة الانتظار", view: "يقرا الطلبات من غير قبول أو رفض" },
+  { key: "events", group: "تاني", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات", view: "يشوف المسجلين والتقييمات" },
+  { key: "inbox", group: "تاني", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية", view: "يقرا الرسائل" },
+  { key: "certificates", group: "تاني", label: "الشهادات", hint: "إصدار وطباعة الشهادات", view: "يشوف الشهادات اللي اتعملت" },
   { key: "notify", group: "تاني", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
-  { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة" },
+  { key: "whatsapp", group: "تاني", label: "واتساب", hint: "يبعت رسايل واتساب من التطبيق (للوفد، المقبولين، الطلاب) ويشوف سجل الرسايل. ربط الحساب نفسه للمالك بس", view: "يشوف سجل الرسايل وحالتها" },
+  { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة", view: "يشوف الهجمات والسجلات والزيارات من غير حظر" },
   { key: "sectors", group: "تاني", label: "متابعة كل السيكتورات", hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)" },
   { key: "inventory", group: "تاني", label: "المخزن (القطع والأدوات)", hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)" },
 ];
 export const TRAINING: Area[] = ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"];
 /** Older lists name the two big areas ("students", "content"); they still mean every part of them. */
-const OLD: Record<string, Area[]> = { students: TRAINING, content: ["site", "forms"] };
+const OLD: Record<string, Area[]> = { students: TRAINING, content: ["site", "forms", "pages", "expo"] };
 /** A trainer with no list keeps the areas trainers always had; the newer ones are given by name. */
 const BASIC = ["applications", "students", "events", "content", "inbox", "certificates"];
 /** The owner, or an admin the owner hasn't limited: every area plus the admin tools (team, deleting, security…). */
 export const isFull = (me: Pick<StaffRow, "role" | "permissions">) => me.role === "owner" || (me.role === "admin" && !me.permissions);
 const granted = (me: Pick<StaffRow, "role" | "permissions">) => (me.permissions ?? BASIC).flatMap((a) => OLD[a] ?? [a as Area]);
-/** "training" = any of the student and training areas (enough to see the student list). */
+const viewed = (me: Pick<StaffRow, "role" | "permissions">) => (me.permissions ?? []).filter((a) => a.endsWith(":view")).map((a) => a.slice(0, -5) as Area);
+/** Full access: sees and changes ("training" = any of the student and training areas). */
 export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "training") =>
   isFull(me) || (area === "training" ? TRAINING.some((a) => granted(me).includes(a)) : granted(me).includes(area));
+/** Sees the area: full access, or view only. */
+export const canSee = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "training") =>
+  can(me, area) || (area === "training" ? TRAINING.some((a) => viewed(me).includes(a)) : viewed(me).includes(area));
+export const levelOf = (me: Pick<StaffRow, "role" | "permissions">, area: Area): Level => (can(me, area) ? "full" : canSee(me, area) ? "view" : "none");
+/** The saved list for a set of levels (an admin with every area in full = no list = a full admin). */
+export function permissionsFor(role: Role, levels: Partial<Record<Area, Level>>): string[] | null {
+  if (role === "admin" && AREAS.every((a) => levels[a.key] === "full")) return null;
+  return AREAS.flatMap((a) => (levels[a.key] === "full" ? [a.key] : levels[a.key] === "view" && a.view ? [`${a.key}:view`] : []));
+}
+
+/** Ready-made roles: what each kind of work needs, in full or to look at. */
+export const ROLE_PRESETS: { name: string; about: string; full: Area[]; view: Area[] }[] = [
+  { name: "مدرّب", about: "بيدرّس ويتابع طلابه", full: TRAINING, view: ["events"] },
+  { name: "مشرف محتوى", about: "الموقع والصفحات والنشر", full: ["site", "pages", "publish", "portfolios", "voice"], view: ["inbox", "settings"] },
+  { name: "منظّم معارض", about: "وفود المعارض والفعاليات", full: ["expo", "events", "whatsapp"], view: ["forms", "applications", "roster"] },
+  { name: "مسؤول عضوية", about: "الطلبات والطلاب والحضور", full: ["applications", "roster", "whatsapp"], view: ["attendance", "expo"] },
+  { name: "مسؤول تواصل", about: "الرسائل والواتساب والإشعارات", full: ["inbox", "whatsapp", "notify"], view: ["applications", "expo", "events"] },
+  { name: "متابع (مشاهدة بس)", about: "يشوف كل حاجة ومايعدّلش", full: [], view: AREAS.filter((a) => a.view).map((a) => a.key) },
+  { name: "أمين المخزن", about: "القطع والأدوات", full: ["inventory"], view: [] },
+];
 
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
-export const POSITIONS: { title: string; areas: Area[] }[] = [
+export const POSITIONS: { title: string; areas: Area[]; view?: Area[] }[] = [
   { title: "نائب القائد", areas: AREAS.map((a) => a.key) },
-  { title: "إداري الموقع", areas: ["site", "publish", "forms", "portfolios", "settings", "notify", "inbox", "security", "voice"] },
-  { title: "هيد الميديا", areas: ["site", "publish", "portfolios", "notify", "voice"] },
+  { title: "إداري الموقع", areas: ["site", "pages", "publish", "forms", "expo", "portfolios", "settings", "notify", "inbox", "security", "voice", "whatsapp"] },
+  { title: "هيد الميديا", areas: ["site", "pages", "publish", "portfolios", "notify", "voice"] },
   { title: "المدير التقني", areas: [...TRAINING, "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: TRAINING },
   { title: "مسؤول Embedded وIoT", areas: TRAINING },
   { title: "مسؤول الذكاء الاصطناعي", areas: TRAINING },
   { title: "مسؤول البرمجة", areas: TRAINING },
   { title: "مسؤول الطباعة والتصميم ثلاثي الأبعاد", areas: TRAINING },
-  { title: "مسؤول التنظيم والعمليات", areas: ["events", "attendance"] },
-  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"] },
-  { title: "مسؤول الإعلام والتصميم", areas: ["site"] },
-  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site"] },
+  { title: "مسؤول التنظيم والعمليات", areas: ["events", "attendance", "expo"] },
+  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"], view: ["expo"] },
+  { title: "مسؤول الإعلام والتصميم", areas: ["site", "pages"] },
+  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site", "whatsapp"] },
   { title: "أمين المخزن", areas: ["inventory"] },
   { title: "صوت بقلظ", areas: ["voice"] },
-  { title: "منظّم", areas: ["events"] },
+  { title: "منظّم", areas: ["events"], view: ["expo"] },
   { title: "متطوع", areas: ["events"] },
   { title: "عضو في الفريق", areas: [] },
 ];
@@ -232,6 +286,8 @@ export function errorText(e: unknown): string {
   if (msg === "invalid_code") return "رقم الطالب يجب أن يحتوي على حروف أو أرقام.";
   if (msg === "last_owner") return "يجب أن يبقى مالك واحد على الأقل.";
   if (code === "23505" || /duplicate key|code_taken|barcode_taken/.test(msg)) return "هذا الرقم مسجَّل لطالب آخر.";
+  if (msg === "view_only" || ((code === "42501" || msg === "forbidden") && (viewOnlyTables.size || viewOnlyFiles)))
+    return "صلاحيتك هنا مشاهدة بس، من غير تعديل. لو محتاج تعدّل اطلب من المالك صلاحية كاملة.";
   if (code === "42501" || msg === "forbidden" || /permission denied|row-level security|violates row-level/i.test(msg)) return "ليست لديك صلاحية لهذا الإجراء.";
   if (/JWT expired|invalid JWT|refresh token/i.test(msg)) return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
   if (msg === "image_unreadable") return "المتصفح مقدرش يفتح الصورة دي. جرّب صورة تانية، أو خد لها سكرين شوت وارفعها.";

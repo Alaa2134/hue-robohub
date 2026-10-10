@@ -6,6 +6,8 @@ import { voiceLines } from "../src/lib/mascot/voice-lines";
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const jwt = `${b64({ alg: "HS256", typ: "JWT" })}.${b64({ sub: "u1", email: "owner@example.com", role: "authenticated", exp: 4102444800 })}.sig`;
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+/** One area's level switch in the owner's permission editor ("لا" / "مشاهدة" / "كامل"). */
+const lvl = (page: Page, area: string, level: "لا" | "مشاهدة" | "كامل") => page.getByRole("radiogroup", { name: area, exact: true }).getByRole("radio", { name: level });
 
 const RPC: Record<string, unknown> = {
   staff_access_requests: [
@@ -664,12 +666,15 @@ test("the owner sets a member's position and areas", async ({ page }) => {
   await page.goto("/app/#/staff/team");
   await page.getByText("Lead Two").click();
   await page.getByLabel("المنصب").fill("مسؤول الإعلام والتصميم");
-  // Picking a position suggests its areas: media gets the website content only.
-  await expect(page.getByRole("checkbox", { name: /^محتوى الموقع/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).not.toBeChecked();
-  await page.getByRole("checkbox", { name: /^رسائل الموقع/ }).check();
+  // Picking a position suggests its areas: media gets the website content and the page builder.
+  await expect(lvl(page, "محتوى الموقع", "كامل")).toBeChecked();
+  await expect(lvl(page, "منشئ الصفحات", "كامل")).toBeChecked();
+  await expect(lvl(page, "بيانات الطلاب", "لا")).toBeChecked();
+  await lvl(page, "رسائل الموقع", "كامل").click();
+  // Applications to read only.
+  await lvl(page, "طلبات الانضمام", "مشاهدة").click();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["site", "inbox"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الإعلام والتصميم", permissions: ["site", "pages", "applications:view", "inbox"] });
 });
 
 test("the head of media publishes, edits the team's pages and sends notifications, and nothing else", async ({ page }) => {
@@ -713,13 +718,14 @@ test("positions for the website admin and the head of media suggest their areas"
   await page.goto("/app/#/staff/team");
   await page.getByText("Lead Two").click();
   await page.getByLabel("المنصب").fill("إداري الموقع");
-  await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /النشر على الموقع/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).not.toBeChecked();
+  await expect(lvl(page, "إعدادات الموقع", "كامل")).toBeChecked();
+  await expect(lvl(page, "النشر على الموقع", "كامل")).toBeChecked();
+  await expect(lvl(page, "واتساب", "كامل")).toBeChecked();
+  await expect(lvl(page, "بيانات الطلاب", "لا")).toBeChecked();
   await page.getByLabel("المنصب").fill("هيد الميديا");
-  await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).not.toBeChecked();
+  await expect(lvl(page, "إعدادات الموقع", "لا")).toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["site", "publish", "portfolios", "voice", "notify"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["site", "pages", "publish", "portfolios", "voice", "notify"] });
 });
 
 test("the owner limits an admin to chosen areas too (all ticked keeps them a full admin)", async ({ page }) => {
@@ -737,12 +743,13 @@ test("the owner limits an admin to chosen areas too (all ticked keeps them a ful
   });
   await page.goto("/app/#/staff/team");
   await page.getByText("Admin Three").click();
-  // A full admin starts with every area ticked, the new security area included.
-  await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^بيانات الطلاب/ })).toBeChecked();
+  // A full admin starts with every area in full, the newer ones included.
+  await expect(lvl(page, "الأمان والمتابعة", "كامل")).toBeChecked();
+  await expect(lvl(page, "بيانات الطلاب", "كامل")).toBeChecked();
+  await expect(lvl(page, "واتساب", "كامل")).toBeChecked();
   await expect(page.getByRole("button", { name: "احفظ المنصب والصلاحيات" })).toBeDisabled();
   await page.getByLabel("المنصب").fill("مسؤول الروبوتكس");
-  await expect(page.getByRole("checkbox", { name: /الأمان والمتابعة/ })).not.toBeChecked();
+  await expect(lvl(page, "الأمان والمتابعة", "لا")).toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
   await expect.poll(() => patches[0]).toEqual({ title: "مسؤول الروبوتكس", permissions: ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"] });
 });
@@ -793,10 +800,10 @@ test("permissions come in small parts: someone with quizzes only gets the quizze
   expect(errors).toEqual([]);
 });
 
-test("the owner ticks a whole group at once, and older lists show as all their parts", async ({ page }) => {
+test("the owner gives a whole group at once, and older lists show as all their parts", async ({ page }) => {
   await signInAsOwner(page);
   const owner = { user_id: "u1", email: "owner@example.com", full_name: "Owner Test", role: "owner", active: true, created_at: at(9999) };
-  // Saved before the split: "content" means website content and forms.
+  // Saved before the split: "content" means website content, forms, pages and expo delegations.
   const lead = { user_id: "u2", email: "lead@example.com", full_name: "Lead Two", role: "lead", active: true, created_at: at(10), title: null, permissions: ["content"] };
   const patches: unknown[] = [];
   await page.route(/\/rest\/v1\/staff/, (route) => {
@@ -809,13 +816,14 @@ test("the owner ticks a whole group at once, and older lists show as all their p
   });
   await page.goto("/app/#/staff/team");
   await page.getByText("Lead Two").click();
-  await expect(page.getByRole("checkbox", { name: /^محتوى الموقع/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^الفورمات/ })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: /^الحضور/ })).not.toBeChecked();
-  await page.getByRole("button", { name: "علّم الكل" }).first().click();
-  await page.getByRole("checkbox", { name: /^الفورمات/ }).uncheck();
+  await expect(lvl(page, "محتوى الموقع", "كامل")).toBeChecked();
+  await expect(lvl(page, "الفورمات", "كامل")).toBeChecked();
+  await expect(lvl(page, "وفود المعارض", "كامل")).toBeChecked();
+  await expect(lvl(page, "الحضور", "لا")).toBeChecked();
+  await page.getByRole("button", { name: "كامل للكل" }).first().click();
+  await lvl(page, "الفورمات", "لا").click();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: null, permissions: ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points", "site"] });
+  await expect.poll(() => patches[0]).toEqual({ title: null, permissions: ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points", "site", "pages", "expo"] });
 });
 
 test("signed in, students and the team can go back to the website and come back still signed in", async ({ page }) => {
@@ -2180,4 +2188,222 @@ test("after the visit: everyone accepted who didn't come is banned and loses the
   await page.getByRole("button", { name: "فك الحظر" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "فك الحظر" }).click();
   await expect.poll(() => lifted).toEqual({ p_id: "x1", p_restore: true });
+});
+
+/* ─── View only, the permission table, WhatsApp ───────────────────────────── */
+
+test("view only: the section opens with a note, and changes are stopped before they reach the database", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const writes: string[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { title: "متابع", permissions: ["applications:view", "inbox:view", "events"] });
+  await page.route(/\/rest\/v1\/inbox_messages/, (route) => {
+    if (route.request().method() !== "GET") writes.push(route.request().method());
+    return route.fulfill({ json: [{ id: "m1", kind: "contact", name: "Sara Ali", email: "sara@example.com", phone: null, subject: "Hello", body: "A question", status: "new", created_at: at(30), meta: {} }], headers: { "content-range": "0-0/1" } });
+  });
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByText("طلبات الانضمام", { exact: true })).toBeVisible();
+  await expect(page.getByText("رسائل الموقع وطلبات الرعاية")).toBeVisible();
+  await page.goto("/app/#/staff/inbox");
+  await expect(page.getByTestId("view-only")).toBeVisible();
+  // A full area has no note.
+  await page.goto("/app/#/staff/events");
+  await expect(page.getByTestId("view-only")).toHaveCount(0);
+  // An area they don't have at all stays closed.
+  await page.goto("/app/#/staff/students");
+  await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
+  // Opening a new message doesn't mark it read for them, and a change is stopped with a clear message.
+  await page.goto("/app/#/staff/inbox");
+  await expect(page.getByTestId("view-only")).toBeVisible();
+  await page.getByText("Sara Ali").first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "أرشيف", exact: true }).click();
+  await expect(page.getByText("صلاحيتك هنا مشاهدة بس").first()).toBeVisible();
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("the owner's table shows who has what, area by area", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const areas = (o: Record<string, string>) => ({ roster: "none", applications: "none", whatsapp: "none", expo: "none", ...o });
+  await mockRpc(page, calls, {
+    staff_permission_matrix: [
+      { user_id: "u1", name: "Owner Test", role: "owner", title: null, full: true, areas: areas({ roster: "full", applications: "full", whatsapp: "full", expo: "full" }) },
+      { user_id: "u2", name: "Mona Viewer", role: "lead", title: "متابع", full: false, areas: areas({ applications: "view", expo: "full" }) },
+    ],
+  });
+  await page.goto("/app/#/staff/more");
+  await page.getByText("مين عنده إيه (مقارنة صلاحيات الفريق)").click();
+  const table = page.getByTestId("permission-matrix");
+  await expect(table.getByText("Mona Viewer")).toBeVisible();
+  const mona = table.getByRole("row", { name: /Mona Viewer/ });
+  await expect(mona.locator("td[data-level=view]")).toHaveCount(1);
+  await expect(mona.locator("td[data-level=full]")).toHaveCount(1);
+  await expect(page.getByText("كل صلاحية بتسمح بإيه")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the owner connects WhatsApp (the token is sent once, never shown) and sends to typed numbers", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  let state: "none" | "checking" | "ok" = "none";
+  const status = () => ({
+    connected: state === "ok", status: state, phone_number_id: state === "none" ? null : "123456789012345", business_id: null,
+    display_phone: state === "ok" ? "+20 10 0000 0000" : null, verified_name: state === "ok" ? "BuildX HUE" : null, quality: null, error: null, checked_at: null,
+    templates: state === "ok" ? [{ name: "expo_reminder", language: "ar", body: "أهلًا {{1}}، معادنا بكرة الساعة {{2}}" }] : [],
+    has_token: state !== "none", sent_today: 0, failed_today: 0, can_send: true, can_connect: true,
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_[a-z]+$/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    calls.push({ fn, body: route.request().postDataJSON() });
+    if (fn === "staff_whatsapp_connect") state = "checking";
+    else if (fn === "staff_whatsapp_status" && state === "checking" && calls.filter((c) => c.fn === "staff_whatsapp_status").length > 2) state = "ok";
+    if (fn === "staff_whatsapp_send") return route.fulfill({ json: { queued: 2, skipped: 1 } });
+    return route.fulfill({ json: fn === "staff_whatsapp_status" ? status() : { ok: true } });
+  });
+  await page.goto("/app/#/staff/whatsapp");
+  await expect(page.getByTestId("wa-connect")).toBeVisible();
+  await page.getByLabel("Phone number ID").fill("123456789012345");
+  await page.getByLabel("Access token").fill("EAAB" + "x".repeat(60));
+  await page.getByRole("button", { name: "اربط" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_whatsapp_connect")?.body).toEqual({ p_phone_number_id: "123456789012345", p_token: "EAAB" + "x".repeat(60), p_business_id: null });
+  await expect(page.getByTestId("wa-status").getByText("مربوط")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("BuildX HUE")).toBeVisible();
+  // The token never comes back: the field is empty and the status never carries it.
+  await page.getByRole("button", { name: "تغيير الربط" }).click();
+  await expect(page.getByLabel("Access token")).toHaveValue("");
+  await page.getByRole("button", { name: "إلغاء" }).click();
+  // A template to typed numbers: {{1}} is each person's name.
+  await page.getByLabel("الأرقام").fill("Ahmed, 01012345678\n01198765432\nbad");
+  await page.getByLabel("{{2}}").fill("9 الصبح");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await page.locator('[role="dialog"] button', { hasText: "ابعت" }).last().click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_whatsapp_send")?.body).toEqual({
+    p_people: [{ phone: "01012345678", name: "Ahmed" }, { phone: "01198765432", name: "" }],
+    p_text: null, p_template: "expo_reminder", p_lang: "ar", p_params: ["{name}", "9 الصبح"], p_context: null,
+  });
+  await expect(page.getByText("اتبعت لـ 2")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("expo delegation runs by itself: dates per visit day, waiting list, WhatsApp acceptance and reminder, no-show bans", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, { staff_whatsapp_status: { connected: true, templates: [{ name: "expo_accept", language: "ar", body: "{{1}} {{4}}" }, { name: "expo_reminder", language: "ar", body: "{{1}} {{2}} {{3}}" }] } });
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, capacity: 40,
+    delegation: { event: "Robotex", dates: "14–16 November 2026", meet_ar: "" },
+    fields: [
+      { id: "name", type: "name", label_ar: "الاسم", required: true },
+      { id: "phone", type: "phone", label_ar: "الموبايل", required: true },
+      { id: "day", type: "select", label_ar: "اليوم", required: true, options: [{ ar: "السبت 14 نوفمبر" }, { ar: "أي يوم" }] },
+    ],
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  await page.goto("/app/#/staff/forms/f1");
+  const auto = page.getByTestId("delegation-auto");
+  await expect(auto).toBeVisible();
+  // Reminders and bans need the dates first.
+  await expect(auto.getByRole("switch", { name: /تذكير قبلها بيوم/ })).toBeDisabled();
+  await auto.getByLabel("تاريخ السبت 14 نوفمبر").fill("2026-11-14");
+  await auto.getByLabel("تاريخ أي يوم").fill("2026-11-16");
+  await auto.getByRole("switch", { name: /قائمة انتظار تلقائية/ }).click();
+  await auto.getByLabel("رسالة القبول على الواتساب").selectOption("expo_accept|ar");
+  await auto.getByRole("switch", { name: /تذكير قبلها بيوم/ }).click();
+  await auto.getByLabel("قالب التذكير").selectOption("expo_reminder|ar");
+  await auto.getByRole("switch", { name: /اللي مجاش ياخد الحظر/ }).click();
+  await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
+  await expect.poll(() => (patches.at(-1) as { delegation?: object } | undefined)?.delegation).toMatchObject({
+    day_dates: { "السبت 14 نوفمبر": "2026-11-14", "أي يوم": "2026-11-16" },
+    auto_waitlist: true, accept_template: "expo_accept|ar", remind: true, remind_template: "expo_reminder|ar", auto_no_show: true,
+  });
+  expect(errors).toEqual([]);
+});
+
+test("page builder: schedule a page to show and hide, bring back an older version, and copy a page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const row = {
+    id: "p1", slug: "cairo-ict", title_ar: "زيارة Cairo ICT", title_en: null, description_ar: null, description_en: null, accent: "#2b6dff", settings: {},
+    blocks: [{ id: "h", type: "hero", eyebrow: { ar: "" }, title: { ar: "زيارة Cairo ICT" }, body: { ar: "" }, image: { src: "" }, buttons: [], facts: [] }],
+    published: false, archived: false, updated_at: at(5), publish_at: null, unpublish_at: null,
+  };
+  const old = { id: 7, title_ar: "النسخة القديمة", title_en: null, description_ar: null, description_en: null, accent: "#ff7a45", settings: {}, saved_by: "u1", saved_at: at(60),
+    blocks: [{ id: "h", type: "hero", eyebrow: { ar: "" }, title: { ar: "عنوان قديم" }, body: { ar: "" }, image: { src: "" }, buttons: [], facts: [] }, { id: "t", type: "text", eyebrow: { ar: "" }, title: { ar: "نص" }, body: { ar: "" } }] };
+  const patches: Record<string, unknown>[] = [];
+  const inserts: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_page_versions/, (route) => route.fulfill({ json: [old] }));
+  await page.route(/\/rest\/v1\/site_pages/, (route) => {
+    const m = route.request().method();
+    if (m === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ...row, ...(route.request().postDataJSON() as object) } });
+    }
+    if (m === "POST") {
+      inserts.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: "p2" } });
+    }
+    return route.fulfill({ json: route.request().url().includes("select=slug") ? [{ slug: "cairo-ict" }, { slug: "cairo-ict-copy" }] : [row] });
+  });
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/pages/p1");
+  // Schedule: up on 1 Nov, down after the visit (Cairo time).
+  const sched = page.getByTestId("page-schedule");
+  await sched.locator("summary").click();
+  await sched.getByLabel("تظهر على الموقع من").fill("2026-11-01T09:00");
+  await sched.getByLabel("وتختفي بعد").fill("2026-11-17T00:00");
+  await sched.getByRole("button", { name: "احفظ الجدولة" }).click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ publish_at: "2026-11-01T07:00:00.000Z", unpublish_at: "2026-11-16T22:00:00.000Z" });
+  // An older version comes back into the editor; saving puts it on the site.
+  await page.getByRole("button", { name: "النسخ القديمة" }).click();
+  await page.getByTestId("page-versions").getByRole("button", { name: "رجّعها" }).click();
+  await expect(page.getByTestId("page-blocks").getByTestId("block-card")).toHaveCount(2);
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ title_ar: "النسخة القديمة", accent: "#ff7a45" });
+  // A copy starts as a draft at a free address.
+  await page.getByRole("button", { name: "اعمل نسخة من الصفحة" }).click();
+  await expect.poll(() => inserts[0]).toMatchObject({ slug: "cairo-ict-copy-2", published: false });
+  await expect(page).toHaveURL(/#\/staff\/pages\/p2$/);
+  expect(errors).toEqual([]);
+});
+
+test("a page's numbers: visits, visitors and how many applied through its form", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_page_stats: { from: "2026-09-11", views: 200, visitors: 80, daily: [{ day: "2026-10-09", views: 120 }, { day: "2026-10-10", views: 80 }], referrers: [{ host: "facebook.com", views: 90 }, { host: "", views: 40 }], devices: { mobile: 170 }, forms: [{ slug: "cairo-ict", title: "زيارة Cairo ICT", total: 30, period: 20, accepted: 12 }] },
+  });
+  const row = { id: "p1", slug: "cairo-ict", title_ar: "زيارة Cairo ICT", title_en: null, description_ar: null, description_en: null, accent: "#2b6dff", settings: {}, published: true, archived: false, updated_at: at(5),
+    blocks: [{ id: "f", type: "form", eyebrow: { ar: "" }, title: { ar: "قدّم" }, form: "cairo-ict" }] };
+  await page.route(/\/rest\/v1\/site_pages/, (route) => route.fulfill({ json: [row] }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/pages/p1");
+  const stats = page.getByTestId("page-stats");
+  await stats.locator("summary").click();
+  await expect(stats).toContainText("200");
+  await expect(stats).toContainText("25% من الزوار");
+  await expect(stats).toContainText("20 في الفترة · 30 الكل · 12 اتقبلوا");
+  await expect(stats).toContainText("facebook.com (90)، مباشر (40)");
+  expect(calls.find((c) => c.fn === "staff_page_stats")?.body).toEqual({ p_slug: "cairo-ict", p_forms: ["cairo-ict"], p_days: 30 });
+  await stats.getByRole("button", { name: "أسبوع" }).click();
+  await expect.poll(() => (calls.at(-1)?.body as { p_days: number }).p_days).toBe(7);
+  expect(errors).toEqual([]);
 });

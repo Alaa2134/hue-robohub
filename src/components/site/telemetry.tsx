@@ -24,7 +24,10 @@ export function Telemetry({ host, locale }: { host: string; locale: string }) {
   useEffect(() => {
     if (location.hostname !== host || navigator.doNotTrack === "1") return;
     const external = document.referrer && !document.referrer.startsWith(location.origin) ? document.referrer : null;
-    rpc("track_view", { p_path: path, p_referrer: external, p_locale: locale });
+    // A page made in the page builder (/p/?s=<name>) counts under its own name.
+    const s = /\/p\/?$/.test(path) ? new URLSearchParams(location.search).get("s") : null;
+    const at = s && /^[a-z0-9][a-z0-9-]{1,48}$/.test(s) ? `${path.replace(/\/?$/, "/")}${s}/` : path;
+    rpc("track_view", { p_path: at, p_referrer: external, p_locale: locale });
   }, [path, host, locale]);
 
   // Uncaught errors (at most five per page load) so broken pages show up in the dashboard.
