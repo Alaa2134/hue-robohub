@@ -1208,16 +1208,16 @@ test("expo visit responses: accepted list as Excel, WhatsApp acceptance with the
 
 /** Answers these RPCs for this test only (registered after signInAsOwner, so it wins). */
 async function mockRpc(page: Page, calls: { fn: string; body: unknown }[], answers: Record<string, unknown>) {
-  await page.route(/\/rest\/v1\/rpc\/staff_(sectors|sector_save|sector_members|sector_tasks|task|task_save|task_start|task_submit|task_review|task_cancel|my_tasks|my_summary|warnings|warnings_seen|warning_give|warning_cancel)$/, (route) => {
+  await page.route(/\/rest\/v1\/rpc\/staff_[a-z_]+$/, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     calls.push({ fn, body: route.request().postDataJSON() });
-    return route.fulfill({ json: answers[fn] ?? null });
+    return route.fulfill({ json: answers[fn] ?? RPC[fn] ?? null });
   });
 }
 const later = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
 const member = (o: object) => ({ staff_id: "u3", name: "Omar Design", title: null, is_head: false, assigned: 2, on_time: 1, late: 0, missed: 1, open: 1, warnings: 1, ...o });
-const assignee = (o: object) => ({ staff_id: "u3", name: "Omar Design", state: "todo", note: null, link: null, submitted_at: null, late: false, feedback: null, reviewed_by_name: null, reviewed_at: null, missed_at: null, excused: false, ...o });
-const teamTask = (o: object) => ({ id: "t1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Event poster", description: "Instagram post for the workshop", link: null, priority: "high", due_at: later(30), warn_on_miss: true, status: "open", created_by_name: "Reem Media", created_at: at(60), assignees: [assignee({ state: "submitted", note: "Done", link: "https://canva.com/x", submitted_at: at(5) })], ...o });
+const assignee = (o: object) => ({ staff_id: "u3", name: "Omar Design", state: "todo", note: null, link: null, submitted_at: null, late: false, feedback: null, reviewed_by_name: null, reviewed_at: null, missed_at: null, excused: false, due_at: null, checked: [], files: [], ...o });
+const teamTask = (o: object) => ({ id: "t1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Event poster", description: "Instagram post for the workshop", link: null, priority: "high", due_at: later(30), warn_on_miss: true, status: "open", created_by_name: "Reem Media", created_at: at(60), checklist: [], repeat: "none", requests: [], comments: [], assignees: [assignee({ state: "submitted", note: "Done", link: "https://canva.com/x", submitted_at: at(5) })], ...o });
 
 test("the owner makes a sector and picks its head and members", async ({ page }) => {
   const errors: string[] = [];
@@ -1333,4 +1333,228 @@ test("the owner sees every warning in the team and cancels one", async ({ page }
   await page.getByLabel("ليه؟ (بيوصله)").fill("كان عيان");
   await page.getByRole("button", { name: "إلغاء الإنذار" }).click();
   await expect.poll(() => calls.find((c) => c.fn === "staff_warning_cancel")?.body).toEqual({ p_id: "w1", p_note: "كان عيان" });
+});
+
+/* ─── Notifications, founder's dashboard, requests, appeals, meetings ───── */
+
+const summary = (o: object = {}) => ({ open: 0, overdue: 0, due_soon: 0, warnings_unseen: 0, warnings_active: 0, sectors: 1, heads: 0, to_review: 0, requests: 0, appeals: 0, unread: 0, oversees: false, ...o });
+async function signInAs(page: Page, row: object) {
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const r = { user_id: "u1", email: "x@example.com", full_name: "Test", role: "lead", active: true, created_at: at(9999), title: null, permissions: [], ...row };
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? r : [r] });
+  });
+}
+
+test("the bell shows unread notifications; opening one marks it read and goes to the task", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, calls, {
+    staff_my_summary: summary({ unread: 2 }),
+    staff_notifications: { unread: 2, items: [{ id: "n1", title: "تاسك جديد: Sponsor deck", body: "الميديا · آخر ميعاد 12/10 18:00", url: "/app/#/staff/mytasks", created_at: at(3), read: false }, { id: "n2", title: "📅 اجتماع: Weekly", body: "", url: null, created_at: at(90), read: true }] },
+    staff_notifications_read: { ok: true },
+    staff_my_tasks: [],
+    staff_warnings: [],
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("bell-count")).toHaveText("2");
+  await page.getByRole("button", { name: /الإشعارات/ }).click();
+  await expect(page).toHaveURL(/#\/staff\/notifications$/);
+  await page.getByText("تاسك جديد: Sponsor deck").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_notifications_read")?.body).toEqual({ p_ids: ["n1"] });
+  await expect(page).toHaveURL(/#\/staff\/mytasks$/);
+  expect(errors).toEqual([]);
+});
+
+test("the founder's dashboard: the team at a glance, team rules, and naming the member of the month", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const rules = { warn_threshold: 3, warn_window_days: 90, remind_hours: 24, grace_minutes: 0, auto_warn: true, meeting_absence_warn: false, weekly_report: true };
+  await mockRpc(page, calls, {
+    staff_my_summary: summary({ oversees: true, appeals: 1 }),
+    staff_overview: {
+      team: { members: 7, in_sectors: 5, heads: 2, sectors: 2 },
+      tasks: { given: 10, on_time: 7, late: 1, missed: 2, open: 4, overdue: 1, to_review: 2 },
+      warnings: { active: 3, appeals: 1, requests: 1 },
+      sectors: [{ id: "sec1", name: "الميديا", color: "#ff7a45", members: 3, given: 6, done: 5, on_time: 4, missed: 1, overdue: 1, warnings: 2 }],
+      people: [
+        { staff_id: "u3", name: "Omar Design", title: null, assigned: 4, on_time: 1, late: 1, missed: 2, warnings: 2 },
+        { staff_id: "u4", name: "Sara Ops", title: null, assigned: 4, on_time: 4, late: 0, missed: 0, warnings: 0 },
+      ],
+      org: { students: 120, applications_new: 4, responses_new: 9 },
+      rules,
+    },
+    staff_team_settings_save: rules,
+    staff_month_scores: { month: "2026-10-01", award: null, people: [{ staff_id: "u4", name: "Sara Ops", title: null, on_time: 4, late: 0, approved: 4, missed: 0, present: 2, absent: 0, warnings: 0, score: 22 }] },
+    staff_award_month: { ok: true, certificate_id: "c1" },
+  });
+  await page.goto("/app/#/staff");
+  await page.getByRole("button", { name: /لوحة المؤسس/ }).click();
+  await expect(page.getByText("70%")).toBeVisible();
+  await expect(page.getByText("تظلّمات من إنذارات")).toBeVisible();
+  await expect(page.getByText("محتاجين متابعة")).toBeVisible();
+  await page.getByRole("button", { name: "قواعد الفريق" }).click();
+  await page.getByLabel("فترة سماح بعد الميعاد (دقيقة)").fill("30");
+  await page.getByRole("button", { name: "حفظ القواعد" }).click();
+  await expect.poll(() => (calls.find((c) => c.fn === "staff_team_settings_save")?.body as { p: { grace_minutes: number } })?.p.grace_minutes).toBe(30);
+  await page.getByRole("button", { name: "اختار Sara Ops" }).click();
+  await page.getByLabel("كلمة للفريق (اختياري)").fill("أحسن التزام");
+  await page.getByRole("button", { name: "أعلن عضو الشهر" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_award_month")?.body).toMatchObject({ p_staff: "u4", p_note: "أحسن التزام", p_certificate: true });
+  expect(errors).toEqual([]);
+});
+
+test("a member ticks the steps, asks for more time and writes on the task; then appeals a warning", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  const task = teamTask({ id: "t5", title: "Workshop reel", due_at: later(20), checklist: [{ id: "a", text: "Shoot" }, { id: "b", text: "Edit" }], assignees: [assignee({})] });
+  await mockRpc(page, calls, {
+    staff_my_tasks: [task],
+    staff_task: task,
+    staff_warnings: [{ id: "w9", staff_id: "u3", name: "Omar Design", sector_id: "sec1", sector_name: "الميديا", task_id: null, task_title: null, kind: "manual", reason: "اتأخر على الاجتماع", issued_by_name: "Reem Media", created_at: at(60), seen_at: at(30), cancelled_at: null, cancelled_by_name: null, cancel_note: null, appeal: null, appeal_at: null, appeal_status: null, appeal_note: null }],
+    staff_task_check: { ok: true },
+    staff_task_request: "r1",
+    staff_task_comment: { ok: true },
+    staff_warning_appeal: { ok: true },
+  });
+  await page.goto("/app/#/staff/mytasks");
+  await page.getByRole("button", { name: /^Workshop reel/ }).click();
+  await page.getByRole("checkbox", { name: "Shoot" }).check();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_check")?.body).toEqual({ p_task: "t5", p_item: "a", p_done: true });
+  await page.getByLabel("رسالة على التاسك").fill("ممكن أستخدم الكاميرا بتاعة المعمل؟");
+  await page.getByRole("button", { name: "ابعت", exact: true }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_comment")?.body).toEqual({ p_task: "t5", p_body: "ممكن أستخدم الكاميرا بتاعة المعمل؟" });
+  await page.getByRole("button", { name: "اطلب مد الميعاد" }).click();
+  await page.getByLabel("السبب").fill("عندي امتحان");
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_request")?.body).toMatchObject({ p_task: "t5", p_kind: "extension", p_reason: "عندي امتحان" });
+  // Close the task sheet and appeal the warning.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /ليك حق تتظلّم/ }).click();
+  await page.getByLabel("ظرفك أو اعتراضك").fill("كنت مبلّغ الهيد قبلها إني هتأخر");
+  await page.getByRole("button", { name: "ابعت التظلّم" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_warning_appeal")?.body).toEqual({ p_id: "w9", p_text: "كنت مبلّغ الهيد قبلها إني هتأخر" });
+  expect(errors).toEqual([]);
+});
+
+test("a head approves an extension with a new date; the owner accepts an appeal", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const req = { id: "r1", staff_id: "u3", name: "Omar Design", kind: "extension", reason: "عندي امتحان", new_due: later(48), status: "pending", note: null, decided_by_name: null, created_at: at(10) };
+  await mockRpc(page, calls, {
+    staff_sectors: { oversees: true, sectors: [{ id: "sec1", name: "الميديا", description: "", color: "#ff7a45", archived: false, is_head: false, leads: true, open_tasks: 1, to_review: 0, overdue: 0, warnings: 0, members: [member({})] }], staff: [] },
+    staff_task: { ...teamTask({ assignees: [assignee({})], requests: [req] }), leads: true },
+    staff_task_request_decide: { ok: true },
+    staff_warnings: [{ id: "w9", staff_id: "u3", name: "Omar Design", sector_id: "sec1", sector_name: "الميديا", task_id: null, task_title: null, kind: "manual", reason: "اتأخر على الاجتماع", issued_by_name: "Reem Media", created_at: at(60), seen_at: at(30), cancelled_at: null, cancelled_by_name: null, cancel_note: null, appeal: "كنت مبلّغ الهيد", appeal_at: at(5), appeal_status: "pending", appeal_note: null }],
+    staff_warning_appeal_decide: { ok: true },
+  });
+  await page.goto("/app/#/staff/sectors/sec1/t1");
+  await expect(page.getByText("طلبات مستنية ردك")).toBeVisible();
+  await page.getByRole("button", { name: "وافق", exact: true }).click();
+  await page.getByLabel("ملاحظة (بتوصله، اختياري)").fill("بالتوفيق");
+  await page.getByRole("button", { name: "وافق", exact: true }).last().click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_request_decide")?.body).toMatchObject({ p_id: "r1", p_approve: true, p_note: "بالتوفيق" });
+  await page.goto("/app/#/staff/warnings");
+  await page.getByRole("button", { name: /^تظلّمات/ }).click();
+  await page.getByRole("button", { name: "اقبل التظلّم" }).click();
+  await page.getByLabel("ردك (بيوصله)").fill("مقبول");
+  await page.getByRole("button", { name: "اقبل واشيل الإنذار" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_warning_appeal_decide")?.body).toEqual({ p_id: "w9", p_accept: true, p_note: "مقبول" });
+  expect(errors).toEqual([]);
+});
+
+test("meetings: the head schedules one and opens attendance; a member checks in from the QR link; minutes become a task", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const meeting = (o: object) => ({ id: "m1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Weekly sync", agenda: "Plan the week", starts_at: later(1), place: "Lab", link: null, status: "open", code: "482913", minutes: null, leads: true, invited: 3, present: 1, mine: null, attendance: [{ staff_id: "u3", name: "Omar Design", status: null, method: null, note: null }], ...o });
+  const answers: Record<string, unknown> = {
+    staff_sectors: { oversees: true, sectors: [{ id: "sec1", name: "الميديا", description: "", color: "#ff7a45", archived: false, is_head: true, leads: true, open_tasks: 0, to_review: 0, overdue: 0, warnings: 0, members: [member({})] }], staff: [] },
+    staff_sector_tasks: [],
+    staff_warnings: [],
+    staff_meetings: [],
+    staff_meeting_save: "m1",
+    staff_meeting: meeting({}),
+    staff_meeting_open: { ok: true, code: "482913" },
+    staff_meeting_close: { ok: true, absent: 1 },
+    staff_task_templates: [],
+  };
+  await mockRpc(page, calls, answers);
+  await page.goto("/app/#/staff/sectors/sec1");
+  await page.getByRole("button", { name: /^الاجتماعات/ }).click();
+  await page.getByRole("button", { name: "اجتماع جديد" }).click();
+  await page.getByLabel("العنوان").fill("Weekly sync");
+  await page.getByRole("button", { name: "حدد الاجتماع" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_meeting_save")?.body).toMatchObject({ p_id: null, p_sector: "sec1", p_title: "Weekly sync" });
+  await expect(page).toHaveURL(/#\/staff\/meetings\/m1$/);
+  await page.getByRole("button", { name: "اعرض كود الحضور" }).click();
+  await expect(page.getByTestId("meeting-code")).toHaveText("482913");
+  await page.getByRole("button", { name: "رجوع" }).last().click();
+  await page.getByRole("button", { name: "اقفل واكتب المحضر" }).click();
+  await page.getByLabel(/المحضر والقرارات/).fill("- Design the workshop post\n- Book the room");
+  await page.getByRole("button", { name: "اقفل الاجتماع" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_meeting_close")?.body).toEqual({ p_id: "m1", p_minutes: "- Design the workshop post\n- Book the room" });
+  // After closing: the minutes, and a line becomes a task in the sector.
+  answers.staff_meeting = meeting({ status: "done", code: null, minutes: "- Design the workshop post\n- Book the room" });
+  await page.reload();
+  await page.getByRole("button", { name: "حوّلها لتاسك" }).first().click();
+  await expect(page).toHaveURL(/#\/staff\/sectors\/sec1\?task=/);
+  await expect(page.getByLabel("العنوان")).toHaveValue("Design the workshop post");
+  expect(errors).toEqual([]);
+});
+
+test("a member opening the meeting's QR link is checked in with its code", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, calls, {
+    staff_meeting: { id: "m1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Weekly sync", agenda: "", starts_at: at(5), place: null, link: null, status: "open", code: null, minutes: null, leads: false, invited: 3, present: 1, mine: null, attendance: null },
+    staff_meeting_checkin: { ok: true, status: "present" },
+  });
+  await page.goto("/app/#/staff/meetings/m1?code=482913");
+  await expect.poll(() => calls.find((c) => c.fn === "staff_meeting_checkin")?.body).toEqual({ p_id: "m1", p_code: "482913" });
+  await expect(page.getByText("اتسجّل حضورك ✓")).toBeVisible();
+});
+
+test("a head picks a template, adds steps and makes the task repeat weekly; the board shows the columns", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_sectors: { oversees: true, sectors: [{ id: "sec1", name: "الميديا", description: "", color: "#ff7a45", archived: false, is_head: true, leads: true, open_tasks: 1, to_review: 1, overdue: 0, warnings: 0, members: [member({})] }], staff: [] },
+    staff_sector_tasks: [teamTask({}), teamTask({ id: "t2", title: "Old poster", status: "closed" })],
+    staff_warnings: [],
+    staff_task_templates: [{ id: "tp1", sector_id: "sec1", title: "Weekly post", description: "Post for the week", link: null, priority: "high", checklist: [{ id: "x", text: "Design" }], days: 2 }],
+    staff_task_save: "t9",
+    staff_task_extras: { ok: true },
+    staff_task: { ...teamTask({ id: "t9" }), leads: true },
+  });
+  await page.goto("/app/#/staff/sectors/sec1");
+  await page.getByRole("button", { name: "لوحة", exact: true }).click();
+  await expect(page.getByTestId("task-board")).toContainText("مستني مراجعة");
+  await expect(page.getByTestId("task-board")).toContainText("Old poster");
+  await page.getByRole("button", { name: "تاسك", exact: true }).click();
+  await page.getByLabel("من قالب جاهز (اختياري)").selectOption("tp1");
+  await expect(page.getByLabel("العنوان")).toHaveValue("Weekly post");
+  await page.getByLabel("خطوة جديدة").fill("Publish");
+  await page.getByRole("button", { name: "ضيف الخطوة" }).click();
+  await page.getByLabel("بيتكرر؟").selectOption("weekly");
+  await page.getByRole("checkbox", { name: "Omar Design" }).check();
+  await page.getByRole("button", { name: "ابعت التاسك" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_extras")?.body).toMatchObject({ p_task: "t9", p_repeat: "weekly" });
+  const extras = calls.find((c) => c.fn === "staff_task_extras")?.body as { p_checklist: { text: string }[] };
+  expect(extras.p_checklist.map((c) => c.text)).toEqual(["Design", "Publish"]);
+  expect(calls.find((c) => c.fn === "staff_task_save")?.body).toMatchObject({ p_title: "Weekly post", p_priority: "high" });
+  expect(errors).toEqual([]);
 });
