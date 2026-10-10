@@ -1,0 +1,63 @@
+# Screenshots for "مواقع هتفيدك" (scripts/directory-shots.ts): taken from the live sites and kept on the
+# "directory-assets" branch; the site deploy copies them in before building. New sites get one when the
+# list changes; every month they're all taken again so the pictures stay current.
+name: Directory screenshots
+
+on:
+  push:
+    branches: [main]
+    paths: ["src/content/directory.ts", "scripts/directory-shots.ts"]
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      all:
+        description: "Take every screenshot again"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: directory-shots
+  cancel-in-progress: false
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      REMOTE: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      # The pictures live in their own small checkout (the directory-assets branch), not in main.
+      - name: The screenshots taken so far
+        run: |
+          mkdir directory && cd directory
+          git init -q && git remote add origin "$REMOTE"
+          if git ls-remote --exit-code --heads origin directory-assets >/dev/null; then
+            git fetch -q --depth=1 origin directory-assets && git checkout -q -b directory-assets FETCH_HEAD
+          else
+            git checkout -q --orphan directory-assets
+          fi
+      - name: Take new ones
+        run: npx tsx scripts/directory-shots.ts --out directory ${{ (github.event_name == 'schedule' || inputs.all) && '--all' || '' }}
+      - name: Save them and redeploy the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd directory
+          git add -A .
+          if git diff --cached --quiet; then echo "No new screenshots."; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Directory screenshots"
+          git push -q origin HEAD:directory-assets
+          cd ..
+          gh workflow run "Deploy site" --ref main

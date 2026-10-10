@@ -32,6 +32,7 @@ const en = {
     sponsors: "Sponsors",
     news: "News",
     resources: "Resources",
+    directory: "Useful websites",
     join: "Join us",
     contact: "Contact",
     commandCenter: "Command Center",

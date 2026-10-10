@@ -34,6 +34,7 @@ const ar: Dictionary = {
     sponsors: "الرعاة",
     news: "الأخبار",
     resources: "المصادر",
+    directory: "مواقع هتفيدك",
     join: "انضم لنا",
     contact: "تواصل معنا",
     commandCenter: "مركز القيادة",

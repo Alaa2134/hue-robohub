@@ -24,6 +24,7 @@ export const MENU_GROUPS: { key: NavKey; items: NavItem[] }[] = [
       { key: "competitions", href: "/competitions", icon: "flag" },
       { key: "bootcamp", href: "/bootcamp", icon: "rocket" },
       { key: "projects", href: "/projects", icon: "cpu" },
+      { key: "directory", href: "/directory", icon: "globe" },
     ],
   },
   {

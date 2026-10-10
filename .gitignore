@@ -25,3 +25,4 @@ art/render/rh/__pycache__/
 /out-static
 /.static-build
 /public/app/zxing_reader.wasm
+public/media/directory/
