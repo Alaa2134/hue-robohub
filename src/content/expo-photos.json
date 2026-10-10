@@ -1,0 +1,550 @@
+{
+ "hero": {
+  "width": 1227,
+  "height": 500,
+  "alt_ar": "روبوت صناعي وطائرات مسيّرة ومهندسين بيفحصوا ويلحموا — من بروشور Robotex & NDTX 2026",
+  "alt_en": "Industrial robot arm, drones and engineers inspecting and welding — from the Robotex & NDTX 2026 brochure",
+  "placeholder": "data:image/webp;base64,UklGRrQAAABXRUJQVlA4IKgAAABQBACdASoYAAoAPu1iqU2ppaOiMAgBMB2JYgCdAywTmwjT3VDnpZSSLJbAAP6tKFgy83cQnD9KLhOeDpS2g8Zz/YHnzlFP7rPMYHXYscEstk6l0CRP47nEe15bgcY2DxGhOFyEiTGSHDdMR5FTgXiX89NkMasNs7ZY47yKaLD/xhaU6SYPdD5P9oimCLbkTnzoEKxI6uMEUARSCNZKYh44gRPWuxtDAAA=",
+  "color": "rgb(138,126,133)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/hero-7b28aab7-480.webp",
+     "bytes": 32336
+    },
+    {
+     "w": 1227,
+     "url": "/media/robotex/hero-9ab39677-1227.webp",
+     "bytes": 122182
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/hero-dd41947c-480.avif",
+     "bytes": 20515
+    },
+    {
+     "w": 1227,
+     "url": "/media/robotex/hero-9e1d64c0-1227.avif",
+     "bytes": 82369
+    }
+   ]
+  }
+ },
+ "robots": {
+  "width": 587,
+  "height": 330,
+  "alt_ar": "ذراع روبوتية صناعية قدام مصنع",
+  "alt_en": "An industrial robot arm in front of a plant",
+  "placeholder": "data:image/webp;base64,UklGRsoAAABXRUJQVlA4IL4AAACQBACdASoYAA4APu1iqU2ppaOiMAgBMB2JagCdMoMf2n/FslDoK0vEs08pV5gA/slz8ZgtpVHi1G9trc8ra+nMNmr4ZLPL0zlo1YohUQJC8lKuJWeBaulOj6YPFtvJCCEgtDQcwLFybLfY/A1phkb8JSFf1v4xdOtFIo9P9ZngBnQvtjSrDhEbv/OeZxqGytmQwHfoVXpPfTGdfXV+9TK0pGW3Js2xMwOmyu4El69q3cpL2vWXbvLL4xXUAAAA",
+  "color": "rgb(152,144,151)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/robots-e25d42a4-480.webp",
+     "bytes": 32614
+    },
+    {
+     "w": 587,
+     "url": "/media/robotex/robots-2ec2ebdd-587.webp",
+     "bytes": 43178
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/robots-df6522a3-480.avif",
+     "bytes": 20745
+    },
+    {
+     "w": 587,
+     "url": "/media/robotex/robots-28bb4c16-587.avif",
+     "bytes": 27405
+    }
+   ]
+  }
+ },
+ "drones": {
+  "width": 527,
+  "height": 296,
+  "alt_ar": "طائرات مسيّرة صناعية وذراع روبوتية",
+  "alt_en": "Industrial drones and a robot arm",
+  "placeholder": "data:image/webp;base64,UklGRsAAAABXRUJQVlA4ILQAAADwAwCdASoYAA0APu1iqU2ppaOiMAgBMB2JbACdAYy8uk0+AdHjaaVAAP5sr+KkDy72Uc31YLEPlBQWj80SM5r9xVdGGpqXLtA7oaS0nG4puCXqDoiDdwzb2HCg9IeVXPAYmkMl8RLx+p/tbOOO0tonztgFFLxLUt9D0fzX9GvoudGEDqyt5HncbDVxWqSztb/By7Hix6GNTsA/a1xfSubi8OwlqSYnpAkOeUyBEyOHwT4BEAA=",
+  "color": "rgb(140,159,178)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/drones-8c578bc7-480.webp",
+     "bytes": 28280
+    },
+    {
+     "w": 527,
+     "url": "/media/robotex/drones-3447028d-527.webp",
+     "bytes": 31518
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/drones-b7118439-480.avif",
+     "bytes": 18486
+    },
+    {
+     "w": 527,
+     "url": "/media/robotex/drones-8c087b48-527.avif",
+     "bytes": 20957
+    }
+   ]
+  }
+ },
+ "inspection": {
+  "width": 594,
+  "height": 334,
+  "alt_ar": "مهندس بيفحص بجهاز فحص غير إتلافي ولحّام بيشتغل",
+  "alt_en": "An engineer testing with an NDT device next to a welder",
+  "placeholder": "data:image/webp;base64,UklGRsQAAABXRUJQVlA4ILgAAACQBACdASoYAA4APu1iqU2ppaQiMAgBMB2JbACdEf/i2J1JIHJya2qBCX3ijgAA/s8eb/oTqplLtrBiGmjR4G2a+g9ZtZWTCVarN84nzUGaw6DgEjOYG0eju89abscDASI8yJBvzuviwtlndEfUEswfqNTUdqqaUswrrzIcMn4UGavlZlqLC7KcvprbGP5Eg/LUeyjR0Fe5MXMbgW4SAJZ8268Yj+gQ18tM5MSh2ZCm/HggpcQTtAAA",
+  "color": "rgb(108,80,79)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/inspection-7280a5d8-480.webp",
+     "bytes": 35694
+    },
+    {
+     "w": 594,
+     "url": "/media/robotex/inspection-27dd693b-594.webp",
+     "bytes": 45388
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/inspection-d78072b2-480.avif",
+     "bytes": 21800
+    },
+    {
+     "w": 594,
+     "url": "/media/robotex/inspection-05241931-594.avif",
+     "bytes": 30274
+    }
+   ]
+  }
+ },
+ "vision": {
+  "width": 324,
+  "height": 180,
+  "alt_ar": "جهاز فحص بالموجات فوق الصوتية على قطعة معدن",
+  "alt_en": "An ultrasonic testing device on a metal part",
+  "placeholder": "data:image/webp;base64,UklGRpIAAABXRUJQVlA4IIYAAADQAwCdASoYAA0APu1iqU2ppaOiMAgBMB2JZQC/OBkp4cxCXVvT+jgA/q0VB2h/3JlALsbHjcoY8e6tGVRSf8frZ7cbk8iNRvVV9zSDgqz33Gafq2vz7kmZJjs0QymlqrzmnZjQWemot7hSj03yB3/cm6K0NUS+TxZkViw2gMaIV84BL6AAAA==",
+  "color": "rgb(86,85,78)",
+  "sources": {
+   "webp": [
+    {
+     "w": 324,
+     "url": "/media/robotex/vision-b27e852e-324.webp",
+     "bytes": 9862
+    }
+   ],
+   "avif": [
+    {
+     "w": 324,
+     "url": "/media/robotex/vision-77621fa7-324.avif",
+     "bytes": 6889
+    }
+   ]
+  }
+ },
+ "quality": {
+  "width": 324,
+  "height": 180,
+  "alt_ar": "مهندس بيحلّل معدن بجهاز تحليل محمول",
+  "alt_en": "An engineer analysing metal with a handheld analyser",
+  "placeholder": "data:image/webp;base64,UklGRqAAAABXRUJQVlA4IJQAAAAwBACdASoYAA0APu1iqU2ppaOiMAgBMB2JbACdACHeiSBOGIoa7yd6H8gA/uoUaiqSZuoyw2tXcuW9kTmU/TG/6TwSTUqPJFOiwnasPLqSTQx9m+chj7xUlCSiN97HQucQBe5HSkcvwS262VqO1tZbzGSVGbteLN0L7RBXBwvg7TnB3YpNM0PQvpGTEPU/1vqXgAAA",
+  "color": "rgb(90,76,61)",
+  "sources": {
+   "webp": [
+    {
+     "w": 324,
+     "url": "/media/robotex/quality-33402149-324.webp",
+     "bytes": 8944
+    }
+   ],
+   "avif": [
+    {
+     "w": 324,
+     "url": "/media/robotex/quality-96f0812d-324.avif",
+     "bytes": 5974
+    }
+   ]
+  }
+ },
+ "factory": {
+  "width": 324,
+  "height": 180,
+  "alt_ar": "فحص محرك طيارة بكاميرا داخلية",
+  "alt_en": "Inspecting an aircraft engine with a borescope",
+  "placeholder": "data:image/webp;base64,UklGRqAAAABXRUJQVlA4IJQAAABQBACdASoYAA0APu1iqU2ppaOiMAgBMB2JYwCdAYyArK8IyjTFkPa/yNqAAP4nQ2xOpQSX6gT8zaj2oGiTX3xuDOovkHnhexJqthSj1YIrfFyNwWodCKC4xHxUvL0TAHovPt1QIpmJpTFWLlkOwif18iUrKHZz0PA1ZmGZtNvH8VkOjg73hYoS5thbhwg979qWYAAA",
+  "color": "rgb(103,99,93)",
+  "sources": {
+   "webp": [
+    {
+     "w": 324,
+     "url": "/media/robotex/factory-26471649-324.webp",
+     "bytes": 15368
+    }
+   ],
+   "avif": [
+    {
+     "w": 324,
+     "url": "/media/robotex/factory-f079d7de-324.avif",
+     "bytes": 9159
+    }
+   ]
+  }
+ },
+ "past-01": {
+  "width": 621,
+  "height": 372,
+  "alt_ar": "بوابة معرض NDTX 2025 وصورة جماعية للزوار",
+  "alt_en": "The NDTX 2025 entrance and a group photo of visitors",
+  "placeholder": "data:image/webp;base64,UklGRrAAAABXRUJQVlA4IKQAAADQAwCdASoYAA4APu1iqU2ppaOiMAgBMB2JbAC7ABuJjQ4+hdc5wsQA+oixHEdOw8AihrLgWxFiRlobxzxH3r/Rl575dZLvhkD3rU2+X3ro11E2zh7fO42/YAtmEKSuCBjmIqja43HKjhCwaP4VnLHfcmW/2KIzA56G9K5VIsOJie3zsve6n5yUVKHiyim6GNAYMh0udSpvHBZThfiC0er7C6gAAA==",
+  "color": "rgb(156,112,133)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-01-16cfdaf3-480.webp",
+     "bytes": 40008
+    },
+    {
+     "w": 621,
+     "url": "/media/robotex/past-01-1c9a9466-621.webp",
+     "bytes": 58528
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-01-d697e04f-480.avif",
+     "bytes": 26531
+    },
+    {
+     "w": 621,
+     "url": "/media/robotex/past-01-e8dac12f-621.avif",
+     "bytes": 38572
+    }
+   ]
+  }
+ },
+ "past-02": {
+  "width": 621,
+  "height": 317,
+  "alt_ar": "جلسة نقاش على مسرح مؤتمر NDTX",
+  "alt_en": "A panel discussion on the NDTX conference stage",
+  "placeholder": "data:image/webp;base64,UklGRpYAAABXRUJQVlA4IIoAAAAQBACdASoYAAwAPu1iqU2ppaOiMAgBMB2JZQCsACGavMflqvFozbo9gAD8jfegaJPOIeHd3PVvH2LaoP0B3q/SiTKSgwXZVOh68MetFrHS6TPGS5i15Tm9Bhug1mXc23QOktf6fxxaRugxa/6Cvp7nZ7SlpYGdNcRCmlVK90fyk1G8zyvdt2CUAAA=",
+  "color": "rgb(157,148,142)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-02-c696c871-480.webp",
+     "bytes": 20208
+    },
+    {
+     "w": 621,
+     "url": "/media/robotex/past-02-9d93dee0-621.webp",
+     "bytes": 28628
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-02-c92b30b5-480.avif",
+     "bytes": 13696
+    },
+    {
+     "w": 621,
+     "url": "/media/robotex/past-02-c67a86f7-621.avif",
+     "bytes": 20659
+    }
+   ]
+  }
+ },
+ "past-03": {
+  "width": 620,
+  "height": 340,
+  "alt_ar": "مهندسين بيشرحوا أجهزة في جناح عارض",
+  "alt_en": "Engineers demonstrating equipment at an exhibitor stand",
+  "placeholder": "data:image/webp;base64,UklGRroAAABXRUJQVlA4IK4AAABQBACdASoYAA0APu1iqU2ppaOiMAgBMB2JZACdEf/gQGK4Wz9ja6enGHyAAP14cUeZUzw2RMCQLMCtcZgsDu+tO2PU73VJd79s9Gv3QUndAa3Ih56RohLwXrJFGrnmsMoB/I6+6hFYZOVzUUVAmgiXyZCYJexMEWaaTOdQ0VFcMOenDasgDq5hXbfXZZHTsgIae8ug0XR2uPDhgVKHiA3RhHUqi4l4V9aeKk54IAA=",
+  "color": "rgb(134,129,122)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-03-bd8c8a04-480.webp",
+     "bytes": 24558
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-03-290c139d-620.webp",
+     "bytes": 32942
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-03-e6d08ba0-480.avif",
+     "bytes": 16284
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-03-ec9133c0-620.avif",
+     "bytes": 24278
+    }
+   ]
+  }
+ },
+ "past-04": {
+  "width": 573,
+  "height": 310,
+  "alt_ar": "زوار متجمّعين حوالين جناح في المعرض",
+  "alt_en": "Visitors gathered around a stand",
+  "placeholder": "data:image/webp;base64,UklGRp4AAABXRUJQVlA4IJIAAABQBACdASoYAA0APu1iqU2ppaOiMAgBMB2JYgCdMoAlvRHQMoculUBGXg4QAOHiagBtZrkWANlCF+M8K7u+A4BmbJuyB7SeVvMR/h8wIva5twzIi1zu029oA75S/q+ra9+KxVUNM5IA8PEDOeuo6riJBOB/YmUXWJuVpgzQh6c6H11CpbdlEd0UEVN2HfARtKAAAA==",
+  "color": "rgb(88,75,61)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-04-9db45327-480.webp",
+     "bytes": 19282
+    },
+    {
+     "w": 573,
+     "url": "/media/robotex/past-04-65282c55-573.webp",
+     "bytes": 23476
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-04-6dd9a9ed-480.avif",
+     "bytes": 14361
+    },
+    {
+     "w": 573,
+     "url": "/media/robotex/past-04-4a791ed9-573.avif",
+     "bytes": 18178
+    }
+   ]
+  }
+ },
+ "past-05": {
+  "width": 620,
+  "height": 358,
+  "alt_ar": "جولة رسمية في صالات المعرض",
+  "alt_en": "An official tour of the halls",
+  "placeholder": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAADwAwCdASoYAA4APu1iqU2ppaOiMAgBMB2JYwAD5enJTVFYfyjslnFAAPyxZv3j2urafdRL6mhHPltANZiu5jh/Jz9vZldNn77cz8Nc91ym3PBsjVQx0MJqfGx2pRQGDTz4M6Sv9YcbSB7RufbvahFwlbEo9Xuqe4hBvzj2OaER2d5ku+DpaY3TjuPrKqCEKJMEU5IuAAA=",
+  "color": "rgb(107,103,94)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-05-03591786-480.webp",
+     "bytes": 22984
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-05-6d286e4d-620.webp",
+     "bytes": 31460
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-05-74c506a8-480.avif",
+     "bytes": 16037
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-05-13825812-620.avif",
+     "bytes": 23324
+    }
+   ]
+  }
+ },
+ "past-06": {
+  "width": 618,
+  "height": 351,
+  "alt_ar": "قاعة المحاضرات والورش في المعرض",
+  "alt_en": "The lecture and workshop hall",
+  "placeholder": "data:image/webp;base64,UklGRpYAAABXRUJQVlA4IIoAAACwAwCdASoYAA4APu1iqk4ppaQiMAgBMB2JZwAAW5ljIzptDHIhUAD7pD34oJf+2DN8FQCiHlY+KjnBzk0dxqzYgWp9t+oOjXPtvBgKFEkbnxT1MPTbjgHFr88lhaW5uZrR+Wv3TpKc1ayK/O/O9sD0z+7iLBtJpuhXXeAoUSiLY7ebOv2/JmRwAAA=",
+  "color": "rgb(92,93,90)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-06-f5e94535-480.webp",
+     "bytes": 21352
+    },
+    {
+     "w": 618,
+     "url": "/media/robotex/past-06-c3ce9311-618.webp",
+     "bytes": 29966
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-06-8e849e07-480.avif",
+     "bytes": 14729
+    },
+    {
+     "w": 618,
+     "url": "/media/robotex/past-06-ac3ba585-618.avif",
+     "bytes": 21865
+    }
+   ]
+  }
+ },
+ "past-07": {
+  "width": 618,
+  "height": 321,
+  "alt_ar": "زوار بيجرّبوا أجهزة فحص في الأجنحة",
+  "alt_en": "Visitors trying inspection equipment at the stands",
+  "placeholder": "data:image/webp;base64,UklGRrYAAABXRUJQVlA4IKoAAAAwBACdASoYAAwAPu1iqU2ppaOiMAgBMB2JbAC7OUAAx2CF0ZXXts5UxAAA/rAnpx5KBWF/U83Y9COkNyXSzXE/BkwepJsVAuoT2hUfDnCrKs4kJYuThVZMRCC/mnfPoGIJxFuRNHuphHfziPQu6kjQNnF6gtz0p/lNOXQw5Rm6rVHOwg6dg3bstjKElekliVXBtmBoeJ/RwxprRXZOVAJpR1X4S/l9ecAAAA==",
+  "color": "rgb(135,117,111)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-07-95efd25c-480.webp",
+     "bytes": 28728
+    },
+    {
+     "w": 618,
+     "url": "/media/robotex/past-07-ed14328e-618.webp",
+     "bytes": 38636
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-07-9b8e6d42-480.avif",
+     "bytes": 17969
+    },
+    {
+     "w": 618,
+     "url": "/media/robotex/past-07-83c56f53-618.avif",
+     "bytes": 26357
+    }
+   ]
+  }
+ },
+ "past-08": {
+  "width": 617,
+  "height": 321,
+  "alt_ar": "محاضرة تقنية عن الفحص غير الإتلافي",
+  "alt_en": "A technical talk on non-destructive testing",
+  "placeholder": "data:image/webp;base64,UklGRrIAAABXRUJQVlA4IKYAAABwBACdASoYAA0APu1iqU2ppaOiMAgBMB2JQBfnMZFcEPlBswlohO1yXQZEAAD+8EumELei2BTfCzPuX2vIuaeyXPvnkU5eP8I9UDxBsAi3BtYpPeB7uviBI6xx1A4hwWcciOJqfUdv3P6fbSfjZemACnqjGNU/obBtVw+UK7cJN5/VVzPVS54VnpnrEqyH89knUSnSVICp4oEsH+EqVqozigeMx8AA",
+  "color": "rgb(205,194,196)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-08-ff3e6b29-480.webp",
+     "bytes": 16950
+    },
+    {
+     "w": 617,
+     "url": "/media/robotex/past-08-ba77890d-617.webp",
+     "bytes": 24392
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-08-68bb25c2-480.avif",
+     "bytes": 12285
+    },
+    {
+     "w": 617,
+     "url": "/media/robotex/past-08-4fe69b64-617.avif",
+     "bytes": 18783
+    }
+   ]
+  }
+ },
+ "past-09": {
+  "width": 620,
+  "height": 329,
+  "alt_ar": "زوار بيتكلموا مع شركة في جناحها",
+  "alt_en": "Visitors talking with a company at its stand",
+  "placeholder": "data:image/webp;base64,UklGRqIAAABXRUJQVlA4IJYAAACwBACdASoYAA0APu1iqU2ppaOiMAgBMB2JZACdMoAvQBZlTnLxRUL5k+w5C9jAAP4zzxUOzvFCtFVxUbm2HAaQtOc7PdL6p45YyjCuZkJHb68z0FaNxjWuK8tScmVfOSXvoPg8gLqDBkPSkO4kyB2KmNDla+MwTruqQzo24G7XRTH0bZvReYEOF3UyWOHpo+NcS1GAAAA=",
+  "color": "rgb(83,69,62)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-09-a13b147e-480.webp",
+     "bytes": 22978
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-09-928e148f-620.webp",
+     "bytes": 33164
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-09-290be5b2-480.avif",
+     "bytes": 15472
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-09-e6bca73c-620.avif",
+     "bytes": 23697
+    }
+   ]
+  }
+ },
+ "past-10": {
+  "width": 620,
+  "height": 390,
+  "alt_ar": "ماكينات لحام معروضة في جناح",
+  "alt_en": "Welding machines on show at a stand",
+  "placeholder": "data:image/webp;base64,UklGRtIAAABXRUJQVlA4IMYAAADQBACdASoYAA8APu1iqU2ppaOiMAgBMB2JZAC7ICd6dFP6LdVMkzrjEWy9//M1gAD9s7pdZPrB5WgMrUbZrTGgKRKk5Nphgyf11aPsEC+RCOqpISGimag/Db/zopyt4eo71HPyha4Y48ZE72zsuWCJm/XHNZ1nbU13KP0s8RzCgpYqfUGK0Na59Jp8dJIiOuO+bb6Gw4zTrk2rgPLvgkowL9mRZ0BMv9cU6jVxVVps/85WphZwpgEnJqdnm26wBxERY9aAAAA=",
+  "color": "rgb(92,96,78)",
+  "sources": {
+   "webp": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-10-2c0ccc58-480.webp",
+     "bytes": 32446
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-10-338630ba-620.webp",
+     "bytes": 46240
+    }
+   ],
+   "avif": [
+    {
+     "w": 480,
+     "url": "/media/robotex/past-10-7714d851-480.avif",
+     "bytes": 20948
+    },
+    {
+     "w": 620,
+     "url": "/media/robotex/past-10-47f86ca5-620.avif",
+     "bytes": 31248
+    }
+   ]
+  }
+ }
+}

@@ -14,10 +14,12 @@ export function Reveal({ children, className, delay = 0, as = "div", style }: { 
 export function MaskText({ text, delay = 0, stagger = 40, className }: { text: string; delay?: number; stagger?: number; className?: string }) {
   const { ref, inView } = useInView<HTMLSpanElement>();
   const words = text.split(/\s+/).filter(Boolean);
+  // Each word is its own box, so on Arabic pages a title in English would read right to left.
+  const latin = !/[\u0600-\u06FF]/.test(text);
   return (
     <span ref={ref} className={className} data-in={inView}>
       <span className="sr-only">{text}</span>
-      <span aria-hidden>
+      <span aria-hidden dir={latin ? "ltr" : undefined}>
         {words.map((w, i) => (
           <Fragment key={i}>
             <span className="mask-word" style={{ ["--d" as string]: `${delay + i * stagger}ms` }}>
