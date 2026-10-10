@@ -2382,3 +2382,28 @@ test("page builder: schedule a page to show and hide, bring back an older versio
   await expect(page).toHaveURL(/#\/staff\/pages\/p2$/);
   expect(errors).toEqual([]);
 });
+
+test("a page's numbers: visits, visitors and how many applied through its form", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_page_stats: { from: "2026-09-11", views: 200, visitors: 80, daily: [{ day: "2026-10-09", views: 120 }, { day: "2026-10-10", views: 80 }], referrers: [{ host: "facebook.com", views: 90 }, { host: "", views: 40 }], devices: { mobile: 170 }, forms: [{ slug: "cairo-ict", title: "زيارة Cairo ICT", total: 30, period: 20, accepted: 12 }] },
+  });
+  const row = { id: "p1", slug: "cairo-ict", title_ar: "زيارة Cairo ICT", title_en: null, description_ar: null, description_en: null, accent: "#2b6dff", settings: {}, published: true, archived: false, updated_at: at(5),
+    blocks: [{ id: "f", type: "form", eyebrow: { ar: "" }, title: { ar: "قدّم" }, form: "cairo-ict" }] };
+  await page.route(/\/rest\/v1\/site_pages/, (route) => route.fulfill({ json: [row] }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/pages/p1");
+  const stats = page.getByTestId("page-stats");
+  await stats.locator("summary").click();
+  await expect(stats).toContainText("200");
+  await expect(stats).toContainText("25% من الزوار");
+  await expect(stats).toContainText("20 في الفترة · 30 الكل · 12 اتقبلوا");
+  await expect(stats).toContainText("facebook.com (90)، مباشر (40)");
+  expect(calls.find((c) => c.fn === "staff_page_stats")?.body).toEqual({ p_slug: "cairo-ict", p_forms: ["cairo-ict"], p_days: 30 });
+  await stats.getByRole("button", { name: "أسبوع" }).click();
+  await expect.poll(() => (calls.at(-1)?.body as { p_days: number }).p_days).toBe(7);
+  expect(errors).toEqual([]);
+});

@@ -12,9 +12,9 @@ import { ICON_NAMES } from "@/components/brand/icons";
 import photos from "@/content/expo-photos.json";
 import { BLOCK_KINDS, BUILT_IN, TEMPLATES, imageOf, newBlock, robotexPage, uidOf, type Block, type BlockType, type Btn, type Countdown, type Img, type PageSettings, type SitePage, type T } from "@/lib/site-pages";
 import { fromZonedInput, toZonedInput } from "@/lib/zoned";
-import { SITE_ORIGIN, can, errorText, fmt, must, sb, savedText, uploadImage, type StaffRow } from "./core";
+import { SITE_ORIGIN, can, errorText, fmt, must, rpc, sb, savedText, uploadImage, type StaffRow } from "./core";
 import { Sortable, moved, type HandleProps } from "./sortable";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync, type IconKey } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, Loading, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync, type IconKey } from "./ui";
 
 const SitePageView = dynamic(() => import("@/components/pages/site-page").then((m) => m.SitePageView), { ssr: false, loading: () => <Loading /> });
 
@@ -200,6 +200,73 @@ function NewPageSheet({ open, onClose, taken }: { open: boolean; onClose: () => 
         </Button>
       </div>
     </Sheet>
+  );
+}
+
+type Stats = {
+  from: string;
+  views: number;
+  visitors: number;
+  daily: { day: string; views: number }[];
+  referrers: { host: string; views: number }[];
+  devices: Record<string, number>;
+  forms: { slug: string; title: string; total: number; period: number; accepted: number }[];
+};
+
+/** The page's numbers (loaded when opened): visits, where from, and how many applied through its forms. */
+function PageStats({ slug, forms }: { slug: string; forms: string[] }) {
+  const [open, setOpen] = useState(false);
+  const [days, setDays] = useState(30);
+  const { data, error, loading, reload } = useAsync(async () => (open ? rpc<Stats>("staff_page_stats", { p_slug: slug, p_forms: forms.length ? forms : null, p_days: days }) : null), [open, slug, days, forms.join()]);
+  const max = Math.max(1, ...(data?.daily ?? []).map((d) => d.views));
+  const applied = (data?.forms ?? []).reduce((n, f) => n + f.period, 0);
+  return (
+    <details className="mt-4 rounded-2xl border border-[var(--line)] bg-panel/40 p-4" data-testid="page-stats" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer text-sm font-semibold text-chalk">أرقام الصفحة (زيارات وتقديمات)</summary>
+      <div className="mt-3 grid gap-3">
+        <div className="flex gap-1.5">
+          {[7, 30, 90].map((d) => (
+            <Chip key={d} active={days === d} onClick={() => setDays(d)}>
+              {d === 7 ? "أسبوع" : d === 30 ? "شهر" : "3 شهور"}
+            </Chip>
+          ))}
+        </div>
+        {loading && !data ? (
+          <Loading />
+        ) : error ? (
+          <ErrorBox error={error} retry={reload} />
+        ) : data ? (
+          <>
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="زيارة" value={data.views} />
+              <Stat label="زائر" value={data.visitors} />
+              <Stat label="قدّموا" value={applied} tone={applied ? "ok" : undefined} sub={data.visitors ? `${Math.round((applied / data.visitors) * 100)}% من الزوار` : undefined} />
+            </div>
+            {data.daily.length > 0 && (
+              <div className="flex h-20 items-end gap-0.5" aria-label="الزيارات كل يوم">
+                {data.daily.map((d) => (
+                  <span key={d.day} title={`${fmt.day(d.day)}: ${d.views}`} className="min-w-[3px] flex-1 rounded-t bg-cyan/60" style={{ height: `${Math.max(4, (d.views / max) * 100)}%` }} />
+                ))}
+              </div>
+            )}
+            {data.forms.map((f) => (
+              <p key={f.slug} className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.03] px-3 py-2 text-xs text-mist">
+                <span className="min-w-0 truncate">{f.title}</span>
+                <span className="shrink-0 text-fog">
+                  {f.period} في الفترة · {f.total} الكل · {f.accepted} اتقبلوا
+                </span>
+              </p>
+            ))}
+            {data.referrers.length > 0 && (
+              <p className="text-xs text-fog">
+                جايين منين: {data.referrers.map((r) => `${r.host || "مباشر"} (${r.views})`).join("، ")}
+              </p>
+            )}
+            {!data.views && <p className="text-xs text-fog">مفيش زيارات في الفترة دي لسه.</p>}
+          </>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -465,6 +532,8 @@ export function PageEditor({ id, me }: { id: string; me: StaffRow }) {
           ضيف جزء
         </Button>
       </Section>
+
+      {data.saved && <PageStats slug={row.slug} forms={formsOf(row.blocks)} />}
 
       <Section title="إعدادات الصفحة">
         <Card className="grid gap-3">
