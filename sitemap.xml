@@ -61,6 +61,12 @@
 <priority>0.7</priority>
 </url>
 <url>
+<loc>https://buildxhue.com/robotex/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/robotex/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/robotex/" />
+<priority>0.7</priority>
+</url>
+<url>
 <loc>https://buildxhue.com/gallery/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/gallery/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/gallery/" />
@@ -215,5 +221,11 @@
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/green-innovation/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/green-innovation/" />
 <priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/team/mo/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team/mo/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team/mo/" />
+<priority>0.5</priority>
 </url>
 </urlset>
