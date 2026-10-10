@@ -8,7 +8,8 @@ import { useMemo, useState } from "react";
 import { coreTeams } from "@/content/core-content";
 import type { FieldType, FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
-import { isFull, fmt, must, sb, today, type StaffRow } from "./core";
+import { can, isFull, fmt, must, sb, today, type StaffRow } from "./core";
+import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
@@ -452,7 +453,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   );
 }
 
-export function FormResponses({ id }: { id: string }) {
+export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses] = await Promise.all([
       sb().from("forms").select("*").eq("id", id).single().then(must) as Promise<Form>,
@@ -599,6 +600,16 @@ export function FormResponses({ id }: { id: string }) {
               ارفض
             </Button>
           </div>
+          {me && can(me, "whatsapp") && (
+            <Button
+              size="sm"
+              icon="chat"
+              disabled={!pick.size}
+              onClick={() => sendOnWhatsApp(data.responses.filter((r) => pick.has(r.id)), { label: `المختارين من «${data.form.title_ar}» (${pick.size})`, context: data.form.delegation ? `expo:${id}` : `form:${id}` })}
+            >
+              واتساب للمختارين ({pick.size})
+            </Button>
+          )}
         </Card>
       )}
       {!list.length ? (

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { can, isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { sendOnWhatsApp } from "./wa-handoff";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { ReportSheet } from "./report";
@@ -68,6 +69,9 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
         sub={list ? `${list.filter((s) => s.active).length} طالب نشط · ${groups.length} مجموعة` : undefined}
         actions={
           <>
+            {can(me, "whatsapp") && (
+              <IconButton icon="chat" label="واتساب للي ظاهرين" onClick={() => sendOnWhatsApp(shown.filter((s) => s.active), { label: `الطلاب الظاهرين${group ? ` (${group})` : ""}`, context: group ? `group:${group}` : "students" })} />
+            )}
             <IconButton icon="key" label="رموز الدخول" onClick={() => setPinsOpen(true)} />
             <IconButton icon="list" label="إضافة مجموعة طلاب" onClick={() => setBulk(true)} />
             <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>

@@ -2460,3 +2460,36 @@ test("WhatsApp Web: each chat opens with the message ready, with a wait between 
   await expect(page.getByText("خلصت: 2 رسالة")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("WhatsApp from any list: the chosen people arrive ready on the WhatsApp screen, with saved messages one tap away", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, { staff_whatsapp_status: { connected: false, status: "none", templates: [], has_token: false, sent_today: 0, failed_today: 0, can_send: true, can_connect: true } });
+  const app = (id: string, name: string, phone: string) => ({ id, ref: `A-${id}`, created_at: at(10), status: "new", full_name: name, phone, email: `${id}@example.com`, faculty: "AI", academic_year: "1", student_number: null, track_first: "robotics", track_second: null, experience_level: "beginner", skills: "", experience: "", portfolio_url: null, motivation: "", goals: "", hours_per_week: "5", days: [], team_roles: [], heard_from: "friend", staff_notes: null, public_note: null });
+  await page.route(/\/rest\/v1\/applications/, (route) => route.fulfill({ json: [app("a1", "Mona Adel", "01012345678"), app("a2", "Ali Hassan", "01198765432")] }));
+  const snippets: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/whatsapp_snippets/, (route) => {
+    if (route.request().method() === "POST") {
+      snippets.push(route.request().postDataJSON());
+      return route.fulfill({ json: { id: "s9", title: "جديدة", body: "x" } });
+    }
+    return route.fulfill({ json: [{ id: "s1", title: "القبول", body: "{hi} {name} 🎉\nاتقبلت في BuildX HUE!" }] });
+  });
+  await page.goto("/app/#/staff/applications");
+  await page.getByRole("button", { name: "واتساب" }).click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp$/);
+  const box = page.getByTestId("wa-web");
+  await expect(box.getByRole("combobox").first()).toHaveValue("handoff");
+  await expect(box.getByRole("button", { name: "ابدأ الإرسال (2)" })).toBeVisible();
+  // A saved message fills the text.
+  await page.getByTestId("wa-snippets").getByRole("button", { name: "القبول" }).click();
+  await expect(box.getByLabel("الرسالة")).toHaveValue(/اتقبلت في BuildX HUE!/);
+  // And the one written now can be saved for next time.
+  await box.getByLabel("الرسالة").fill("{hi} {name}، اجتماع بكرة 7");
+  page.once("dialog", (d) => void d.accept("اجتماع"));
+  await page.getByRole("button", { name: "احفظ اللي مكتوبة" }).click();
+  await expect.poll(() => snippets[0]).toEqual({ title: "اجتماع", body: "{hi} {name}، اجتماع بكرة 7" });
+  expect(errors).toEqual([]);
+});

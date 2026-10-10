@@ -275,7 +275,7 @@ export function StaffApp({
       screen = <AppsSettingsScreen me={me} />;
       break;
     case "at-risk":
-      screen = <AtRiskScreen />;
+      screen = <AtRiskScreen me={me} />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -292,7 +292,7 @@ export function StaffApp({
     case "forms":
       screen = id ? (
         sub === "responses" ? (
-          <FormResponses key={id} id={id} />
+          <FormResponses key={id} id={id} me={me} />
         ) : sub === "checkin" ? (
           <DelegationCheckin key={id} id={id} />
         ) : (
