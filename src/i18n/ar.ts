@@ -27,6 +27,7 @@ const ar: Dictionary = {
     team: "الفريق",
     achievements: "الإنجازات",
     stories: "قصص نجاح",
+    expo: "زيارة معرض Robotex",
     events: "الفعاليات",
     gallery: "المعرض",
     media: "الوسائط",

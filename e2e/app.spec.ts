@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 
 /** BuildX App staff screens, signed in as a mocked owner with mocked Supabase data. */
@@ -1154,4 +1155,182 @@ test("a lecture can be scheduled: hidden until its time, then it publishes itsel
   await page.getByRole("dialog").getByRole("button", { name: "إضافة", exact: true }).click();
   await expect.poll(() => inserted[0]).toMatchObject({ title: "Lecture 7", published: false });
   expect(new Date(String(inserted[0]?.publish_at)).getTime()).toBeGreaterThan(Date.now() + 864e5);
+});
+
+test("expo visit responses: accepted list as Excel, WhatsApp acceptance with the expo link, and who registered there", async ({ page }) => {
+  await signInAsOwner(page);
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex & NDTX 2026", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100),
+    accepted_ar: "اتقبلت", accepted_url: "https://expo.ndtcorner.com/visitor",
+    fields: [
+      { id: "name", type: "name", label_ar: "الاسم بالكامل (بالعربي)", required: true },
+      { id: "name_en", type: "text", label_ar: "الاسم بالإنجليزي", required: true },
+      { id: "phone", type: "phone", label_ar: "رقم الموبايل (واتساب)", required: true },
+    ],
+  };
+  const resp = (id: string, name: string, status: string, ref: string, done: string | null = null) => ({
+    id, form_id: "f1", ref, answers: { name, name_en: "X", phone: "+201012345678" }, name, phone: "+201012345678", email: null, locale: "ar", status, note: null, external_done_at: done, created_at: at(50),
+  });
+  const rows = [resp("r1", "منى عادل", "accepted", "F-1A2B3C4D"), resp("r2", "علي حسن", "accepted", "F-22222222", at(10)), resp("r3", "سارة", "new", "F-33333333")];
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await expect(page.getByText("2 مقبول · 1 سجّلوا في اللينك")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Excel المقبولين" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^buildx-robotex-2026-accepted-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const bytes = readFileSync((await file.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  expect(bytes.toString("utf8")).toContain("منى عادل");
+  expect(bytes.toString("utf8")).not.toContain("سارة");
+  await page.getByText("منى عادل").click();
+  const wa = page.getByRole("link", { name: "ابعتله رسالة القبول على واتساب" });
+  await expect(wa).toHaveAttribute("href", /wa\.me\/201012345678/);
+  const text = decodeURIComponent((await wa.getAttribute("href"))!.split("text=")[1]!);
+  expect(text).toContain("https://expo.ndtcorner.com/visitor");
+  expect(text).toContain("F-1A2B3C4D");
+  expect(text).toContain("https://buildxhue.com/ar/robotex/?ref=F-1A2B3C4D#status");
+  await page.getByRole("switch", { name: /سجّل في اللينك/ }).click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect((patches[0] as { external_done_at: string }).external_done_at).toMatch(/^\d{4}-/);
+});
+
+/* ─── Sectors and team tasks ─────────────────────────────────────────────── */
+
+/** Answers these RPCs for this test only (registered after signInAsOwner, so it wins). */
+async function mockRpc(page: Page, calls: { fn: string; body: unknown }[], answers: Record<string, unknown>) {
+  await page.route(/\/rest\/v1\/rpc\/staff_(sectors|sector_save|sector_members|sector_tasks|task|task_save|task_start|task_submit|task_review|task_cancel|my_tasks|my_summary|warnings|warnings_seen|warning_give|warning_cancel)$/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    calls.push({ fn, body: route.request().postDataJSON() });
+    return route.fulfill({ json: answers[fn] ?? null });
+  });
+}
+const later = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+const member = (o: object) => ({ staff_id: "u3", name: "Omar Design", title: null, is_head: false, assigned: 2, on_time: 1, late: 0, missed: 1, open: 1, warnings: 1, ...o });
+const assignee = (o: object) => ({ staff_id: "u3", name: "Omar Design", state: "todo", note: null, link: null, submitted_at: null, late: false, feedback: null, reviewed_by_name: null, reviewed_at: null, missed_at: null, excused: false, ...o });
+const teamTask = (o: object) => ({ id: "t1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Event poster", description: "Instagram post for the workshop", link: null, priority: "high", due_at: later(30), warn_on_miss: true, status: "open", created_by_name: "Reem Media", created_at: at(60), assignees: [assignee({ state: "submitted", note: "Done", link: "https://canva.com/x", submitted_at: at(5) })], ...o });
+
+test("the owner makes a sector and picks its head and members", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_sectors: { oversees: true, sectors: [], staff: [{ user_id: "u1", name: "Owner Test", title: null }, { user_id: "u2", name: "Reem Media", title: "هيد الميديا" }, { user_id: "u3", name: "Omar Design", title: null }] },
+    staff_sector_save: "sec1",
+    staff_sector_members: { ok: true, members: 2 },
+  });
+  await page.goto("/app/#/staff/sectors");
+  await page.getByRole("button", { name: "سيكتور جديد" }).click();
+  await page.getByLabel("اسم السيكتور").fill("الميديا");
+  await page.getByRole("checkbox", { name: "عضو: Reem Media" }).check();
+  await page.getByRole("checkbox", { name: "هيد: Reem Media" }).check();
+  await page.getByRole("checkbox", { name: "عضو: Omar Design" }).check();
+  await expect(page.getByText("(2 عضو · 1 هيد)")).toBeVisible();
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_sector_members")?.body).toEqual({ p_sector: "sec1", p_members: [{ staff_id: "u2", is_head: true }, { staff_id: "u3", is_head: false }] });
+  expect(calls.find((c) => c.fn === "staff_sector_save")?.body).toEqual({ p_id: null, p_name: "الميديا", p_description: "", p_color: "#2f7bff", p_archived: false });
+  expect(errors).toEqual([]);
+});
+
+test("a head gives the sector an urgent task, approves a hand-in and gives a warning", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const row = { user_id: "u1", email: "reem@example.com", full_name: "Reem Media", role: "lead", active: true, created_at: at(9999), title: "هيد الميديا", permissions: ["site"] };
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+  });
+  const sector = { id: "sec1", name: "الميديا", description: "", color: "#ff7a45", archived: false, is_head: true, leads: true, open_tasks: 1, to_review: 1, overdue: 0, warnings: 1, members: [member({ staff_id: "u1", name: "Reem Media", is_head: true, assigned: 0, warnings: 0 }), member({})] };
+  await mockRpc(page, calls, {
+    staff_my_summary: { open: 0, overdue: 0, due_soon: 0, warnings_unseen: 0, warnings_active: 0, sectors: 1, heads: 1, to_review: 1, oversees: false },
+    staff_sectors: { oversees: false, sectors: [sector], staff: [] },
+    staff_sector_tasks: [teamTask({})],
+    staff_warnings: [],
+    staff_task_save: "t1",
+    staff_task: { ...teamTask({}), leads: true },
+    staff_task_review: { ok: true },
+    staff_warning_give: "w1",
+  });
+  // Home tells the head a hand-in is waiting.
+  await page.goto("/app/#/staff");
+  await expect(page.getByText("فيه تسليم مستني مراجعتك.")).toBeVisible();
+  await page.goto("/app/#/staff/sectors/sec1");
+  await expect(page.getByText("Event poster")).toBeVisible();
+  await page.getByRole("button", { name: "تاسك", exact: true }).click();
+  await page.getByLabel("العنوان").fill("Workshop reel");
+  await page.getByLabel("الأولوية").selectOption("urgent");
+  await page.getByRole("checkbox", { name: "Omar Design" }).check();
+  await page.getByRole("button", { name: "ابعت التاسك" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_save")?.body).toMatchObject({ p_id: null, p_sector: "sec1", p_title: "Workshop reel", p_priority: "urgent", p_assignees: ["u3"], p_warn: true });
+  // The task page: review Omar's hand-in, then a warning.
+  await expect(page).toHaveURL(/#\/staff\/sectors\/sec1\/t1$/);
+  await expect(page.getByText("https://canva.com/x")).toBeVisible();
+  await page.getByRole("button", { name: "راجِع" }).click();
+  await page.getByLabel("ملاحظة (بتوصله)").fill("Nice");
+  await page.getByRole("button", { name: "اقبل" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_review")?.body).toEqual({ p_task: "t1", p_staff: "u3", p_decision: "approved", p_feedback: "Nice" });
+  await page.getByRole("button", { name: "إنذار", exact: true }).click();
+  await page.getByRole("button", { name: "ابعت الإنذار" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_warning_give")?.body).toEqual({ p_staff: "u3", p_reason: "مسلّمش تاسك «Event poster» زي المطلوب.", p_sector: "sec1", p_task: "t1" });
+  expect(errors).toEqual([]);
+});
+
+test("a member sees a late task and a new warning, then hands the task in", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/staff/, (route) => {
+    const row = { user_id: "u3", email: "omar@example.com", full_name: "Omar Design", role: "lead", active: true, created_at: at(9999), title: "عضو في الفريق", permissions: [] };
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [row] });
+  });
+  await mockRpc(page, calls, {
+    staff_my_summary: { open: 1, overdue: 1, due_soon: 0, warnings_unseen: 1, warnings_active: 1, sectors: 1, heads: 0, to_review: 0, oversees: false },
+    staff_my_tasks: [teamTask({ id: "t9", title: "Sponsor deck", due_at: at(120), assignees: [assignee({ missed_at: at(110) })] })],
+    staff_warnings: [{ id: "w1", staff_id: "u3", name: "Omar Design", sector_id: "sec1", sector_name: "الميديا", task_id: "t9", task_title: "Sponsor deck", kind: "missed", reason: "ما سلّمتش تاسك «Sponsor deck» في ميعاده.", issued_by_name: null, created_at: at(110), seen_at: null, cancelled_at: null, cancelled_by_name: null, cancel_note: null }],
+    staff_warnings_seen: { ok: true },
+    staff_task_submit: { ok: true, late: true },
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("home-warnings")).toContainText("جالك إنذار جديد.");
+  await page.getByRole("button", { name: /عليك تاسك/ }).click();
+  await expect(page).toHaveURL(/#\/staff\/mytasks$/);
+  await expect(page.getByTestId("my-warnings")).toContainText("ما سلّمتش تاسك «Sponsor deck» في ميعاده.");
+  await expect.poll(() => calls.some((c) => c.fn === "staff_warnings_seen")).toBe(true);
+  await page.getByRole("button", { name: /^Sponsor deck/ }).click();
+  await expect(page.getByText("الميعاد فات، هيتسجّل إنه متأخر.")).toBeVisible();
+  await page.getByLabel("عملت إيه").fill("Deck ready");
+  await page.getByLabel(/^لينك/).fill("https://drive.google.com/deck");
+  await page.getByRole("button", { name: "سلّم", exact: true }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_submit")?.body).toEqual({ p_task: "t9", p_note: "Deck ready", p_link: "https://drive.google.com/deck" });
+  await expect(page.getByText("اتسلّم (متأخر)")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the owner sees every warning in the team and cancels one", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const w = (id: string, name: string, o: object = {}) => ({ id, staff_id: name, name, sector_id: "sec1", sector_name: "الميديا", task_id: null, task_title: null, kind: "manual", reason: "اتأخر على الاجتماع", issued_by_name: "Reem Media", created_at: at(60), seen_at: null, cancelled_at: null, cancelled_by_name: null, cancel_note: null, ...o });
+  await mockRpc(page, calls, {
+    staff_warnings: [w("w1", "Omar Design"), w("w2", "Omar Design", { kind: "missed" }), w("w3", "Omar Design"), w("w4", "Sara Ops", { cancelled_at: at(10), cancelled_by_name: "Owner Test", cancel_note: "ظرف" })],
+    staff_warning_cancel: { ok: true },
+  });
+  await page.goto("/app/#/staff/warnings");
+  await expect(page.getByText("الأكتر إنذارات (آخر 90 يوم)")).toBeVisible();
+  await expect(page.getByText("Sara Ops")).toHaveCount(0);
+  await page.getByRole("button", { name: "إلغاء", exact: true }).first().click();
+  await page.getByLabel("ليه؟ (بيوصله)").fill("كان عيان");
+  await page.getByRole("button", { name: "إلغاء الإنذار" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_warning_cancel")?.body).toEqual({ p_id: "w1", p_note: "كان عيان" });
 });

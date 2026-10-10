@@ -8,7 +8,8 @@ import { useMemo, useState } from "react";
 import { coreTeams } from "@/content/core-content";
 import type { FieldType, FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
-import { isFull, downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
+import { isFull, fmt, must, sb, today, type StaffRow } from "./core";
+import { downloadXlsx } from "./xlsx";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -30,9 +31,24 @@ type Form = {
   max_responses: number | null;
   listed: boolean;
   archived: boolean;
+  accepted_ar: string | null;
+  accepted_url: string | null;
   created_at: string;
 };
-type Response = { id: string; form_id: string; answers: Record<string, string | string[]>; name: string | null; phone: string | null; email: string | null; locale: string; status: "new" | "accepted" | "rejected" | "waiting"; note: string | null; created_at: string };
+type Response = {
+  id: string;
+  form_id: string;
+  ref: string;
+  answers: Record<string, string | string[]>;
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  locale: string;
+  status: "new" | "accepted" | "rejected" | "waiting";
+  note: string | null;
+  external_done_at: string | null;
+  created_at: string;
+};
 
 const TYPES: { k: FieldType; ar: string }[] = [
   { k: "name", ar: "الاسم" },
@@ -112,7 +128,10 @@ function liveState(x: Form, count: number) {
   return { ar: "مفتوح", tone: "ok" as const };
 }
 
-const formLink = (slug: string) => `${SITE}/ar/form/?f=${encodeURIComponent(slug)}`;
+const formLink = (slug: string) => (slug === "robotex-2026" ? `${SITE}/ar/robotex/` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}`);
+/** Where an applicant checks their status (and, once accepted, finds the next step). */
+const statusLink = (slug: string, ref: string) =>
+  slug === "robotex-2026" ? `${SITE}/ar/robotex/?ref=${encodeURIComponent(ref)}#status` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}&ref=${encodeURIComponent(ref)}#status`;
 
 export function FormsScreen() {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("forms").select("*, form_responses(count)").order("created_at", { ascending: false }).then(must)) as (Form & { form_responses: { count: number }[] })[], []);
@@ -218,6 +237,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     const next = { ...x, ...p };
     if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(next.slug)) return toast("الرابط المختصر: حروف إنجليزي صغيرة وأرقام و - بس", "error");
     if (next.title_ar.trim().length < 2) return toast("اكتب عنوان الفورم", "error");
+    if (next.accepted_url && !/^https:\/\/\S+$/.test(next.accepted_url)) return toast("لينك ما بعد القبول لازم يبدأ بـ https://", "error");
     for (const fl of next.fields) {
       if (!fl.label_ar.trim()) return toast("في سؤال من غير عنوان", "error");
       if ((fl.type === "select" || fl.type === "multi") && !(fl.options ?? []).length) return toast(`السؤال «${fl.label_ar}» محتاج اختيارات`, "error");
@@ -310,6 +330,18 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             </Field>
           </div>
           <Toggle checked={x.listed} onChange={(v) => edit({ listed: v })} label="يظهر في صفحة «الفورمات المفتوحة»" hint="اقفلها لو عايز الفورم يوصل باللينك بس." />
+        </Card>
+      </Section>
+
+      <Section title="بعد القبول">
+        <Card className="grid gap-3">
+          <p className="text-xs text-fog">اللي بيتقبل بيشوف الرسالة دي واللينك لما يتابع طلبه بكود الطلب، ويقدر يقول إنه سجّل في اللينك (زي موقع تسجيل المعرض).</p>
+          <Field label="رسالة للمقبولين">
+            <Textarea rows={3} maxLength={1000} value={x.accepted_ar ?? ""} onChange={(e) => edit({ accepted_ar: e.target.value || null })} />
+          </Field>
+          <Field label="لينك الخطوة الجاية" hint="اختياري — مثلاً تسجيل الزوار في موقع المعرض">
+            <Input dir="ltr" placeholder="https://" value={x.accepted_url ?? ""} maxLength={300} onChange={(e) => edit({ accepted_url: e.target.value.trim() || null })} />
+          </Field>
         </Card>
       </Section>
 
@@ -417,11 +449,16 @@ export function FormResponses({ id }: { id: string }) {
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
   const { form } = data;
   const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("، ") : (v ?? ""));
-  const exportCsv = () =>
-    downloadCsv(`buildx-${form.slug}-${today()}.csv`, [
-      ["التاريخ", "الحالة", ...form.fields.map((fl) => fl.label_ar), "ملاحظة"],
-      ...data.responses.map((r) => [fmt.dateTime(r.created_at), RESP[r.status].ar, ...form.fields.map((fl) => show(r.answers[fl.id])), r.note]),
-    ]);
+  const external = !!form.accepted_url;
+  const exportXlsx = (only?: Response["status"]) => {
+    const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
+      ["#", "كود الطلب", "التاريخ", "الحالة", ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
+      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...form.fields.map((fl) => show(r.answers[fl.id])), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
+    ], { sheet: only === "accepted" ? "المقبولين" : "الردود" });
+  };
+  const acceptMessage = (r: Response) =>
+    `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت في «${form.title_ar}».\n${form.accepted_url ? `سجّل في الرابط ده: ${form.accepted_url}\n` : ""}وتابع طلبك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`;
   const update = async (r: Response, p: Partial<Response>) => {
     try {
       await sb().from("form_responses").update(p).eq("id", r.id).then(must);
@@ -436,7 +473,17 @@ export function FormResponses({ id }: { id: string }) {
   const first = form.fields.find((fl) => fl.type !== "name" && fl.type !== "phone" && fl.type !== "email" && fl.type !== "checkbox");
   return (
     <>
-      <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={<Button size="sm" icon="download" disabled={!data.responses.length} onClick={exportCsv}>Excel</Button>} />
+      <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={<Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>Excel</Button>} />
+      {count("accepted") > 0 && (
+        <Card className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-sm text-mist">
+            {count("accepted")} مقبول{external ? ` · ${data.responses.filter((r) => r.status === "accepted" && r.external_done_at).length} سجّلوا في اللينك` : ""}
+          </p>
+          <Button size="sm" icon="download" onClick={() => exportXlsx("accepted")}>
+            Excel المقبولين
+          </Button>
+        </Card>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <Chip active={filter === "all"} onClick={() => setFilter("all")} count={data.responses.length}>
           الكل
@@ -457,7 +504,8 @@ export function FormResponses({ id }: { id: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-chalk">{r.name || r.phone || r.email || "—"}</p>
                   <p className="truncate text-xs text-fog">
-                    {fmt.rel(r.created_at)}
+                    <span dir="ltr" className="font-mono">{r.ref}</span> · {fmt.rel(r.created_at)}
+                    {external && r.external_done_at ? " · سجّل ✓" : ""}
                     {first && r.answers[first.id] ? ` · ${show(r.answers[first.id])}` : ""}
                   </p>
                 </div>
@@ -470,7 +518,9 @@ export function FormResponses({ id }: { id: string }) {
       {open && (
         <Sheet open onClose={() => setOpen(null)} title={open.name || "رد"}>
           <div className="grid gap-4">
-            <p className="text-xs text-fog">{fmt.dateTime(open.created_at)}</p>
+            <p className="text-xs text-fog">
+              <span dir="ltr" className="font-mono">{open.ref}</span> · {fmt.dateTime(open.created_at)}
+            </p>
             <dl className="grid gap-3">
               {form.fields.map((fl) => (
                 <div key={fl.id}>
@@ -479,10 +529,20 @@ export function FormResponses({ id }: { id: string }) {
                 </div>
               ))}
             </dl>
-            {whatsappLink(open.phone) && (
-              <a href={whatsappLink(open.phone, `أهلاً ${(open.name ?? "").split(/\s+/)[0]}، معاك فريق BuildX HUE بخصوص «${form.title_ar}».`)!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">
-                كلّمه على واتساب
-              </a>
+            {whatsappLink(open.phone) &&
+              (open.status === "accepted" ? (
+                <a href={whatsappLink(open.phone, acceptMessage(open))!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">
+                  ابعتله رسالة القبول على واتساب
+                </a>
+              ) : (
+                <a href={whatsappLink(open.phone, `أهلاً ${(open.name ?? "").split(/\s+/)[0]}، معاك فريق BuildX HUE بخصوص «${form.title_ar}».`)!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">
+                  كلّمه على واتساب
+                </a>
+              ))}
+            {open.status === "accepted" && (
+              <Button size="sm" icon="copy" onClick={() => copyText(acceptMessage(open), "اتنسخت رسالة القبول")}>
+                انسخ رسالة القبول
+              </Button>
             )}
             <div className="flex flex-wrap gap-2">
               {(Object.keys(RESP) as Response["status"][]).map((s) => (
@@ -491,6 +551,14 @@ export function FormResponses({ id }: { id: string }) {
                 </Chip>
               ))}
             </div>
+            {external && open.status === "accepted" && (
+              <Toggle
+                checked={!!open.external_done_at}
+                onChange={(v) => update(open, { external_done_at: v ? new Date().toISOString() : null })}
+                label="سجّل في اللينك (موقع المعرض)"
+                hint={open.external_done_at ? `من ${fmt.dateTime(open.external_done_at)}` : "بيتعلّم لوحده لما الطالب يضغط «سجّلت» من صفحة متابعة الطلب."}
+              />
+            )}
             <Field label="ملاحظة داخلية">
               <Textarea rows={3} maxLength={2000} defaultValue={open.note ?? ""} onBlur={(e) => e.target.value !== (open.note ?? "") && update(open, { note: e.target.value })} />
             </Field>

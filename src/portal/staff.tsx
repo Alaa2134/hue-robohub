@@ -29,6 +29,7 @@ import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
+import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
 import {
   Badge,
   Button,
@@ -77,6 +78,7 @@ const AREA_OF: Record<string, Area> = {
   portfolios: "portfolios",
   notify: "notify",
   security: "security",
+  warnings: "sectors",
   audit: "security",
   stats: "security",
   errors: "security",
@@ -238,6 +240,15 @@ export function StaffApp({
         <FormsScreen />
       );
       break;
+    case "mytasks":
+      screen = <MyTasksScreen />;
+      break;
+    case "sectors":
+      screen = id ? sub ? <TeamTaskScreen key={sub} sectorId={id} id={sub} me={me} /> : <SectorScreen key={id} id={id} me={me} /> : <SectorsScreen />;
+      break;
+    case "warnings":
+      screen = <WarningsScreen />;
+      break;
     case "more":
       screen = <MoreScreen me={me} />;
       break;
@@ -281,6 +292,7 @@ function StaffHome({ me }: { me: StaffRow }) {
     const access = can(me, "roster") || isFull(me) ? await pendingAccessRequests().catch(() => 0) : 0;
     const projects = can(me, "site") ? await pendingStudentProjects().catch(() => 0) : 0;
     const atRisk = can(me, "roster") ? await atRiskCount().catch(() => 0) : 0;
+    const team = await teamSummary().catch(() => null);
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -292,6 +304,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       access,
       projects,
       atRisk,
+      team,
     };
   }, []);
   const active = students.list?.filter((s) => s.active) ?? [];
@@ -337,6 +350,8 @@ function StaffHome({ me }: { me: StaffRow }) {
       )}
 
       {can(me, "security") && <SecurityAlert />}
+
+      <TeamTasksHome summary={data?.team} />
 
       {!!data?.applications && (
         <Card className="mt-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">
@@ -454,6 +469,8 @@ function StaffHome({ me }: { me: StaffRow }) {
 
       <Section title="اختصارات">
         <div className="grid grid-cols-3 gap-2">
+          <Shortcut icon="flag" label="تاسكاتي" to="/staff/mytasks" />
+          {(!!data?.team?.sectors || !!data?.team?.oversees) && <Shortcut icon="users" label="السيكتورات" to="/staff/sectors" />}
           {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
           {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
           {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
@@ -494,6 +511,9 @@ function MoreScreen({ me }: { me: StaffRow }) {
     return !a || can(me, a);
   };
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
+    { icon: "flag", label: "تاسكاتي وإنذاراتي", to: "/staff/mytasks" },
+    { icon: "users", label: "السيكتورات وتاسكات الفريق", to: "/staff/sectors" },
+    { icon: "alert", label: "إنذارات الفريق (كل السيكتورات)", to: "/staff/warnings" },
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },

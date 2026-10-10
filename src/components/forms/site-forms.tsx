@@ -75,6 +75,19 @@ const C = {
     soon: "قريباً",
     applyTeam: "قدّم على الفريق",
     teamOpen: "التقديم على الفريق ده مفتوح دلوقتي!",
+    refLabel: "كود الطلب",
+    refHint: "احتفظ بالكود ده: بيه وبرقم موبايلك تتابع حالة طلبك.",
+    checkStatus: "تابع حالة طلبك",
+    stTitle: "حالة طلبك",
+    stRef: "كود الطلب",
+    stPhone: "رقم الموبايل اللي قدّمت بيه",
+    stCheck: "اعرف حالتي",
+    stChecking: "بندوّر…",
+    stNotFound: "مش لاقيين طلب بالكود والرقم دول. راجعهم وجرّب تاني.",
+    st: { new: "طلبك وصل وبيتراجع ⏳", waiting: "إنت على قايمة الانتظار ⏳ هنبلّغك لو مكان فضي.", accepted: "اتقبلت 🎉", rejected: "للأسف المرة دي مقدرناش نقبل طلبك. شكراً لاهتمامك 🙏" },
+    stOpen: "افتح موقع التسجيل",
+    stDone: "سجّلت في موقع المعرض",
+    stDoneOk: "تمام ✅ الفريق عرف إنك سجّلت.",
   },
   en: {
     name: "Name",
@@ -129,6 +142,19 @@ const C = {
     soon: "Soon",
     applyTeam: "Apply to the team",
     teamOpen: "Applications for this team are open now!",
+    refLabel: "Reference code",
+    refHint: "Keep this code: with it and your mobile number you can check your application.",
+    checkStatus: "Check your application",
+    stTitle: "Your application",
+    stRef: "Reference code",
+    stPhone: "The mobile number you applied with",
+    stCheck: "Check",
+    stChecking: "Checking…",
+    stNotFound: "No application matches that code and number. Check them and try again.",
+    st: { new: "Received and under review ⏳", waiting: "You're on the waiting list ⏳ We'll tell you if a place opens up.", accepted: "Accepted 🎉", rejected: "Sorry, we couldn't accept your application this time. Thank you for your interest 🙏" },
+    stOpen: "Open the registration site",
+    stDone: "I've registered on the expo site",
+    stDoneOk: "Done ✅ The team knows you registered.",
   },
 };
 
@@ -524,8 +550,8 @@ export function TeamFormCta({ locale, team, base }: { locale: string; team: stri
   );
 }
 
-/** /form?f=<slug>: fill in one form. */
-export function FormFiller({ locale, listHref }: { locale: string; listHref: string }) {
+/** /form?f=<slug>: fill in one form (or a fixed form embedded in a page, with a status link). */
+export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { locale: string; listHref: string; slug?: string; statusHref?: string }) {
   const l = L(locale);
   const t = C[l];
   const honey = useRef<HTMLInputElement>(null);
@@ -536,16 +562,17 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "ok" | "dup">("");
+  const [ref, setRef] = useState("");
   const elapsed = useElapsed();
 
   useEffect(() => {
-    const s = new URLSearchParams(location.search).get("f") ?? "";
+    const s = fixed ?? new URLSearchParams(location.search).get("f") ?? "";
     setSlug(s);
     if (!s) return setForm(null);
     rpc<PublicForm | null>("public_form", { p_slug: s })
       .then((f) => setForm(f ?? null))
       .catch(() => setForm(null));
-  }, []);
+  }, [fixed]);
 
   if (form === undefined) return <p className="text-mist">{t.loading}</p>;
   if (!form || !slug)
@@ -584,7 +611,25 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
       </>
     );
 
-  if (done) return <Done title={done === "dup" ? t.formDup : (l === "en" ? form.success_en || form.success_ar : form.success_ar) || t.formSent} />;
+  if (done)
+    return (
+      <Done title={done === "dup" ? t.formDup : (l === "en" ? form.success_en || form.success_ar : form.success_ar) || t.formSent}>
+        {ref && (
+          <div className="grid gap-1">
+            <p className="text-sm text-fog">{t.refLabel}</p>
+            <p dir="ltr" className="font-mono text-2xl font-bold tracking-wider text-chalk" data-testid="form-ref">
+              {ref}
+            </p>
+            <p className="max-w-lg text-sm text-mist">{t.refHint}</p>
+          </div>
+        )}
+        {ref && statusHref && (
+          <a href={`${statusHref}?${fixed ? "" : `f=${encodeURIComponent(slug)}&`}ref=${encodeURIComponent(ref)}#status`} className="btn btn-sm">
+            {t.checkStatus}
+          </a>
+        )}
+      </Done>
+    );
 
   const set = (id: string, v: string | string[] | boolean) => {
     setA((x) => ({ ...x, [id]: v }));
@@ -623,8 +668,11 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
     setFormError("");
     try {
       const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), __t: elapsed() };
-      const out = await rpc<{ ok: boolean; duplicate?: boolean; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
-      if (out.ok) setDone(out.duplicate ? "dup" : "ok");
+      const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
+      if (out.ok) {
+        setRef(out.ref ?? "");
+        setDone(out.duplicate ? "dup" : "ok");
+      }
       else if (out.error === "fields" && out.fields) {
         const fe = Object.fromEntries(Object.entries(out.fields).map(([k, r]) => [k, reason[r] ?? t.errors.invalid]));
         setErrors(fe);
@@ -739,5 +787,90 @@ export function FormFiller({ locale, listHref }: { locale: string; listHref: str
         </div>
       </form>
     </>
+  );
+}
+
+type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean };
+
+/** Check an application with its reference code and phone; accepted applicants get the next step. */
+export function FormStatus({ locale }: { locale: string }) {
+  const l = L(locale);
+  const t = C[l];
+  const [ref, setRef] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [out, setOut] = useState<StatusOut | null>(null);
+  const [err, setErr] = useState("");
+  const [marked, setMarked] = useState(false);
+  useEffect(() => {
+    setRef(new URLSearchParams(location.search).get("ref") ?? "");
+  }, []);
+  const check = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ref.trim() || !PHONE.test(cleanPhone(phone))) return setErr(t.stNotFound);
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: phone.trim() });
+      if (r.ok) setOut(r);
+      else setErr(r.error === "rate_limited" ? t.errors.rate_limited : t.stNotFound);
+    } catch {
+      setErr(t.errors.network);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const markDone = async () => {
+    try {
+      const r = await rpc<{ ok: boolean }>("form_external_done", { p_ref: ref.trim(), p_phone: phone.trim() });
+      if (r.ok) setMarked(true);
+    } catch {
+      setErr(t.errors.network);
+    }
+  };
+  return (
+    <div className="frame grid gap-5 p-5 sm:p-8">
+      <form onSubmit={check} noValidate className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <Row id="st-ref" label={t.stRef}>
+          <input id="st-ref" className={inputCls} dir="ltr" value={ref} maxLength={20} onChange={(e) => setRef(e.target.value.toUpperCase())} placeholder="F-XXXXXXXX" autoComplete="off" />
+        </Row>
+        <Row id="st-phone" label={t.stPhone}>
+          <input id="st-phone" className={inputCls} dir="ltr" type="tel" inputMode="tel" value={phone} maxLength={20} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" autoComplete="tel" />
+        </Row>
+        <button type="submit" disabled={busy} className="btn btn-primary h-12 disabled:opacity-70">
+          {busy ? t.stChecking : t.stCheck}
+        </button>
+      </form>
+      {err && (
+        <p role="alert" className="text-sm text-danger">
+          {err}
+        </p>
+      )}
+      {out?.status && (
+        <div role="status" className="grid gap-3 rounded-2xl border border-[var(--line-2)] p-5">
+          <p className="text-sm text-fog">{(l === "en" && out.title_en) || out.title_ar}</p>
+          <p className={cn("t-headline text-2xl", out.status === "accepted" ? "text-ok" : out.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[out.status]}</p>
+          {out.status === "accepted" && out.accepted_ar && <p className="max-w-2xl whitespace-pre-line leading-relaxed text-mist">{out.accepted_ar}</p>}
+          {out.status === "accepted" && (
+            <div className="flex flex-wrap gap-3">
+              {out.accepted_url && (
+                <a href={out.accepted_url} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm">
+                  {t.stOpen}
+                </a>
+              )}
+              {out.external_done || marked ? (
+                <p className="self-center text-sm font-semibold text-ok">{t.stDoneOk}</p>
+              ) : (
+                out.accepted_url && (
+                  <button type="button" onClick={markDone} className="btn btn-sm">
+                    {t.stDone}
+                  </button>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

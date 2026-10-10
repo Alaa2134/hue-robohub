@@ -25,6 +25,7 @@ const en = {
     team: "Team",
     achievements: "Achievements",
     stories: "Success stories",
+    expo: "Robotex expo visit",
     events: "Events",
     gallery: "Gallery",
     media: "Media",
