@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { safeHref } from "@/components/brand/social-icons";
 import { mailtoLink, whatsappLink } from "@/lib/contact";
-import { isFull, downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
+import { can, isFull, downloadCsv, fmt, must, sb, today, type StaffRow } from "./core";
 import {
   Badge,
   Button,
@@ -139,7 +139,8 @@ export function InboxScreen({ me }: { me: StaffRow }) {
 
   const view = (m: Message) => {
     setOpen(m);
-    if (m.status === "new") void update(m, { status: "read" });
+    // Opening marks it read (not for someone who may only look).
+    if (m.status === "new" && can(me, "inbox")) void update(m, { status: "read" });
   };
 
   const exportCsv = () =>

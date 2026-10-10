@@ -124,7 +124,7 @@ export function PagesScreen({ me }: { me: StaffRow }) {
   );
   return (
     <>
-      <TopBar title="صفحات الموقع" sub="صفحة المعرض وأي صفحة تعملها بالسحب والإفلات" back="/staff/more" actions={can(me, "site") ? <Button size="sm" variant="primary" icon="plus" onClick={() => setCreating(true)}>صفحة جديدة</Button> : undefined} />
+      <TopBar title="صفحات الموقع" sub="صفحة المعرض وأي صفحة تعملها بالسحب والإفلات" back="/staff/more" actions={can(me, "pages") ? <Button size="sm" variant="primary" icon="plus" onClick={() => setCreating(true)}>صفحة جديدة</Button> : undefined} />
       <div className="grid grid-cols-1 gap-3">
         {expo
           ? card("robotex", expo.title_ar, "robotex", expo.blocks, <Badge tone={expo.published ? "ok" : "warn"}>{expo.published ? "منشورة" : "مسودة"}</Badge>, `${expo.blocks.length} جزء · اتعدّلت ${fmt.rel(expo.updated_at)}`)
@@ -139,7 +139,7 @@ export function PagesScreen({ me }: { me: StaffRow }) {
         </Chip>
       </div>
       {!list.length ? (
-        <Empty icon="layers" title={archived ? "مفيش صفحات في الأرشيف" : "مفيش صفحات تانية لسه"} body={archived ? undefined : "اعمل صفحة لفعالية أو زيارة جديدة: اختار قالب وضيف أجزاء ورتّبها بالسحب."} action={!archived && can(me, "site") ? <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>صفحة جديدة</Button> : undefined} />
+        <Empty icon="layers" title={archived ? "مفيش صفحات في الأرشيف" : "مفيش صفحات تانية لسه"} body={archived ? undefined : "اعمل صفحة لفعالية أو زيارة جديدة: اختار قالب وضيف أجزاء ورتّبها بالسحب."} action={!archived && can(me, "pages") ? <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>صفحة جديدة</Button> : undefined} />
       ) : (
         <div className="mt-3 grid grid-cols-1 gap-3">{list.map((p) => card(p.id, p.title_ar, p.slug, p.blocks, <Badge tone={p.published ? "ok" : "warn"}>{p.published ? "منشورة" : "مسودة"}</Badge>, `${p.blocks.length} جزء · اتعدّلت ${fmt.rel(p.updated_at)}`))}</div>
       )}

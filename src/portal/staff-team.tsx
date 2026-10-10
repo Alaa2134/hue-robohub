@@ -2,7 +2,7 @@
 /** Team accounts, my account, activity log and attendance reports. */
 import { useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { APP_PATH, AREAS, POSITIONS, publicOrigin, ROLE_LABEL, can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type Area, type AttStatus, type Role, type StaffRow, type Student } from "./core";
+import { APP_PATH, AREAS, POSITIONS, ROLE_PRESETS, publicOrigin, ROLE_LABEL, can, canSee, isFull, levelOf, permissionsFor, type Level, downloadCsv, errorText, fmt, must, rpc, sb, tempPassword, type Area, type AttStatus, type Role, type StaffRow, type Student } from "./core";
 import { DeleteAccountCard } from "./account-deletion";
 import { BiometricToggle } from "./biometric";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
@@ -104,7 +104,7 @@ export function TeamScreen({ me }: { me: StaffRow }) {
                     <p className="mt-0.5 truncate text-xs text-mist">
                       {s.title}
                       {s.title && s.role !== "owner" && s.permissions ? " · " : ""}
-                      {s.role !== "owner" && s.permissions ? AREAS.filter((a) => can(s, a.key)).map((a) => a.label).join("، ") || "بدون صلاحيات" : ""}
+                      {s.role !== "owner" && s.permissions ? AREAS.filter((a) => canSee(s, a.key)).map((a) => (can(s, a.key) ? a.label : `${a.label} (مشاهدة)`)).join("، ") || "بدون صلاحيات" : ""}
                     </p>
                   )}
                 </div>
@@ -169,23 +169,28 @@ function AddMember({ open, me, onClose, onCreated }: { open: boolean; me: StaffR
 }
 
 /**
- * The owner sets each person's position (shown in the team list and on their home screen) and exactly
- * which areas they work in, admins included. All areas ticked = no list (an admin then has everything).
- * The database enforces the same areas.
+ * The owner sets each person's position (shown in the team list and on their home screen) and, area by
+ * area, what they get: nothing, view only (see everything, change nothing) or full. A ready-made role
+ * fills it in one tap. An admin with every area in full = no list = a full admin. The database enforces
+ * the same areas and levels.
  */
 function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: boolean; onSave: (patch: Partial<StaffRow>) => void }) {
   const [title, setTitle] = useState(m.title ?? "");
   // What they have now (a trainer with no list has the basic areas, an admin with no list has all).
-  const current = AREAS.filter((a) => can(m, a.key)).map((a) => a.key);
-  const [areas, setAreas] = useState<Area[]>(current);
+  const current = Object.fromEntries(AREAS.map((a) => [a.key, levelOf(m, a.key)])) as Record<Area, Level>;
+  const [levels, setLevels] = useState<Record<Area, Level>>(current);
   const lead = m.role !== "owner";
+  const apply = (full: Area[], view: Area[] = []) =>
+    setLevels(Object.fromEntries(AREAS.map((a) => [a.key, full.includes(a.key) ? "full" : view.includes(a.key) && a.view ? "view" : "none"])) as Record<Area, Level>);
   const pickTitle = (t: string) => {
     setTitle(t);
     const p = POSITIONS.find((x) => x.title === t);
-    if (p && lead) setAreas(p.areas);
+    if (p && lead) apply(p.areas, p.view);
   };
-  const toggle = (a: Area) => setAreas((list) => (list.includes(a) ? list.filter((x) => x !== a) : [...list, a]));
-  const changed = title.trim() !== (m.title ?? "") || (lead && [...areas].sort().join() !== [...current].sort().join());
+  const set = (a: Area, l: Level) => setLevels((x) => ({ ...x, [a]: l }));
+  const sig = (x: Record<Area, Level>) => AREAS.map((a) => x[a.key]).join();
+  const changed = title.trim() !== (m.title ?? "") || (lead && sig(levels) !== sig(current));
+  const counts = { full: AREAS.filter((a) => levels[a.key] === "full").length, view: AREAS.filter((a) => levels[a.key] === "view").length };
   return (
     <Card className="grid gap-3">
       <Field label="المنصب" hint="بيظهر في قائمة الفريق وعلى الصفحة الرئيسية بتاعته. اختيار منصب بيقترح صلاحياته.">
@@ -197,40 +202,81 @@ function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: b
         </datalist>
       </Field>
       {lead ? (
-        <fieldset className="grid gap-1.5">
-          <legend className="mb-1 text-sm font-semibold text-chalk">الصلاحيات: علّم ✓ على اللي يقدر يشوفه ويشتغل فيه</legend>
-          {[...new Set(AREAS.map((a) => a.group))].map((group) => {
-            const keys = AREAS.filter((a) => a.group === group).map((a) => a.key);
-            const all = keys.every((k) => areas.includes(k));
-            return (
-              <div key={group} className="grid gap-1.5">
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-mist">{group}</span>
-                  <button
-                    type="button"
-                    className="text-xs text-cyan"
-                    onClick={() => setAreas((list) => (all ? list.filter((x) => !keys.includes(x)) : [...new Set([...list, ...keys])]))}
-                  >
-                    {all ? "شيل الكل" : "علّم الكل"}
-                  </button>
+        <>
+          <div className="grid gap-1.5">
+            <p className="text-sm font-semibold text-chalk">دور جاهز</p>
+            <div className="flex flex-wrap gap-1.5" data-testid="role-presets">
+              {ROLE_PRESETS.map((r) => (
+                <button
+                  key={r.name}
+                  type="button"
+                  onClick={() => apply(r.full, r.view)}
+                  className="rounded-full border border-[var(--line)] px-3 py-1.5 text-start text-xs text-mist transition hover:border-cyan/50 hover:text-chalk"
+                  title={r.about}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-fog">اختار دور وبعدين عدّل اللي محتاجه تحت.</p>
+          </div>
+          <fieldset className="grid gap-1.5">
+            <legend className="mb-1 text-sm font-semibold text-chalk">
+              الصلاحيات <span className="text-xs font-normal text-fog">({counts.full} كامل · {counts.view} مشاهدة بس)</span>
+            </legend>
+            <p className="text-xs text-fog">
+              <b className="text-mist">كامل</b> = يشوف ويعدّل. <b className="text-mist">مشاهدة</b> = يشوف كل حاجة في القسم ومايقدرش يغيّر أي حاجة.
+            </p>
+            {[...new Set(AREAS.map((a) => a.group))].map((group) => {
+              const keys = AREAS.filter((a) => a.group === group).map((a) => a.key);
+              const all = keys.every((k) => levels[k] === "full");
+              return (
+                <div key={group} className="grid gap-1.5">
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-xs font-bold text-mist">{group}</span>
+                    <button type="button" className="text-xs text-cyan" onClick={() => keys.forEach((k) => set(k, all ? "none" : "full"))}>
+                      {all ? "شيل الكل" : "كامل للكل"}
+                    </button>
+                  </div>
+                  {AREAS.filter((a) => a.group === group).map((a) => (
+                    <div key={a.key} className="grid gap-2 rounded-xl border border-[var(--line)] px-3 py-2.5" data-area={a.key}>
+                      <div className="min-w-0">
+                        <span className="block text-sm font-semibold text-chalk">{a.label}</span>
+                        <span className="block text-xs text-fog">{levels[a.key] === "view" && a.view ? `مشاهدة: ${a.view}` : a.hint}</span>
+                      </div>
+                      <div role="radiogroup" aria-label={a.label} className="grid grid-cols-3 gap-1 rounded-lg bg-white/[0.03] p-1 text-xs">
+                        {(["none", "view", "full"] as const).map((l) => {
+                          const off = l === "view" && !a.view;
+                          return (
+                            <button
+                              key={l}
+                              type="button"
+                              role="radio"
+                              aria-checked={levels[a.key] === l}
+                              disabled={off}
+                              title={off ? "القسم ده مالوش مستوى مشاهدة" : undefined}
+                              onClick={() => set(a.key, l)}
+                              className={cn(
+                                "rounded-md px-2 py-1.5 transition disabled:opacity-30",
+                                levels[a.key] === l ? (l === "full" ? "bg-volt/30 text-chalk" : l === "view" ? "bg-cyan/25 text-chalk" : "bg-white/10 text-chalk") : "text-fog hover:text-mist",
+                              )}
+                            >
+                              {l === "none" ? "لا" : l === "view" ? "مشاهدة" : "كامل"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {AREAS.filter((a) => a.group === group).map((a) => (
-                  <label key={a.key} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] px-3 py-2.5 transition hover:border-cyan/40">
-                    <input type="checkbox" checked={areas.includes(a.key)} onChange={() => toggle(a.key)} className="mt-1 size-4 accent-[#2f7bff]" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-chalk">{a.label}</span>
-                      <span className="block text-xs text-fog">{a.hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-            );
-          })}
-          <p className="text-xs text-fog">
-            البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.
-            {m.role === "admin" && " مشرف وكل الصلاحيات متعلّمة = مشرف كامل (بيدير المدرّبين ويقدر يمسح)."}
-          </p>
-        </fieldset>
+              );
+            })}
+            <p className="text-xs text-fog">
+              البورتفوليو بتاعه، حسابه، والتحقق بخطوتين مفتوحين لكل الفريق دايمًا.
+              {m.role === "admin" && " مشرف وكل الصلاحيات «كامل» = مشرف كامل (بيدير المدرّبين ويقدر يمسح)."}
+            </p>
+          </fieldset>
+        </>
       ) : (
         <p className="text-xs text-fog">{ROLE_LABEL.owner}: كل الصلاحيات دايمًا.</p>
       )}
@@ -238,7 +284,7 @@ function PositionEditor({ member: m, busy, onSave }: { member: StaffRow; busy: b
         variant="primary"
         disabled={!changed}
         loading={busy}
-        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: m.role === "admin" && areas.length === AREAS.length ? null : AREAS.map((x) => x.key).filter((k) => areas.includes(k)) } : {}) })}
+        onClick={() => onSave({ title: title.trim() || null, ...(lead ? { permissions: permissionsFor(m.role, levels) } : {}) })}
       >
         احفظ المنصب والصلاحيات
       </Button>

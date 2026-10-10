@@ -1,7 +1,7 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
-import { useMemo, useState } from "react";
-import { isFull, ROLE_LABEL, can, fmt, must, rpc, sb, type Area, type Session, type StaffRow } from "./core";
+import { useEffect, useMemo, useState } from "react";
+import { isFull, ROLE_LABEL, can, canSee, fmt, holdViewOnly, must, rpc, sb, type Area, type Session, type StaffRow } from "./core";
 import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
@@ -30,6 +30,8 @@ import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
+import { PermissionsScreen } from "./staff-permissions";
+import { WhatsAppScreen } from "./whatsapp";
 import { PageEditor, PagesScreen } from "./staff-pages";
 import { BansScreen, DelegationCheckin } from "./expo-delegation";
 import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
@@ -62,8 +64,8 @@ const TABS: Tab[] = [
 ];
 const MORE_TAB: Tab = { href: "/staff/more", label: "المزيد", icon: "list", match: (p) => p[0] === "more" };
 
-/** The area each section belongs to (sections not listed are open to every staff member). */
-const AREA_OF: Record<string, Area> = {
+/** The areas each section belongs to (any one opens it; sections not listed are open to every staff member). */
+const AREA_OF: Record<string, Area | Area[]> = {
   attendance: "attendance",
   reports: "attendance",
   students: "roster",
@@ -78,7 +80,7 @@ const AREA_OF: Record<string, Area> = {
   events: "events",
   site: "site",
   projects: "site",
-  forms: "forms",
+  forms: ["forms", "expo"],
   inbox: "inbox",
   certificates: "certificates",
   settings: "settings",
@@ -92,9 +94,56 @@ const AREA_OF: Record<string, Area> = {
   stats: "security",
   errors: "security",
   voice: "voice",
-  bans: "forms",
-  pages: "site",
+  bans: ["forms", "expo", "roster"],
+  pages: "pages",
+  whatsapp: "whatsapp",
 };
+const areasOf = (section: string | undefined): Area[] => {
+  const a = section ? AREA_OF[section] : undefined;
+  return a ? (Array.isArray(a) ? a : [a]) : [];
+};
+/** Opens the section (in full or to look at). */
+const sees = (me: StaffRow, section: string | undefined) => {
+  const a = areasOf(section);
+  return !a.length || a.some((x) => canSee(me, x));
+};
+
+/** What a view-only person can't change on each area's screens (the database refuses it anyway). */
+const AREA_TABLES: Partial<Record<Area, string[]>> = {
+  roster: ["students", "access_requests"],
+  attendance: ["attendance", "attendance_sessions"],
+  quizzes: ["quizzes", "quiz_questions", "quiz_attempts"],
+  tasks: ["assignments", "assignment_submissions"],
+  materials: ["materials"],
+  announcements: ["announcements"],
+  points: ["student_bonus"],
+  site: ["site_content", "student_projects"],
+  pages: ["site_pages"],
+  forms: ["forms", "form_responses", "community_bans"],
+  expo: ["forms", "form_responses", "community_bans"],
+  settings: ["site_settings"],
+  voice: ["voice_clips"],
+  applications: ["applications", "waitlist"],
+  events: ["event_registrations", "event_feedback"],
+  inbox: ["inbox_messages"],
+  certificates: ["certificates"],
+  whatsapp: ["whatsapp_messages"],
+};
+
+/** A screen this person may only look at: a note at the top, and changes stopped with a clear message. */
+function ViewOnly({ areas, children }: { areas: Area[]; children: React.ReactNode }) {
+  const key = areas.join();
+  useEffect(() => holdViewOnly(areas.flatMap((a) => AREA_TABLES[a] ?? [])), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <>
+      <p data-testid="view-only" className="mt-3 flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-2 text-xs text-cyan">
+        <Icon name="eye" size={16} />
+        مشاهدة بس: تقدر تشوف كل حاجة هنا، والتعديل مقفول عليك.
+      </p>
+      {children}
+    </>
+  );
+}
 
 /** A section outside this person's permissions. */
 function NotAllowed() {
@@ -127,12 +176,11 @@ export function StaffApp({
   onProfile: (s: StaffRow) => void;
 }) {
   const [section, id, sub] = path;
-  const area = section ? AREA_OF[section] : undefined;
-  const tabs = TABS.filter(
-    (t) => !AREA_OF[t.href.split("/")[2] ?? ""] || can(me, AREA_OF[t.href.split("/")[2]]),
-  );
+  const areas = areasOf(section);
+  const tabs = TABS.filter((t) => sees(me, t.href.split("/")[2]));
   if (tabs.length < TABS.length) tabs.push(MORE_TAB);
-  if (area && !can(me, area))
+  const viewOnly = areas.length > 0 && !areas.some((a) => can(me, a));
+  if (!sees(me, section))
     return (
       <AppShell tabs={tabs} path={path}>
         <NotAllowed />
@@ -291,6 +339,12 @@ export function StaffApp({
     case "voice":
       screen = <VoiceStudio />;
       break;
+    case "whatsapp":
+      screen = <WhatsAppScreen me={me} />;
+      break;
+    case "permissions":
+      screen = isFull(me) ? <PermissionsScreen /> : <StaffHome me={me} />;
+      break;
     case "more":
       screen = <MoreScreen me={me} />;
       break;
@@ -300,7 +354,7 @@ export function StaffApp({
   const first = (me.full_name || me.email).split(/\s+/)[0];
   return (
     <AppShell tabs={tabs} path={path}>
-      {screen}
+      {viewOnly ? <ViewOnly areas={areas}>{screen}</ViewOnly> : screen}
       {section && section !== "more" && <BaqlozBuddy first={first} path={path.join("/")} />}
     </AppShell>
   );
@@ -559,10 +613,10 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="box" label="المخزن" to="/staff/inventory" />
           {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
           {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
-          {can(me, "site") && <Shortcut icon="layers" label="صفحات الموقع" to="/staff/pages" />}
+          {canSee(me, "pages") && <Shortcut icon="layers" label="صفحات الموقع" to="/staff/pages" />}
           {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
           {can(me, "tasks") && <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />}
-          {can(me, "forms") && <Shortcut icon="list" label="الفورمات" to="/staff/forms" />}
+          {(canSee(me, "forms") || canSee(me, "expo")) && <Shortcut icon="list" label={canSee(me, "forms") ? "الفورمات" : "وفد المعرض"} to="/staff/forms" />}
           {can(me, "events") && <Shortcut icon="calendar" label="الفعاليات" to="/staff/events" />}
           {can(me, "inbox") && <Shortcut icon="bell" label="الرسائل" to="/staff/inbox" />}
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
@@ -593,10 +647,7 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 }
 
 function MoreScreen({ me }: { me: StaffRow }) {
-  const allowed = (to: string) => {
-    const a = AREA_OF[to.split("/")[2] ?? ""];
-    return !a || can(me, a);
-  };
+  const allowed = (to: string) => sees(me, to.split("/")[2]);
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
     { icon: "bell", label: "الإشعارات", to: "/staff/notifications" },
     { icon: "chart", label: "لوحة المؤسس (الفريق كله، القواعد، عضو الشهر)", to: "/staff/overview" },
@@ -622,6 +673,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
+    { icon: "chat", label: "واتساب (الربط والرسايل)", to: "/staff/whatsapp", show: isFull(me) || canSee(me, "whatsapp") },
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
     { icon: "shield", label: "الحظر من الكميونيتي (اللي اتقبلوا ومجوش)", to: "/staff/bans" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
@@ -633,6 +685,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
+    { icon: "eye", label: "مين عنده إيه (مقارنة صلاحيات الفريق)", to: "/staff/permissions", show: isFull(me) },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
