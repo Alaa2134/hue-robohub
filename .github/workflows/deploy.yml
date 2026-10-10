@@ -51,6 +51,15 @@ jobs:
       - run: npm run lint
       # Chromium first: the build draws the share images with it, then the smoke tests use it.
       - run: npx playwright install --with-deps chromium
+      # Screenshots for "مواقع هتفيدك" (made by the "Directory screenshots" workflow), before the build.
+      - name: Directory screenshots
+        run: |
+          if git ls-remote --exit-code --heads origin directory-assets >/dev/null; then
+            git fetch -q --depth=1 origin directory-assets
+            mkdir -p public/media/directory
+            git archive FETCH_HEAD | tar -x -C public/media/directory
+            echo "$(ls public/media/directory | wc -l) screenshots"
+          fi
       - name: Build
         run: node scripts/build-static.mjs
         env:

@@ -6,7 +6,7 @@ import { getArticles, getEvents, getGallery, getProjects, getPublicMembers, getT
 
 export const revalidate = 3600;
 
-const PAGES = ["", "/about", "/tracks", "/projects", "/competitions", "/bootcamp", "/team", "/achievements", "/stories", "/events", "/robotex", "/gallery", "/films", "/sponsors", "/join", "/join/status", "/faq", "/verify", "/forms", "/contact", "/news", "/resources", "/brand", "/privacy"];
+const PAGES = ["", "/about", "/tracks", "/projects", "/competitions", "/bootcamp", "/team", "/achievements", "/stories", "/events", "/robotex", "/gallery", "/films", "/sponsors", "/join", "/join/status", "/faq", "/verify", "/forms", "/contact", "/news", "/resources", "/directory", "/brand", "/privacy"];
 
 /** Both locales for every public URL, with hreflang alternates. Private routes are never listed. */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

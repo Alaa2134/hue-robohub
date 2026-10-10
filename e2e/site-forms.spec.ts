@@ -438,3 +438,37 @@ test("the Robotex page shows the team's own version once they save it in the app
   await expect(page.getByRole("heading", { level: 1, name: "Robotex مع BuildX" })).toBeVisible();
   await expect(page.getByText("الزيارة للأعضاء بس.")).toBeVisible();
 });
+
+test("useful websites: every site with its idea and a first thing to try, search and categories, links open outside", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/ar/directory/");
+  const dir = page.getByTestId("directory");
+  const cards = dir.getByTestId("directory-card");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("مواقع هتفيدك");
+  const total = await cards.count();
+  expect(total).toBeGreaterThanOrEqual(40);
+  const wokwi = cards.filter({ hasText: "Wokwi" });
+  await expect(wokwi).toContainText("محاكي Arduino");
+  await expect(wokwi).toContainText("جرّب:");
+  await expect(wokwi.getByRole("link", { name: "افتح الموقع" })).toHaveAttribute("href", "https://wokwi.com/");
+  await expect(wokwi.getByRole("link", { name: "افتح الموقع" })).toHaveAttribute("rel", "noopener noreferrer");
+  // A category.
+  await dir.getByRole("button", { name: "ذكاء اصطناعي وبيانات" }).click();
+  await expect(cards).toHaveCount(7);
+  await expect(cards.filter({ hasText: "Google Colab" })).toHaveCount(1);
+  // Search works in Arabic and English, across categories.
+  await dir.getByRole("button", { name: "الكل" }).click();
+  await dir.getByRole("searchbox").fill("pcb");
+  await expect(cards.filter({ hasText: "KiCad" })).toHaveCount(1);
+  await expect(cards.filter({ hasText: "Kaggle" })).toHaveCount(0);
+  await dir.getByRole("searchbox").fill("طباعة");
+  await expect(cards.filter({ hasText: "Printables" })).toHaveCount(1);
+  await dir.getByRole("searchbox").fill("zzzz");
+  await expect(dir.getByText("مفيش مواقع بالكلام ده.")).toBeVisible();
+  // It's in the menu, in English too.
+  await page.goto("/directory/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Websites worth knowing");
+  await expect(page.getByTestId("directory-card").filter({ hasText: "Wokwi" })).toContainText("Try:");
+  expect(errors).toEqual([]);
+});
