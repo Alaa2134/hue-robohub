@@ -1,10 +1,11 @@
 "use client";
 /** "مواقع هتفيدك": search and category chips over the recommended websites, each with a screenshot. */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Icon } from "@/components/brand/icons";
-import { DIRECTORY, DIR_CATEGORIES, type DirSite, type Price } from "@/content/directory";
+import { DIR_CATEGORIES, fromRow, type DirRow, type DirSite, type Price } from "@/content/directory";
 import { cn } from "@/lib/cn";
 import { BASE_PATH } from "@/lib/deploy";
+import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 const L = {
   ar: { all: "الكل", search: "دوّر على موقع أو فكرة…", tip: "جرّب", open: "افتح الموقع", none: "مفيش مواقع بالكلام ده.", count: (n: number) => `${n} موقع`, price: { free: "مجاني", freemium: "فيه نسخة مجانية", student: "مجاني للطلبة" } as Record<Price, string> },
@@ -30,16 +31,94 @@ function Cover({ site, shot }: { site: DirSite; shot: boolean }) {
   );
 }
 
-export function Directory({ locale, shots }: { locale: string; shots: string[] }) {
+/** The list as the team keeps it now (a few minutes in this visit), else the one built into the page. */
+function useLiveSites(initial: DirSite[]) {
+  const [sites, setSites] = useState(initial);
+  useEffect(() => {
+    const key = "bx-directory";
+    try {
+      const c = JSON.parse(sessionStorage.getItem(key) ?? "null") as { at: number; rows: DirRow[] } | null;
+      if (c && Date.now() - c.at < 300_000 && c.rows.length) return setSites(c.rows.map(fromRow));
+    } catch {}
+    fetch(`${SUPABASE_URL}/rest/v1/directory_sites?select=slug,name,url,cat,price,idea_ar,tip_ar,idea_en,tip_en&published=eq.true&order=sort_order.asc,name.asc&limit=500`, {
+      headers: { apikey: SUPABASE_KEY },
+      signal: AbortSignal.timeout(6000),
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<DirRow[]>) : null))
+      .then((rows) => {
+        if (!rows?.length) return;
+        setSites(rows.map(fromRow));
+        try {
+          sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), rows }));
+        } catch {}
+      })
+      .catch(() => {});
+  }, []);
+  return sites;
+}
+
+const S = {
+  ar: { title: "تعرف موقع مفيد؟", body: "اقترحه علينا، والفريق بيراجعه ويضيفه هنا لو مناسب.", url: "لينك الموقع", why: "بيفيد في إيه؟", name: "اسمك (اختياري)", send: "ابعت الاقتراح", sent: "وصلنا اقتراحك، شكرًا! 🙏", invalid: "اكتب لينك صح وسبب قصير.", limited: "استنى شوية وجرب تاني." },
+  en: { title: "Know a useful site?", body: "Suggest it and the team will review it and add it here if it fits.", url: "Site link", why: "What is it good for?", name: "Your name (optional)", send: "Send suggestion", sent: "Got it, thank you! 🙏", invalid: "Add a valid link and a short reason.", limited: "Please wait a little and try again." },
+};
+
+/** A visitor suggests a site (rate-limited; the hidden field and the timing catch bots). */
+function Suggest({ lang }: { lang: "ar" | "en" }) {
+  const t = S[lang];
+  const started = useRef(Date.now());
+  const [f, setF] = useState({ url: "", why: "", name: "", website: "" });
+  const [state, setState] = useState<"idle" | "busy" | "sent" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    const url = /^https?:\/\//i.test(f.url.trim()) ? f.url.trim() : `https://${f.url.trim()}`;
+    setState("busy");
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/suggest_site`, {
+        method: "POST",
+        headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ p: { url, why: f.why, contact: f.name, locale: lang, website: f.website, elapsed: String(Date.now() - started.current) } }),
+        signal: AbortSignal.timeout(10_000),
+      });
+      const out = (await r.json()) as { ok: boolean; error?: string };
+      if (out.ok) return setState("sent");
+      setState("error");
+      setMsg(out.error === "rate_limited" || out.error === "busy" ? t.limited : t.invalid);
+    } catch {
+      setState("error");
+      setMsg(t.limited);
+    }
+  };
+  if (state === "sent") return <p className="frame mt-10 p-6 text-center text-chalk" data-testid="suggest-sent">{t.sent}</p>;
+  return (
+    <form onSubmit={submit} className="frame mt-10 grid gap-3 p-6" data-testid="suggest-site">
+      <p className="text-lg font-semibold text-chalk">{t.title}</p>
+      <p className="text-sm text-mist">{t.body}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input required dir="ltr" inputMode="url" maxLength={300} placeholder="https://" aria-label={t.url} value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} className="h-11 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
+        <input maxLength={60} placeholder={t.name} aria-label={t.name} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-11 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
+      </div>
+      <textarea required minLength={5} maxLength={500} rows={2} placeholder={t.why} aria-label={t.why} value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} className="rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 py-3 text-chalk placeholder:text-fog" />
+      <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} name="website" />
+      {state === "error" && <p className="text-sm text-danger">{msg}</p>}
+      <button type="submit" disabled={state === "busy"} className="h-11 justify-self-start rounded-full bg-cyan/20 px-6 text-sm font-semibold text-chalk transition hover:bg-cyan/30 disabled:opacity-50">
+        {t.send}
+      </button>
+    </form>
+  );
+}
+
+export function Directory({ locale, shots, sites: initial }: { locale: string; shots: string[]; sites: DirSite[] }) {
   const lang = locale === "en" ? "en" : "ar";
   const t = L[lang];
+  const sites = useLiveSites(initial);
   const [cat, setCat] = useState("all");
   const [q, setQ] = useState("");
   const have = useMemo(() => new Set(shots), [shots]);
   const shown = useMemo(() => {
     const words = norm(q.trim()).split(/\s+/).filter(Boolean);
-    return DIRECTORY.filter((s) => (cat === "all" || s.cat === cat) && words.every((w) => norm(`${s.name} ${s.ar.idea} ${s.en.idea} ${s.ar.tip} ${s.url}`).includes(w)));
-  }, [cat, q]);
+    return sites.filter((s) => (cat === "all" || s.cat === cat) && words.every((w) => norm(`${s.name} ${s.ar.idea} ${s.en.idea} ${s.ar.tip} ${s.url}`).includes(w)));
+  }, [cat, q, sites]);
   return (
     <div data-testid="directory">
       <div className="mb-6 flex flex-col gap-4">
@@ -100,6 +179,7 @@ export function Directory({ locale, shots }: { locale: string; shots: string[] }
       ) : (
         <p className="frame p-8 text-center text-mist">{t.none}</p>
       )}
+      <Suggest lang={lang} />
     </div>
   );
 }

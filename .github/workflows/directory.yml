@@ -8,7 +8,8 @@ on:
     branches: [main]
     paths: ["src/content/directory.ts", "scripts/directory-shots.ts"]
   schedule:
-    - cron: "17 3 1 * *"
+    - cron: "17 3 1 * *" # every site again, monthly
+    - cron: "41 4 * * *" # sites the team added in the app, daily
   workflow_dispatch:
     inputs:
       all:
@@ -49,7 +50,7 @@ jobs:
             git checkout -q --orphan directory-assets
           fi
       - name: Take new ones
-        run: npx tsx scripts/directory-shots.ts --out directory ${{ (github.event_name == 'schedule' || inputs.all) && '--all' || '' }}
+        run: npx tsx scripts/directory-shots.ts --out directory ${{ (github.event.schedule == '17 3 1 * *' || inputs.all) && '--all' || '' }}
       - name: Save them and redeploy the site
         env:
           GH_TOKEN: ${{ github.token }}
