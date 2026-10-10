@@ -329,6 +329,11 @@ test("Robotex: accepted means registered — the delegation pass with the number
   await expect(counter).toContainText("12");
   await expect(counter).toContainText("فاضل 28 مكان");
   await expect(counter).toContainText("السبت 14 نوفمبر: 7");
+  // Real photos from the organisers' brochure, and the brochure itself.
+  await expect(page.getByTestId("expo-past").locator("img")).toHaveCount(10);
+  await expect(page.getByRole("link", { name: "حمّل بروشور المعرض (PDF)" })).toHaveAttribute("href", "/media/robotex/robotex-ndtx-2026-brochure-ar.pdf");
+  // An English title reads left to right on the Arabic page.
+  await expect(page.locator("h1 [aria-hidden]").first()).toHaveAttribute("dir", "ltr");
   // The day's plan and what to bring.
   await expect(page.getByRole("heading", { name: "اليوم هيمشي إزاي" })).toBeVisible();
   await expect(page.getByText("تصريح الوفد (سكرين شوت)")).toBeVisible();
