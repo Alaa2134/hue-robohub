@@ -133,6 +133,12 @@
 <priority>0.7</priority>
 </url>
 <url>
+<loc>https://buildxhue.com/directory/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/directory/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/directory/" />
+<priority>0.7</priority>
+</url>
+<url>
 <loc>https://buildxhue.com/brand/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/brand/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/brand/" />
