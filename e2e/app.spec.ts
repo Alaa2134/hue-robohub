@@ -1206,6 +1206,79 @@ test("expo visit responses: accepted list as Excel, WhatsApp acceptance with the
   expect((patches[0] as { external_done_at: string }).external_done_at).toMatch(/^\d{4}-/);
 });
 
+test("expo delegation: accepting registers the student with a number, and the delegation list goes out as PDF and Excel", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex & NDTX 2026", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: "اتقبلت", accepted_url: null, capacity: 40,
+    delegation: { event: "Robotex & NDTX Expo 2026", dates: "14–16 November 2026", venue: "EIEC, New Cairo", org: "BuildX HUE", lead_name: "Alaa Saber", lead_phone: "01011112222", meet_ar: "التجمع 8:30 قدام بوابة الجامعة", register_url: "https://expo.ndtcorner.com/visitor" },
+    fields: [
+      { id: "name", type: "name", label_ar: "الاسم بالكامل (بالعربي)", required: true },
+      { id: "name_en", type: "text", label_ar: "الاسم بالإنجليزي", required: true },
+      { id: "phone", type: "phone", label_ar: "رقم الموبايل (واتساب)", required: true },
+      { id: "day", type: "select", label_ar: "اليوم", required: true, options: [{ ar: "السبت 14 نوفمبر" }] },
+    ],
+  };
+  const resp = (id: string, name: string, en: string, status: string, no: number | null) => ({
+    id, form_id: "f1", ref: `F-${id.toUpperCase()}000000`, answers: { name, name_en: en, org: "Horus University", day: "السبت 14 نوفمبر" }, name, phone: "+201012345678", email: `${id}@example.com`, locale: "ar", status, note: null,
+    external_done_at: null, member_no: no, accepted_at: no ? at(20) : null, created_at: at(50),
+  });
+  const rows = [resp("r2", "علي حسن", "Ali Hassan", "accepted", 2), resp("r1", "منى عادل", "Mona Adel", "accepted", 1), resp("r3", "سارة محمود", "Sara Mahmoud", "new", null)];
+  const patches: unknown[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: { ...rows[2], status: "accepted", member_no: 3, accepted_at: new Date().toISOString() } });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+  const card = page.getByTestId("delegation-card");
+  await expect(card).toContainText("وفد المعرض: 2 مسجّل من 40");
+  await expect(card).toContainText("فاضل 38 مكان");
+  await expect(card.getByTestId("expo-registered")).toContainText("0 من 2");
+  // Excel for the expo: formatted, in delegation order.
+  let download = page.waitForEvent("download");
+  await card.getByRole("button", { name: "Excel لإدارة المعرض" }).click();
+  let file = await download;
+  expect(file.suggestedFilename()).toMatch(/^delegation-robotex-2026-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const xlsx = readFileSync((await file.path())!).toString("utf8");
+  expect(xlsx).toContain("Delegation List");
+  expect(xlsx).toContain("Alaa Saber");
+  expect(xlsx.indexOf("Mona Adel")).toBeLessThan(xlsx.indexOf("Ali Hassan"));
+  expect(xlsx).toContain("BX-001");
+  expect(xlsx).not.toContain("Sara Mahmoud");
+  expect(xlsx).toContain("+20 10 1234 5678");
+  // The PDF.
+  download = page.waitForEvent("download");
+  await card.getByRole("button", { name: "PDF لإدارة المعرض" }).click();
+  file = await download;
+  expect(file.suggestedFilename()).toMatch(/^delegation-robotex-2026-\d{4}-\d{2}-\d{2}\.pdf$/);
+  expect(readFileSync((await file.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  // Accepting registers: a number comes back.
+  await page.getByText("سارة محمود").click();
+  await page.getByRole("dialog").getByRole("button", { name: "مقبول", exact: true }).click();
+  await expect.poll(() => patches[0]).toEqual({ status: "accepted" });
+  await expect(page.getByText("اتسجّل في الوفد برقم BX-003")).toBeVisible();
+  const wa = page.getByRole("link", { name: "ابعتله رسالة القبول على واتساب" });
+  const text = decodeURIComponent((await wa.getAttribute("href"))!.split("text=")[1]!);
+  expect(text).toContain("رقمك في الوفد: BX-003");
+  expect(text).toContain("التجمع 8:30 قدام بوابة الجامعة");
+  expect(text).not.toContain("expo.ndtcorner.com");
+  expect(text).toContain("البادج بيوصلك على إيميلك");
+  // The team registers them on the expo's own site: details ready to copy, then «done».
+  const reg = page.getByTestId("expo-register");
+  await expect(reg).toContainText("Sara Mahmoud");
+  await expect(reg).toContainText("01012345678");
+  await expect(reg.getByRole("link", { name: /افتح صفحة التسجيل/ })).toHaveAttribute("href", "https://expo.ndtcorner.com/visitor");
+  await reg.getByRole("switch", { name: /اتسجّل في موقع المعرض/ }).click();
+  await expect.poll(() => (patches[1] as { external_done_at?: string } | undefined)?.external_done_at).toMatch(/^\d{4}-/);
+  expect(errors).toEqual([]);
+});
+
 /* ─── Sectors and team tasks ─────────────────────────────────────────────── */
 
 /** Answers these RPCs for this test only (registered after signInAsOwner, so it wins). */

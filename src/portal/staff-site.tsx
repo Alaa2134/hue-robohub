@@ -43,7 +43,8 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
   const [kind, setKind] = useState<ContentKind>((KINDS.find((k) => k.key === query.get("k"))?.key ?? "event") as ContentKind);
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("site_content").select("*").order("created_at", { ascending: false }).limit(2000).then(must)) as SiteItem[], []);
   const [editing, setEditing] = useState<SiteItem | "new" | null>(null);
-  const [bulk, setBulk] = useState(false);
+  // ?k=photo&album=robotex opens the photo upload straight into that album (e.g. from an expo visit).
+  const [bulk, setBulk] = useState(!!query.get("album") && query.get("k") === "photo");
   const k = kindOf(kind);
   const list = (data ?? []).filter((i) => i.kind === kind);
   // Drafts the rest of the team wrote, waiting for someone who can publish.
@@ -131,7 +132,7 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
         </List>
       )}
       {editing && <ItemSheet me={me} kind={kind} item={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={reload} />}
-      {bulk && <BulkPhotos me={me} onClose={() => setBulk(false)} onDone={reload} />}
+      {bulk && <BulkPhotos me={me} album={query.get("album") ?? ""} onClose={() => setBulk(false)} onDone={reload} />}
     </>
   );
 }
@@ -373,10 +374,10 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
 }
 
 /** Gallery: pick many photos from the phone and upload them in one go. */
-function BulkPhotos({ me, onClose, onDone }: { me: StaffRow; onClose: () => void; onDone: () => void }) {
+function BulkPhotos({ me, album: first = "", onClose, onDone }: { me: StaffRow; album?: string; onClose: () => void; onDone: () => void }) {
   const admin = isAdmin(me);
   const [files, setFiles] = useState<File[]>([]);
-  const [album, setAlbum] = useState("");
+  const [album, setAlbum] = useState(first);
   const [publish, setPublish] = useState(admin);
   const [done, setDone] = useState(0);
   const [busy, setBusy] = useState(false);

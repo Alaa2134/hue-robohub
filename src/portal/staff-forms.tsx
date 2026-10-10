@@ -10,6 +10,7 @@ import type { FieldType, FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
 import { isFull, fmt, must, sb, today, type StaffRow } from "./core";
 import { downloadXlsx } from "./xlsx";
+import { DelegationCard, DelegationSettings, ExpoRegister, memberId, type Delegation } from "./expo-delegation";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -33,6 +34,8 @@ type Form = {
   archived: boolean;
   accepted_ar: string | null;
   accepted_url: string | null;
+  delegation: Delegation | null;
+  capacity: number | null;
   created_at: string;
 };
 type Response = {
@@ -47,6 +50,8 @@ type Response = {
   status: "new" | "accepted" | "rejected" | "waiting";
   note: string | null;
   external_done_at: string | null;
+  member_no: number | null;
+  accepted_at: string | null;
   created_at: string;
 };
 
@@ -238,6 +243,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(next.slug)) return toast("الرابط المختصر: حروف إنجليزي صغيرة وأرقام و - بس", "error");
     if (next.title_ar.trim().length < 2) return toast("اكتب عنوان الفورم", "error");
     if (next.accepted_url && !/^https:\/\/\S+$/.test(next.accepted_url)) return toast("لينك ما بعد القبول لازم يبدأ بـ https://", "error");
+    if (next.delegation?.register_url && !/^https:\/\/\S+$/.test(next.delegation.register_url)) return toast("لينك تسجيل الزوار لازم يبدأ بـ https://", "error");
     for (const fl of next.fields) {
       if (!fl.label_ar.trim()) return toast("في سؤال من غير عنوان", "error");
       if ((fl.type === "select" || fl.type === "multi") && !(fl.options ?? []).length) return toast(`السؤال «${fl.label_ar}» محتاج اختيارات`, "error");
@@ -345,6 +351,10 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
         </Card>
       </Section>
 
+      <Section title="وفد (زيارة معرض أو فعالية)">
+        <DelegationSettings delegation={x.delegation ?? null} capacity={x.capacity ?? null} onChange={(p) => edit(p)} />
+      </Section>
+
       <Section title={`الأسئلة (${fields.length})`}>
         <div className="grid gap-3">
           {fields.map((fl, i) => (
@@ -449,24 +459,29 @@ export function FormResponses({ id }: { id: string }) {
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
   const { form } = data;
   const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("، ") : (v ?? ""));
-  const external = !!form.accepted_url;
+  const regUrl = form.delegation?.register_url || null;
+  const external = !!form.accepted_url || !!regUrl;
   const exportXlsx = (only?: Response["status"]) => {
     const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
     downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
-      ["#", "كود الطلب", "التاريخ", "الحالة", ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
-      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...form.fields.map((fl) => show(r.answers[fl.id])), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
+      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
+      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []), ...form.fields.map((fl) => show(r.answers[fl.id])), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
     ], { sheet: only === "accepted" ? "المقبولين" : "الردود" });
   };
   const acceptMessage = (r: Response) =>
-    `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت في «${form.title_ar}».\n${form.accepted_url ? `سجّل في الرابط ده: ${form.accepted_url}\n` : ""}وتابع طلبك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`;
+    form.delegation
+      ? `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت واتسجّلت في وفد BuildX HUE لـ «${form.title_ar}».\nرقمك في الوفد: ${memberId(r.member_no)}${r.answers.day ? `\nيومك: ${r.answers.day}` : ""}\n${form.delegation.meet_ar ? `${form.delegation.meet_ar}\n` : ""}مش محتاج تسجّل في أي موقع، إحنا بنسجّلك وبنبعت الكشف لإدارة المعرض${form.delegation.register_url ? "، والبادج بيوصلك على إيميلك" : ""}.\nتصريحك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`
+      : `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت في «${form.title_ar}».\n${form.accepted_url ? `سجّل في الرابط ده: ${form.accepted_url}\n` : ""}وتابع طلبك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`;
   const update = async (r: Response, p: Partial<Response>) => {
     try {
-      await sb().from("form_responses").update(p).eq("id", r.id).then(must);
-      const next = { ...r, ...p };
+      const saved = (await sb().from("form_responses").update(p).eq("id", r.id).select("*").single().then(must)) as Response | null;
+      const next = { ...r, ...p, ...(saved ?? {}) };
+      if (p.status === "accepted" && form.delegation && next.member_no) toast(`اتسجّل في الوفد برقم ${memberId(next.member_no)}`);
       set({ ...data, responses: data.responses.map((x) => (x.id === r.id ? next : x)) });
       setOpen((o) => (o?.id === r.id ? next : o));
     } catch (e) {
-      toast.error(e);
+      if (/delegation_full/.test((e as { message?: string })?.message ?? "")) toast("الوفد كامل. زوّد العدد من إعدادات الفورم الأول.", "error");
+      else toast.error(e);
     }
   };
   const count = (s: Response["status"]) => data.responses.filter((r) => r.status === s).length;
@@ -474,7 +489,8 @@ export function FormResponses({ id }: { id: string }) {
   return (
     <>
       <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={<Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>Excel</Button>} />
-      {count("accepted") > 0 && (
+      {form.delegation && <DelegationCard form={form} responses={data.responses} />}
+      {count("accepted") > 0 && !form.delegation && (
         <Card className="mt-3 flex flex-wrap items-center gap-2">
           <p className="flex-1 text-sm text-mist">
             {count("accepted")} مقبول{external ? ` · ${data.responses.filter((r) => r.status === "accepted" && r.external_done_at).length} سجّلوا في اللينك` : ""}
@@ -506,6 +522,7 @@ export function FormResponses({ id }: { id: string }) {
                   <p className="truncate text-xs text-fog">
                     <span dir="ltr" className="font-mono">{r.ref}</span> · {fmt.rel(r.created_at)}
                     {external && r.external_done_at ? " · سجّل ✓" : ""}
+                    {form.delegation && r.status === "accepted" && r.member_no ? ` · ${memberId(r.member_no)}` : ""}
                     {first && r.answers[first.id] ? ` · ${show(r.answers[first.id])}` : ""}
                   </p>
                 </div>
@@ -520,6 +537,12 @@ export function FormResponses({ id }: { id: string }) {
           <div className="grid gap-4">
             <p className="text-xs text-fog">
               <span dir="ltr" className="font-mono">{open.ref}</span> · {fmt.dateTime(open.created_at)}
+              {form.delegation && open.status === "accepted" && open.member_no ? (
+                <>
+                  {" · "}
+                  <span className="font-semibold text-ok">في الوفد {memberId(open.member_no)}</span>
+                </>
+              ) : null}
             </p>
             <dl className="grid gap-3">
               {form.fields.map((fl) => (
@@ -551,7 +574,8 @@ export function FormResponses({ id }: { id: string }) {
                 </Chip>
               ))}
             </div>
-            {external && open.status === "accepted" && (
+            {regUrl && open.status === "accepted" && <ExpoRegister url={regUrl} r={open} onMark={(v) => update(open, { external_done_at: v ? new Date().toISOString() : null })} />}
+            {external && !regUrl && open.status === "accepted" && (
               <Toggle
                 checked={!!open.external_done_at}
                 onChange={(v) => update(open, { external_done_at: v ? new Date().toISOString() : null })}

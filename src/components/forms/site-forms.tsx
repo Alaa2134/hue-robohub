@@ -88,6 +88,12 @@ const C = {
     stOpen: "افتح موقع التسجيل",
     stDone: "سجّلت في موقع المعرض",
     stDoneOk: "تمام ✅ الفريق عرف إنك سجّلت.",
+    passTitle: "تصريح وفد BuildX HUE",
+    passNo: "رقمك في الوفد",
+    passDay: "يومك",
+    passMeet: "التجمع",
+    passShot: "خد سكرين شوت للتصريح وخليه معاك يوم الزيارة.",
+    passReg: "✓ اتسجّلت في موقع المعرض، والبادج على إيميلك.",
   },
   en: {
     name: "Name",
@@ -155,6 +161,12 @@ const C = {
     stOpen: "Open the registration site",
     stDone: "I've registered on the expo site",
     stDoneOk: "Done ✅ The team knows you registered.",
+    passTitle: "BuildX HUE delegation pass",
+    passNo: "Delegation number",
+    passDay: "Your day",
+    passMeet: "Meeting point",
+    passShot: "Take a screenshot of your pass and keep it with you on the day.",
+    passReg: "✓ You're registered on the expo's site; your badge goes to your email.",
   },
 };
 
@@ -790,7 +802,70 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   );
 }
 
-type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean };
+type Pass = { no: string; ref: string; name: string | null; name_en: string | null; day: string | null; org: string | null; event: string | null; dates: string | null; venue: string | null; meet_ar: string | null };
+type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null };
+
+/** An accepted applicant's delegation pass: number, name, day and a QR back to their status. */
+function PassCard({ pass, locale, registered }: { pass: Pass; locale: Locale; registered?: boolean }) {
+  const t = C[locale];
+  const [qr, setQr] = useState("");
+  useEffect(() => {
+    const url = `${location.origin}${location.pathname}?ref=${encodeURIComponent(pass.ref)}#status`;
+    import("qrcode").then((Q) => Q.toDataURL(url, { margin: 1, width: 240, color: { dark: "#0b1f4d", light: "#ffffff" } })).then(setQr, () => setQr(""));
+  }, [pass.ref]);
+  return (
+    <div data-testid="delegation-pass" className="relative overflow-hidden rounded-3xl border border-[#ff7a45]/50 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#2a1407] p-6 text-white shadow-[0_30px_80px_-40px_rgb(255_122_69/0.8)]">
+      <span aria-hidden className="absolute -end-16 -top-16 size-56 rounded-full bg-[#ff7a45]/20 blur-3xl" />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="t-eyebrow text-[0.62rem] text-[#ffb08f]">{t.passTitle}</p>
+          <p dir="ltr" className="mt-1 truncate text-sm text-white/70 rtl:text-right">
+            {[pass.event, pass.dates].filter(Boolean).join(" · ")}
+          </p>
+        </div>
+        {qr && <img src={qr} alt="" width={96} height={96} className="size-24 shrink-0 rounded-xl bg-white p-1" />}
+      </div>
+      <div className="relative mt-4 grid gap-4 sm:grid-cols-[auto_1fr] sm:items-end">
+        <div>
+          <p className="text-xs text-white/60">{t.passNo}</p>
+          <p dir="ltr" className="t-headline text-5xl tracking-wide text-[#ff9b70]">
+            {pass.no}
+          </p>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-xl font-bold">{pass.name}</p>
+          {pass.name_en && (
+            <p dir="ltr" className="truncate text-white/80 rtl:text-right">
+              {pass.name_en}
+            </p>
+          )}
+          {pass.org && <p className="truncate text-sm text-white/60">{pass.org}</p>}
+        </div>
+      </div>
+      <div className="relative mt-4 grid gap-2 border-t border-white/15 pt-4 text-sm sm:grid-cols-2">
+        {pass.day && (
+          <p>
+            <span className="text-white/60">{t.passDay}: </span>
+            <b>{pass.day}</b>
+          </p>
+        )}
+        {pass.venue && (
+          <p dir="ltr" className="text-white/80 rtl:text-right">
+            📍 {pass.venue}
+          </p>
+        )}
+        {pass.meet_ar && (
+          <p className="sm:col-span-2">
+            <span className="text-white/60">{t.passMeet}: </span>
+            {pass.meet_ar}
+          </p>
+        )}
+      </div>
+      {registered && <p className="relative mt-4 text-sm font-semibold text-[#7cf0c6]">{t.passReg}</p>}
+      <p className="relative mt-2 text-xs text-white/60">{t.passShot}</p>
+    </div>
+  );
+}
 
 /** Check an application with its reference code and phone; accepted applicants get the next step. */
 export function FormStatus({ locale }: { locale: string }) {
@@ -851,6 +926,7 @@ export function FormStatus({ locale }: { locale: string }) {
           <p className="text-sm text-fog">{(l === "en" && out.title_en) || out.title_ar}</p>
           <p className={cn("t-headline text-2xl", out.status === "accepted" ? "text-ok" : out.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[out.status]}</p>
           {out.status === "accepted" && out.accepted_ar && <p className="max-w-2xl whitespace-pre-line leading-relaxed text-mist">{out.accepted_ar}</p>}
+          {out.status === "accepted" && out.pass && <PassCard pass={out.pass} locale={l} registered={out.external_done} />}
           {out.status === "accepted" && (
             <div className="flex flex-wrap gap-3">
               {out.accepted_url && (
