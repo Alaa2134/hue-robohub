@@ -40,7 +40,7 @@ export const DIRECTORY: DirSite[] = [
   {
     id: "tinkercad", name: "Tinkercad", url: "https://www.tinkercad.com/", cat: "electronics", price: "free",
     ar: { idea: "من Autodesk: دواير Arduino بالسحب والإفلات ومحاكاة بالبريدبورد، وكمان تصميم 3D بسيط. أحسن بداية لأي حد جديد.", tip: "ادخل Circuits واعمل LED بيرعش بـ Arduino في 5 دقايق." },
-    en: { idea: "Autodesk's drag-and-drop Arduino circuits with a breadboard simulator, plus simple 3D design. The best first step.", tip: "In Circuits, blink an LED with an Arduino in five minutes." },
+    en: { idea: "Autodesk's visual Arduino circuits with a breadboard simulator, plus simple 3D design. The best first step.", tip: "In Circuits, blink an LED with an Arduino in five minutes." },
   },
   {
     id: "falstad", name: "Falstad Circuit Simulator", url: "https://www.falstad.com/circuit/", cat: "electronics", price: "free",
@@ -106,7 +106,7 @@ export const DIRECTORY: DirSite[] = [
   {
     id: "grabcad", name: "GrabCAD Library", url: "https://grabcad.com/library", cat: "cad", price: "free",
     ar: { idea: "موديلات CAD لقطع حقيقية (موتورات، حساسات، بوردات) عشان تحطها في تجميعة الروبوت بمقاساتها الصح.", tip: "نزّل موديل Arduino Uno وحطه في تصميمك عشان تظبط أماكن المسامير." },
-    en: { idea: "CAD models of real parts (motors, sensors, boards) to drop into your robot assembly at the right size.", tip: "Download an Arduino Uno model to place your mounting holes." },
+    en: { idea: "CAD models of real parts (motors, sensors, boards) to place in your robot assembly at the right size.", tip: "Download an Arduino Uno model to place your mounting holes." },
   },
   // ─── AI & data
   {
@@ -169,7 +169,7 @@ export const DIRECTORY: DirSite[] = [
   {
     id: "nodered", name: "Node-RED", url: "https://nodered.org/", cat: "iot", price: "free",
     ar: { idea: "توصّل الأجهزة والـ APIs ببعض بالسحب والإفلات: حساس يبعت قراءة، تتخزن، وتعمل dashboard وتنبيه.", tip: "شغّله على Raspberry Pi واعمل لوحة لقراءات حساس حرارة." },
-    en: { idea: "Wire devices and APIs together with drag and drop: read a sensor, store it, build a dashboard and alerts.", tip: "Run it on a Raspberry Pi and chart a temperature sensor." },
+    en: { idea: "Wire devices and APIs together visually: read a sensor, store it, build a dashboard and alerts.", tip: "Run it on a Raspberry Pi and chart a temperature sensor." },
   },
   {
     id: "thingspeak", name: "ThingSpeak", url: "https://thingspeak.mathworks.com/", cat: "iot", price: "freemium",
@@ -281,3 +281,15 @@ export const DIRECTORY: DirSite[] = [
     en: { idea: "A hand-drawn style online whiteboard to sketch ideas with your team live.", tip: "Start a shared session and sketch the next project." },
   },
 ];
+
+/** A row of public.directory_sites (the list the team edits in the app). */
+export type DirRow = { slug: string; name: string; url: string; cat: string; price: Price; idea_ar: string; tip_ar: string; idea_en: string; tip_en: string };
+export const fromRow = (r: DirRow): DirSite => ({
+  id: r.slug,
+  name: r.name,
+  url: r.url,
+  cat: r.cat,
+  price: r.price,
+  ar: { idea: r.idea_ar, tip: r.tip_ar },
+  en: { idea: r.idea_en || r.idea_ar, tip: r.tip_en || r.tip_ar },
+});

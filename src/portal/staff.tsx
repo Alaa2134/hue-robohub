@@ -28,6 +28,7 @@ import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
+import { DirectoryScreen } from "./staff-directory";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
@@ -80,6 +81,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   events: "events",
   site: "site",
   projects: "site",
+  directory: "site",
   forms: ["forms", "expo"],
   inbox: "inbox",
   certificates: "certificates",
@@ -275,7 +277,7 @@ export function StaffApp({
       screen = <AppsSettingsScreen me={me} />;
       break;
     case "at-risk":
-      screen = <AtRiskScreen />;
+      screen = <AtRiskScreen me={me} />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -289,10 +291,13 @@ export function StaffApp({
     case "inbox":
       screen = <InboxScreen me={me} />;
       break;
+    case "directory":
+      screen = <DirectoryScreen me={me} />;
+      break;
     case "forms":
       screen = id ? (
         sub === "responses" ? (
-          <FormResponses key={id} id={id} />
+          <FormResponses key={id} id={id} me={me} />
         ) : sub === "checkin" ? (
           <DelegationCheckin key={id} id={id} />
         ) : (
@@ -663,6 +668,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "layers", label: "صفحات الموقع (صفحة المعرض وصفحات جديدة بالسحب والإفلات)", to: "/staff/pages" },
     { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },
+    { icon: "link", label: "مواقع هتفيدك (المواقع واقتراحات الزوار)", to: "/staff/directory" },
     { icon: "mic", label: "صوت بقلظ (سجّل كلامه بصوتك أو ارفع ملف)", to: "/staff/voice" },
     {
       icon: "settings",

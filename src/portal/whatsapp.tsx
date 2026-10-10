@@ -7,7 +7,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canSee, errorText, fmt, isFull, must, rpc, sb, type StaffRow } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Stat, Textarea, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { takeHandoff, type Handoff } from "./wa-handoff";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Stat, Textarea, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 type Template = { name: string; language: string; category?: string; body?: string | null };
 type Status = {
@@ -61,6 +62,8 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
   const [chosen, setWay] = useState<"web" | "api" | null>(null);
   const way = (x: Status) => chosen ?? (x.connected ? "api" : "web");
   const [logKey, setLogKey] = useState(0);
+  // People sent here from another screen ("ابعت واتساب"), read once.
+  const [handoff] = useState(takeHandoff);
   const reload = () => (setLogKey((k) => k + 1), load());
   // While Meta is being asked, look again every few seconds.
   useEffect(() => {
@@ -85,12 +88,12 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
             ))}
           </div>
           {way(st) === "web" ? (
-            st.can_send ? <WebSender me={me} onSent={reload} /> : <Empty icon="chat" title="الإرسال محتاج صلاحية واتساب كاملة" body="تقدر تشوف السجل بس." />
+            st.can_send ? <WebSender me={me} handoff={handoff} onSent={reload} /> : <Empty icon="chat" title="الإرسال محتاج صلاحية واتساب كاملة" body="تقدر تشوف السجل بس." />
           ) : (
             <>
               <StatusCard st={st} />
               {st.can_connect && <ConnectCard st={st} onDone={reload} />}
-              {st.connected && st.can_send && <SendCard st={st} me={me} onSent={reload} />}
+              {st.connected && st.can_send && <SendCard st={st} me={me} handoff={handoff} onSent={reload} />}
               {!st.connected && !st.can_connect && <Empty icon="chat" title="واتساب لسه مش مربوط" body="المالك بيربط رقم الفريق من هنا، وبعدها تقدر تبعت." />}
             </>
           )}
@@ -203,13 +206,13 @@ function ConnectCard({ st, onDone }: { st: Status; onDone: () => void }) {
   );
 }
 
-type Source = "typed" | "delegation" | "group";
+type Source = "typed" | "delegation" | "group" | "handoff";
 
 /** Who to send to: typed numbers, an expo delegation (the accepted) or students (a group or all). */
-function useRecipients(me: StaffRow) {
+function useRecipients(me: StaffRow, handoff: Handoff | null) {
   const delegations = canSee(me, "expo") || canSee(me, "forms");
   const students = canSee(me, "training");
-  const [source, setSource] = useState<Source>("typed");
+  const [source, setSource] = useState<Source>(handoff ? "handoff" : "typed");
   const [typed, setTyped] = useState("");
   const [formId, setFormId] = useState("");
   const [group, setGroup] = useState("");
@@ -224,15 +227,17 @@ function useRecipients(me: StaffRow) {
   );
   const roster = useStudents();
   const people: Person[] = useMemo(() => {
+    if (source === "handoff") return handoff?.people ?? [];
     if (source === "typed") return parsePeople(typed);
     if (source === "delegation") return (delegates.data ?? []).filter((d) => d.phone).map((d) => ({ phone: d.phone!, name: d.name ?? "" }));
     return (roster.list ?? []).filter((s) => s.active && s.phone && (!group || s.group === group)).map((s) => ({ phone: s.phone!, name: s.name }));
-  }, [source, typed, delegates.data, roster.list, group]);
-  const context = source === "delegation" ? `expo:${formId}` : source === "group" ? `group:${group || "all"}` : null;
+  }, [source, typed, delegates.data, roster.list, group, handoff]);
+  const context = source === "handoff" ? (handoff?.context ?? null) : source === "delegation" ? `expo:${formId}` : source === "group" ? `group:${group || "all"}` : null;
   const ui = (
     <>
       <Field label="لمين؟">
         <Select value={source} onChange={(e) => setSource(e.target.value as Source)}>
+          {handoff && <option value="handoff">{handoff.label}</option>}
           <option value="typed">أرقام أكتبها</option>
           {delegations && <option value="delegation">وفد معرض (المقبولين)</option>}
           {students && <option value="group">طلاب (مجموعة أو الكل)</option>}
@@ -273,8 +278,8 @@ function useRecipients(me: StaffRow) {
   return { people, context, ui };
 }
 
-function SendCard({ st, me, onSent }: { st: Status; me: StaffRow; onSent: () => void }) {
-  const { people, context, ui } = useRecipients(me);
+function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; handoff: Handoff | null; onSent: () => void }) {
+  const { people, context, ui } = useRecipients(me, handoff);
   const [mode, setMode] = useState<"template" | "text">(st.templates.length ? "template" : "text");
   const [tpl, setTpl] = useState(st.templates[0] ? `${st.templates[0].name}|${st.templates[0].language}` : "");
   const [params, setParams] = useState<string[]>([]);
@@ -342,15 +347,78 @@ function SendCard({ st, me, onSent }: { st: Status; me: StaffRow; onSent: () => 
           <p className="text-xs text-fog">مفيش قوالب متوافق عليها. اعمل قالب من WhatsApp Manager وبعد ما يتوافق عليه اضغط «تغيير الربط» واحفظ عشان يتحمّل، أو ابعت رسالة حرة.</p>
         )
       ) : (
+        <>
+        <Snippets text={text} onPick={setText} />
         <Field label="الرسالة" hint="بتوصل بس للي بعتلك رسالة على الرقم ده في آخر 24 ساعة (قاعدة ميتا). لغيرهم استخدم قالب. {name} = اسم كل واحد.">
           <Textarea rows={4} maxLength={4096} value={text} onChange={(e) => setText(e.target.value)} placeholder="أهلًا {name}، …" />
         </Field>
+        </>
       )}
       <Button variant="primary" icon="chat" loading={busy} disabled={!ready} onClick={send}>
         ابعت
       </Button>
       {isFull(me) && <p className="text-[11px] text-fog">أقصى حاجة 300 رقم في المرة و1000 رسالة في اليوم، عشان الرقم مايتحظرش من ميتا.</p>}
     </Card>
+  );
+}
+
+type Snippet = { id: string; title: string; body: string };
+
+/** Saved messages: tap one to use it; save the one you wrote; retire ones nobody uses. */
+function Snippets({ text, onPick }: { text: string; onPick: (t: string) => void }) {
+  const { data, set } = useAsync(async () => (await sb().from("whatsapp_snippets").select("id, title, body").eq("archived", false).order("created_at").then(must)) as Snippet[], []);
+  const [editing, setEditing] = useState(false);
+  const save = async () => {
+    const title = window.prompt("اسم الرسالة (مثلًا: تذكير بالمحاضرة)")?.trim();
+    if (!title) return;
+    try {
+      const row = (await sb().from("whatsapp_snippets").insert({ title: title.slice(0, 60), body: text }).select("id, title, body").single().then(must)) as Snippet;
+      set([...(data ?? []), row]);
+      toast("اتحفظت في الرسايل الجاهزة");
+    } catch (e) {
+      toast.error(e);
+    }
+  };
+  const retire = async (x: Snippet) => {
+    if (!(await confirmDialog({ title: `تشيل «${x.title}» من الرسايل الجاهزة؟`, ok: "شيلها", danger: true }))) return;
+    try {
+      await sb().from("whatsapp_snippets").update({ archived: true }).eq("id", x.id).then(must);
+      set((data ?? []).filter((y) => y.id !== x.id));
+    } catch (e) {
+      toast.error(e);
+    }
+  };
+  return (
+    <div className="grid gap-1.5" data-testid="wa-snippets">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-mist">رسايل جاهزة</span>
+        <span className="flex gap-3">
+          {text.replace(/\{(hi|name)\}/g, "").trim().length > 1 && (
+            <button type="button" className="text-xs text-cyan" onClick={() => void save()}>
+              احفظ اللي مكتوبة
+            </button>
+          )}
+          {!!data?.length && (
+            <button type="button" className="text-xs text-fog" onClick={() => setEditing((v) => !v)}>
+              {editing ? "خلاص" : "تعديل"}
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {(data ?? []).map((x) =>
+          editing ? (
+            <button key={x.id} type="button" onClick={() => void retire(x)} className="rounded-full border border-danger/40 px-3 py-1 text-xs text-danger">
+              {x.title} ✕
+            </button>
+          ) : (
+            <Chip key={x.id} active={text === x.body} onClick={() => onPick(x.body)}>
+              {x.title}
+            </Chip>
+          ),
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -382,9 +450,9 @@ const cairoHour = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric
  * 25–50), the order is shuffled, the greeting changes, at most 150 a day, and not late at night: the
  * pace of a person, so the number isn't flagged. Stopping keeps your place.
  */
-function WebSender({ me, onSent }: { me: StaffRow; onSent: () => void }) {
-  const { people, context, ui } = useRecipients(me);
-  const [text, setText] = useState("{hi} {name} 👋\n");
+function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | null; onSent: () => void }) {
+  const { people, context, ui } = useRecipients(me, handoff);
+  const [text, setText] = useState(handoff?.text ?? "{hi} {name} 👋\n");
   const [pace, setPace] = useState<keyof typeof PACES>("safe");
   const [run, setRun] = useState<Run | null>(() => {
     try {
@@ -521,6 +589,7 @@ function WebSender({ me, onSent }: { me: StaffRow; onSent: () => void }) {
         افتح <span dir="ltr">web.whatsapp.com</span> على الجهاز ده وامسح الـ QR من موبايل الفريق مرة واحدة. بعدها التطبيق يفتحلك محادثة كل واحد والرسالة مكتوبة باسمه، تدوس إرسال وترجع للي بعده.
       </p>
       {ui}
+      <Snippets text={text} onPick={setText} />
       <Field label="الرسالة" hint="{name} = اسم كل واحد، {hi} = تحية بتتغير من رسالة للتانية (الرسايل المتطابقة بالظبط شكلها سبام).">
         <Textarea rows={5} maxLength={4096} value={text} onChange={(e) => setText(e.target.value)} />
       </Field>

@@ -4,7 +4,9 @@ import type { Metadata } from "next";
 import { Directory } from "@/components/pages/directory";
 import { Band } from "@/components/pages/section";
 import { PageHero } from "@/components/site/page-hero";
-import { DIRECTORY } from "@/content/directory";
+import { DIRECTORY, fromRow, type DirRow } from "@/content/directory";
+import { buildDirectory } from "@/lib/build-content";
+import { STATIC_SITE } from "@/lib/deploy";
 import { art } from "@/lib/media-library";
 import { resolvePage, type Params } from "@/lib/page";
 import { pageMeta } from "@/lib/seo";
@@ -17,10 +19,9 @@ const COPY = {
 };
 
 /** Screenshots taken by the "Directory screenshots" workflow (copied in before the build). */
-function shots(): string[] {
+function shots(ids: Set<string>): string[] {
   const dir = path.join(process.cwd(), "public", "media", "directory");
   if (!existsSync(dir)) return [];
-  const ids = new Set(DIRECTORY.map((s) => s.id));
   return readdirSync(dir)
     .filter((f) => f.endsWith(".webp"))
     .map((f) => f.slice(0, -5))
@@ -35,11 +36,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function DirectoryPage({ params }: Params) {
   const { locale, t, href } = await resolvePage(params);
   const c = COPY[locale];
+  // The team's list (from the app) when the build can read it, else the one in the code.
+  const rows = STATIC_SITE ? await buildDirectory<DirRow>() : [];
+  const sites = rows.length ? rows.map(fromRow) : DIRECTORY;
   return (
     <>
       <PageHero eyebrow={c.eyebrow} title={c.title} body={c.body} image={art("macro", "track_embedded", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: c.title }]} size="md" />
       <Band tight>
-        <Directory locale={locale} shots={shots()} />
+        <Directory locale={locale} sites={sites} shots={shots(new Set(sites.map((s) => s.id)))} />
       </Band>
     </>
   );

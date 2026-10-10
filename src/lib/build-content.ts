@@ -74,3 +74,8 @@ export async function buildSiteSettings(): Promise<SiteSettings | null> {
   const [row] = await rows<{ value: SiteSettings }>("site_settings?select=value&key=eq.site");
   return row?.value ?? null;
 }
+
+/** "مواقع هتفيدك" as the team keeps it in the app (empty when unreachable: the page then uses its built-in list). */
+export function buildDirectory<T>(): Promise<T[]> {
+  return rows<T>("directory_sites?select=slug,name,url,cat,price,idea_ar,tip_ar,idea_en,tip_en&published=eq.true&order=sort_order.asc,name.asc&limit=500");
+}

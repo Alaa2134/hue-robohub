@@ -7,15 +7,16 @@
  */
 import { useState } from "react";
 import { whatsappLink } from "@/lib/contact";
-import { fmt, rpc } from "./core";
+import { can, fmt, rpc, type StaffRow } from "./core";
+import { sendOnWhatsApp } from "./wa-handoff";
 import { GroupSelect, useGroups } from "./staff-data";
-import { Badge, Empty, ErrorBox, Field, Icon, List, Loading, Row, TopBar, useAsync } from "./ui";
+import { Badge, Button, Empty, ErrorBox, Field, Icon, List, Loading, Row, TopBar, useAsync } from "./ui";
 
 type Line = { id: string; name: string; group: string; phone: string | null; missed: number; lastSeen: string | null; reasons: ("missed_two" | "inactive")[] };
 
 export const atRiskCount = async () => (await rpc<Line[]>("staff_at_risk", { p_group: null })).length;
 
-export function AtRiskScreen() {
+export function AtRiskScreen({ me }: { me?: StaffRow }) {
   const groups = useGroups();
   const [group, setGroup] = useState("");
   const { data, error, loading, reload } = useAsync(() => rpc<Line[]>("staff_at_risk", { p_group: group || null }), [group]);
@@ -34,6 +35,16 @@ export function AtRiskScreen() {
           <Empty icon="check" title="كله تمام 👌" body="مفيش طالب غاب آخر سيشنين أو اختفى من أسبوعين." />
         ) : (
           <List>
+            {me && can(me, "whatsapp") && (
+              <Button
+                className="mb-3"
+                icon="chat"
+                block
+                onClick={() => sendOnWhatsApp(data, { label: `محتاجين متابعة (${data.length})`, context: "at-risk", text: "{hi} {name} 👋\nوحشتنا في BuildX HUE! كله تمام؟ مستنيينك في السيشن الجاية." })}
+              >
+                واتساب لكلهم بالدور
+              </Button>
+            )}
             {data.map((s) => {
               const msg = `أهلاً ${s.name.split(" ")[0]} 👋 وحشتنا في BuildX HUE! كله تمام؟ مستنيينك في السيشن الجاية.`;
               const wa = whatsappLink(s.phone, msg);
