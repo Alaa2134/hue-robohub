@@ -2290,3 +2290,47 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
   await expect(page.getByText("اتبعت لـ 2")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("expo delegation runs by itself: dates per visit day, waiting list, WhatsApp acceptance and reminder, no-show bans", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, { staff_whatsapp_status: { connected: true, templates: [{ name: "expo_accept", language: "ar", body: "{{1}} {{4}}" }, { name: "expo_reminder", language: "ar", body: "{{1}} {{2}} {{3}}" }] } });
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, capacity: 40,
+    delegation: { event: "Robotex", dates: "14–16 November 2026", meet_ar: "" },
+    fields: [
+      { id: "name", type: "name", label_ar: "الاسم", required: true },
+      { id: "phone", type: "phone", label_ar: "الموبايل", required: true },
+      { id: "day", type: "select", label_ar: "اليوم", required: true, options: [{ ar: "السبت 14 نوفمبر" }, { ar: "أي يوم" }] },
+    ],
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  await page.goto("/app/#/staff/forms/f1");
+  const auto = page.getByTestId("delegation-auto");
+  await expect(auto).toBeVisible();
+  // Reminders and bans need the dates first.
+  await expect(auto.getByRole("switch", { name: /تذكير قبلها بيوم/ })).toBeDisabled();
+  await auto.getByLabel("تاريخ السبت 14 نوفمبر").fill("2026-11-14");
+  await auto.getByLabel("تاريخ أي يوم").fill("2026-11-16");
+  await auto.getByRole("switch", { name: /قائمة انتظار تلقائية/ }).click();
+  await auto.getByLabel("رسالة القبول على الواتساب").selectOption("expo_accept|ar");
+  await auto.getByRole("switch", { name: /تذكير قبلها بيوم/ }).click();
+  await auto.getByLabel("قالب التذكير").selectOption("expo_reminder|ar");
+  await auto.getByRole("switch", { name: /اللي مجاش ياخد الحظر/ }).click();
+  await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
+  await expect.poll(() => (patches.at(-1) as { delegation?: object } | undefined)?.delegation).toMatchObject({
+    day_dates: { "السبت 14 نوفمبر": "2026-11-14", "أي يوم": "2026-11-16" },
+    auto_waitlist: true, accept_template: "expo_accept|ar", remind: true, remind_template: "expo_reminder|ar", auto_no_show: true,
+  });
+  expect(errors).toEqual([]);
+});

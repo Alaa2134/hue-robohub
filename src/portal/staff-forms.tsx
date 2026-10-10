@@ -355,7 +355,12 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
       </Section>
 
       <Section title="وفد (زيارة معرض أو فعالية)">
-        <DelegationSettings delegation={x.delegation ?? null} capacity={x.capacity ?? null} onChange={(p) => edit(p)} />
+        <DelegationSettings
+          delegation={x.delegation ?? null}
+          capacity={x.capacity ?? null}
+          dayOptions={(fields.find((q) => q.id === "day" && q.type === "select")?.options ?? []).map((o) => o.ar)}
+          onChange={(p) => edit(p)}
+        />
       </Section>
 
       <Section title={`الأسئلة (${fields.length})`}>
@@ -482,7 +487,8 @@ export function FormResponses({ id }: { id: string }) {
     try {
       const saved = (await sb().from("form_responses").update(p).eq("id", r.id).select("*").single().then(must)) as Response | null;
       const next = { ...r, ...p, ...(saved ?? {}) };
-      if (!quiet && p.status === "accepted" && form.delegation && next.member_no) toast(`اتسجّل في الوفد برقم ${memberId(next.member_no)}`);
+      if (!quiet && p.status === "accepted" && form.delegation && next.status === "waiting") toast("الوفد كامل، فاتحط في قايمة الانتظار وهيدخل لوحده أول ما مكان يفضى.", "info");
+      else if (!quiet && p.status === "accepted" && form.delegation && next.member_no) toast(`اتسجّل في الوفد برقم ${memberId(next.member_no)}`);
       set((d) => { const cur = d ?? data; return { ...cur, responses: cur.responses.map((x) => (x.id === r.id ? next : x)) }; });
       setOpen((o) => (o?.id === r.id ? next : o));
       return next;
