@@ -1925,3 +1925,67 @@ test("Ask Baqloz in the student app: what's on me, and a friendly answer when th
   await expect(chat.getByRole("button", { name: "إزاي أسلّم التاسك؟" })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("delegation: pick several and accept them at once, send the WhatsApp messages one by one, then mark arrivals on the day", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex & NDTX 2026", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null,
+    open: true, opens_at: null, closes_at: null, max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: "اتقبلت", accepted_url: null, capacity: null,
+    delegation: { event: "Robotex & NDTX Expo 2026", dates: "14–16 November 2026", venue: "EIEC", org: "BuildX HUE", meet_ar: "" },
+    fields: [{ id: "name", type: "name", label_ar: "الاسم", required: true }],
+  };
+  const resp = (id: string, name: string, status: string, no: number | null, extra: object = {}) => ({
+    id, form_id: "f1", ref: `F-${id.toUpperCase().padEnd(8, "0")}`, answers: { name, day: "السبت 14 نوفمبر" }, name, phone: "+201012345678", email: null, locale: "ar", status, note: null,
+    external_done_at: null, member_no: no, accepted_at: no ? at(20) : null, checked_in_at: null, messaged_at: null, created_at: at(50 - no!), ...extra,
+  });
+  const rows = [resp("a1", "منى عادل", "accepted", 1), resp("b2", "علي حسن", "new", null), resp("c3", "سارة محمود", "new", null)];
+  const patches: { id: string; body: Record<string, unknown> }[] = [];
+  let next = 2;
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() === "PATCH") {
+      const id = url.searchParams.get("id")!.replace("eq.", "");
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push({ id, body });
+      const row = rows.find((r) => r.id === id)!;
+      Object.assign(row, body, body.status === "accepted" && !row.member_no ? { member_no: next++ } : {});
+      return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? row : [] });
+    }
+    const accepted = url.searchParams.get("status") === "eq.accepted";
+    return route.fulfill({ json: accepted ? rows.filter((r) => r.status === "accepted") : rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+  // Pick the two new ones and accept them together.
+  await page.getByRole("button", { name: "تحديد أكتر من واحد" }).click();
+  await page.getByText("علي حسن").click();
+  await page.getByText("سارة محمود").click();
+  await page.getByTestId("bulk-bar").getByRole("button", { name: "اقبل" }).click();
+  await expect.poll(() => patches.filter((p) => p.body.status === "accepted").map((p) => p.id).sort()).toEqual(["b2", "c3"]);
+  await expect(page.getByTestId("delegation-card")).toContainText("وفد المعرض: 3 مسجّل");
+  // The message queue: one tap each, remembered.
+  await page.getByRole("button", { name: /رسايل القبول \(3\)/ }).click();
+  const queue = page.getByTestId("message-queue");
+  const send = queue.getByRole("link", { name: "ابعت" }).first();
+  await expect(send).toHaveAttribute("href", /wa\.me\/201012345678/);
+  await send.evaluate((a) => a.removeAttribute("target"));
+  await send.evaluate((a) => a.addEventListener("click", (e) => e.preventDefault()));
+  await send.click();
+  await expect.poll(() => patches.some((p) => typeof p.body.messaged_at === "string")).toBe(true);
+  await page.keyboard.press("Escape");
+  // The day: scan (here: type) the pass, then a second time says "already".
+  await page.getByRole("button", { name: "حضور يوم الزيارة" }).click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f1\/checkin$/);
+  await page.getByLabel("رقم الوفد أو كود الطلب").fill("https://buildxhue.com/ar/robotex/?ref=F-A1000000#status");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("checkin-result")).toContainText("منى عادل (BX-001) وصل");
+  await page.getByLabel("رقم الوفد أو كود الطلب").fill("bx-001");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("checkin-result")).toContainText("متسجّل من قبل");
+  await page.getByLabel("رقم الوفد أو كود الطلب").fill("BX-099");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("checkin-result")).toContainText("مش في الوفد");
+  expect(errors).toEqual([]);
+});

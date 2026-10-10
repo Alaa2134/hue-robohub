@@ -29,6 +29,7 @@ import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
+import { DelegationCheckin } from "./expo-delegation";
 import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
 import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
@@ -239,6 +240,8 @@ export function StaffApp({
       screen = id ? (
         sub === "responses" ? (
           <FormResponses key={id} id={id} />
+        ) : sub === "checkin" ? (
+          <DelegationCheckin key={id} id={id} />
         ) : (
           <FormEditor key={id} id={id} me={me} />
         )

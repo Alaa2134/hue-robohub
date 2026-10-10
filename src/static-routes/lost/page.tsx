@@ -11,8 +11,9 @@ export const metadata: Metadata = { title: { absolute: "404 — BuildX HUE" }, r
 /**
  * GitHub Pages serves this as 404.html for every missing URL. A member, post, project or event
  * published after the last build has no page yet, so its clean URL is forwarded to the live page.
+ * Old "/en/…" links go to the English page at the root (English has no /en prefix).
  */
-const forward = `(function(){var b=${JSON.stringify(BASE_PATH)};var p=location.pathname;if(b&&p.indexOf(b)===0)p=p.slice(b.length);var m=p.match(/^(\\/ar)?\\/(team|news|projects|events)\\/([a-z0-9]+(?:-[a-z0-9]+)*)\\/?$/);if(!m)return;var t={team:["/team/member/","u"],news:["/news/post/","s"],projects:["/projects/item/","s"],events:["/events/item/","s"]}[m[2]];location.replace(b+(m[1]||"")+t[0]+"?"+t[1]+"="+m[3]);})();`;
+const forward = `(function(){var b=${JSON.stringify(BASE_PATH)};var p=location.pathname;if(b&&p.indexOf(b)===0)p=p.slice(b.length);if(/^\\/en(\\/|$)/.test(p)){location.replace(b+(p.slice(3)||"/")+location.search+location.hash);return;}var m=p.match(/^(\\/ar)?\\/(team|news|projects|events)\\/([a-z0-9]+(?:-[a-z0-9]+)*)\\/?$/);if(!m)return;var t={team:["/team/member/","u"],news:["/news/post/","s"],projects:["/projects/item/","s"],events:["/events/item/","s"]}[m[2]];location.replace(b+(m[1]||"")+t[0]+"?"+t[1]+"="+m[3]);})();`;
 
 export default async function Lost({ params }: Params) {
   const { locale, t, href } = await resolvePage(params);

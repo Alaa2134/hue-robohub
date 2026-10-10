@@ -1,8 +1,10 @@
+import { useId } from "react";
 import type { Motif } from "@/lib/worlds";
 
 /** Decorative background motif for a track "world" (pure SVG patterns, no images). */
 export function MotifBg({ motif, accent, className = "" }: { motif: Motif; accent: string; className?: string }) {
-  const id = `motif-${motif}`;
+  // One page can show several (the tracks list), so each gets its own pattern id.
+  const id = `motif-${motif}-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const a = accent;
   const pattern = {
     pcb: (
