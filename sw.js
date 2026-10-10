@@ -4,7 +4,7 @@
  *  - Images, the 3D guide and other public files: from the cache, refreshed in the background.
  *  - Pages and page data: from the network (always the latest), the cache only when offline.
  * Other sites (Supabase, analytics) and the BuildX App (/app/, it has its own) are never touched. */
-const VERSION = "bx-site-mv2qigdn";
+const VERSION = "bx-site-mv2snihh";
 const SCOPE = new URL(self.registration.scope).pathname;
 const LIMITS = { pages: 40, assets: 220 };
 
