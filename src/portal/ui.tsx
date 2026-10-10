@@ -108,6 +108,7 @@ const APP_ICONS = {
   eyeOff: <path d="M3 3l18 18M10.6 6.1A10 10 0 0 1 22 12a14 14 0 0 1-2.5 3.4M6.6 6.6A14 14 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2" />,
   star: <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />,
   install: <path d="M12 3v11M7 10l5 5 5-5M5 21h14" />,
+  box: <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9" />,
 } as const;
 
 export type IconKey = IconName | keyof typeof APP_ICONS;

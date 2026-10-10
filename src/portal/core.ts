@@ -60,7 +60,7 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
 export type Area =
   | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
   | "site" | "forms" | "publish" | "portfolios" | "settings"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security" | "sectors";
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security" | "sectors" | "inventory";
 export const AREAS: { key: Area; group: string; label: string; hint: string }[] = [
   { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة" },
   { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور" },
@@ -81,6 +81,7 @@ export const AREAS: { key: Area; group: string; label: string; hint: string }[] 
   { key: "notify", group: "تاني", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
   { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة" },
   { key: "sectors", group: "تاني", label: "متابعة كل السيكتورات", hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)" },
+  { key: "inventory", group: "تاني", label: "المخزن (القطع والأدوات)", hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)" },
 ];
 export const TRAINING: Area[] = ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"];
 /** Older lists name the two big areas ("students", "content"); they still mean every part of them. */
@@ -109,6 +110,7 @@ export const POSITIONS: { title: string; areas: Area[] }[] = [
   { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"] },
   { title: "مسؤول الإعلام والتصميم", areas: ["site"] },
   { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site"] },
+  { title: "أمين المخزن", areas: ["inventory"] },
   { title: "منظّم", areas: ["events"] },
   { title: "متطوع", areas: ["events"] },
   { title: "عضو في الفريق", areas: [] },

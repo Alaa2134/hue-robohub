@@ -1646,3 +1646,209 @@ test("Baqloz on the student home reminds of a task not handed in and an open qui
   await expect(page).toHaveURL(/#\/me\/quiz\/q1$/);
   expect(errors).toEqual([]);
 });
+
+const storeItem = (o: object) => ({ id: "i1", name: "Arduino Uno", category: "بوردات", description: "", location: "الدولاب 1", quantity: 5, min_quantity: 2, unit: "قطعة", consumable: false, archived: false, low_notified_at: null, available: 3, out: 2, ...o });
+const storeLoan = (o: object) => ({ id: "l1", item_id: "i1", item_name: "Arduino Uno", unit: "قطعة", quantity: 2, staff_id: "u3", student_id: null, student_code: null, borrower_name: "Omar Design", purpose: "Line robot", due_at: later(5), status: "out", lent_by_name: "Owner Test", lent_at: at(60 * 24), returned_at: null, return_note: null, ...o });
+
+test("the store keeper adds an item, lends it to a student, takes a loan back and approves a request", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_inventory: {
+      keeps: true,
+      items: [storeItem({}), storeItem({ id: "i2", name: "مقاومات 220", category: "قطع صغيرة", quantity: 8, min_quantity: 10, unit: "قطعة", consumable: true, available: 8, out: 0, low_notified_at: at(30) })],
+      loans: [storeLoan({ due_at: at(120) })],
+      requests: [{ id: "r1", item_id: "i1", item_name: "Arduino Uno", staff_id: "u4", name: "Reem Media", quantity: 1, purpose: "Workshop demo", needed_until: later(48), status: "pending", note: null, available: 3, created_at: at(10) }],
+      staff: [{ id: "u3", name: "Omar Design", title: null }],
+      students: [{ id: "s1", name: "Mona Adel", code: "S1", group: "G1" }],
+    },
+    staff_inventory_item_save: "i9",
+    staff_inventory_lend: "l9",
+    staff_inventory_return: { ok: true },
+    staff_inventory_request_decide: { ok: true, loan_id: "l10" },
+  });
+  await page.goto("/app/#/staff/inventory");
+  await expect(page.getByText("قرّب يخلص").first()).toBeVisible();
+
+  // A new item.
+  await page.getByRole("button", { name: "قطعة", exact: true }).click();
+  await page.getByLabel("الاسم").fill("Servo SG90");
+  await page.getByLabel("العدد كله").fill("10");
+  await page.getByRole("button", { name: "حفظ" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_inventory_item_save")?.body).toMatchObject({ p_id: null, p: { name: "Servo SG90", quantity: 10, consumable: false } });
+
+  // Lend two to a student.
+  await page.getByText("Arduino Uno").first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "سلّف" }).click();
+  await page.getByRole("button", { name: "طالب" }).click();
+  await page.getByLabel("الطالب").selectOption("s1");
+  await page.getByLabel("الكمية").fill("2");
+  await page.getByRole("button", { name: "سجّل السلفة" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_inventory_lend")?.body).toMatchObject({ p_item: "i1", p_qty: 2, p_student: "s1", p_staff: null });
+
+  // A late loan comes back.
+  await page.getByRole("button", { name: /برا المخزن/ }).click();
+  await expect(page.getByText(/فات من/)).toBeVisible();
+  await page.getByRole("button", { name: "رجعت", exact: true }).click();
+  await page.getByRole("button", { name: "رجعت ✓" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_inventory_return")?.body).toEqual({ p_loan: "l1", p_status: "returned", p_note: null });
+
+  // A request is approved.
+  await page.getByRole("button", { name: /الطلبات/ }).click();
+  await expect(page.getByText("Workshop demo")).toBeVisible();
+  await page.getByRole("button", { name: "وافق", exact: true }).click();
+  await page.getByRole("button", { name: "وافق وسلّم" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_inventory_request_decide")?.body).toMatchObject({ p_id: "r1", p_approve: true });
+  expect(errors).toEqual([]);
+});
+
+test("a team member asks to borrow from the store, sees what they have, and Baqloz reminds them to return it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, calls, {
+    staff_reminders: [{ kind: "loan_due", rank: 3, id: "l1", title: "Arduino Uno", count: 2, at: later(5), to: "/staff/inventory" }],
+    staff_inventory: { keeps: false, items: [storeItem({}), storeItem({ id: "i3", name: "Soldering iron", category: "أدوات", available: 0, quantity: 1, out: 1, min_quantity: 0 })], loans: [storeLoan({})], requests: [], staff: null, students: null },
+    staff_inventory_request: "r2",
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("baqloz-line")).toContainText("متنساش ترجّع «Arduino Uno» للمخزن");
+  await page.getByRole("button", { name: "ودّيني ←" }).click();
+  await expect(page).toHaveURL(/#\/staff\/inventory$/);
+  // Keeper-only actions are not there.
+  await expect(page.getByRole("button", { name: /الطلبات/ })).toHaveCount(0);
+  await page.getByText("Soldering iron").click();
+  await expect(page.getByRole("button", { name: "مش متاح دلوقتي" })).toBeDisabled();
+  await page.keyboard.press("Escape");
+  await page.getByText("Arduino Uno").first().click();
+  await page.getByRole("button", { name: "اطلب استعارة" }).click();
+  await page.getByLabel("محتاجها في إيه؟").fill("Line follower");
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_inventory_request")?.body).toMatchObject({ p_item: "i1", p_qty: 1, p_purpose: "Line follower" });
+  await page.getByRole("button", { name: /حاجاتي/ }).click();
+  await expect(page.getByText("Arduino Uno × 2")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a student sees what they borrowed from the store, and Baqloz reminds them when it's late", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] },
+    student_tasks: [],
+    student_schedule: [],
+    student_inventory: [{ id: "l5", item: "Ultrasonic sensor", unit: "قطعة", quantity: 1, dueAt: at(60 * 26), status: "out", lentAt: at(60 * 24 * 8), returnedAt: null }],
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByTestId("baqloz-line")).toContainText("«Ultrasonic sensor» اللي استلفتها من المخزن ميعادها فات");
+  await expect(page.getByTestId("student-loans")).toContainText("Ultrasonic sensor × 1");
+  expect(errors).toEqual([]);
+});
+
+test("points and levels: the home card shows my level, the points screen my badges and the team table", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  const lvl = (level: number, name: string, from: number, next: number | null) => ({ level, name, from, next });
+  await mockRpc(page, calls, {
+    staff_reminders: [],
+    staff_xp: {
+      staff_id: "u3", name: "Omar Design", xp: 245, month: 60, rank: 2, level: lvl(2, "مسمار شاطر", 100, 250), badges: ["first_task", "streak_5"],
+      parts: { tasks: 230, meetings: 15, store: 0, awards: 0, warnings: 0 },
+      stats: { on_time: 5, late: 1, approved: 6, missed: 1, present: 1, meeting_late: 0, absent: 0, warnings: 0, awards: 0, returned: 0, streak: 5 },
+    },
+    staff_xp_board: [
+      { staff_id: "u2", name: "Reem Media", title: null, xp: 900, month: 20, level: lvl(5, "موتور شغّال", 700, 1000), badges: ["member_of_month"], me: false },
+      { staff_id: "u3", name: "Omar Design", title: null, xp: 245, month: 60, level: lvl(2, "مسمار شاطر", 100, 250), badges: ["first_task", "streak_5"], me: true },
+    ],
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("xp-card")).toContainText("مسمار شاطر");
+  await expect(page.getByTestId("xp-card")).toContainText("فاضل 5 نقطة على ليفل 3");
+  await page.getByTestId("xp-card").click();
+  await expect(page).toHaveURL(/#\/staff\/xp$/);
+  await expect(page.getByText("🔥 أطول سلسلة تسليم في الميعاد: 5")).toBeVisible();
+  await expect(page.getByTestId("badge-streak_5")).toHaveAttribute("data-earned", "true");
+  await expect(page.getByTestId("badge-member_of_month")).toHaveAttribute("data-earned", "false");
+  // This month Omar leads; all-time Reem does.
+  await expect(page.getByTestId("xp-row").first()).toContainText("Omar Design");
+  await page.getByRole("button", { name: "من الأول" }).click();
+  await expect(page.getByTestId("xp-row").first()).toContainText("Reem Media");
+  expect(errors).toEqual([]);
+});
+
+test("Ask Baqloz: he answers about my points himself and asks the AI the rest, then takes me to the page it names", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, calls, {
+    staff_reminders: [{ kind: "due_soon", rank: 3, id: "t7", title: "Sponsor deck", at: later(5), to: "/staff/mytasks?t=t7" }],
+    staff_xp: { staff_id: "u3", name: "Omar Design", xp: 245, month: 60, rank: 2, level: { level: 2, name: "مسمار شاطر", from: 100, next: 250 }, badges: [], parts: null, stats: null },
+    staff_inventory: { keeps: false, items: [], loans: [], requests: [], staff: null, students: null },
+  });
+  const asked: { body: { question: string; history: unknown[] }; auth: string | undefined }[] = [];
+  await page.route(/\/functions\/v1\/bakloz-app$/, (route) => {
+    asked.push({ body: route.request().postDataJSON(), auth: route.request().headers().authorization });
+    return route.fulfill({ json: { text: "حساس الألتراسونيك HC-SR04 مناسب للمسافة، واطلبه من المخزن 📦\n[[/staff/inventory]]" } });
+  });
+  await page.goto("/app/#/staff");
+  await page.getByRole("button", { name: "اسأل بقلظ 💬" }).click();
+  const chat = page.getByTestId("baqloz-chat");
+  await chat.getByRole("button", { name: "نقطي كام؟" }).click();
+  await expect(chat.getByTestId("chat-bot").last()).toContainText("انت ليفل 2 (مسمار شاطر) ومعاك 245 نقطة");
+  await chat.getByLabel("سؤالك لبقلظ").fill("ورايا ايه؟");
+  await chat.getByRole("button", { name: "ابعت" }).click();
+  await expect(chat.getByTestId("chat-bot").last()).toContainText("«Sponsor deck»");
+  expect(asked).toEqual([]);
+  // Not something he knows: the AI answers, with the person's sign-in.
+  await chat.getByLabel("سؤالك لبقلظ").fill("إيه أحسن حساس للمسافة؟");
+  await chat.getByRole("button", { name: "ابعت" }).click();
+  await expect(chat.getByTestId("chat-bot").last()).toContainText("HC-SR04");
+  await expect(chat.getByTestId("chat-bot").last()).not.toContainText("[[");
+  expect(asked[0].body.question).toBe("إيه أحسن حساس للمسافة؟");
+  expect(asked[0].auth).toMatch(/^Bearer ey/);
+  await chat.getByTestId("chat-bot").last().getByRole("button", { name: "ودّيني ←" }).click();
+  await expect(page).toHaveURL(/#\/staff\/inventory$/);
+  expect(errors).toEqual([]);
+});
+
+test("Ask Baqloz in the student app: what's on me, and a friendly answer when the AI is off", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const rpcs: Record<string, unknown> = {
+    student_home: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] },
+    student_tasks: [{ id: "a1", title: "Photo of your circuit", description: "", dueAt: later(20), maxPoints: 10, allowLate: true, submission: null }],
+    student_schedule: [],
+    student_inventory: [],
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/functions/v1/bakloz-app")) return route.fulfill({ json: { disabled: true } });
+    const fn = url.pathname.split("/rpc/")[1];
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me");
+  await page.getByRole("button", { name: "اسأل بقلظ 💬" }).click();
+  const chat = page.getByTestId("baqloz-chat");
+  await chat.getByRole("button", { name: "ورايا إيه؟" }).click();
+  await expect(chat.getByTestId("chat-bot").last()).toContainText("Photo of your circuit");
+  await chat.getByLabel("سؤالك لبقلظ").fill("احكيلي نكتة عن الفضاء");
+  await chat.getByRole("button", { name: "ابعت" }).click();
+  await expect(chat.getByTestId("chat-bot").last()).toContainText("مش متأكد إني فاهمك");
+  await expect(chat.getByRole("button", { name: "إزاي أسلّم التاسك؟" })).toBeVisible();
+  expect(errors).toEqual([]);
+});

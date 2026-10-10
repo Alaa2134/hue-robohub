@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
 import { StudentBaqloz } from "./baqloz";
+import { StudentLoansCard } from "./inventory";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
 import { PushCard } from "./push";
@@ -178,6 +179,7 @@ function Home({ data, reload, loading }: ScreenProps) {
       <CheckinCard />
       <NextUpCard />
       <TasksCard />
+      <StudentLoansCard />
       <a href="#/me/attendance" className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
         <Ring value={stats.rate} size={72} />
         <div className="min-w-0 flex-1">

@@ -98,7 +98,7 @@ export function NotificationsScreen() {
 
 /* ─── Founder's dashboard ───────────────────────────────────────────────── */
 
-type Rules = { warn_threshold: number; warn_window_days: number; remind_hours: number; grace_minutes: number; auto_warn: boolean; meeting_absence_warn: boolean; weekly_report: boolean };
+type Rules = { warn_threshold: number; warn_window_days: number; remind_hours: number; grace_minutes: number; auto_warn: boolean; meeting_absence_warn: boolean; weekly_report: boolean; morning_brief?: boolean };
 type Person = { staff_id: string; name: string; title: string | null; assigned: number; on_time: number; late: number; missed: number; warnings: number };
 type Overview = {
   team: { members: number; in_sectors: number; heads: number; sectors: number };
@@ -317,6 +317,7 @@ function RulesSheet({ rules, onClose, onSaved }: { rules: Rules; onClose: () => 
         </div>
         <Toggle checked={f.meeting_absence_warn} onChange={(v) => setF({ ...f, meeting_absence_warn: v })} label="إنذار للغياب عن اجتماع من غير عذر" />
         <Toggle checked={f.weekly_report} onChange={(v) => setF({ ...f, weekly_report: v })} label="تقرير أسبوعي يوم الأحد" hint="ليك وللهيدز: اتسلّم كام، اتأخر كام، والأنشط." />
+        <Toggle checked={f.morning_brief ?? true} onChange={(v) => setF({ ...f, morning_brief: v })} label="رسالة الصبح من بقلظ" hint="كل يوم الصبح: كل عضو عليه حاجة بيجيله إشعار واحد فيه يومه (تاسكات، اجتماعات، مراجعات، المخزن)." />
         <Button type="submit" variant="primary" size="lg" block loading={busy}>
           حفظ القواعد
         </Button>

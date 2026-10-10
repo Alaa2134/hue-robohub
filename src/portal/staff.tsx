@@ -33,6 +33,8 @@ import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHo
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
 import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
 import { MeetingScreen, MeetingsScreen } from "./team-meetings";
+import { InventoryScreen } from "./inventory";
+import { XpHomeCard, XpScreen } from "./team-xp";
 import {
   Badge,
   Button,
@@ -257,6 +259,12 @@ export function StaffApp({
         <MeetingsScreen />
       );
       break;
+    case "xp":
+      screen = <XpScreen />;
+      break;
+    case "inventory":
+      screen = <InventoryScreen key={query.get("tab") ?? ""} me={me.user_id} query={query} />;
+      break;
     case "notifications":
       screen = <NotificationsScreen />;
       break;
@@ -408,6 +416,7 @@ function StaffHome({ me }: { me: StaffRow }) {
         </button>
       )}
 
+      <XpHomeCard />
       <TeamTasksHome summary={data?.team} />
       <AwardBanner award={data?.award} />
 
@@ -530,6 +539,7 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="flag" label="تاسكاتي" to="/staff/mytasks" />
           {(!!data?.team?.sectors || !!data?.team?.oversees) && <Shortcut icon="users" label="السيكتورات" to="/staff/sectors" />}
           {(!!data?.team?.sectors || !!data?.team?.oversees) && <Shortcut icon="calendar" label="الاجتماعات" to="/staff/meetings" />}
+          <Shortcut icon="box" label="المخزن" to="/staff/inventory" />
           {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
           {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
           {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
@@ -573,8 +583,10 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "bell", label: "الإشعارات", to: "/staff/notifications" },
     { icon: "chart", label: "لوحة المؤسس (الفريق كله، القواعد، عضو الشهر)", to: "/staff/overview" },
     { icon: "flag", label: "تاسكاتي وإنذاراتي", to: "/staff/mytasks" },
+    { icon: "star", label: "نقطي ومستواي (ترتيب الفريق والأوسمة)", to: "/staff/xp" },
     { icon: "calendar", label: "الاجتماعات", to: "/staff/meetings" },
     { icon: "users", label: "السيكتورات وتاسكات الفريق", to: "/staff/sectors" },
+    { icon: "box", label: "المخزن (القطع والأدوات، السلف والطلبات)", to: "/staff/inventory" },
     { icon: "alert", label: "إنذارات الفريق (كل السيكتورات)", to: "/staff/warnings" },
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
