@@ -2267,6 +2267,9 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
     return route.fulfill({ json: fn === "staff_whatsapp_status" ? status() : { ok: true } });
   });
   await page.goto("/app/#/staff/whatsapp");
+  // Not connected: WhatsApp Web is first; the official connection is the other tab.
+  await expect(page.getByTestId("wa-web")).toBeVisible();
+  await page.getByRole("tab", { name: "ربط رسمي (API)" }).click();
   await expect(page.getByTestId("wa-connect")).toBeVisible();
   await page.getByLabel("Phone number ID").fill("123456789012345");
   await page.getByLabel("Access token").fill("EAAB" + "x".repeat(60));
@@ -2405,5 +2408,55 @@ test("a page's numbers: visits, visitors and how many applied through its form",
   expect(calls.find((c) => c.fn === "staff_page_stats")?.body).toEqual({ p_slug: "cairo-ict", p_forms: ["cairo-ict"], p_days: 30 });
   await stats.getByRole("button", { name: "أسبوع" }).click();
   await expect.poll(() => (calls.at(-1)?.body as { p_days: number }).p_days).toBe(7);
+  expect(errors).toEqual([]);
+});
+
+test("WhatsApp Web: each chat opens with the message ready, with a wait between people, and each send is logged", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await page.clock.install();
+  await page.addInitScript(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = ((url: string) => {
+      w.__opened.push(url);
+      return { closed: false, location: { set href(u: string) { w.__opened.push(u); } } } as unknown as Window;
+    }) as typeof window.open;
+  });
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_whatsapp_status: { connected: false, status: "none", templates: [], has_token: false, sent_today: 0, failed_today: 0, can_send: true, can_connect: true },
+    staff_whatsapp_web_sent: { today: 1, left: 149 },
+  });
+  await page.goto("/app/#/staff/whatsapp");
+  const box = page.getByTestId("wa-web");
+  await box.getByLabel("الأرقام").fill("Ahmed Ali, 01012345678\nMona, 01198765432\n01012345678");
+  await box.getByLabel("الرسالة").fill("{hi} {name}، معادنا بكرة 9 الصبح");
+  await page.getByRole("button", { name: "ابدأ الإرسال (3)" }).click();
+  const dialog = page.getByRole("dialog");
+  if (await dialog.isVisible().catch(() => false)) await dialog.getByRole("button", { name: "ابعت برضه" }).click();
+  const run = page.getByTestId("wa-web-run");
+  await expect(run).toContainText("0 اتبعت · 2 فاضل");
+  const opened = () => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
+  await expect.poll(opened).toHaveLength(1);
+  const first = decodeURIComponent((await opened())[0]!);
+  // WhatsApp Web on a computer, the WhatsApp app on a phone.
+  expect(first).toMatch(/^https:\/\/(web\.whatsapp\.com\/send\?phone=|wa\.me\/)(201012345678|201198765432)[?&]text=/);
+  expect(first).toMatch(/(أهلًا|إزيك|أهلًا بيك|مساء الخير|هاي|إزيك عامل إيه) (Ahmed|Mona)، معادنا بكرة 9 الصبح/);
+  // The next one waits (a random 12–25 seconds).
+  const next = page.getByTestId("wa-web-next");
+  await expect(next).toBeDisabled();
+  await expect(next).toContainText("استنى");
+  await page.clock.runFor(26_000);
+  await expect(next).toBeEnabled();
+  await next.click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_whatsapp_web_sent").length).toBe(1);
+  await expect.poll(opened).toHaveLength(2);
+  const urls = (await opened()).map((u) => new URL(u).searchParams.get("phone") ?? new URL(u).pathname.slice(1));
+  expect(new Set(urls)).toEqual(new Set(["201012345678", "201198765432"]));
+  await page.clock.runFor(26_000);
+  await next.click();
+  await expect(page.getByText("خلصت: 2 رسالة")).toBeVisible();
   expect(errors).toEqual([]);
 });
