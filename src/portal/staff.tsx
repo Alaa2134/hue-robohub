@@ -30,7 +30,8 @@ import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
-import { DelegationCheckin } from "./expo-delegation";
+import { PageEditor, PagesScreen } from "./staff-pages";
+import { BansScreen, DelegationCheckin } from "./expo-delegation";
 import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
 import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
@@ -91,6 +92,8 @@ const AREA_OF: Record<string, Area> = {
   stats: "security",
   errors: "security",
   voice: "voice",
+  bans: "forms",
+  pages: "site",
 };
 
 /** A section outside this person's permissions. */
@@ -278,6 +281,12 @@ export function StaffApp({
       break;
     case "warnings":
       screen = <WarningsScreen />;
+      break;
+    case "pages":
+      screen = id ? <PageEditor key={id} id={id} me={me} /> : <PagesScreen me={me} />;
+      break;
+    case "bans":
+      screen = <BansScreen />;
       break;
     case "voice":
       screen = <VoiceStudio />;
@@ -550,6 +559,7 @@ function StaffHome({ me }: { me: StaffRow }) {
           <Shortcut icon="box" label="المخزن" to="/staff/inventory" />
           {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
           {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
+          {can(me, "site") && <Shortcut icon="layers" label="صفحات الموقع" to="/staff/pages" />}
           {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
           {can(me, "tasks") && <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />}
           {can(me, "forms") && <Shortcut icon="list" label="الفورمات" to="/staff/forms" />}
@@ -600,6 +610,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
+    { icon: "layers", label: "صفحات الموقع (صفحة المعرض وصفحات جديدة بالسحب والإفلات)", to: "/staff/pages" },
     { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },
     { icon: "mic", label: "صوت بقلظ (سجّل كلامه بصوتك أو ارفع ملف)", to: "/staff/voice" },
     {
@@ -612,6 +623,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
+    { icon: "shield", label: "الحظر من الكميونيتي (اللي اتقبلوا ومجوش)", to: "/staff/bans" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },

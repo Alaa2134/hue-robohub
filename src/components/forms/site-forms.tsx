@@ -41,8 +41,12 @@ const C = {
     badNumber: "اكتب رقم.",
     badDate: "اختار تاريخ.",
     badOption: "اختار من الاختيارات.",
+    badMember: "رقم العضوية ده مش موجود أو العضوية مش مفعّلة. اتأكد من الرقم اللي على كارنيه BuildX.",
+    memberPh: "مثلاً 2024001",
+    notMember: "مش عضو في الكميونيتي؟",
+    askInterview: "اطلب انترفيو مع منظم الموقع",
     tooLong: "الكلام طويل زيادة.",
-    errors: { rate_limited: "بعت كذا مرة في وقت قصير. استنى شوية وجرّب تاني.", busy: "في ضغط دلوقتي. جرّب بعد دقيقة.", invalid: "في بيانات مش مظبوطة. راجعها وجرّب تاني.", network: "مقدرناش نوصل. اتأكد من النت وجرّب تاني.", closed: "الفورم ده اتقفل.", not_found: "الفورم ده مش موجود." },
+    errors: { rate_limited: "بعت كذا مرة في وقت قصير. استنى شوية وجرّب تاني.", busy: "في ضغط دلوقتي. جرّب بعد دقيقة.", invalid: "في بيانات مش مظبوطة. راجعها وجرّب تاني.", network: "مقدرناش نوصل. اتأكد من النت وجرّب تاني.", closed: "الفورم ده اتقفل.", not_found: "الفورم ده مش موجود.", banned: "عليك حظر من كميونيتي BuildX HUE (اتقبلت في وفد قبل كده ومحضرتش)، فمش هتقدر تقدّم دلوقتي. لو شايف إن ده غلط كلّمنا." },
     sentTitle: "وصلتنا رسالتك ✅",
     sentBody: "بنقرا كل رسالة ونرد خلال أيام قليلة.",
     another: "ابعت رسالة تانية",
@@ -114,8 +118,12 @@ const C = {
     badNumber: "Enter a number.",
     badDate: "Pick a date.",
     badOption: "Pick one of the options.",
+    badMember: "That membership number doesn't exist or isn't active. Check the number on your BuildX card.",
+    memberPh: "e.g. 2024001",
+    notMember: "Not a community member?",
+    askInterview: "Ask the organiser for an interview",
     tooLong: "That's too long.",
-    errors: { rate_limited: "Too many tries in a short time. Wait a little and try again.", busy: "We're busy right now. Try again in a minute.", invalid: "Something isn't right. Check the form and try again.", network: "We couldn't connect. Check your connection and try again.", closed: "This form is closed.", not_found: "This form doesn't exist." },
+    errors: { rate_limited: "Too many tries in a short time. Wait a little and try again.", busy: "We're busy right now. Try again in a minute.", invalid: "Something isn't right. Check the form and try again.", network: "We couldn't connect. Check your connection and try again.", closed: "This form is closed.", not_found: "This form doesn't exist.", banned: "You're banned from the BuildX HUE community (accepted for a delegation before and didn't come), so you can't apply now. If you think this is a mistake, contact us." },
     sentTitle: "Message received ✅",
     sentBody: "We read every message and reply within a few days.",
     another: "Send another message",
@@ -473,7 +481,9 @@ export function WaitlistForm({ locale }: { locale: string }) {
 
 /* ─── Forms built in the app ───────────────────────────────────────────── */
 
-export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox";
+export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member";
+/** The form someone without a community membership sends to ask the organiser for an interview. */
+export const INTERVIEW_FORM = "membership-interview";
 export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[] };
 export type PublicForm = {
   slug: string;
@@ -636,7 +646,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
           </div>
         )}
         {ref && statusHref && (
-          <a href={`${statusHref}?${fixed ? "" : `f=${encodeURIComponent(slug)}&`}ref=${encodeURIComponent(ref)}#status`} className="btn btn-sm">
+          <a href={`${statusHref}${statusHref.includes("?") ? "&" : "?"}${fixed ? "" : `f=${encodeURIComponent(slug)}&`}ref=${encodeURIComponent(ref)}#status`} className="btn btn-sm">
             {t.checkStatus}
           </a>
         )}
@@ -647,7 +657,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setA((x) => ({ ...x, [id]: v }));
     if (errors[id]) setErrors((e) => ({ ...e, [id]: "" }));
   };
-  const reason: Record<string, string> = { required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong };
+  const reason: Record<string, string> = { required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember };
 
   const check = () => {
     const e: Record<string, string> = {};
@@ -759,6 +769,22 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             );
           }
           const s = typeof v === "string" ? v : "";
+          if (x.type === "member")
+            return (
+              <div key={x.id} className="grid gap-2">
+                <Row id={id} label={label} optional={opt} error={err} hint={helpOf(x, l)}>
+                  <input {...aria(id, err)} className={inputCls} maxLength={40} value={s} onChange={(e) => set(x.id, e.target.value)} dir="ltr" inputMode="text" autoComplete="off" placeholder={t.memberPh} />
+                </Row>
+                {slug !== INTERVIEW_FORM && (
+                  <p className="text-sm text-mist" data-testid="ask-interview">
+                    {t.notMember}{" "}
+                    <a href={`${listHref.replace(/\/forms\/?$/, "")}/form/?f=${INTERVIEW_FORM}`} className="font-semibold text-cyan underline-offset-4 hover:underline">
+                      {t.askInterview}
+                    </a>
+                  </p>
+                )}
+              </div>
+            );
           return (
             <Row key={x.id} id={id} label={label} optional={opt} error={err} hint={helpOf(x, l)}>
               {x.type === "textarea" ? (

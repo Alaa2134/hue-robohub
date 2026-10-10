@@ -63,12 +63,12 @@ function useNow(every = 1000) {
 
 type CountdownLabels = { title: string; d: string; h: string; m: string; s: string; live: string; over: string };
 
-export function ExpoCountdown({ labels }: { labels: CountdownLabels }) {
+export function ExpoCountdown({ labels, start = EXPO_START, end = EXPO_END }: { labels: CountdownLabels; start?: number; end?: number }) {
   const now = useNow();
   if (now === null) return <div className="mt-6 h-[5.5rem]" aria-hidden />;
-  if (now >= EXPO_END) return <p className="mt-6 text-lg font-semibold text-mist">{labels.over}</p>;
-  if (now >= EXPO_START) return <p className="mt-6 text-lg font-semibold text-[#ff9b70]">{labels.live}</p>;
-  const left = Math.floor((EXPO_START - now) / 1000);
+  if (now >= end) return <p className="mt-6 text-lg font-semibold text-mist">{labels.over}</p>;
+  if (now >= start) return <p className="mt-6 text-lg font-semibold text-[#ff9b70]">{labels.live}</p>;
+  const left = Math.floor((start - now) / 1000);
   const parts: [number, string][] = [
     [Math.floor(left / 86400), labels.d],
     [Math.floor((left % 86400) / 3600), labels.h],
@@ -94,11 +94,11 @@ type Days = { zero: string; one: string; two: string; few: string; many: string 
 const daysText = (n: number, d: Days) => (n <= 0 ? d.zero : n === 1 ? d.one : n === 2 ? d.two : n <= 10 ? d.few : d.many).replace("{n}", String(n));
 
 /** On phones: once past the top, a bar with the days left and "apply"; it hides over the form itself. */
-export function ExpoApplyBar({ label, days }: { label: string; days: Days }) {
+export function ExpoApplyBar({ label, days, start = EXPO_START, end = EXPO_END, target = "apply" }: { label: string; days: Days; start?: number; end?: number; target?: string }) {
   const now = useNow(60_000);
   const [show, setShow] = useState(false);
   useEffect(() => {
-    const targets = ["apply", "status"].map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
+    const targets = [target, "status"].map((id) => document.getElementById(id)).filter(Boolean) as HTMLElement[];
     const seen = new Set<Element>();
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
@@ -115,9 +115,9 @@ export function ExpoApplyBar({ label, days }: { label: string; days: Days }) {
       io.disconnect();
       window.removeEventListener("scroll", update);
     };
-  }, []);
-  if (now === null || now >= EXPO_END) return null;
-  const n = Math.max(0, Math.ceil((EXPO_START - now) / 86_400_000));
+  }, [target]);
+  if (now === null || now >= end) return null;
+  const n = Math.max(0, Math.ceil((start - now) / 86_400_000));
   return (
     <div
       data-testid="expo-apply-bar"
@@ -129,7 +129,7 @@ export function ExpoApplyBar({ label, days }: { label: string; days: Days }) {
       )}
     >
       <span className="text-sm font-semibold text-chalk">{daysText(n, days)}</span>
-      <a href="#apply" tabIndex={show ? 0 : -1} className="btn btn-primary btn-sm">
+      <a href={`#${target}`} tabIndex={show ? 0 : -1} className="btn btn-primary btn-sm">
         {label}
       </a>
     </div>

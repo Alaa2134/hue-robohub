@@ -69,6 +69,7 @@ const TYPES: { k: FieldType; ar: string }[] = [
   { k: "date", ar: "تاريخ" },
   { k: "url", ar: "رابط" },
   { k: "checkbox", ar: "موافقة (صح)" },
+  { k: "member", ar: "رقم عضوية الكميونيتي" },
 ];
 const typeAr = (k: string) => TYPES.find((x) => x.k === k)?.ar ?? k;
 const RESP: Record<Response["status"], { ar: string; tone: "info" | "ok" | "danger" | "warn" }> = {
@@ -402,13 +403,13 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             </Card>
           ))}
           <div className="flex flex-wrap gap-2">
-            {(["name", "phone", "text", "textarea", "select", "multi", "checkbox"] as FieldType[]).map((k) => (
+            {(["name", "phone", "text", "textarea", "select", "multi", "checkbox", "member"] as FieldType[]).map((k) => (
               <Button key={k} size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined)] })}>
                 {typeAr(k)}
               </Button>
             ))}
           </div>
-          <p className="text-xs text-fog">الرد بيتحفظ مرة واحدة لكل رقم موبايل أو إيميل، والموقع بيراجع الإجابات قبل ما يقبلها.</p>
+          <p className="text-xs text-fog">الرد بيتحفظ مرة واحدة لكل رقم موبايل أو إيميل، والموقع بيراجع الإجابات قبل ما يقبلها. سؤال «رقم عضوية الكميونيتي» بيقبل الأعضاء المفعّلين بس، واللي مش عضو بيلاقي لينك يطلب انترفيو.</p>
         </div>
       </Section>
 

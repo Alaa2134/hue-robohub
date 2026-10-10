@@ -489,7 +489,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
       <div
         ref={panel}
         className={cn(
-          "relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-[28px] border border-[var(--line-2)] bg-[#0a1326] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-20px_80px_-20px_rgb(0_0_0/0.8)] sm:rounded-[28px]",
+          "relative max-h-[92dvh] w-full min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain rounded-t-[28px] border border-[var(--line-2)] bg-[#0a1326] p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-[0_-20px_80px_-20px_rgb(0_0_0/0.8)] sm:rounded-[28px]",
           wide ? "sm:max-w-2xl" : "sm:max-w-lg",
         )}
       >

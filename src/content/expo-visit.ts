@@ -39,7 +39,7 @@ const ar = {
   stepsEyebrow: "الزيارة ماشية إزاي",
   stepsTitle: "4 خطوات وتبقى في المعرض",
   steps: [
-    { t: "قدّم", b: "املأ الفورم تحت. هيظهرلك كود طلب، احتفظ بيه." },
+    { t: "قدّم", b: "املأ الفورم تحت برقم عضويتك في الكميونيتي. هيظهرلك كود طلب، احتفظ بيه." },
     { t: "الفريق بيراجع", b: "بنراجع الطلبات ونبعتلك على واتساب أول ما تتقبل." },
     { t: "اتسجّلت علطول", b: "أول ما تتقبل بتبقى في وفد BuildX HUE برقم (BX-001…)، وإحنا بنبعت كشف الوفد لإدارة المعرض. مش محتاج تسجّل في أي موقع." },
     { t: "يوم الزيارة", b: "تصريحك في «تابع طلبك» (خد سكرين شوت)، وميعاد ومكان التجمع بيوصلوك على واتساب." },
@@ -52,9 +52,10 @@ const ar = {
   faqEyebrow: "أسئلة",
   faqTitle: "قبل ما تقدّم",
   faq: [
-    { q: "الزيارة لمين؟", a: "لطلاب BuildX HUE وأي طالب مهتم بالروبوتات والذكاء الاصطناعي والهندسة. الأولوية لطلاب الفريق." },
+    { q: "الزيارة لمين؟", a: "لأعضاء كميونيتي BuildX HUE بس، وهتكتب رقم عضويتك في الفورم. لو لسه مش عضو، اطلب انترفيو مع منظم الموقع من اللينك اللي تحت خانة رقم العضوية." },
     { q: "لازم أسجّل في موقع المعرض؟", a: "لأ. إحنا بنسجّلك ضمن وفد BuildX HUE وبنبعت الكشف لإدارة المعرض. اكتب اسمك بالإنجليزي صح في الفورم عشان يطلع كده في الكشف." },
-    { q: "أقدر أروح لوحدي؟", a: "أيوه، اختار «هوصل المعرض لوحدي» في الفورم، وقابلنا هناك في الميعاد اللي هنبعته." },
+    { q: "أقدر أروح لوحدي؟", a: "لأ. المعرض مسجّلنا كوفد واحد، فكلنا بنتحرك مع بعض من مكان التجمع مع الفريق." },
+    { q: "لو اتقبلت ومعرفتش أحضر؟", a: "اللي يتقبل ومايحضرش بياخد حظر من الكميونيتي وتتسحب منه العضوية، وده بتوافق عليه وإنت بتقدّم. قدّم بس لو متأكد إنك جاي." },
     { q: "نسيت كود الطلب", a: "قدّم تاني بنفس رقم الموبايل، وهيظهرلك نفس الكود." },
   ],
   official: "موقع المعرض الرسمي",
@@ -79,7 +80,7 @@ const ar = {
   planNote: "المواعيد بالظبط بتوصلك على واتساب وفي تصريحك.",
   plan: [
     { t: "التجمع", b: "نتقابل في مكان التجمع، ونطابق الأسامي على كشف الوفد.", icon: "users" },
-    { t: "على المعرض", b: "اللي جاي مع الفريق بيتحرك معانا، واللي جاي لوحده يقابلنا عند البوابة.", icon: "rocket" },
+    { t: "على المعرض", b: "بنتحرك كلنا مع بعض من مكان التجمع للمعرض.", icon: "rocket" },
     { t: "جولة في الصالات", b: "نلف على ستاندات الروبوتات والذكاء الاصطناعي والفحص، ونسأل ونتعلم.", icon: "robot" },
     { t: "مع الشركات", b: "نتكلم مع الشركات عن التدريب والشغل، وخد معاك سؤالين جاهزين.", icon: "handshake" },
     { t: "صورة الوفد", b: "صورة جماعية لوفد BuildX HUE، وبتنزل في ألبوم الزيارة هنا.", icon: "image" },
@@ -127,7 +128,7 @@ const en: typeof ar = {
   stepsEyebrow: "How the visit works",
   stepsTitle: "Four steps to the expo",
   steps: [
-    { t: "Apply", b: "Fill in the form below. You'll get a reference code; keep it." },
+    { t: "Apply", b: "Fill in the form below with your community membership number. You'll get a reference code; keep it." },
     { t: "The team reviews", b: "We review applications and message you on WhatsApp once you're accepted." },
     { t: "You're registered", b: "Once accepted you're in the BuildX HUE delegation with a number (BX-001…), and we send the delegation list to the expo's administration. No registration on any site." },
     { t: "Visit day", b: "Your pass is under “Check your application” (take a screenshot); the meeting time and place come on WhatsApp." },
@@ -140,9 +141,10 @@ const en: typeof ar = {
   faqEyebrow: "Questions",
   faqTitle: "Before you apply",
   faq: [
-    { q: "Who is the visit for?", a: "BuildX HUE students and any student interested in robotics, AI and engineering. Team students come first." },
+    { q: "Who is the visit for?", a: "BuildX HUE community members only; you'll enter your membership number in the form. Not a member yet? Ask the organiser for an interview from the link under the membership number." },
     { q: "Do I register on the expo's site?", a: "No. We register you in the BuildX HUE delegation and send the list to the expo's administration. Write your English name correctly in the form so it shows that way on the list." },
-    { q: "Can I go on my own?", a: "Yes, choose “I'll get to the expo myself” in the form and meet us there at the time we send." },
+    { q: "Can I go on my own?", a: "No. The expo registered us as one delegation, so we all travel together from the meeting point with the team." },
+    { q: "What if I'm accepted and can't come?", a: "Anyone accepted who doesn't attend is banned from the community and loses their membership; you agree to this when you apply. Only apply if you're sure you'll come." },
     { q: "I lost my reference code", a: "Apply again with the same mobile number and you'll see the same code." },
   ],
   official: "Official expo website",
@@ -167,7 +169,7 @@ const en: typeof ar = {
   planNote: "Exact times come on WhatsApp and on your pass.",
   plan: [
     { t: "Meet up", b: "We meet at the meeting point and check names against the delegation list.", icon: "users" },
-    { t: "To the expo", b: "If you're coming with the team you travel with us; otherwise meet us at the gate.", icon: "rocket" },
+    { t: "To the expo", b: "We all travel together from the meeting point to the expo.", icon: "rocket" },
     { t: "Tour the halls", b: "We go round the robotics, AI and inspection stands, ask questions and learn.", icon: "robot" },
     { t: "Meet companies", b: "We talk to companies about internships and jobs. Bring two questions ready.", icon: "handshake" },
     { t: "Delegation photo", b: "A group photo of the BuildX HUE delegation, posted to the visit album here.", icon: "image" },
