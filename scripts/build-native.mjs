@@ -25,6 +25,9 @@ const www = path.join(root, "mobile", "app", "www");
 rmSync(www, { recursive: true, force: true });
 mkdirSync(www, { recursive: true });
 for (const part of ["_next", "app", "brand"]) cpSync(path.join(out, part), path.join(www, part), { recursive: true });
+// Baqloz's stills (he reminds people what's on them in the app); the 3D model stays on the website.
+mkdirSync(path.join(www, "mascot"), { recursive: true });
+for (const still of ["poster.webp", "poster-wave.webp"]) cpSync(path.join(out, "mascot", still), path.join(www, "mascot", still));
 // The offline worker and the install manifest are for the website only.
 rmSync(path.join(www, "app", "sw.js"), { force: true });
 // rh-app-mode: left by the earlier separate student and team apps.

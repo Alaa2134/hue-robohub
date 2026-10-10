@@ -292,13 +292,21 @@ function dayLabel(d: string) {
 }
 
 /** /staff/mytasks — the tasks given to me (by day), and my warnings (with appeals). */
-export function MyTasksScreen() {
+export function MyTasksScreen({ openId }: { openId?: string | null }) {
   const { data, error, loading, reload } = useAsync(async () => {
     const [tasks, warnings] = await Promise.all([rpc<Task[]>("staff_my_tasks"), rpc<Warning[]>("staff_warnings", { p_scope: "mine" })]);
     return { tasks: tasks ?? [], warnings: warnings ?? [] };
   }, []);
   const [tab, setTab] = useState<"open" | "sent" | "done">("open");
   const [open, setOpen] = useState<Task | null>(null);
+  // Opened from Baqloz or a notification (#/staff/mytasks?t=<id>): straight to that task.
+  const [opened, setOpened] = useState(false);
+  useEffect(() => {
+    if (!openId || opened || !data) return;
+    setOpened(true);
+    const t = data.tasks.find((x) => x.id === openId);
+    if (t) setOpen(t);
+  }, [openId, opened, data]);
   const [appeal, setAppeal] = useState<Warning | null>(null);
   const unseen = data?.warnings.filter((w) => !w.seen_at && !w.cancelled_at).length ?? 0;
   useEffect(() => {

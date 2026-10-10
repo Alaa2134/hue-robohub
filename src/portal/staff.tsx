@@ -1,6 +1,6 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { isFull, ROLE_LABEL, can, fmt, must, rpc, sb, type Area, type Session, type StaffRow } from "./core";
 import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
@@ -31,6 +31,7 @@ import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
+import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
 import { MeetingScreen, MeetingsScreen } from "./team-meetings";
 import {
   Badge,
@@ -244,7 +245,7 @@ export function StaffApp({
       );
       break;
     case "mytasks":
-      screen = <MyTasksScreen />;
+      screen = <MyTasksScreen key={query.get("t") ?? ""} openId={query.get("t")} />;
       break;
     case "sectors":
       screen = id ? sub ? <TeamTaskScreen key={sub} sectorId={id} id={sub} me={me} /> : <SectorScreen key={`${id}${query.get("task") ?? ""}`} id={id} me={me} query={query} /> : <SectorsScreen />;
@@ -271,9 +272,11 @@ export function StaffApp({
     default:
       screen = <StaffHome me={me} />;
   }
+  const first = (me.full_name || me.email).split(/\s+/)[0];
   return (
     <AppShell tabs={tabs} path={path}>
       {screen}
+      {section && section !== "more" && <BaqlozBuddy first={first} path={path.join("/")} />}
     </AppShell>
   );
 }
@@ -328,6 +331,22 @@ function StaffHome({ me }: { me: StaffRow }) {
   const active = students.list?.filter((s) => s.active) ?? [];
   const noPin = active.filter((s) => !s.hasPin).length;
   const first = (me.full_name || me.email).split(/\s+/)[0];
+  const reminders = useStaffReminders();
+  // What Baqloz reminds about: the team's list, then this person's areas (applications, messages…).
+  const coach = useMemo<Reminder[] | null>(() => {
+    if (!reminders.list) return null;
+    const extra: Reminder[] = [];
+    const n = (x: number | undefined) => x ?? 0;
+    if (n(data?.applications)) extra.push({ kind: "applications", to: "/staff/applications", line: data!.applications === 1 ? "فيه طلب انضمام جديد مستني حد يراجعه 📝" : `فيه ${data!.applications} طلبات انضمام جديدة مستنية حد يراجعها 📝` });
+    if (n(data?.messages)) extra.push({ kind: "messages", to: "/staff/inbox", line: data!.messages === 1 ? "فيه رسالة جديدة من الموقع ✉️ حد يرد عليها؟" : `فيه ${data!.messages} رسايل جديدة من الموقع ✉️` });
+    if (n(data?.access)) extra.push({ kind: "access", to: "/staff/access", line: "فيه حد نسي رمز الدخول أو كلمة المرور ومستنيك 🔑" });
+    if (n(data?.projects)) extra.push({ kind: "projects", to: "/staff/projects", line: "طالب بعت مشروع للموقع، بص عليه ⭐" });
+    if (n(data?.atRisk)) extra.push({ kind: "at-risk", to: "/staff/at-risk", line: `${data!.atRisk === 1 ? "فيه طالب" : `فيه ${data!.atRisk} طلاب`} محتاجين متابعة (غابوا أو اختفوا) 👀` });
+    if (n(data?.deletions)) extra.push({ kind: "deletions", to: "/staff/deletions", line: "فيه طلب حذف حساب، والمتاجر بتطلب تنفيذه خلال 30 يوم 🗑️" });
+    const list = reminders.list;
+    const unread = list.filter((r) => r.kind === "unread");
+    return [...list.filter((r) => r.kind !== "unread"), ...extra, ...unread];
+  }, [reminders.list, data]);
 
   return (
     <>
@@ -348,6 +367,8 @@ function StaffHome({ me }: { me: StaffRow }) {
           {me.title || ROLE_LABEL[me.role]}
         </Badge>
       </div>
+
+      <BaqlozCoach first={first} items={coach} />
 
       {can(me, "attendance") && (
         <button

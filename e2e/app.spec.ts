@@ -1558,3 +1558,89 @@ test("a head picks a template, adds steps and makes the task repeat weekly; the 
   expect(calls.find((c) => c.fn === "staff_task_save")?.body).toMatchObject({ p_title: "Weekly post", p_priority: "high" });
   expect(errors).toEqual([]);
 });
+
+/* ─── Baqloz in the app ─────────────────────────────────────────────────── */
+
+test("Baqloz on the team home says what's on you, most urgent first, and takes you there", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  const late = teamTask({ id: "t7", title: "Sponsor deck", due_at: at(120), assignees: [assignee({})] });
+  await mockRpc(page, calls, {
+    staff_my_summary: summary({ open: 1, overdue: 1 }),
+    staff_reminders: [
+      { kind: "overdue", rank: 1, id: "t7", title: "Sponsor deck", at: at(120), to: "/staff/mytasks?t=t7" },
+      { kind: "meeting", rank: 4, id: "m1", title: "Weekly sync", at: later(3), place: "Lab", to: "/staff/meetings/m1" },
+    ],
+    staff_my_tasks: [late],
+    staff_task: late,
+    staff_warnings: [],
+  });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("baqloz-line")).toContainText("«Sponsor deck» فات ميعادها");
+  await expect(page.getByTestId("baqloz-coach")).toContainText("1 من 2");
+  await page.getByRole("button", { name: "اللي بعده" }).click();
+  await expect(page.getByTestId("baqloz-line")).toContainText("عندك اجتماع «Weekly sync»");
+  await page.getByRole("button", { name: "اللي بعده" }).click();
+  // "Take me there" opens that very task.
+  await page.getByRole("button", { name: "ودّيني ←" }).click();
+  await expect(page).toHaveURL(/#\/staff\/mytasks\?t=t7$/);
+  await expect(page.getByRole("dialog")).toContainText("Sponsor deck");
+  expect(errors).toEqual([]);
+});
+
+test("on other screens Baqloz waits in the corner and pops up about something forgotten", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, calls, {
+    staff_reminders: [{ kind: "meeting_open", rank: 1, id: "m1", title: "Weekly sync", at: at(5), to: "/staff/meetings/m1" }],
+    staff_notifications: { unread: 0, items: [] },
+    staff_meeting: { id: "m1", sector_id: "sec1", sector_name: "الميديا", sector_color: "#ff7a45", title: "Weekly sync", agenda: "", starts_at: at(5), place: null, link: null, status: "open", code: null, minutes: null, leads: false, invited: 3, present: 1, mine: null, attendance: null },
+  });
+  await page.goto("/app/#/staff/notifications");
+  await expect(page.getByTestId("baqloz-buddy")).toBeVisible();
+  await expect(page.getByTestId("baqloz-nudge")).toContainText("الاجتماع «Weekly sync» شغال دلوقتي");
+  await page.getByTestId("baqloz-nudge").getByRole("button", { name: "ودّيني ←" }).click();
+  await expect(page).toHaveURL(/#\/staff\/meetings\/m1$/);
+  await expect(page.getByLabel("كود الحضور")).toBeVisible();
+});
+
+test("with nothing on you, Baqloz waves and cheers", async ({ page }) => {
+  await signInAsOwner(page);
+  await signInAs(page, { user_id: "u3", full_name: "Omar Design" });
+  await mockRpc(page, [], { staff_reminders: [] });
+  await page.goto("/app/#/staff");
+  await expect(page.getByTestId("baqloz-line")).toContainText("يا Omar");
+  await expect(page.getByRole("button", { name: "ودّيني ←" })).toHaveCount(0);
+});
+
+test("Baqloz on the student home reminds of a task not handed in and an open quiz", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })));
+  const rpcs: Record<string, unknown> = {
+    student_home: {
+      now: new Date().toISOString(),
+      student: { name: "Mona Adel", code: "S1", group: "G1" },
+      materials: [],
+      quizzes: [{ id: "q1", title: "Sensors quiz", description: "", opensAt: at(60), closesAt: later(5), timeLimit: null, maxAttempts: 1, questions: 5, maxScore: 5, used: 0, best: null, inProgress: null, state: "open" }],
+      attendance: [],
+    },
+    student_tasks: [{ id: "a1", title: "Photo of your circuit", description: "", dueAt: at(60), maxPoints: 10, allowLate: true, submission: null }],
+    student_schedule: [],
+  };
+  await page.route(/supabase\.co/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
+  });
+  await page.goto("/app/#/me");
+  await expect(page.getByTestId("baqloz-line")).toContainText("يا Mona، تاسك «Photo of your circuit» فات ميعاده");
+  await page.getByRole("button", { name: "اللي بعده" }).click();
+  await expect(page.getByTestId("baqloz-line")).toContainText("كويز «Sensors quiz» مفتوح");
+  await page.getByRole("button", { name: "ودّيني ←" }).click();
+  await expect(page).toHaveURL(/#\/me\/quiz\/q1$/);
+  expect(errors).toEqual([]);
+});
