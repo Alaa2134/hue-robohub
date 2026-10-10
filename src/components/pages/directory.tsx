@@ -91,15 +91,15 @@ function Suggest({ lang }: { lang: "ar" | "en" }) {
   };
   if (state === "sent") return <p className="frame mt-10 p-6 text-center text-chalk" data-testid="suggest-sent">{t.sent}</p>;
   return (
-    <form onSubmit={submit} className="frame mt-10 grid gap-3 p-6" data-testid="suggest-site">
+    <form onSubmit={submit} className="frame relative mt-10 grid min-w-0 grid-cols-1 gap-3 p-6" data-testid="suggest-site">
       <p className="text-lg font-semibold text-chalk">{t.title}</p>
       <p className="text-sm text-mist">{t.body}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <input required dir="ltr" inputMode="url" maxLength={300} placeholder="https://" aria-label={t.url} value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} className="h-11 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
-        <input maxLength={60} placeholder={t.name} aria-label={t.name} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-11 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <input required dir="ltr" inputMode="url" maxLength={300} placeholder="https://" aria-label={t.url} value={f.url} onChange={(e) => setF({ ...f, url: e.target.value })} className="h-11 w-full min-w-0 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
+        <input maxLength={60} placeholder={t.name} aria-label={t.name} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} className="h-11 w-full min-w-0 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 text-chalk placeholder:text-fog" />
       </div>
-      <textarea required minLength={5} maxLength={500} rows={2} placeholder={t.why} aria-label={t.why} value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} className="rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 py-3 text-chalk placeholder:text-fog" />
-      <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} name="website" />
+      <textarea required minLength={5} maxLength={500} rows={2} placeholder={t.why} aria-label={t.why} value={f.why} onChange={(e) => setF({ ...f, why: e.target.value })} className="w-full min-w-0 rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 py-3 text-chalk placeholder:text-fog" />
+      <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="pointer-events-none absolute start-0 top-0 h-px w-px opacity-0" value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} name="website" />
       {state === "error" && <p className="text-sm text-danger">{msg}</p>}
       <button type="submit" disabled={state === "busy"} className="h-11 justify-self-start rounded-full bg-cyan/20 px-6 text-sm font-semibold text-chalk transition hover:bg-cyan/30 disabled:opacity-50">
         {t.send}
