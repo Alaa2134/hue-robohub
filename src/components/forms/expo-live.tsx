@@ -9,9 +9,23 @@ type Stats = { accepted: number; capacity: number | null; days: Record<string, n
 export function DelegationCounter({ slug, going, left, full, closed }: { slug: string; going: string; left: string; full: string; closed: string }) {
   const [s, setS] = useState<Stats | undefined>(undefined);
   useEffect(() => {
-    fetch(`${SUPABASE_URL}/rest/v1/rpc/form_delegation`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: slug }) })
+    // The count changes only when the team accepts someone: a minute in this visit is fresh enough.
+    const key = `bx-delegation-${slug}`;
+    try {
+      const c = JSON.parse(sessionStorage.getItem(key) ?? "null") as { at: number; s: Stats } | null;
+      if (c && Date.now() - c.at < 60_000) return setS(c.s);
+    } catch {}
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/form_delegation`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: slug }), signal: AbortSignal.timeout(6000) })
       .then((r) => (r.ok ? (r.json() as Promise<Stats>) : null))
-      .then((x) => setS(x ?? null), () => setS(null));
+      .then(
+        (x) => {
+          setS(x ?? null);
+          try {
+            if (x) sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), s: x }));
+          } catch {}
+        },
+        () => setS(null),
+      );
   }, [slug]);
   if (s === undefined) return <div className="frame h-40 animate-pulse" />;
   if (!s || !s.accepted) return <p className="frame p-6 text-mist">{closed}</p>;

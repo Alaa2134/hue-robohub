@@ -5,7 +5,7 @@
  * bands, and on phones the "apply" bar. LiveSitePage shows the built-in version first (if any)
  * and switches to the team's saved one as soon as it arrives.
  */
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { ICON_NAMES, Icon, type IconName } from "@/components/brand/icons";
 import { DelegationCounter, ExpoApplyBar, ExpoCountdown } from "@/components/forms/expo-live";
 import { FormFiller, FormStatus } from "@/components/forms/site-forms";
@@ -51,7 +51,13 @@ const L = {
 
 const iconOf = (n: string | undefined): IconName => (n && (ICON_NAMES as string[]).includes(n) ? (n as IconName) : "bolt");
 const anchorOf = (b: Block) => b.anchor?.trim() || `b-${b.id}`;
-const asset = (href: string) => (href.startsWith("/") && !href.startsWith("//") ? `${BASE_PATH}${href}` : href);
+/** A link from a saved page: only a part of the page, a path on the site, https, mail or phone (never javascript: and friends). */
+const asset = (href: string) => {
+  const h = (href ?? "").trim();
+  if (h.startsWith("#")) return h;
+  if (h.startsWith("/") && !h.startsWith("//") && !h.startsWith("/\\")) return `${BASE_PATH}${h}`;
+  return /^(https?:\/\/|mailto:|tel:)/i.test(h) ? h : "#";
+};
 
 function Buttons({ buttons, locale, className }: { buttons: Btn[]; locale: string; className?: string }) {
   if (!buttons.length) return null;
@@ -383,27 +389,49 @@ export function SitePageView({ page, locale, crumbs, preview }: { page: SitePage
 
 /** The team's saved version of a page (published), else the built-in one. */
 export function LiveSitePage({ slug, locale, fallback, crumbs }: { slug?: string; locale: string; fallback?: SitePage; crumbs?: { label: string; href?: string }[] }) {
-  const [page, setPage] = useState<SitePage | null | undefined>(fallback);
+  const [page, setRaw] = useState<SitePage | null | undefined>(fallback);
+  // As a transition: the rest of the page may still be hydrating when the answer arrives.
+  const setPage = (v: SitePage | null | ((x: SitePage | null | undefined) => SitePage | null | undefined)) => startTransition(() => setRaw(v));
   const [name, setName] = useState(slug);
   useEffect(() => {
     const s = slug ?? new URLSearchParams(location.search).get("s") ?? "";
-    setName(s);
+    if (s !== slug) setName(s);
+    // Nothing to show instead of the built-in page: leave it alone (no re-render while it hydrates).
+    const missing = () => {
+      if (!fallback) setPage((x) => x ?? null);
+    };
     if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(s)) {
-      setPage((p) => p ?? null);
+      missing();
       return;
     }
     let alive = true;
-    fetch(`${SUPABASE_URL}/rest/v1/rpc/site_page`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: s }), signal: AbortSignal.timeout(6000) })
-      .then((r) => (r.ok ? r.json() : null))
+    // Kept for a minute in this visit: moving between pages doesn't ask the database again.
+    const key = `bx-page-${s}`;
+    let cached: { at: number; raw: unknown } | null = null;
+    try {
+      cached = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    } catch {}
+    const fresh = cached && Date.now() - cached.at < 60_000;
+    (fresh
+      ? Promise.resolve(cached!.raw)
+      : fetch(`${SUPABASE_URL}/rest/v1/rpc/site_page`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: s }), signal: AbortSignal.timeout(6000) })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((raw: unknown) => {
+            try {
+              sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), raw }));
+            } catch {}
+            return raw;
+          })
+    )
       .then((raw) => {
         if (!alive) return;
         const p = cleanPage(raw);
         if (p) {
           setPage(p);
           if (!fallback) document.title = `${tx(p.title, locale)} · BuildX HUE`;
-        } else setPage((x) => x ?? null);
+        } else missing();
       })
-      .catch(() => alive && setPage((x) => x ?? null));
+      .catch(() => alive && missing());
     return () => {
       alive = false;
     };
