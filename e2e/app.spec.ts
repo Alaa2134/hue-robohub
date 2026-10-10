@@ -502,6 +502,8 @@ test("a student hands in a task and sees it on the tasks tab", async ({ page }) 
   await page.goto("/app/#/me");
   await expect(page.getByText("تاسك مطلوب منك")).toBeVisible();
   await page.getByText("تاسك مطلوب منك").click();
+  // The tasks tab (Baqloz on home also names the task, so wait until home is gone).
+  await expect(page).toHaveURL(/#\/me\/tasks$/);
   await page.getByText("Photo of your circuit").click();
   await page.getByLabel("ردّك (اختياري)").fill("Done");
   await page.getByLabel("لينك (اختياري)").fill("https://github.com/mona/circuit");
