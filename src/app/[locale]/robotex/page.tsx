@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Icon } from "@/components/brand/icons";
-import { DelegationCounter } from "@/components/forms/expo-live";
+import { DelegationCounter, ExpoApplyBar, ExpoCountdown } from "@/components/forms/expo-live";
 import { FormFiller, FormStatus } from "@/components/forms/site-forms";
 import { LiveGallery } from "@/components/live/live-content";
 import { Picture } from "@/components/media/picture";
+import { MediaWallGrid, type WallImage } from "@/components/pages/lightbox";
 import { Band } from "@/components/pages/section";
 import { PageHero } from "@/components/site/page-hero";
 import { SectionHead } from "@/components/ui/section-head";
@@ -21,13 +22,21 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 /**
- * The team's visit to Robotex & NDTX Expo 2026: what it is, what you'll see, how it works, who's in the
- * delegation (live), the day's plan, the application form, the status check with the delegation pass,
- * and the visit's photo album (gallery photos tagged "robotex", added from the BuildX App).
+ * The team's visit to Robotex & NDTX Expo 2026, short enough for a phone: a countdown, a quick menu,
+ * the two expos, the areas (swiped sideways on phones), how it works, then the form with the live
+ * delegation count and the status check (with the delegation pass), the day's plan, real photos from
+ * past editions (open full screen), the visit's own album (gallery photos tagged "robotex") and the
+ * FAQ. On phones a bar with the days left and "apply" follows once you scroll past the top.
  */
 export default async function RobotexVisit({ params }: Params) {
   const { locale, t, href } = await resolvePage(params);
   const c = expoVisit(locale);
+  const past: WallImage[] = PAST_PHOTOS.map((k) => {
+    const img = expoPhoto(k, locale)!;
+    const thumb = img.webp.split(", ")[0]!.split(" ")[0]!;
+    return { id: k, src: img.src, srcSet: img.webp, thumb, alt: img.alt, caption: img.alt, tag: "NDTX", w: img.width, h: img.height, placeholder: img.placeholder };
+  });
+  const head = "mt-8 sm:mt-12";
   return (
     <>
       <PageHero
@@ -49,28 +58,41 @@ export default async function RobotexVisit({ params }: Params) {
           </div>
         }
       >
-        <dl className="enter mt-12 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--line)] lg:grid-cols-4" style={{ ["--d" as string]: "800ms" }}>
+        <ExpoCountdown labels={c.countdown} />
+        <dl className="enter mt-8 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--line)] lg:grid-cols-4" style={{ ["--d" as string]: "800ms" }}>
           {c.facts.map((f) => (
-            <div key={f.d} className="bg-void/70 px-5 py-4 backdrop-blur">
+            <div key={f.d} className="bg-void/70 px-4 py-3 backdrop-blur sm:px-5 sm:py-4">
               <dt className="t-eyebrow text-[0.58rem] text-fog">{f.d}</dt>
-              <dd className="t-headline mt-1.5 text-xl text-chalk">
-                {f.k} <span className="text-base font-normal text-mist">{f.t}</span>
+              <dd className="t-headline mt-1.5 text-lg text-chalk sm:text-xl">
+                {f.k} <span className="text-sm font-normal text-mist sm:text-base">{f.t}</span>
               </dd>
             </div>
           ))}
         </dl>
       </PageHero>
 
-      <Band>
+      <nav aria-label={c.title} className="border-y border-[var(--line)] bg-[rgb(5_14_38/0.88)]" data-testid="expo-nav">
+        <ul className="mx-auto flex max-w-[1680px] gap-2 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] sm:px-8">
+          {c.nav.map(([to, label]) => (
+            <li key={to} className="shrink-0">
+              <a href={to} className="block rounded-full border border-[var(--line-2)] px-3.5 py-1.5 text-sm text-mist transition-colors hover:border-cyan/50 hover:text-chalk">
+                {label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <Band tight id="about" className="scroll-mt-28">
         <SectionHead index="01" eyebrow={c.aboutEyebrow} title={c.aboutTitle} size="md" />
-        <div className="mt-12 grid gap-4 md:grid-cols-2">
+        <div className={`${head} grid gap-3 sm:gap-4 md:grid-cols-2`}>
           {c.about.map((x) => (
-            <article key={x.name} className="frame flex flex-col gap-3 p-6 sm:p-8">
+            <article key={x.name} className="frame flex flex-col gap-2 p-5 sm:gap-3 sm:p-8">
               <p className="t-eyebrow text-[0.62rem] text-cyan">{x.tag}</p>
-              <h3 dir="ltr" className="t-headline text-3xl text-chalk rtl:text-right">
+              <h3 dir="ltr" className="t-headline text-2xl text-chalk sm:text-3xl rtl:text-right">
                 {x.name}
               </h3>
-              <p className="leading-relaxed text-mist">{x.body}</p>
+              <p className="text-sm leading-relaxed text-mist sm:text-base">{x.body}</p>
             </article>
           ))}
         </div>
@@ -86,22 +108,23 @@ export default async function RobotexVisit({ params }: Params) {
         </div>
       </Band>
 
-      <Band alt>
+      <Band tight alt id="areas" className="scroll-mt-28">
         <SectionHead index="02" eyebrow={c.seeEyebrow} title={c.seeTitle} size="md" />
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {/* Phones: one row to swipe sideways; wider screens: a grid. */}
+        <ul className={`${head} -mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-3 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-3`} data-testid="expo-areas">
           {c.see.map((x, i) => {
             const img = expoPhoto(c.seeImages[i] ?? "", locale);
             return (
-              <li key={x.t} className="frame group overflow-hidden">
+              <li key={x.t} className="frame group w-[80%] shrink-0 snap-start overflow-hidden sm:w-auto">
                 {img && (
                   <div className="relative aspect-[16/9] overflow-hidden">
-                    <Picture image={img} sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw" decorative className="size-full" imgClassName="transition-transform duration-700 group-hover:scale-105" />
+                    <Picture image={img} sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 80vw" decorative className="size-full" imgClassName="transition-transform duration-700 group-hover:scale-105" />
                     <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-void via-void/20 to-transparent" />
                   </div>
                 )}
-                <div className="relative -mt-8 flex gap-4 p-6">
-                  <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-[var(--line-2)] bg-void/80 text-cyan backdrop-blur">
-                    <Icon name={x.icon} size={24} />
+                <div className="relative -mt-8 flex gap-3 p-4 sm:gap-4 sm:p-6">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[var(--line-2)] bg-void/80 text-cyan backdrop-blur sm:size-12">
+                    <Icon name={x.icon} size={22} />
                   </span>
                   <span>
                     <span className="block font-semibold text-chalk">{x.t}</span>
@@ -114,53 +137,44 @@ export default async function RobotexVisit({ params }: Params) {
         </ul>
       </Band>
 
-      <Band>
-        <SectionHead index="03" eyebrow={c.pastEyebrow} title={c.pastTitle} body={c.pastBody} size="md" />
-        <ul className="mt-12 columns-2 gap-3 md:columns-3 lg:columns-4" data-testid="expo-past">
-          {PAST_PHOTOS.map((k) => {
-            const img = expoPhoto(k, locale)!;
-            return (
-              <li key={k} className="mb-3 break-inside-avoid overflow-hidden rounded-2xl border border-[var(--line)]">
-                <figure>
-                  <Picture image={img} sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw" style={{ aspectRatio: `${img.width} / ${img.height}` }} />
-                  <figcaption className="px-3 py-2 text-xs leading-relaxed text-fog">{img.alt}</figcaption>
-                </figure>
-              </li>
-            );
-          })}
-        </ul>
-      </Band>
-
-      <Band alt>
-        <SectionHead index="04" eyebrow={c.stepsEyebrow} title={c.stepsTitle} size="md" />
-        <ol className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <Band tight>
+        <SectionHead index="03" eyebrow={c.stepsEyebrow} title={c.stepsTitle} size="md" />
+        <ol className={`${head} grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4`}>
           {c.steps.map((s, i) => (
-            <li key={s.t} className="frame flex flex-col gap-3 p-6">
-              <span className="t-headline text-4xl text-cyan">{String(i + 1).padStart(2, "0")}</span>
+            <li key={s.t} className="frame flex flex-col gap-1.5 p-4 sm:gap-3 sm:p-6">
+              <span className="t-headline text-2xl text-cyan sm:text-4xl">{String(i + 1).padStart(2, "0")}</span>
               <span className="font-semibold text-chalk">{s.t}</span>
-              <span className="text-sm leading-relaxed text-mist">{s.b}</span>
+              <span className="text-xs leading-relaxed text-mist sm:text-sm">{s.b}</span>
             </li>
           ))}
         </ol>
       </Band>
 
-      <Band id="delegation">
-        <SectionHead index="05" eyebrow={c.crewEyebrow} title={c.crewTitle} body={c.crewBody} size="md" />
-        <div className="mt-12">
+      <Band tight alt id="apply" className="scroll-mt-28">
+        <SectionHead index="04" eyebrow={c.applyEyebrow} title={c.applyTitle} size="md" />
+        <div className={`${head} mx-auto grid max-w-3xl gap-6`}>
           <DelegationCounter slug={EXPO_FORM} going={c.crewGoing} left={c.crewLeft} full={c.crewFull} closed={c.crewClosed} />
+          <FormFiller locale={locale} listHref={href("/forms")} slug={EXPO_FORM} statusHref={href("/robotex")} />
         </div>
       </Band>
 
-      <Band alt>
+      <Band tight id="status" className="scroll-mt-28">
+        <SectionHead index="05" eyebrow={c.statusEyebrow} title={c.statusTitle} body={c.statusBody} size="md" />
+        <div className={`${head} mx-auto max-w-4xl`}>
+          <FormStatus locale={locale} />
+        </div>
+      </Band>
+
+      <Band tight alt id="day" className="scroll-mt-28">
         <SectionHead index="06" eyebrow={c.planEyebrow} title={c.planTitle} body={c.planNote} size="md" />
-        <div className="mt-12 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-          <ol className="relative grid gap-4 border-s border-[var(--line-2)] ps-6">
+        <div className={`${head} grid gap-6 lg:grid-cols-[1.6fr_1fr]`}>
+          <ol className="relative grid gap-3 border-s border-[var(--line-2)] ps-6 sm:gap-4">
             {c.plan.map((x, i) => (
               <li key={x.t} className="relative">
-                <span aria-hidden className="absolute -start-[2.15rem] top-5 flex size-5 items-center justify-center rounded-full border-2 border-[#ff7a45] bg-void text-[0.6rem] font-bold text-[#ff7a45]">
+                <span aria-hidden className="absolute -start-[2.15rem] top-4 flex size-5 items-center justify-center rounded-full border-2 border-[#ff7a45] bg-void text-[0.6rem] font-bold text-[#ff7a45]">
                   {i + 1}
                 </span>
-                <div className="frame flex gap-4 p-5">
+                <div className="frame flex gap-3 p-4 sm:gap-4 sm:p-5">
                   <Icon name={x.icon} size={22} className="mt-0.5 shrink-0 text-cyan" />
                   <span>
                     <span className="block font-semibold text-chalk">{x.t}</span>
@@ -170,11 +184,11 @@ export default async function RobotexVisit({ params }: Params) {
               </li>
             ))}
           </ol>
-          <aside className="frame h-fit p-6">
+          <aside className="frame h-fit p-5 sm:p-6">
             <p className="t-eyebrow text-[0.62rem] text-[#ff9b70]">{c.bringTitle}</p>
             <ul className="mt-4 grid gap-3">
               {c.bring.map((b) => (
-                <li key={b} className="flex items-center gap-3 text-mist">
+                <li key={b} className="flex items-center gap-3 text-sm text-mist sm:text-base">
                   <Icon name="check" size={18} className="shrink-0 text-ok" />
                   {b}
                 </li>
@@ -184,38 +198,35 @@ export default async function RobotexVisit({ params }: Params) {
         </div>
       </Band>
 
-      <Band id="apply">
-        <SectionHead index="07" eyebrow={c.applyEyebrow} title={c.applyTitle} size="md" />
-        <div className="mx-auto mt-12 max-w-3xl">
-          <FormFiller locale={locale} listHref={href("/forms")} slug={EXPO_FORM} statusHref={href("/robotex")} />
+      <Band tight id="photos" className="scroll-mt-28">
+        <SectionHead index="07" eyebrow={c.pastEyebrow} title={c.pastTitle} body={c.pastBody} size="md" />
+        <div className={head} data-testid="expo-past">
+          <MediaWallGrid items={past} labels={c.lightbox} />
         </div>
-      </Band>
-
-      <Band alt id="status">
-        <SectionHead index="08" eyebrow={c.statusEyebrow} title={c.statusTitle} body={c.statusBody} size="md" />
-        <div className="mx-auto mt-12 max-w-4xl">
-          <FormStatus locale={locale} />
-        </div>
-      </Band>
-
-      <Band id="album">
-        <SectionHead index="09" eyebrow={c.albumEyebrow} title={c.albumTitle} size="md" />
         <div className="mt-12">
-          <LiveGallery locale={locale} tag="robotex" empty={c.albumEmpty} />
+          <p className="t-eyebrow text-[0.62rem] text-[#ff9b70]">{c.albumTitle}</p>
+          <div className="mt-4" id="album">
+            <LiveGallery locale={locale} tag="robotex" empty={c.albumEmpty} />
+          </div>
         </div>
       </Band>
 
-      <Band alt>
-        <SectionHead index="10" eyebrow={c.faqEyebrow} title={c.faqTitle} size="md" />
-        <dl className="mt-12 grid gap-4 md:grid-cols-2">
+      <Band tight alt id="faq" className="scroll-mt-28">
+        <SectionHead index="08" eyebrow={c.faqEyebrow} title={c.faqTitle} size="md" />
+        <div className={`${head} grid gap-3 md:grid-cols-2`}>
           {c.faq.map((x) => (
-            <div key={x.q} className="frame p-6">
-              <dt className="font-semibold text-chalk">{x.q}</dt>
-              <dd className="mt-2 leading-relaxed text-mist">{x.a}</dd>
-            </div>
+            <details key={x.q} className="frame group p-5 sm:p-6">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-chalk">
+                {x.q}
+                <Icon name="chevronDown" size={18} className="shrink-0 text-fog transition-transform group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 leading-relaxed text-mist">{x.a}</p>
+            </details>
           ))}
-        </dl>
+        </div>
       </Band>
+
+      <ExpoApplyBar label={c.apply} days={c.barDays} />
     </>
   );
 }

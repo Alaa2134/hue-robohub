@@ -334,6 +334,10 @@ test("Robotex: accepted means registered — the delegation pass with the number
   await expect(page.getByRole("link", { name: "حمّل بروشور المعرض (PDF)" })).toHaveAttribute("href", "/media/robotex/robotex-ndtx-2026-brochure-ar.pdf");
   // An English title reads left to right on the Arabic page.
   await expect(page.locator("h1 [aria-hidden]").first()).toHaveAttribute("dir", "ltr");
+  // A countdown, a quick menu, and the areas in one row to swipe on phones.
+  await expect(page.getByTestId("expo-countdown")).toContainText("فاضل على المعرض");
+  await expect(page.getByTestId("expo-nav").getByRole("link", { name: "قدّم" })).toHaveAttribute("href", "#apply");
+  await expect(page.getByTestId("expo-areas").locator("li")).toHaveCount(6);
   // The day's plan and what to bring.
   await expect(page.getByRole("heading", { name: "اليوم هيمشي إزاي" })).toBeVisible();
   await expect(page.getByText("تصريح الوفد (سكرين شوت)")).toBeVisible();

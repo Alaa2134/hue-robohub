@@ -7,15 +7,16 @@
  */
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BASE_PATH, errorText, today } from "./core";
+import { BASE_PATH, errorText, fmt, must, sb, today } from "./core";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { downloadStyledXlsx, type XRow } from "./xlsx";
-import { Button, Card, Field, Input, Textarea, Toggle, copyText, go, toast } from "./ui";
+import { Scanner } from "./scanner";
+import { Button, Card, Chip, ErrorBox, Field, Input, List, Loading, Row, Sheet, Stat, Textarea, Toggle, TopBar, copyText, go, toast, useAsync } from "./ui";
 
 export type Delegation = { event?: string; venue?: string; dates?: string; org?: string; lead_name?: string; lead_phone?: string; meet_ar?: string; /** The expo's own visitor registration, filled in by the team for each delegate. */ register_url?: string };
 type Answers = Record<string, string | string[]>;
-export type DelegateResponse = { id: string; ref: string; name: string | null; phone: string | null; email: string | null; status: string; member_no: number | null; accepted_at: string | null; external_done_at?: string | null; answers: Answers };
+export type DelegateResponse = { id: string; ref: string; name: string | null; phone: string | null; email: string | null; status: string; member_no: number | null; accepted_at: string | null; external_done_at?: string | null; checked_in_at?: string | null; messaged_at?: string | null; answers: Answers };
 type DelegationForm = { title_ar: string; slug: string; delegation: Delegation | null; capacity: number | null };
 
 export const memberId = (n: number | null) => (n ? `BX-${String(n).padStart(3, "0")}` : "—");
@@ -221,7 +222,7 @@ function PdfPage({ form, list, from, page, pages, last }: { form: DelegationForm
 }
 
 /** Delegation box on the responses screen: counts, and the files for the expo. */
-export function DelegationCard({ form, responses }: { form: DelegationForm; responses: DelegateResponse[] }) {
+export function DelegationCard({ form, responses, actions }: { form: DelegationForm; responses: DelegateResponse[]; actions?: React.ReactNode }) {
   const list = delegates(responses);
   const [pdf, setPdf] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -277,6 +278,7 @@ export function DelegationCard({ form, responses }: { form: DelegationForm; resp
           Excel لإدارة المعرض
         </Button>
       </div>
+      {actions}
       {form.slug === "robotex-2026" && (
         <Button size="sm" variant="ghost" icon="upload" onClick={() => go("/staff/site?k=photo&album=robotex")}>
           ارفع صور الزيارة (بتظهر في ألبوم صفحة المعرض)
@@ -388,5 +390,163 @@ export function ExpoRegister({ url, r, onMark }: { url: string; r: DelegateRespo
       </div>
       <Toggle checked={!!r.external_done_at} onChange={onMark} label="اتسجّل في موقع المعرض" hint={r.external_done_at ? "✓ متسجّل" : "علّمها بعد ما التسجيل يتم."} />
     </Card>
+  );
+}
+
+/* ─── WhatsApp queue: one tap per delegate, remembered for the whole team ─ */
+
+export function MessageQueue({ responses, message, phoneLink, onSent, onClose }: { responses: DelegateResponse[]; message: (r: DelegateResponse) => string; phoneLink: (phone: string | null, text: string) => string | null; onSent: (r: DelegateResponse) => void; onClose: () => void }) {
+  const accepted = responses.filter((r) => r.status === "accepted").sort((a, b) => (a.member_no ?? 1e9) - (b.member_no ?? 1e9));
+  const left = accepted.filter((r) => !r.messaged_at);
+  return (
+    <Sheet open onClose={onClose} title={`رسايل القبول (${left.length} لسه)`}>
+      <div className="grid gap-2" data-testid="message-queue">
+        <p className="text-xs leading-relaxed text-fog">اضغط «ابعت» يفتح واتساب برسالة القبول جاهزة. بعد ما تبعت، الطالب بيتعلّم إنه وصله، والفريق كله بيشوف ده.</p>
+        {accepted.map((r) => {
+          const link = phoneLink(r.phone, message(r));
+          return (
+            <div key={r.id} className="flex items-center gap-3 rounded-xl border border-[var(--line)] px-3 py-2">
+              <span className="w-14 shrink-0 font-mono text-xs text-fog" dir="ltr">
+                {memberId(r.member_no)}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm text-chalk">{r.name}</span>
+              {r.messaged_at ? (
+                <span className="text-xs text-ok">وصلته ✓</span>
+              ) : link ? (
+                <a href={link} target="_blank" rel="noopener noreferrer" onClick={() => onSent(r)} className="inline-flex h-9 items-center rounded-lg bg-[#1fa855] px-3 text-sm font-semibold text-white">
+                  ابعت
+                </a>
+              ) : (
+                <span className="text-xs text-fog">مفيش رقم</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Sheet>
+  );
+}
+
+/* ─── The day: scan the pass QR (or type the number) to mark who arrived ─ */
+
+/** A pass QR holds the status link (…?ref=F-XXXXXXXX); people may also type F-… or BX-007. */
+export function readPass(raw: string): { ref?: string; no?: number } {
+  const s = raw.trim().toUpperCase();
+  const ref = s.match(/F-[0-9A-F]{8}/)?.[0];
+  if (ref) return { ref };
+  const no = s.match(/^(?:BX-?)?0*(\d{1,4})$/)?.[1];
+  return no ? { no: Number(no) } : {};
+}
+
+export function DelegationCheckin({ id }: { id: string }) {
+  const { data, error, loading, reload, set } = useAsync(async () => {
+    const [form, responses] = await Promise.all([
+      sb().from("forms").select("id, slug, title_ar, delegation, capacity").eq("id", id).single().then(must) as Promise<DelegationForm & { id: string }>,
+      sb().from("form_responses").select("id, ref, name, phone, email, status, member_no, accepted_at, external_done_at, checked_in_at, messaged_at, answers").eq("form_id", id).eq("status", "accepted").then(must) as Promise<DelegateResponse[]>,
+    ]);
+    return { form, responses };
+  }, [id]);
+  const [scan, setScan] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<{ tone: "ok" | "warn" | "bad"; text: string } | null>(null);
+  const [filter, setFilter] = useState<"missing" | "in">("missing");
+  if (loading && !data) return <Loading />;
+  if (error || !data) return <ErrorBox error={error} retry={reload} />;
+  const list = data.responses.sort((a, b) => (a.member_no ?? 1e9) - (b.member_no ?? 1e9));
+  const inside = list.filter((r) => r.checked_in_at);
+  const mark = async (raw: string) => {
+    if (busy) return;
+    const p = readPass(raw);
+    const r = p.ref ? list.find((x) => x.ref === p.ref) : p.no ? list.find((x) => x.member_no === p.no) : undefined;
+    if (!r) return setLast({ tone: "bad", text: "التصريح ده مش في الوفد (أو الطالب مش مقبول)." });
+    if (r.checked_in_at) return setLast({ tone: "warn", text: `${r.name} (${memberId(r.member_no)}) متسجّل من قبل ${fmt.time(r.checked_in_at)}` });
+    setBusy(true);
+    try {
+      const at = new Date().toISOString();
+      await sb().from("form_responses").update({ checked_in_at: at }).eq("id", r.id).then(must);
+      set({ ...data, responses: data.responses.map((x) => (x.id === r.id ? { ...x, checked_in_at: at } : x)) });
+      setLast({ tone: "ok", text: `✓ ${r.name} (${memberId(r.member_no)}) وصل` });
+      navigator.vibrate?.(60);
+    } catch (e) {
+      setLast({ tone: "bad", text: errorText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const shown = filter === "in" ? inside : list.filter((r) => !r.checked_in_at);
+  return (
+    <>
+      <TopBar title="حضور الوفد" sub={data.form.title_ar} back={`/staff/forms/${id}/responses`} />
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="في الوفد" value={list.length} />
+        <Stat label="وصلوا" value={inside.length} tone={inside.length ? "ok" : undefined} />
+        <Stat label="لسه" value={list.length - inside.length} tone={list.length - inside.length ? "warn" : undefined} />
+      </div>
+      <Card className="mt-4 grid gap-3">
+        {scan ? (
+          <>
+            <Scanner onDetect={(raw) => void mark(raw)} paused={busy} className="aspect-square w-full overflow-hidden rounded-2xl sm:aspect-video" />
+            <Button variant="ghost" block onClick={() => setScan(false)}>
+              قفل الكاميرا
+            </Button>
+          </>
+        ) : (
+          <Button variant="primary" size="lg" icon="scan" block onClick={() => setScan(true)}>
+            امسح QR التصريح
+          </Button>
+        )}
+        <form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (typed.trim()) void mark(typed).then(() => setTyped(""));
+          }}
+        >
+          <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="أو اكتب الرقم BX-007 أو كود الطلب" dir="ltr" className="flex-1" aria-label="رقم الوفد أو كود الطلب" />
+          <Button type="submit" disabled={!typed.trim()}>
+            سجّل
+          </Button>
+        </form>
+        {last && (
+          <p role="status" data-testid="checkin-result" className={`rounded-xl border p-3 font-semibold ${last.tone === "ok" ? "border-ok/40 bg-ok/10 text-ok" : last.tone === "warn" ? "border-warn/40 bg-warn/10 text-[#ffd08a]" : "border-danger/40 bg-danger/10 text-[#ff9aa5]"}`}>
+            {last.text}
+          </p>
+        )}
+      </Card>
+      <div className="mt-4 flex gap-2">
+        <Chip active={filter === "missing"} onClick={() => setFilter("missing")} count={list.length - inside.length}>
+          لسه ماوصلوش
+        </Chip>
+        <Chip active={filter === "in"} onClick={() => setFilter("in")} count={inside.length}>
+          وصلوا
+        </Chip>
+      </div>
+      <List className="mt-3">
+        {shown.map((r) => (
+          <Row key={r.id} chevron={false}>
+            <div className="flex items-center gap-3">
+              <span className="w-14 shrink-0 font-mono text-xs text-fog" dir="ltr">
+                {memberId(r.member_no)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-chalk">{r.name}</p>
+                <p className="truncate text-xs text-fog">{r.checked_in_at ? `وصل ${fmt.time(r.checked_in_at)}` : txt(r.answers.day)}</p>
+              </div>
+              {!r.checked_in_at && r.phone && (
+                <a href={`tel:${r.phone}`} className="inline-flex h-9 items-center rounded-lg border border-[var(--line-2)] px-3 text-sm text-mist">
+                  اتصل
+                </a>
+              )}
+              {!r.checked_in_at && (
+                <Button size="sm" onClick={() => void mark(r.ref)}>
+                  وصل
+                </Button>
+              )}
+            </div>
+          </Row>
+        ))}
+      </List>
+    </>
   );
 }

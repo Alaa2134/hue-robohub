@@ -10,7 +10,7 @@ import type { FieldType, FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
 import { isFull, fmt, must, sb, today, type StaffRow } from "./core";
 import { downloadXlsx } from "./xlsx";
-import { DelegationCard, DelegationSettings, ExpoRegister, memberId, type Delegation } from "./expo-delegation";
+import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -52,6 +52,8 @@ type Response = {
   external_done_at: string | null;
   member_no: number | null;
   accepted_at: string | null;
+  checked_in_at: string | null;
+  messaged_at: string | null;
   created_at: string;
 };
 
@@ -454,6 +456,9 @@ export function FormResponses({ id }: { id: string }) {
   }, [id]);
   const [filter, setFilter] = useState<"all" | Response["status"]>("all");
   const [open, setOpen] = useState<Response | null>(null);
+  const [pick, setPick] = useState<Set<string> | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [queue, setQueue] = useState(false);
   const list = useMemo(() => (data?.responses ?? []).filter((r) => filter === "all" || r.status === filter), [data, filter]);
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
@@ -472,24 +477,79 @@ export function FormResponses({ id }: { id: string }) {
     form.delegation
       ? `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت واتسجّلت في وفد BuildX HUE لـ «${form.title_ar}».\nرقمك في الوفد: ${memberId(r.member_no)}${r.answers.day ? `\nيومك: ${r.answers.day}` : ""}\n${form.delegation.meet_ar ? `${form.delegation.meet_ar}\n` : ""}مش محتاج تسجّل في أي موقع، إحنا بنسجّلك وبنبعت الكشف لإدارة المعرض${form.delegation.register_url ? "، والبادج بيوصلك على إيميلك" : ""}.\nتصريحك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`
       : `أهلاً ${(r.name ?? "").split(/\s+/)[0]} 🎉\nاتقبلت في «${form.title_ar}».\n${form.accepted_url ? `سجّل في الرابط ده: ${form.accepted_url}\n` : ""}وتابع طلبك من هنا (كود ${r.ref}): ${statusLink(form.slug, r.ref)}\nفريق BuildX HUE`;
-  const update = async (r: Response, p: Partial<Response>) => {
+  const update = async (r: Response, p: Partial<Response>, quiet = false): Promise<Response | "full" | null> => {
     try {
       const saved = (await sb().from("form_responses").update(p).eq("id", r.id).select("*").single().then(must)) as Response | null;
       const next = { ...r, ...p, ...(saved ?? {}) };
-      if (p.status === "accepted" && form.delegation && next.member_no) toast(`اتسجّل في الوفد برقم ${memberId(next.member_no)}`);
-      set({ ...data, responses: data.responses.map((x) => (x.id === r.id ? next : x)) });
+      if (!quiet && p.status === "accepted" && form.delegation && next.member_no) toast(`اتسجّل في الوفد برقم ${memberId(next.member_no)}`);
+      set((d) => { const cur = d ?? data; return { ...cur, responses: cur.responses.map((x) => (x.id === r.id ? next : x)) }; });
       setOpen((o) => (o?.id === r.id ? next : o));
+      return next;
     } catch (e) {
-      if (/delegation_full/.test((e as { message?: string })?.message ?? "")) toast("الوفد كامل. زوّد العدد من إعدادات الفورم الأول.", "error");
-      else toast.error(e);
+      const full = /delegation_full/.test((e as { message?: string })?.message ?? "");
+      if (!quiet) {
+        if (full) toast("الوفد كامل. زوّد العدد من إعدادات الفورم الأول.", "error");
+        else toast.error(e);
+      }
+      return full ? "full" : null;
     }
   };
+  /** Several at once (in order, so delegation numbers follow the list); stops when the delegation is full. */
+  const bulk = async (status: Response["status"]) => {
+    if (!pick?.size) return;
+    const rows = data.responses.filter((r) => pick.has(r.id) && r.status !== status).sort((a, b) => a.created_at.localeCompare(b.created_at));
+    setBulkBusy(true);
+    let done = 0;
+    let full = false;
+    for (const r of rows) {
+      const res = await update(r, { status }, true);
+      if (res === "full") {
+        full = true;
+        break;
+      }
+      if (res) done++;
+    }
+    setBulkBusy(false);
+    setPick(null);
+    toast(`${RESP[status].ar}: ${done}${full ? ` · الوفد كمل، فاضل ${rows.length - done} مااتقبلوش` : ""}`, full ? "error" : undefined);
+  };
+  const togglePick = (r: Response) =>
+    setPick((p) => {
+      const n = new Set(p ?? []);
+      if (n.has(r.id)) n.delete(r.id);
+      else n.add(r.id);
+      return n;
+    });
   const count = (s: Response["status"]) => data.responses.filter((r) => r.status === s).length;
   const first = form.fields.find((fl) => fl.type !== "name" && fl.type !== "phone" && fl.type !== "email" && fl.type !== "checkbox");
   return (
     <>
       <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={<Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>Excel</Button>} />
-      {form.delegation && <DelegationCard form={form} responses={data.responses} />}
+      {form.delegation && (
+        <DelegationCard
+          form={form}
+          responses={data.responses}
+          actions={
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" icon="bell" disabled={!count("accepted")} onClick={() => setQueue(true)}>
+                رسايل القبول ({data.responses.filter((r) => r.status === "accepted" && !r.messaged_at).length})
+              </Button>
+              <Button size="sm" icon="scan" disabled={!count("accepted")} onClick={() => go(`/staff/forms/${id}/checkin`)}>
+                حضور يوم الزيارة
+              </Button>
+            </div>
+          }
+        />
+      )}
+      {queue && (
+        <MessageQueue
+          responses={data.responses}
+          message={(r) => acceptMessage(r as Response)}
+          phoneLink={(phone, text) => whatsappLink(phone, text)}
+          onSent={(r) => void update(r as Response, { messaged_at: new Date().toISOString() }, true)}
+          onClose={() => setQueue(false)}
+        />
+      )}
       {count("accepted") > 0 && !form.delegation && (
         <Card className="mt-3 flex flex-wrap items-center gap-2">
           <p className="flex-1 text-sm text-mist">
@@ -509,14 +569,39 @@ export function FormResponses({ id }: { id: string }) {
             {RESP[s].ar}
           </Chip>
         ))}
+        <Chip active={!!pick} onClick={() => setPick((p) => (p ? null : new Set()))}>
+          {pick ? "إلغاء التحديد" : "تحديد أكتر من واحد"}
+        </Chip>
       </div>
+      {pick && (
+        <Card className="sticky top-2 z-20 mt-3 grid gap-2 border-cyan/40" data-testid="bulk-bar">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-chalk">اتحدد {pick.size}</p>
+            <Button size="sm" variant="ghost" onClick={() => setPick(new Set(list.map((r) => r.id)))}>
+              حدد كل اللي ظاهرين ({list.length})
+            </Button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <Button size="sm" variant="primary" disabled={!pick.size} loading={bulkBusy} onClick={() => void bulk("accepted")}>
+              اقبل
+            </Button>
+            <Button size="sm" disabled={!pick.size || bulkBusy} onClick={() => void bulk("waiting")}>
+              انتظار
+            </Button>
+            <Button size="sm" variant="danger" disabled={!pick.size || bulkBusy} onClick={() => void bulk("rejected")}>
+              ارفض
+            </Button>
+          </div>
+        </Card>
+      )}
       {!list.length ? (
         <Empty icon="list" title="مفيش ردود هنا" body="أول ما حد يملا الفورم على الموقع، رده بيظهر هنا." />
       ) : (
         <List className="mt-4">
           {list.map((r) => (
-            <Row key={r.id} onClick={() => setOpen(r)}>
+            <Row key={r.id} onClick={() => (pick ? togglePick(r) : setOpen(r))}>
               <div className="flex items-center gap-3">
+                {pick && <input type="checkbox" readOnly checked={pick.has(r.id)} className="size-4 shrink-0 accent-[#2f7bff]" aria-label={`تحديد ${r.name ?? r.ref}`} />}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-chalk">{r.name || r.phone || r.email || "—"}</p>
                   <p className="truncate text-xs text-fog">
