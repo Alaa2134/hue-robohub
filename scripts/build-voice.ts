@@ -10,10 +10,7 @@
  */
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import * as journey from "../src/config/mascotJourney";
-import { FALLBACK, INTENTS } from "../src/lib/mascot/guide";
-import { OCCASION_LINES } from "../src/lib/mascot/wardrobe";
-import { spoken, voiceKey } from "../src/lib/mascot/voice-text";
+import { voiceLines } from "../src/lib/mascot/voice-lines";
 
 const out = path.resolve(process.argv[process.argv.indexOf("--out") + 1] || "voice");
 const key = process.env.AZURE_SPEECH_KEY;
@@ -23,22 +20,8 @@ const voice = process.env.VOICE_NAME || "ar-EG-ShakirNeural";
 const pitch = process.env.VOICE_PITCH || "+8%";
 const rate = process.env.VOICE_RATE || "+4%";
 
-/** Every Arabic line in these values (objects with an `ar` string, at any depth). */
-function collect(value: unknown, into: Set<string>, seen = new Set<unknown>()) {
-  if (!value || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  const ar = (value as { ar?: unknown }).ar;
-  if (typeof ar === "string") into.add(ar);
-  for (const v of Array.isArray(value) ? value : Object.values(value)) collect(v, into, seen);
-}
-
-const lines = new Set<string>();
-collect(Object.values(journey), lines);
-collect([INTENTS, FALLBACK, OCCASION_LINES], lines);
-for (const h of [0, 6, 13, 20]) lines.add(journey.greeting(h).ar);
-// Lines filled in at run time ({n}, {p}…) and labels too short to be said on their own are skipped.
-const todo = [...lines].filter((l) => !/[{}]/.test(l) && spoken(l).length >= 4);
-const keys = new Map(todo.map((l) => [voiceKey(l), spoken(l)]));
+// Every line he says that can be recorded once (src/lib/mascot/voice-lines.ts).
+const keys = new Map(voiceLines().map((l) => [l.key, l.said]));
 
 mkdirSync(out, { recursive: true });
 const have = new Set(readdirSync(out).filter((f) => f.endsWith(".mp3")).map((f) => f.slice(0, -4)));

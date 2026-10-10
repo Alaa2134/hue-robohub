@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
+import { voiceLines } from "../src/lib/mascot/voice-lines";
 
 /** BuildX App staff screens, signed in as a mocked owner with mocked Supabase data. */
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -718,7 +719,7 @@ test("positions for the website admin and the head of media suggest their areas"
   await page.getByLabel("المنصب").fill("هيد الميديا");
   await expect(page.getByRole("checkbox", { name: /إعدادات الموقع/ })).not.toBeChecked();
   await page.getByRole("button", { name: "احفظ المنصب والصلاحيات" }).click();
-  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["site", "publish", "portfolios", "notify"] });
+  await expect.poll(() => patches[0]).toEqual({ title: "هيد الميديا", permissions: ["site", "publish", "portfolios", "voice", "notify"] });
 });
 
 test("the owner limits an admin to chosen areas too (all ticked keeps them a full admin)", async ({ page }) => {
@@ -1988,4 +1989,73 @@ test("delegation: pick several and accept them at once, send the WhatsApp messag
   await page.getByRole("button", { name: "سجّل", exact: true }).click();
   await expect(page.getByTestId("checkin-result")).toContainText("مش في الوفد");
   expect(errors).toEqual([]);
+});
+
+/** A short tone as a WAV file (what someone would upload). */
+function toneWav(seconds = 1.2, rate = 16000) {
+  const n = Math.round(seconds * rate);
+  const buf = Buffer.alloc(44 + n * 2);
+  buf.write("RIFF", 0);
+  buf.writeUInt32LE(36 + n * 2, 4);
+  buf.write("WAVEfmt ", 8);
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(rate, 24);
+  buf.writeUInt32LE(rate * 2, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36);
+  buf.writeUInt32LE(n * 2, 40);
+  // Silence, then talking (a tone), then silence again: the silence is cut off.
+  for (let i = 0; i < n; i++) {
+    const talking = i > n * 0.3 && i < n * 0.7;
+    buf.writeInt16LE(talking ? Math.round(Math.sin((2 * Math.PI * 220 * i) / rate) * 12000) : 0, 44 + i * 2);
+  }
+  return buf;
+}
+
+test("Baqloz's voice: a team member uploads a recording for a line, it's cleaned and saved, and the next line opens", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const lines = voiceLines();
+  const uploads: string[] = [];
+  const saved: Record<string, unknown>[] = [];
+  await page.route("**/voice/manifest.json", (route) => route.fulfill({ json: { clips: [lines[1]!.key] } }));
+  await page.route(/\/rest\/v1\/voice_clips/, (route) => {
+    if (route.request().method() === "POST") saved.push(route.request().postDataJSON() as Record<string, unknown>);
+    return route.fulfill({ json: [] });
+  });
+  await page.route(/\/storage\/v1\/object\/voice\//, (route) => {
+    uploads.push(decodeURIComponent(new URL(route.request().url()).pathname.split("/object/voice/")[1]!));
+    return route.fulfill({ json: { Key: "voice/x", Id: "x" } });
+  });
+  await page.goto("/app/#/staff/voice");
+  await expect(page.getByText(`0 من ${lines.length} جملة بصوتكم`)).toBeVisible();
+  const list = page.getByTestId("voice-lines");
+  await expect(list.getByRole("button").nth(1)).toContainText("صوت آلي");
+  await list.getByRole("button").first().click();
+  const sheet = page.getByTestId("voice-recorder");
+  await expect(sheet).toContainText(lines[0]!.text);
+  await sheet.getByTestId("voice-file").setInputFiles({ name: "line.wav", mimeType: "audio/wav", buffer: toneWav() });
+  // The silence around the talking is cut: about half a second is left (a little higher with the Baqloz effect).
+  await expect(sheet.getByTestId("voice-take")).toContainText(/\(0\.\d+ ث\)/);
+  await sheet.getByRole("button", { name: "احفظ واللي بعدها" }).click();
+  await expect.poll(() => uploads.length).toBe(1);
+  expect(uploads[0]).toMatch(new RegExp(`^${lines[0]!.key}/\\d+\\.wav$`));
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0]).toMatchObject({ key: lines[0]!.key, line: lines[0]!.said, path: uploads[0], active: true });
+  // The next line (still in the generated voice) opens straight away.
+  await expect(page.getByTestId("voice-recorder")).toContainText(lines[1]!.text);
+  expect(errors).toEqual([]);
+});
+
+test("the owner can give someone only Baqloz's voice", async ({ page }) => {
+  await signInAsOwner(page);
+  await signInAs(page, { role: "lead", title: "صوت بقلظ", permissions: ["voice"] });
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByRole("link", { name: /صوت بقلظ/ }).or(page.getByRole("button", { name: /صوت بقلظ/ })).first()).toBeVisible();
+  await page.goto("/app/#/staff/site");
+  await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
 });

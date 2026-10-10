@@ -397,6 +397,32 @@ export const QUIPS: Text[] = [
   { ar: "على فكرة… تقدر تسألني أي سؤال عن BuildX.", en: "By the way, you can ask me anything about BuildX." },
   { ar: "دوس عليّا خمس مرات ورا بعض… وشوف هيحصل إيه 🤫", en: "Click me five times in a row… 🤫" },
   { ar: "أنا بقلظ… وأنا هنا عشانك 💙", en: "I'm Baqloz, and I'm here for you 💙" },
+  { ar: "تعرف إن أول روبوت في مصنع اشتغل سنة ١٩٦١؟ من ساعتها والروبوتات مش بتبطّل شغل 🤖", en: "The first factory robot started work in 1961. They haven't stopped since 🤖" },
+  { ar: "كلمة «روبوت» أصلها تشيكي ومعناها «شغل بالعافية» 😅 أنا بشتغل بمزاجي على فكرة.", en: "\"Robot\" comes from a Czech word for forced labour 😅 I work for fun, though." },
+  { ar: "فيه روبوتات ماشية على المريخ دلوقتي حالاً… وإنت لسه بتفكر تقدّم؟ 😏", en: "There are robots driving around Mars right now… still thinking about applying? 😏" },
+  { ar: "نصيحة: مشروع صغير خلّصته أحسن من مشروع كبير مبيخلصش.", en: "Tip: a small finished project beats a big unfinished one." },
+  { ar: "الغلط في الكود مش عيب… العيب إنك متجربش تاني 💪", en: "Bugs are fine. Not trying again isn't 💪" },
+  { ar: "أنا بحب الأردوينو… بس متقولش للراسبيري باي 🤫", en: "I love Arduino… don't tell the Raspberry Pi 🤫" },
+  { ar: "عندك فكرة مشروع؟ احكيها للفريق… ممكن تبقى أول خطوة.", en: "Got a project idea? Tell the team: it could be step one." },
+  { ar: "أحلى حاجة في BuildX إنك بتتعلم مع ناس شبهك 💙", en: "The best part of BuildX: learning with people like you 💙" },
+  { ar: "اشرب مية… الروبوتات مش محتاجة، بس إنت محتاج 💧", en: "Drink some water. Robots don't need it, you do 💧" },
+  { ar: "خد بريك خمس دقايق كل ساعة… عينك هتشكرك 👀", en: "Take five minutes every hour. Your eyes will thank you 👀" },
+  { ar: "سر صغير: أشطر المبرمجين بيدوّروا على جوجل كتير جداً 😄", en: "Little secret: the best coders google a lot 😄" },
+  { ar: "كل خبير كان في يوم مبتدئ… متستعجلش.", en: "Every expert was once a beginner. No rush." },
+  { ar: "بتعرف تلحم؟ لو لأ، هتتعلم معانا 🔥", en: "Can you solder? If not, you'll learn with us 🔥" },
+  { ar: "الـ AI مش هياخد شغلك… اللي بيعرف يستخدمه هو اللي هياخده 😉", en: "AI won't take your job; someone who uses it might 😉" },
+  { ar: "السؤال اللي مبيتسألش هو الغلط الوحيد… اسألني أي حاجة.", en: "The only bad question is the one not asked. Ask me anything." },
+  { ar: "أنا ممكن أكون صغير… بس دماغي كبيرة 🧠", en: "I may be small, but my brain is big 🧠" },
+  { ar: "الشهادات بتاعتنا ليها QR… أي حد يقدر يتأكد إنها أصلية 🔍", en: "Our certificates have a QR, so anyone can check they're real 🔍" },
+  { ar: "الفريق كله طلبة… يعني إنت كمان ممكن تبقى قائد.", en: "The whole team is students, so you could lead too." },
+  { ar: "ابعت الموقع لصاحبك اللي بيحب الروبوتات 🤝", en: "Send this site to your robot-loving friend 🤝" },
+  { ar: "اسمي بقلظ… ومحدش بيعرف ينطقه صح من أول مرة 😂", en: "My name's Baqloz. Nobody gets it right the first time 😂" },
+  { ar: "روبوتات السومو بتتخانق… بس بأدب 😄", en: "Sumo robots fight… politely 😄" },
+  { ar: "اكتب كود نضيف… إنت نفسك بعد شهر هتشكرك.", en: "Write clean code. Future you will be grateful." },
+  { ar: "احفظ شغلك دلوقتي قبل ما تندم 💾", en: "Save your work now, before you regret it 💾" },
+  { ar: "الطباعة الـ 3D دي سحر… بتتخيل حاجة وتمسكها بإيدك 🛠️", en: "3D printing is magic: imagine it, then hold it 🛠️" },
+  { ar: "مش عارف تبدأ منين؟ دوس عليّا وأنا أقولك.", en: "Not sure where to start? Click me and I'll tell you." },
+  { ar: "أي روبوت محترم محتاج تلات حاجات: حساسات تحس، كود يفكر، وموتورات تتحرك ⚙️", en: "Every good robot needs three things: sensors, code and motors ⚙️" },
 ];
 
 /** Greeting by time of day (first visit to a page in a session). */
@@ -446,14 +472,21 @@ export const PHYSICS: Record<"grab" | "held" | "shaken" | "flop" | "wall" | "up"
     { ar: "أنا مش شنطة على فكرة 😤", en: "I'm not a bag, you know 😤" },
     { ar: "براحة براحة… أنا بخاف من المرتفعات 😰", en: "Easy, easy… I'm scared of heights 😰" },
     { ar: "هوووب! على فين كده؟ 😳", en: "Hup! Where are we going? 😳" },
+    { ar: "يا ساتر! ده أنا كنت قاعد في حالي 😨", en: "Yikes! I was minding my own business 😨" },
+    { ar: "استنى بس… أنا مش لعبة 🧸", en: "Wait… I'm not a toy 🧸" },
+    { ar: "طب على الأقل قولّي رايحين فين 🙃", en: "At least tell me where we're going 🙃" },
   ],
   held: [
     { ar: "طب ممكن تنزّلني بقى؟ 🥺", en: "Can you put me down now? 🥺" },
     { ar: "رجليا مش لامسة الأرض… مش مريح خالص 😅", en: "My feet aren't touching the ground… not comfy 😅" },
+    { ar: "إنت ناوي تشيلني لحد إمتى؟ 😑", en: "How long are you planning to hold me? 😑" },
+    { ar: "حاسس إني طاير… بس مش مبسوط 😬", en: "I feel like I'm flying… and I don't like it 😬" },
   ],
   shaken: [
     { ar: "دوّختني! الدنيا بتلف 😵‍💫", en: "I'm dizzy! Everything's spinning 😵‍💫" },
     { ar: "بطّل هز! أنا مش عصير 🥤", en: "Stop shaking me! I'm not a smoothie 🥤" },
+    { ar: "مخي اتقلب جوه دماغي 🌀", en: "My brain just flipped over 🌀" },
+    { ar: "كفاية! الفرو بتاعي اتلخبط كله 😫", en: "Enough! My fur's all messed up 😫" },
   ],
   flop: [
     { ar: "حرام عليك! بتعمل فيا ليه كده 😭", en: "Why would you do that to me?! 😭" },
@@ -461,24 +494,36 @@ export const PHYSICS: Record<"grab" | "held" | "shaken" | "flop" | "wall" | "up"
     { ar: "يا بني آدم! ده أنا مرشدك 😭", en: "Hey! I'm your guide! 😭" },
     { ar: "كده؟ ماشي… هفتكرهالك 😤", en: "Oh, like that? I'll remember this 😤" },
     { ar: "مش هكلمك تاني… هزار هزار 😅", en: "Not talking to you anymore… kidding 😅" },
+    { ar: "الأرض دي ناشفة أوي 😣", en: "This floor is really hard 😣" },
+    { ar: "ماشي ماشي… إنت كسبت 😮‍💨", en: "Okay, okay… you win 😮‍💨" },
+    { ar: "كده الروبوتات هتقول عليا إيه؟ 😭", en: "What will the robots think of me now? 😭" },
   ],
   wall: [
     { ar: "أيييي الحيطة! 🫠", en: "Ouch, the wall! 🫠" },
     { ar: "مين حط الحيطة دي هنا؟! 😵", en: "Who put that wall there?! 😵" },
+    { ar: "حتى الحيطة بقت ضدي 😩", en: "Even the wall is against me 😩" },
+    { ar: "دي حيطة ولا باب؟ لأ… حيطة 😵", en: "Wall or door? Wall. Definitely wall 😵" },
   ],
   up: [
     { ar: "أنا كويس… أنا كويس 😅", en: "I'm fine… I'm fine 😅" },
     { ar: "محدش شاف حاجة… تمام؟ 😳", en: "Nobody saw that… okay? 😳" },
     { ar: "ولا يهمني، أنا متعوّد 💪", en: "No big deal, I'm used to it 💪" },
     { ar: "طب يلا نكمّل… بس من غير رمي المرة دي 😒", en: "Let's carry on… without the throwing this time 😒" },
+    { ar: "تمام… محصلش حاجة، كمّل 😎", en: "All good… nothing happened, carry on 😎" },
+    { ar: "وقعت وقمت… زي أي مهندس شاطر 💪", en: "Fell and got up, like any good engineer 💪" },
+    { ar: "هنفضّها سيرة بقى 🤐", en: "Let's never speak of this 🤐" },
   ],
   gentle: [
     { ar: "شكراً إنك نزّلتني بالراحة 😌", en: "Thanks for the soft landing 😌" },
     { ar: "حلو المكان ده… هقعد هنا شوية 😎", en: "Nice spot, I'll stay here a bit 😎" },
+    { ar: "إيدك خفيفة… أنا مرتاح كده 🥰", en: "Gentle hands… I'm comfy now 🥰" },
+    { ar: "هبوط ناعم! تسلم يا كابتن ✈️", en: "Smooth landing! Thanks, captain ✈️" },
   ],
   again: [
     { ar: "تالت مرة؟! أنا هبلّغ عنك 😂", en: "Third time?! I'm reporting you 😂" },
     { ar: "إنت مستمتع أوي كده ليه؟ 😂", en: "Why are you enjoying this so much? 😂" },
+    { ar: "إنت بتعمل عليا تجارب ولا إيه؟ 🧪😂", en: "Are you running experiments on me? 🧪😂" },
+    { ar: "هشتكيك لنقابة الروبوتات 😂", en: "I'm reporting you to the robot union 😂" },
   ],
 };
 
@@ -496,6 +541,7 @@ export const ACTIVITIES: Activity[] = [
     interrupted: [
       { ar: "عايز إيه؟ 😤 أنا كنت بلعب ضغط!", en: "What is it? 😤 I was doing push-ups!" },
       { ar: "استنى… فاضلي ١٠ ضغط 💪 طيب قول عايز إيه.", en: "Hold on, ten more push-ups 💪 Okay, what's up?" },
+      { ar: "كنت قربت أكسر الرقم القياسي بتاعي 😤 قول بسرعة.", en: "I was about to break my record 😤 Quick, what is it?" },
     ],
   },
   {
@@ -504,6 +550,7 @@ export const ACTIVITIES: Activity[] = [
     interrupted: [
       { ar: "آه يا ضهري… كنت بعمل إطالة 🧘 خير؟", en: "Ow, my back… I was stretching 🧘 What's up?" },
       { ar: "قطعت عليا التمرين 😅 قول عايز إيه.", en: "You interrupted my workout 😅 What do you need?" },
+      { ar: "كنت بفرد ضهري بس 🧘 اتفضل.", en: "Just stretching my back 🧘 Go ahead." },
     ],
   },
   {
@@ -513,6 +560,7 @@ export const ACTIVITIES: Activity[] = [
     interrupted: [
       { ar: "شششش… كنت بذاكر 📚 قول عايز إيه بسرعة.", en: "Shh… I was studying 📚 Quick, what is it?" },
       { ar: "كنت وصلت لأحلى جزء في الكتاب 😩 خير؟", en: "I'd just reached the best part of the book 😩 What's up?" },
+      { ar: "استنى أعلّم الصفحة… 📖 تمام، عايز إيه؟", en: "Let me mark the page… 📖 Okay, what's up?" },
     ],
   },
   {
@@ -522,6 +570,7 @@ export const ACTIVITIES: Activity[] = [
     interrupted: [
       { ar: "لحظة… كنت بكتب كود لروبوت جديد 💻 عايز إيه؟", en: "One sec, I was coding a new robot 💻 What's up?" },
       { ar: "ضيّعتلي السطر اللي كنت بكتبه 😤 هزار… قول.", en: "You made me lose my line 😤 Kidding, go on." },
+      { ar: "كنت لسه هلاقي البج 🐞 يلا مش مهم، قول.", en: "I was just about to find the bug 🐞 Never mind, go on." },
     ],
   },
   {
@@ -530,6 +579,7 @@ export const ACTIVITIES: Activity[] = [
     props: ["gears"],
     interrupted: [
       { ar: "كنت بفكر في فكرة مشروع جامدة… قطعت حبل أفكاري 🤔", en: "I was thinking up a great project… you broke my train of thought 🤔" },
+      { ar: "كانت فكرة عبقرية… وطارت 💭 خير؟", en: "It was a genius idea… and it's gone 💭 What's up?" },
     ],
   },
   {
@@ -537,11 +587,19 @@ export const ACTIVITIES: Activity[] = [
     clip: "Dance",
     interrupted: [
       { ar: "مسكتني وأنا برقص 😳🕺 محدش يعرف… عايز إيه؟", en: "You caught me dancing 😳🕺 Our secret. What's up?" },
+      { ar: "كنت بتمرن على رقصة جديدة 💃 متقولش لحد!", en: "I was practising a new dance 💃 Don't tell anyone!" },
     ],
   },
 ];
 /** The morning cup: he sips it now and then. */
-export const TEA: Activity = { id: "tea", clip: "Drink", interrupted: [{ ar: "ثانية… كنت بشرب الشاي بتاعي ☕ اتفضل.", en: "Hold on, I was having my tea ☕ Go ahead." }] };
+export const TEA: Activity = {
+  id: "tea",
+  clip: "Drink",
+  interrupted: [
+    { ar: "ثانية… كنت بشرب الشاي بتاعي ☕ اتفضل.", en: "Hold on, I was having my tea ☕ Go ahead." },
+    { ar: "الشاي هيبرد… بس ماشي، عشانك ☕", en: "My tea's getting cold… but okay, for you ☕" },
+  ],
+};
 
 /** Lines for the games you play with him (menu → Play). {n} = a number, {p} = a page name. */
 export const GAME = {
@@ -551,6 +609,9 @@ export const GAME = {
     { ar: "سلة نظيفة! 🔥", en: "Nothing but net! 🔥" },
     { ar: "إيه الحلاوة دي! 😎", en: "Beautiful shot! 😎" },
     { ar: "تلاتة! لا استنى… دي اتنين بس 😂", en: "Three points! Wait, two 😂" },
+    { ar: "رمية عالمية! 🌍", en: "World-class shot! 🌍" },
+    { ar: "في الجون… قصدي في السلة 😂🏀", en: "Goal! I mean… basket 😂🏀" },
+    { ar: "إيدك تتلف في حرير 🔥", en: "Golden hands 🔥" },
   ],
   hoopEnd: { ar: "الوقت خلص ⏱️ جبت {n} سلة!", en: "Time's up ⏱️ You scored {n}!" },
   hoopBest: { ar: "رقم قياسي جديد! 🏆 {n} سلة", en: "New record! 🏆 {n}" },
@@ -564,10 +625,14 @@ export const GAME = {
   quizRight: [
     { ar: "برافو عليك! 👏", en: "Well done! 👏" },
     { ar: "صح كده! 🧠", en: "Correct! 🧠" },
+    { ar: "إجابة مهندس 👷", en: "Engineer-level answer 👷" },
+    { ar: "مخ! كده إنت جاهز للفريق 😎", en: "Big brain! You're ready for the team 😎" },
   ],
   quizWrong: [
     { ar: "قربت! المرة الجاية 💪", en: "Close! Next one 💪" },
     { ar: "لأ… بس كده اتعلمت حاجة جديدة 😉", en: "Nope, but now you know 😉" },
+    { ar: "ولا يهمك… حتى أنا غلطت فيها أول مرة 😅", en: "No worries, I got that one wrong too at first 😅" },
+    { ar: "قربت جداً… ركّز في اللي جاي 🎯", en: "So close… focus on the next one 🎯" },
   ],
   quizDone: { ar: "خلصت الكويز: {n} من ٨!", en: "Quiz done: {n} of 8!" },
   badge: { ar: "🏅 وسام جديد: {p}!", en: "🏅 New badge: {p}!" },
