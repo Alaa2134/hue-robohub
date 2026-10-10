@@ -9,6 +9,9 @@ import { voiceKey } from "../src/lib/mascot/voice-text";
  * (localStorage "bx-guide-test"); most tests use the still version, which has the same behaviour and
  * doesn't depend on the CI machine's (software) WebGL. One test loads the real 3D model.
  */
+/** Any of his lines from a list (he picks one at random). */
+const anyOf = (lines: journey.Text[]) => new RegExp(lines.map((l) => l.ar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"));
+
 async function withGuide(page: Page, mode: "3d" | "poster" = "poster") {
   await page.addInitScript((m) => {
     localStorage.setItem("bx-guide-test", "1");
@@ -355,19 +358,19 @@ test("pick Baqloz up and throw him: he complains, lands on his belly and gets ba
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 20, box.y + box.height / 2 - 40, { steps: 4 });
-  await expect(bubble(page)).toContainText(/نزّلني|شنطة|المرتفعات|على فين/, { timeout: 5000 });
+  await expect(bubble(page)).toContainText(anyOf(journey.PHYSICS.grab), { timeout: 5000 });
   await page.mouse.move(box.x + box.width / 2 - 60, vh * 0.12, { steps: 10 });
   await page.waitForTimeout(150);
   // Let go from up there: a long fall, flat on his belly.
   await page.mouse.up();
   const still = page.locator("[data-mascot] img.mascot-still");
   await expect(still).toHaveAttribute("style", /rotate\(-?82deg\)/, { timeout: 5000 });
-  await expect(bubble(page)).toContainText(/حرام عليك|بطني|مرشدك|هفتكرهالك|مش هكلمك|تالت مرة|مستمتع/, { timeout: 5000 });
+  await expect(bubble(page)).toContainText(anyOf([...journey.PHYSICS.flop, ...journey.PHYSICS.again]), { timeout: 5000 });
   // A drag isn't a click: the menu didn't open.
   await expect(page.getByRole("dialog", { name: "بقلظ" })).toHaveCount(0);
   // Back on his feet.
   await expect(still).not.toHaveAttribute("style", /82deg/, { timeout: 8000 });
-  await expect(bubble(page)).toContainText(/أنا كويس|محدش شاف|متعوّد|نكمّل/, { timeout: 8000 });
+  await expect(bubble(page)).toContainText(anyOf(journey.PHYSICS.up), { timeout: 8000 });
   // He still opens his menu with a plain click.
   await guideButton(page).click({ timeout: 10_000 });
   await expect(page.getByRole("dialog", { name: "بقلظ" })).toBeVisible();
@@ -392,7 +395,7 @@ test("put him down gently and he thanks you", async ({ page }) => {
   await page.mouse.move(box.x + box.width / 2 - 10, vh - 4);
   await page.waitForTimeout(200);
   await page.mouse.up();
-  await expect(bubble(page)).toContainText(/بالراحة|حلو المكان/, { timeout: 5000 });
+  await expect(bubble(page)).toContainText(anyOf(journey.PHYSICS.gentle), { timeout: 5000 });
   await expect(page.locator("[data-mascot] img.mascot-still")).not.toHaveAttribute("style", /82deg/);
 });
 
@@ -445,7 +448,7 @@ test("hoop game: throw Baqloz through the hoop to score", async ({ page }) => {
   await page.waitForTimeout(300);
   await page.mouse.up();
   await expect(hud).toContainText("🏀 1", { timeout: 5000 });
-  await expect(bubble(page)).toContainText(/جووووول|سلة نظيفة|الحلاوة|تلاتة/);
+  await expect(bubble(page)).toContainText(anyOf(journey.GAME.goal));
   await hud.getByRole("button", { name: "إنهاء" }).click();
   await expect(hud).toHaveCount(0);
   await expect(bubble(page)).toContainText(/جبت 1 سلة|رقم قياسي/);
@@ -604,6 +607,40 @@ test("his recorded Egyptian voice plays the line on screen; the robotic device v
   await expect.poll(() => played.length, { timeout: 8000 }).toBeGreaterThanOrEqual(1);
   expect(played.every((f) => clips.includes(f.replace(".mp3", "")))).toBe(true);
   expect(await page.evaluate(() => (window as unknown as { said: string[] }).said)).toEqual([]);
+});
+
+test("a line the team recorded in their own voice plays instead of the generated one", async ({ page }) => {
+  await withGuide(page);
+  const lines = new Set<string>();
+  const walk = (v: unknown, seen = new Set<unknown>()) => {
+    if (!v || typeof v !== "object" || seen.has(v)) return;
+    seen.add(v);
+    if (typeof (v as { ar?: unknown }).ar === "string") lines.add((v as { ar: string }).ar);
+    for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, seen);
+  };
+  walk(Object.values(journey));
+  for (const h of [0, 6, 13, 20]) lines.add(journey.greeting(h).ar);
+  const keys = [...lines].map(voiceKey);
+  const made: string[] = [];
+  const own: string[] = [];
+  // Only the generated greeting exists; every line also has a recording by the team.
+  await page.route("**/voice/manifest.json", (route) => route.fulfill({ json: { clips: keys } }));
+  await page.route(/\/rpc\/voice_clips_live/, (route) => route.fulfill({ json: Object.fromEntries(keys.map((k) => [k, `${k}/1760000000000.wav`])) }));
+  await page.route(/\/voice\/[0-9a-f]{8}\.mp3$/, (route) => {
+    made.push(route.request().url());
+    return route.fulfill({ body: readFileSync("public/voice/silence.mp3"), contentType: "audio/mpeg" });
+  });
+  await page.route(/\/storage\/v1\/object\/public\/voice\//, (route) => {
+    own.push(new URL(route.request().url()).pathname);
+    return route.fulfill({ body: readFileSync("public/voice/silence.mp3"), contentType: "audio/mpeg" });
+  });
+  await page.goto("/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page)).toContainText("أنا بقلظ", { timeout: 15_000 });
+  await page.mouse.click(700, 300);
+  await expect.poll(() => own.length, { timeout: 8000 }).toBeGreaterThanOrEqual(1);
+  expect(own.every((p) => /\/voice\/[0-9a-f]{8}\/1760000000000\.wav$/.test(p))).toBe(true);
+  expect(made).toEqual([]);
 });
 
 test("an application started and not sent: he offers to finish it, and takes you back to the form", async ({ page }) => {

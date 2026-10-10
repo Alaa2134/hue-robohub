@@ -29,6 +29,7 @@ import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
+import { VoiceStudio } from "./staff-voice";
 import { DelegationCheckin } from "./expo-delegation";
 import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
@@ -89,6 +90,7 @@ const AREA_OF: Record<string, Area> = {
   audit: "security",
   stats: "security",
   errors: "security",
+  voice: "voice",
 };
 
 /** A section outside this person's permissions. */
@@ -276,6 +278,9 @@ export function StaffApp({
       break;
     case "warnings":
       screen = <WarningsScreen />;
+      break;
+    case "voice":
+      screen = <VoiceStudio />;
       break;
     case "more":
       screen = <MoreScreen me={me} />;
@@ -596,6 +601,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },
+    { icon: "mic", label: "صوت بقلظ (سجّل كلامه بصوتك أو ارفع ملف)", to: "/staff/voice" },
     {
       icon: "settings",
       label: "إعدادات الموقع (التواصل، الواجهة، الإعلان، الأهداف)",

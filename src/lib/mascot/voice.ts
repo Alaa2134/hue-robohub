@@ -1,17 +1,22 @@
 /**
  * Baqloz's voice. His scripted lines are recorded in a natural Egyptian voice (scripts/build-voice.ts
  * makes the clips at deploy time; public/voice/manifest.json lists them) and played from the site.
+ * A line the team recorded in a person's own voice (the app's "صوت بقلظ": public.voice_clips, files in
+ * the "voice" bucket) is played instead of the generated one.
  * Lines without a recording (a name, a live number, an AI answer) stay silent unless the visitor turns
  * on the device's own voice in his menu: browser voices are Modern Standard and robotic, so it's off
  * by default. Browsers only let a page play sound after the visitor's first click or tap.
  */
 import { greeting } from "@/config/mascotJourney";
 import { BASE_PATH } from "@/lib/deploy";
+import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 import { spoken, voiceKey } from "./voice-text";
 
 const DEVICE_KEY = "bx-guide-device-voice";
 let unlocked = false;
 let clips: Set<string> | null = null;
+/** The team's own recordings: line key → file in the "voice" bucket. */
+let human = new Map<string, string>();
 let loading: Promise<Set<string>> | null = null;
 let audio: HTMLAudioElement | null = null;
 let playing = false;
@@ -21,16 +26,48 @@ let gen = 0;
 const browser = () => typeof window !== "undefined";
 const synthOk = () => browser() && "speechSynthesis" in window;
 
+const HUMAN_KEY = "bx-guide-human-voice";
+
+/** The team's own recordings (kept for ten minutes in this visit; none if the database is slow). */
+function loadHuman(): Promise<Map<string, string>> {
+  try {
+    const c = JSON.parse(sessionStorage.getItem(HUMAN_KEY) ?? "null") as { at: number; clips: Record<string, string> } | null;
+    if (c && Date.now() - c.at < 600_000) return Promise.resolve(new Map(Object.entries(c.clips)));
+  } catch {}
+  return fetch(`${SUPABASE_URL}/rest/v1/rpc/voice_clips_live`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(2500) })
+    .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : {}))
+    .then((m) => {
+      const found = Object.entries(m ?? {}).filter((e): e is [string, string] => /^[0-9a-f]{8}$/.test(e[0]) && typeof e[1] === "string");
+      try {
+        sessionStorage.setItem(HUMAN_KEY, JSON.stringify({ at: Date.now(), clips: Object.fromEntries(found) }));
+      } catch {}
+      return new Map(found);
+    })
+    .catch(() => new Map<string, string>());
+}
+
 /** The list of recorded lines (fetched once; an empty list when there are none). */
 export function loadVoice(): Promise<Set<string>> {
   if (clips) return Promise.resolve(clips);
   if (!browser()) return Promise.resolve(new Set());
-  loading ??= fetch(`${BASE_PATH}/voice/manifest.json`)
-    .then((r) => (r.ok ? (r.json() as Promise<{ clips?: string[] }>) : { clips: [] }))
-    .then((m) => (clips = new Set(m.clips ?? [])))
-    .catch(() => (clips = new Set()));
+  loading ??= Promise.all([
+    fetch(`${BASE_PATH}/voice/manifest.json`)
+      .then((r) => (r.ok ? (r.json() as Promise<{ clips?: string[] }>) : { clips: [] }))
+      .then((m) => m.clips ?? [])
+      .catch(() => [] as string[]),
+    loadHuman(),
+  ]).then(([made, own]) => {
+    human = own;
+    return (clips = new Set([...made, ...own.keys()]));
+  });
   return loading;
 }
+
+/** Where a clip is: the team's recording, else the generated one. */
+const clipUrl = (key: string) => {
+  const own = human.get(key);
+  return own ? `${SUPABASE_URL}/storage/v1/object/public/voice/${own.split("/").map(encodeURIComponent).join("/")}` : `${BASE_PATH}/voice/${key}.mp3`;
+};
 
 /* ─── The device's own voice (optional) ────────────────────────────────── */
 
@@ -100,7 +137,7 @@ function playClip(key: string): Promise<void> {
     };
     const timer = setTimeout(finish, 20000);
     a.onended = a.onerror = a.onpause = finish;
-    a.src = `${BASE_PATH}/voice/${key}.mp3`;
+    a.src = clipUrl(key);
     a.play().catch(finish);
   });
 }

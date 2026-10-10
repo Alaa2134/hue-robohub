@@ -7,7 +7,7 @@ name: Baqloz voice
 on:
   push:
     branches: [main]
-    paths: ["src/config/mascotJourney.ts", "src/lib/mascot/guide.ts", "src/lib/mascot/wardrobe.ts", "src/lib/mascot/voice-text.ts", "scripts/build-voice.ts"]
+    paths: ["src/config/mascotJourney.ts", "src/lib/mascot/guide.ts", "src/lib/mascot/wardrobe.ts", "src/lib/mascot/voice-text.ts", "src/lib/mascot/voice-lines.ts", "scripts/build-voice.ts"]
   workflow_dispatch:
 
 permissions:

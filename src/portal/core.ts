@@ -60,7 +60,7 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
 export type Area =
   | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
   | "site" | "forms" | "publish" | "portfolios" | "settings"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security" | "sectors" | "inventory";
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "security" | "sectors" | "inventory" | "voice";
 export const AREAS: { key: Area; group: string; label: string; hint: string }[] = [
   { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة" },
   { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور" },
@@ -74,6 +74,7 @@ export const AREAS: { key: Area; group: string; label: string; hint: string }[] 
   { key: "forms", group: "الموقع", label: "الفورمات", hint: "الفورمات (اختبارات الفرق، متطوعين…) وردودها" },
   { key: "portfolios", group: "الموقع", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
   { key: "settings", group: "الموقع", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات" },
+  { key: "voice", group: "الموقع", label: "صوت بقلظ", hint: "يسجّل كلام بقلظ بصوته أو يرفع ملفات صوت، والموقع يشغّلها بدل الصوت الآلي" },
   { key: "applications", group: "تاني", label: "طلبات الانضمام", hint: "مراجعة الطلبات وقائمة الانتظار" },
   { key: "events", group: "تاني", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات" },
   { key: "inbox", group: "تاني", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية" },
@@ -98,8 +99,8 @@ export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "tr
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[] }[] = [
   { title: "نائب القائد", areas: AREAS.map((a) => a.key) },
-  { title: "إداري الموقع", areas: ["site", "publish", "forms", "portfolios", "settings", "notify", "inbox", "security"] },
-  { title: "هيد الميديا", areas: ["site", "publish", "portfolios", "notify"] },
+  { title: "إداري الموقع", areas: ["site", "publish", "forms", "portfolios", "settings", "notify", "inbox", "security", "voice"] },
+  { title: "هيد الميديا", areas: ["site", "publish", "portfolios", "notify", "voice"] },
   { title: "المدير التقني", areas: [...TRAINING, "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: TRAINING },
   { title: "مسؤول Embedded وIoT", areas: TRAINING },
@@ -111,6 +112,7 @@ export const POSITIONS: { title: string; areas: Area[] }[] = [
   { title: "مسؤول الإعلام والتصميم", areas: ["site"] },
   { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site"] },
   { title: "أمين المخزن", areas: ["inventory"] },
+  { title: "صوت بقلظ", areas: ["voice"] },
   { title: "منظّم", areas: ["events"] },
   { title: "متطوع", areas: ["events"] },
   { title: "عضو في الفريق", areas: [] },
