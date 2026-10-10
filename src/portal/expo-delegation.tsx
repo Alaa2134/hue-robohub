@@ -7,12 +7,12 @@
  */
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BASE_PATH, errorText, fmt, must, sb, today } from "./core";
+import { BASE_PATH, errorText, fmt, must, rpc, sb, today } from "./core";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { downloadStyledXlsx, type XRow } from "./xlsx";
 import { Scanner } from "./scanner";
-import { Button, Card, Chip, ErrorBox, Field, Input, List, Loading, Row, Sheet, Stat, Textarea, Toggle, TopBar, copyText, go, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, List, Loading, Row, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 export type Delegation = { event?: string; venue?: string; dates?: string; org?: string; lead_name?: string; lead_phone?: string; meet_ar?: string; /** The expo's own visitor registration, filled in by the team for each delegate. */ register_url?: string };
 type Answers = Record<string, string | string[]>;
@@ -547,6 +547,116 @@ export function DelegationCheckin({ id }: { id: string }) {
           </Row>
         ))}
       </List>
+      {list.length > inside.length && <NoShows formId={id} count={list.length - inside.length} />}
+    </>
+  );
+}
+
+type NoShow = { id: string; name: string | null; phone: string | null; no: number | null; banned: boolean };
+
+/** After the visit: whoever was accepted and didn't come is banned and loses their membership (they agreed to it). */
+function NoShows({ formId, count }: { formId: string; count: number }) {
+  const [busy, setBusy] = useState(false);
+  const apply = async () => {
+    setBusy(true);
+    try {
+      const { people } = await rpc<{ people: NoShow[] }>("staff_delegation_no_shows", { p_form: formId, p_apply: false });
+      const todo = people.filter((p) => !p.banned);
+      if (!todo.length) {
+        toast("كل اللي مجوش عليهم حظر بالفعل");
+        return;
+      }
+      const ok = await confirmDialog({
+        title: `حظر ${todo.length} من الكميونيتي؟`,
+        body: (
+          <div className="grid gap-2 text-sm">
+            <p>اللي اتقبلوا ومجوش هياخدوا حظر وتتسحب عضويتهم (مش هيقدروا يدخلوا التطبيق ولا يقدّموا تاني لحد ما تفك الحظر). وافقوا على ده وهم بيقدّموا.</p>
+            <p className="text-fog">{todo.map((p) => `${p.name ?? "—"} (${memberId(p.no)})`).join("، ")}</p>
+          </div>
+        ),
+        ok: "احظرهم",
+        danger: true,
+      });
+      if (!ok) return;
+      const out = await rpc<{ applied: number }>("staff_delegation_no_shows", { p_form: formId, p_apply: true });
+      toast(`اتحظر ${out.applied} واتسحبت عضويتهم`);
+    } catch (e) {
+      toast(errorText(e), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card className="mt-6 grid gap-3 border-danger/30" data-testid="no-shows">
+      <p className="font-semibold text-chalk">بعد الزيارة: اللي مجوش ({count})</p>
+      <p className="text-xs leading-relaxed text-fog">
+        لما الزيارة تخلص، اضغط هنا: كل اللي اتقبل ومتسجّلش حضوره بياخد حظر من الكميونيتي وتتسحب عضويته. اتأكد إنك سجّلت حضور كل اللي جه الأول. تقدر تفك الحظر بعدين من «الحظر من الكميونيتي».
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="danger" onClick={() => void apply()} loading={busy}>
+          احظر اللي مجوش
+        </Button>
+        <Button variant="ghost" onClick={() => go("/staff/bans")}>
+          الحظر من الكميونيتي
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+type Ban = { id: string; name: string | null; phone: string | null; reason: string; created_at: string; lifted_at: string | null; student_id: string | null };
+
+/** Everyone banned from the community (no-shows and others), with "lift" (and give the membership back). */
+export function BansScreen() {
+  const { data, error, loading, reload } = useAsync(async () => (await sb().from("community_bans").select("id, name, phone, reason, created_at, lifted_at, student_id").order("created_at", { ascending: false }).limit(500).then(must)) as Ban[], []);
+  const [showLifted, setShowLifted] = useState(false);
+  const lift = async (b: Ban) => {
+    const ok = await confirmDialog({ title: `تفك الحظر عن ${b.name ?? b.phone ?? ""}؟`, body: b.student_id ? "وهترجعله عضويته (يقدر يدخل التطبيق ويقدّم تاني)." : "هيقدر يقدّم تاني.", ok: "فك الحظر" });
+    if (!ok) return;
+    try {
+      await rpc("staff_lift_ban", { p_id: b.id, p_restore: true });
+      toast("اتفك الحظر");
+      reload();
+    } catch (e) {
+      toast(errorText(e), "error");
+    }
+  };
+  const list = (data ?? []).filter((b) => !!b.lifted_at === showLifted);
+  return (
+    <>
+      <TopBar title="الحظر من الكميونيتي" sub="اللي اتقبلوا في وفد ومجوش وغيرهم" back="/staff/more" />
+      <div className="flex gap-2">
+        <Chip active={!showLifted} onClick={() => setShowLifted(false)}>
+          محظورين دلوقتي
+        </Chip>
+        <Chip active={showLifted} onClick={() => setShowLifted(true)}>
+          اتفك عنهم
+        </Chip>
+      </div>
+      {loading && !data ? (
+        <Loading />
+      ) : error ? (
+        <ErrorBox error={error} retry={reload} />
+      ) : !list.length ? (
+        <Empty icon="shield" title={showLifted ? "مفيش حد اتفك عنه" : "مفيش حد محظور"} />
+      ) : (
+        <List className="mt-4">
+          {list.map((b) => (
+            <Row key={b.id} chevron={false}>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold text-chalk">{b.name ?? "—"}</p>
+                  <p className="truncate text-xs text-fog">
+                    {b.reason} · {fmt.short(b.created_at)}
+                    {b.phone ? ` · ${b.phone}` : ""}
+                  </p>
+                </div>
+                {b.lifted_at ? <Badge>اتفك {fmt.short(b.lifted_at)}</Badge> : <Button size="sm" onClick={() => void lift(b)}>فك الحظر</Button>}
+              </div>
+            </Row>
+          ))}
+        </List>
+      )}
     </>
   );
 }

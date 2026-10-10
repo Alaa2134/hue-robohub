@@ -330,14 +330,14 @@ test("Robotex: accepted means registered — the delegation pass with the number
   await expect(counter).toContainText("فاضل 28 مكان");
   await expect(counter).toContainText("السبت 14 نوفمبر: 7");
   // Real photos from the organisers' brochure, and the brochure itself.
-  await expect(page.getByTestId("expo-past").locator("img")).toHaveCount(10);
+  await expect(page.getByTestId("page-photos").locator("img")).toHaveCount(10);
   await expect(page.getByRole("link", { name: "حمّل بروشور المعرض (PDF)" })).toHaveAttribute("href", "/media/robotex/robotex-ndtx-2026-brochure-ar.pdf");
   // An English title reads left to right on the Arabic page.
   await expect(page.locator("h1 [aria-hidden]").first()).toHaveAttribute("dir", "ltr");
   // A countdown, a quick menu, and the areas in one row to swipe on phones.
   await expect(page.getByTestId("expo-countdown")).toContainText("فاضل على المعرض");
-  await expect(page.getByTestId("expo-nav").getByRole("link", { name: "قدّم" })).toHaveAttribute("href", "#apply");
-  await expect(page.getByTestId("expo-areas").locator("li")).toHaveCount(6);
+  await expect(page.getByTestId("page-nav").getByRole("link", { name: "قدّم" })).toHaveAttribute("href", "#apply");
+  await expect(page.getByTestId("page-cards").nth(1).locator("li")).toHaveCount(6);
   // The day's plan and what to bring.
   await expect(page.getByRole("heading", { name: "اليوم هيمشي إزاي" })).toBeVisible();
   await expect(page.getByText("تصريح الوفد (سكرين شوت)")).toBeVisible();
@@ -356,4 +356,81 @@ test("Robotex: accepted means registered — the delegation pass with the number
   // The album waits for the visit's photos.
   await expect(page.getByText("صور الوفد من المعرض هتنزل هنا بعد الزيارة")).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("the expo form takes members only: a wrong membership number is refused, non-members get the interview link, a banned member is told why", async ({ page }) => {
+  const form = { ...EXPO_FORM, fields: [EXPO_FORM.fields[0], EXPO_FORM.fields[2], { id: "code", type: "member", label_ar: "رقم عضويتك في كميونيتي BuildX HUE", required: true }, { id: "noshow", type: "checkbox", label_ar: "موافق إني لو اتقبلت ومحضرتش المعرض هاخد حظر من كميونيتي BuildX HUE وتتسحب مني العضوية", required: true }] };
+  let answer: unknown = { ok: false, error: "fields", fields: { code: "member" } };
+  await mockSupabase(page, { rpc: { public_form: () => form, submit_form: () => answer } });
+  await page.goto("/ar/robotex/");
+  await expect(page.getByTestId("ask-interview").getByRole("link", { name: "اطلب انترفيو مع منظم الموقع" })).toHaveAttribute("href", "/ar/form/?f=membership-interview");
+  await page.getByLabel("الاسم بالكامل (بالعربي)").fill("منى عادل");
+  await page.getByLabel("رقم الموبايل (واتساب)").fill("01012345678");
+  await page.getByLabel("رقم عضويتك في كميونيتي BuildX HUE").fill("9999");
+  await page.getByLabel(/هاخد حظر من كميونيتي/).check();
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("رقم العضوية ده مش موجود أو العضوية مش مفعّلة")).toBeVisible();
+  answer = { ok: false, error: "banned" };
+  await page.getByLabel("رقم عضويتك في كميونيتي BuildX HUE").fill("2024001");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("عليك حظر من كميونيتي BuildX HUE")).toBeVisible();
+});
+
+test("a page built in the app: /p/<slug> opens it, with its parts in the team's order", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const built = {
+    slug: "cairo-ict",
+    title: { ar: "زيارة Cairo ICT" },
+    description: { ar: "" },
+    accent: "#2b6dff",
+    settings: { nav: true },
+    blocks: [
+      { id: "h", type: "hero", eyebrow: { ar: "زيارة BuildX HUE" }, title: { ar: "زيارة Cairo ICT 2026" }, body: { ar: "معرض التكنولوجيا" }, image: { src: "expo:hero" }, buttons: [{ label: { ar: "قدّم" }, href: "#apply", primary: true }], facts: [] },
+      { id: "q", type: "faq", anchor: "faq", nav: { ar: "أسئلة" }, eyebrow: { ar: "" }, title: { ar: "أسئلة الزيارة" }, items: [{ q: { ar: "الزيارة مجانية؟" }, a: { ar: "أيوه مجانية." } }] },
+      { id: "s", type: "steps", anchor: "how", nav: { ar: "الخطوات" }, eyebrow: { ar: "" }, title: { ar: "ماشية إزاي" }, items: [{ title: { ar: "قدّم" }, body: { ar: "املأ الفورم" } }] },
+      { id: "x", type: "text", hidden: true, eyebrow: { ar: "" }, title: { ar: "جزء مخفي" }, body: { ar: "مش ظاهر" } },
+      { id: "bad", type: "script", title: { ar: "x" } },
+    ],
+  };
+  const calls = await mockSupabase(page, { rpc: { site_page: (b) => (b.p_slug === "cairo-ict" ? built : null) } });
+  await page.goto("/ar/p/cairo-ict/");
+  await expect(page).toHaveURL(/\/ar\/p\/\?s=cairo-ict$/);
+  await expect(page.getByRole("heading", { level: 1, name: "زيارة Cairo ICT 2026" })).toBeVisible();
+  const titles = await page.locator("main h2, h2").allInnerTexts();
+  expect(titles.findIndex((t) => t.includes("أسئلة الزيارة"))).toBeLessThan(titles.findIndex((t) => t.includes("ماشية إزاي")));
+  await expect(page.getByTestId("page-nav").getByRole("link", { name: "أسئلة" })).toHaveAttribute("href", "#faq");
+  await expect(page.getByText("جزء مخفي")).toHaveCount(0);
+  await page.getByText("الزيارة مجانية؟").click();
+  await expect(page.getByText("أيوه مجانية.")).toBeVisible();
+  expect(calls.some((c) => c.fn === "site_page")).toBe(true);
+  // A page that isn't published says so.
+  await page.goto("/ar/p/?s=nothing-here");
+  await expect(page.getByTestId("page-missing")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the Robotex page shows the team's own version once they save it in the app", async ({ page }) => {
+  await mockSupabase(page, {
+    rpc: {
+      public_form: () => EXPO_FORM,
+      site_page: (b) =>
+        b.p_slug === "robotex"
+          ? {
+              slug: "robotex",
+              title: { ar: "زيارة Robotex" },
+              description: { ar: "" },
+              accent: "#ff7a45",
+              settings: { nav: false },
+              blocks: [
+                { id: "h", type: "hero", eyebrow: { ar: "زيارة" }, title: { ar: "Robotex مع BuildX" }, body: { ar: "" }, image: null, buttons: [], facts: [] },
+                { id: "t", type: "text", eyebrow: { ar: "" }, title: { ar: "تنبيه مهم" }, body: { ar: "الزيارة للأعضاء بس." } },
+              ],
+            }
+          : null,
+    },
+  });
+  await page.goto("/ar/robotex/");
+  await expect(page.getByRole("heading", { level: 1, name: "Robotex مع BuildX" })).toBeVisible();
+  await expect(page.getByText("الزيارة للأعضاء بس.")).toBeVisible();
 });

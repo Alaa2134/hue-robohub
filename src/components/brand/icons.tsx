@@ -390,6 +390,8 @@ export const Icons = {
 } as const;
 
 export type IconName = keyof typeof Icons;
+/** Every icon name (for pickers, and to check a saved name before drawing it). */
+export const ICON_NAMES = Object.keys(Icons) as IconName[];
 
 export function Icon({ name, ...p }: P & { name: IconName }) {
   const C = Icons[name];

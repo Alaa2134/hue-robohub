@@ -2059,3 +2059,125 @@ test("the owner can give someone only Baqloz's voice", async ({ page }) => {
   await page.goto("/app/#/staff/site");
   await expect(page.getByText("القسم ده مش من صلاحياتك")).toBeVisible();
 });
+
+test("website pages: open and close the expo form from its card, then reorder the expo page by dragging, add a part and save", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = { id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex & NDTX 2026", open: true, archived: false, opens_at: null, closes_at: null, created_at: at(100) };
+  const formPatches: unknown[] = [];
+  const saved: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      formPatches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({ json: [form] });
+  });
+  await page.route(/\/rest\/v1\/site_pages/, (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      saved.push(body);
+      return route.fulfill({ json: { id: "p1", archived: false, updated_at: at(0), ...body } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/pages");
+  const card = page.getByTestId("page-card").first();
+  await expect(card).toContainText("الأصلية");
+  // The expo form closes from here.
+  await card.getByTestId("form-switch").getByRole("switch").click();
+  await expect.poll(() => formPatches[0]).toEqual({ open: false });
+  // Open the expo page: its parts, in order.
+  await card.getByRole("button", { name: /زيارة معرض Robotex/ }).first().click();
+  await expect(page).toHaveURL(/#\/staff\/pages\/robotex$/);
+  const blocks = page.getByTestId("page-blocks").getByTestId("block-card");
+  await expect(blocks).toHaveCount(9);
+  await expect(blocks.nth(1)).toContainText("معرضين في مكان واحد");
+  // Keyboard: the areas go above "about".
+  await blocks.nth(2).getByRole("button", { name: "اسحب عشان ترتّب" }).press("ArrowUp");
+  await expect(blocks.nth(1)).toContainText("أهم مجالات المعرض");
+  // Drag with the mouse (or a finger): "check your application" goes above the steps.
+  await blocks.nth(5).scrollIntoViewIfNeeded();
+  const handle = blocks.nth(5).getByRole("button", { name: "اسحب عشان ترتّب" });
+  const from = (await handle.boundingBox())!;
+  const to = (await blocks.nth(3).boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + ((to.y + 6 - from.y) * i) / 12);
+  await page.mouse.up();
+  await expect(blocks.nth(3)).toContainText("اعرف حالة طلبك");
+  // Add a part and save: the page is saved (and stays published) with the new order.
+  await page.getByRole("button", { name: "ضيف جزء" }).click();
+  await page.getByTestId("block-palette").getByRole("button", { name: /فيديو/ }).click();
+  await expect(blocks).toHaveCount(10);
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  const order = (saved[0]!.blocks as { id: string; type: string }[]).map((b) => b.type);
+  expect(order.slice(0, 5)).toEqual(["hero", "cards", "cards", "status", "steps"]);
+  expect((saved[0]!.blocks as { id: string }[])[1]!.id).toBe("areas");
+  expect(order.at(-1)).toBe("video");
+  expect(saved[0]).toMatchObject({ slug: "robotex", published: true });
+  // The preview draws the page.
+  await page.getByRole("button", { name: "معاينة" }).click();
+  await expect(page.getByTestId("page-preview").getByRole("heading", { level: 1 })).toContainText("Robotex");
+  expect(errors).toEqual([]);
+});
+
+test("a new page from the expo template starts as a draft with its own address", async ({ page }) => {
+  await signInAsOwner(page);
+  const saved: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_pages/, (route) => {
+    if (route.request().method() === "POST") {
+      saved.push(route.request().postDataJSON() as Record<string, unknown>);
+      return route.fulfill({ json: { id: "p9" } });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/pages");
+  await page.getByRole("button", { name: "صفحة جديدة" }).first().click();
+  await page.getByLabel("اسم الصفحة").fill("زيارة Cairo ICT");
+  await page.getByLabel("الرابط").fill("cairo-ict");
+  await page.getByRole("button", { name: /زيارة معرض \(زي Robotex\)/ }).click();
+  await page.getByRole("button", { name: "اعمل الصفحة" }).click();
+  await expect.poll(() => saved.length).toBe(1);
+  expect(saved[0]).toMatchObject({ slug: "cairo-ict", title_ar: "زيارة Cairo ICT", published: false });
+  const blocks = saved[0]!.blocks as { type: string; form?: string; title?: { ar: string } }[];
+  expect(blocks[0]!.title!.ar).toBe("زيارة Cairo ICT");
+  expect(blocks.find((b) => b.type === "form")!.form).toBe("");
+  await expect(page).toHaveURL(/#\/staff\/pages\/p9$/);
+});
+
+test("after the visit: everyone accepted who didn't come is banned and loses their membership, and a ban can be lifted", async ({ page }) => {
+  await signInAsOwner(page);
+  const form = { id: "f1", slug: "robotex-2026", title_ar: "زيارة معرض Robotex", delegation: { event: "Robotex" }, capacity: null };
+  const rows = [
+    { id: "a1", ref: "F-A1000000", name: "منى عادل", phone: "+201012345678", status: "accepted", member_no: 1, checked_in_at: at(60), answers: {} },
+    { id: "b2", ref: "F-B2000000", name: "علي حسن", phone: "+201099999999", status: "accepted", member_no: 2, checked_in_at: null, answers: {} },
+  ];
+  const calls: { apply: unknown }[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  await page.route(/\/rpc\/staff_delegation_no_shows/, (route) => {
+    const body = route.request().postDataJSON() as { p_apply: boolean };
+    calls.push({ apply: body.p_apply });
+    return route.fulfill({ json: { people: [{ id: "b2", name: "علي حسن", phone: "+201099999999", no: 2, banned: false }], applied: body.p_apply ? 1 : 0 } });
+  });
+  await page.goto("/app/#/staff/forms/f1/checkin");
+  const box = page.getByTestId("no-shows");
+  await expect(box).toContainText("اللي مجوش (1)");
+  await box.getByRole("button", { name: "احظر اللي مجوش" }).click();
+  await expect(page.getByRole("dialog").filter({ hasText: "علي حسن (BX-002)" })).toBeVisible();
+  await page.getByRole("button", { name: "احظرهم" }).click();
+  await expect.poll(() => calls.map((c) => c.apply)).toEqual([false, true]);
+  await expect(page.getByText("اتحظر 1 واتسحبت عضويتهم")).toBeVisible();
+  // The bans list, with "lift".
+  let lifted: unknown = null;
+  await page.route(/\/rest\/v1\/community_bans/, (route) => route.fulfill({ json: [{ id: "x1", name: "علي حسن", phone: "+201099999999", reason: "اتقبل في وفد «زيارة معرض Robotex» ومحضرش", created_at: at(5), lifted_at: null, student_id: "s2" }] }));
+  await page.route(/\/rpc\/staff_lift_ban/, (route) => ((lifted = route.request().postDataJSON()), route.fulfill({ json: null })));
+  await page.goto("/app/#/staff/bans");
+  await expect(page.getByText("اتقبل في وفد «زيارة معرض Robotex» ومحضرش")).toBeVisible();
+  await page.getByRole("button", { name: "فك الحظر" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "فك الحظر" }).click();
+  await expect.poll(() => lifted).toEqual({ p_id: "x1", p_restore: true });
+});
