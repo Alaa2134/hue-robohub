@@ -5059,3 +5059,93 @@ test("membership card at the door: staff scan a card, check the member into an e
   await expect(result).toContainText("Ali Hassan");
   expect(errors).toEqual([]);
 });
+
+test("team cards for the print shop: each card fills itself in, codes are made up and kept, the PDF is CR80 with bleed, front and back", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const profile = (o: object) => ({
+    id: "p1",
+    slug: "mo",
+    full_name: "Mohamed Tarek Alnjjar",
+    full_name_ar: "محمد طارق النجار",
+    headline: "Website manager",
+    headline_ar: "إداري الموقع",
+    bio: "",
+    bio_ar: null,
+    group_kind: "lead",
+    track: null,
+    photo_path: "p1/photo.w.webp",
+    skills: [],
+    links: {},
+    external_url: null,
+    published: true,
+    sort_order: 1,
+    faculty: null,
+    card_code: null,
+    ...o,
+  });
+  const patches: { url: string; body: Record<string, unknown> }[] = [];
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push({ url: route.request().url(), body: route.request().postDataJSON() });
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({
+      json: [
+        profile({}),
+        profile({
+          id: "p2",
+          slug: "sara",
+          full_name: "Sara Ali",
+          full_name_ar: null,
+          headline: "Media designer",
+          headline_ar: "ميديا",
+          group_kind: "member",
+          photo_path: null,
+          published: false,
+          sort_order: 2,
+        }),
+      ],
+    });
+  });
+  // The photo, as the storage would answer it.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page.route(/\/storage\/v1\/object\/public\/team\//, (route) =>
+    route.fulfill({ body: png, contentType: "image/png", headers: { "access-control-allow-origin": "*" } }),
+  );
+  await page.goto("/app/#/staff/team-cards");
+  const list = page.getByTestId("card-list");
+  const year = new Date().getFullYear();
+  await expect(list).toContainText(`BX-WEB-${year}`);
+  await expect(list).toContainText(`BX-MED-${year}`);
+  await expect(list).toContainText("صفحته مش منشورة");
+  await expect(list).toContainText("من غير صورة");
+  const preview = page.getByTestId("card-preview");
+  await expect(preview.getByTestId("card-front")).toContainText("Mohamed Tarek Alnjjar");
+  await expect(preview.getByTestId("card-front")).toContainText("محمد طارق النجار");
+  await expect(preview.getByTestId("card-back")).toContainText("buildxhue.com/team/mo/");
+  await expect(preview.getByTestId("card-back")).toContainText(
+    "Faculty of Artificial Intelligence and Information",
+  );
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: /PDF للمطبعة \(2 كارت/ }).click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("buildx-team-cards-2.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf).toContain("/Count 4");
+  expect(pdf).toContain("/MediaBox [0 0 170.08 259.65]");
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
+  // The made-up codes are saved, so a reprint carries the same ones.
+  expect(patches.map((p) => [new URL(p.url).searchParams.get("id"), p.body.card_code])).toEqual([
+    ["eq.p1", `BX-WEB-${year}`],
+    ["eq.p2", `BX-MED-${year}`],
+  ]);
+  expect(errors).toEqual([]);
+});
