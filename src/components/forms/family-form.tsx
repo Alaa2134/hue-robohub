@@ -85,6 +85,14 @@ const T = {
     refLabel: "Registration number",
     another: "Register someone else",
     join: "Want to join a team too? Apply here",
+    progress: (n: number, of: number) => `${n} of ${of} done`,
+    ready: "All set, you can send it",
+    arabicName: "Write it in Arabic, the way it is on your ID (the list is in Arabic).",
+    levelIs: (n: number, y: string) => `Level ${n} = ${y}`,
+    years: ["1st year", "2nd year", "3rd year", "4th year", "5th year"],
+    draft: "We kept what you wrote on this device, so you can carry on.",
+    share: "Send the link to your friends",
+    shareText: (url: string) => `Register in the BuildX family at Horus University here 👇\n${url}`,
   },
   ar: {
     s1: "بياناتك",
@@ -130,8 +138,24 @@ const T = {
     refLabel: "رقم التسجيل",
     another: "سجّل حد تاني",
     join: "عايز تنضم لفريق كمان؟ قدّم من هنا",
+    progress: (n: number, of: number) => `خلصت ${n} من ${of}`,
+    ready: "كله تمام، تقدر تبعت",
+    arabicName: "اكتبه بالعربي زي البطاقة (الكشف بالعربي).",
+    levelIs: (n: number, y: string) => `Level ${n} = ${y}`,
+    years: ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "الفرقة الخامسة"],
+    draft: "حفظنا اللي كتبته على الجهاز ده، كمّل من مكانك.",
+    share: "ابعت اللينك لصحابك",
+    shareText: (url: string) => `سجّل في أسرة BuildX بجامعة حورس من هنا 👇\n${url}`,
   },
 };
+
+const DRAFT = "bx-family-draft";
+/** The required answers, for the progress line. */
+const REQUIRED: Field[] = ["full_name", "national_id", "phone", "address", "level", "faculty", "consent"];
+
+/** Something the student typed (the governorate starts filled in). */
+const typed = (x: Partial<Data>) =>
+  [x.full_name, x.phone, x.address, x.level, x.email, x.student_number].some((v) => !!v?.trim());
 
 const EMPTY: Data = {
   full_name: "",
@@ -229,8 +253,31 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<FamilySettings | null>(null);
   const [done, setDone] = useState<{ ref: string; year: string; duplicate?: boolean } | null>(null);
+  const [restored, setRestored] = useState(false);
   const honey = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
+
+  // What was typed stays on this device until it's sent (never the national ID: shared lab computers).
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DRAFT) ?? "null") as Partial<Data> | null;
+      if (saved && typed(saved)) {
+        setD((x) => ({ ...x, ...saved, national_id: "", consent: false }));
+        setRestored(true);
+      }
+    } catch {
+      /* nothing saved */
+    }
+  }, []);
+  useEffect(() => {
+    if (done || !typed(d)) return;
+    try {
+      const { national_id: _n, consent: _c, ...keep } = d;
+      localStorage.setItem(DRAFT, JSON.stringify(keep));
+    } catch {
+      /* not saved, nothing lost */
+    }
+  }, [d, done]);
 
   useEffect(() => {
     fetch(`${SUPABASE_URL}/rest/v1/site_settings?key=eq.family&select=value`, {
@@ -321,6 +368,11 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         throw new Error(out.error);
       }
       setDone(out);
+      try {
+        localStorage.removeItem(DRAFT);
+      } catch {
+        /* fine */
+      }
       top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch {
       setProblem(t.err.network);
@@ -368,7 +420,15 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <a href={`${ar ? "/ar" : ""}/join/`} className="btn btn-primary">
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(t.shareText(`${window.location.origin}${ar ? "/ar" : ""}/family/`))}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+          >
+            <span>{t.share}</span>
+          </a>
+          <a href={`${ar ? "/ar" : ""}/join/`} className="btn">
             <span>{t.join}</span>
           </a>
           <button
@@ -388,6 +448,9 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   }
 
   const mobile = egyptMobile(d.phone);
+  const missing = validate(d, locale);
+  const left = REQUIRED.filter((k) => missing[k]).length;
+  const latinName = /[A-Za-z]/.test(d.full_name);
   const shownName = d.full_name.trim() || "—";
   const day = (x: Date) =>
     new Intl.DateTimeFormat(ar ? "ar-EG" : "en-GB", {
@@ -408,6 +471,24 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         </span>
       </div>
 
+      <div className="mb-7" data-testid="family-progress">
+        <div className="mb-2 flex items-center justify-between text-sm">
+          <span className={cn("font-semibold", left ? "text-mist" : "text-ok")}>
+            {left ? t.progress(REQUIRED.length - left, REQUIRED.length) : t.ready}
+          </span>
+          <span className="font-mono text-xs text-fog" dir="ltr">
+            {Math.round(((REQUIRED.length - left) / REQUIRED.length) * 100)}%
+          </span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-rim">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-volt to-cyan transition-[width] duration-500"
+            style={{ width: `${((REQUIRED.length - left) / REQUIRED.length) * 100}%` }}
+          />
+        </div>
+        {restored && <p className="mt-3 text-sm text-fog">{t.draft}</p>}
+      </div>
+
       <div aria-hidden className="absolute -start-[9999px] h-px w-px overflow-hidden">
         <label>
           Website
@@ -417,7 +498,12 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
 
       <form onSubmit={submit} noValidate className="grid gap-8">
         <Section n={1} title={t.s1}>
-          <Row id="fm-full_name" label={t.name} hint={t.nameHint} error={err("full_name")}>
+          <Row
+            id="fm-full_name"
+            label={t.name}
+            hint={latinName ? <span className="text-warn">{t.arabicName}</span> : t.nameHint}
+            error={err("full_name")}
+          >
             <input
               {...aria("full_name")}
               className={inputCls}
@@ -550,11 +636,15 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
                 );
               })}
             </div>
-            {err("level") && (
+            {err("level") ? (
               <p id="fm-level-error" role="alert" className="text-sm text-danger">
                 {err("level")}
               </p>
-            )}
+            ) : d.level ? (
+              <p className="text-sm text-fog" dir="auto">
+                {t.levelIs(Number(d.level), t.years[Number(d.level) - 1] ?? "")}
+              </p>
+            ) : null}
           </div>
           <div className="grid gap-5 sm:grid-cols-2">
             <Row id="fm-faculty" label={t.faculty} error={err("faculty")}>

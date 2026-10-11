@@ -1365,6 +1365,7 @@ test("family list: sign-ups for the year, the Student Welfare list as a PDF (13 
   const [xlsx] = await Promise.all([page.waitForEvent("download"), page.getByTestId("family-xlsx").click()]);
   expect(xlsx.suggestedFilename()).toMatch(/^family-2026-2027-.*\.xlsx$/);
 
+  await expect(page.getByTestId("family-accept-all")).toContainText("(14)");
   await page.getByText("منى عادل سامي حسن 1", { exact: true }).click();
   const sheet = page.getByTestId("family-member");
   await expect(sheet).toContainText("••••••••••1000");

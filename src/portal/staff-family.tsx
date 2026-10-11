@@ -34,6 +34,7 @@ import {
   Textarea,
   Toggle,
   TopBar,
+  confirmDialog,
   copyText,
   toast,
   useAsync,
@@ -454,6 +455,31 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
     }
   };
 
+  const fresh = ofYear.filter((m) => m.status === "new");
+  const acceptAll = async () => {
+    if (!(await confirmDialog({ title: `قبول ${fresh.length} تسجيل جديد؟`, ok: "قبول الكل" }))) return;
+    try {
+      const rows = must(
+        await sb()
+          .from("family_members")
+          .update({ status: "accepted" })
+          .in(
+            "id",
+            fresh.map((m) => m.id),
+          )
+          .select("*"),
+      ) as FamilyMember[];
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      set((d) => ({
+        settings: d?.settings ?? fullSettings(null),
+        members: (d?.members ?? []).map((x) => byId.get(x.id) ?? x),
+      }));
+      toast(`اتقبل ${rows.length}`);
+    } catch (e) {
+      toast(errorText(e), "error");
+    }
+  };
+
   const counts = [1, 2, 3, 4, 5].map(
     (n) => ofYear.filter((m) => m.level === n && m.status !== "rejected").length,
   );
@@ -570,6 +596,17 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
           </div>
 
           <div className="mt-4">
+            {write && fresh.length > 1 && (
+              <Button
+                size="sm"
+                icon="checkCircle"
+                className="mb-3"
+                onClick={acceptAll}
+                data-testid="family-accept-all"
+              >
+                قبول كل الجديد ({fresh.length})
+              </Button>
+            )}
             {!ofYear.length ? (
               <Empty
                 icon="users"
