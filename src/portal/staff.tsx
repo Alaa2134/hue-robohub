@@ -43,6 +43,7 @@ import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
+import { MemberScanScreen } from "./member-card";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
@@ -107,6 +108,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   forms: ["forms", "expo"],
   inbox: "inbox",
   "sponsor-report": "inbox",
+  "member-scan": ["events", "expo", "attendance", "roster"],
   certificates: "certificates",
   settings: "settings",
   apps: "settings",
@@ -316,6 +318,9 @@ export function StaffApp({
       break;
     case "inbox":
       screen = <InboxScreen me={me} />;
+      break;
+    case "member-scan":
+      screen = <MemberScanScreen canCheckIn={can(me, "events")} />;
       break;
     case "sponsor-report":
       screen = <SponsorReportScreen />;
@@ -785,6 +790,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
     { icon: "shield", label: "الحظر من الكميونيتي (اللي اتقبلوا ومجوش)", to: "/staff/bans" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
+    { icon: "scan", label: "فحص كارنيه العضوية (على باب الفعاليات والمعارض)", to: "/staff/member-scan" },
     { icon: "star", label: "النقاط والأوسمة (ترتيب الطلاب)", to: "/staff/leaderboard" },
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },

@@ -49,6 +49,7 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
   const [bulk, setBulk] = useState(query.get("bulk") === "1");
   const [pinsOpen, setPinsOpen] = useState(query.get("pins") === "1");
   const [pins, setPins] = useState<PinItem[] | null>(null);
+  const [renew, setRenew] = useState(false);
 
   const groups = useMemo(() => groupsOf(list), [list]);
   const shown = useMemo(() => {
@@ -72,6 +73,7 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
             {can(me, "whatsapp") && (
               <IconButton icon="chat" label="واتساب للي ظاهرين" onClick={() => sendOnWhatsApp(shown.filter((s) => s.active), { label: `الطلاب الظاهرين${group ? ` (${group})` : ""}`, context: group ? `group:${group}` : "students" })} />
             )}
+            {can(me, "roster") && <IconButton icon="calendar" label="مدّ العضوية للي ظاهرين" onClick={() => setRenew(true)} />}
             <IconButton icon="key" label="رموز الدخول" onClick={() => setPinsOpen(true)} />
             <IconButton icon="list" label="إضافة مجموعة طلاب" onClick={() => setBulk(true)} />
             <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
@@ -160,6 +162,7 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
       <BulkSheet open={bulk} onClose={() => setBulk(false)} groups={groups} existing={list ?? []} onPins={setPins} />
       <PinsSheet open={pinsOpen} onClose={() => setPinsOpen(false)} groups={groups} students={list ?? []} onPins={setPins} />
       <PinResults items={pins} onClose={() => setPins(null)} />
+      {renew && <MembershipSheet students={shown.filter((x) => x.active)} label={group ?? "كل الطلاب الظاهرين"} onClose={() => setRenew(false)} />}
     </>
   );
 }
@@ -169,7 +172,7 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
 function StudentSheet({ student, me, groups, onClose, onPins }: { student: Student | "new" | null; me: StaffRow; groups: string[]; onClose: () => void; onPins: (p: PinItem[]) => void }) {
   const isNew = student === "new";
   const s = student && student !== "new" ? student : null;
-  const [form, setForm] = useState({ code: "", name: "", group: "", phone: "", notes: "", barcode: "", active: true, withPin: true });
+  const [form, setForm] = useState({ code: "", name: "", group: "", phone: "", notes: "", barcode: "", active: true, withPin: true, memberUntil: "" });
   const [busy, setBusy] = useState(false);
   const [scanning, setScanning] = useState<null | "code" | "barcode">(null);
   const [reporting, setReporting] = useState(false);
@@ -179,8 +182,8 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
     setScanning(null);
     setForm(
       s
-        ? { code: s.code, name: s.name, group: s.group, phone: s.phone ?? "", notes: s.notes ?? "", barcode: s.barcode ?? "", active: s.active, withPin: false }
-        : { code: "", name: "", group: groups.length === 1 ? groups[0]! : "", phone: "", notes: "", barcode: "", active: true, withPin: true },
+        ? { code: s.code, name: s.name, group: s.group, phone: s.phone ?? "", notes: s.notes ?? "", barcode: s.barcode ?? "", active: s.active, withPin: false, memberUntil: s.memberUntil ?? "" }
+        : { code: "", name: "", group: groups.length === 1 ? groups[0]! : "", phone: "", notes: "", barcode: "", active: true, withPin: true, memberUntil: "" },
     );
   }, [student]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -189,7 +192,7 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
     if (!codeKey(form.code)) return toast("رقم الطالب يجب أن يحتوي على حروف أو أرقام.", "error");
     setBusy(true);
     try {
-      const row = { code: form.code.trim(), full_name: form.name.trim(), group_name: form.group, phone: form.phone.trim() || null, notes: form.notes.trim() || null, barcode: form.barcode.trim() || null, active: form.active };
+      const row = { code: form.code.trim(), full_name: form.name.trim(), group_name: form.group, phone: form.phone.trim() || null, notes: form.notes.trim() || null, barcode: form.barcode.trim() || null, active: form.active, member_until: form.memberUntil || null };
       if (s) {
         must(await sb().from("students").update(row).eq("id", s.id).select());
         toast("تم الحفظ");
@@ -272,6 +275,9 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
         )}
         <Field label="ملاحظات (اختياري)">
           <Textarea value={form.notes} onChange={set("notes")} rows={2} maxLength={2000} />
+        </Field>
+        <Field label="العضوية سارية لحد (اختياري)" hint="فاضي يعني عضوية مفتوحة. قبلها بأسبوعين بيوصله تذكير يجدّد.">
+          <Input type="date" dir="ltr" value={form.memberUntil} onChange={(e) => setForm((f) => ({ ...f, memberUntil: e.target.value }))} />
         </Field>
         {isNew ? (
           <Toggle checked={form.withPin} onChange={(withPin) => setForm((f) => ({ ...f, withPin }))} label="إنشاء رمز دخول للتطبيق الآن" />
@@ -601,5 +607,44 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6mm" }}>{items.map(card)}</div>
     </div>,
     document.body,
+  );
+}
+
+/* ─── Membership: one end date for many members ─────────────────────────── */
+
+function MembershipSheet({ students, label, onClose }: { students: Student[]; label: string; onClose: () => void }) {
+  const [until, setUntil] = useState(() => `${new Date().getFullYear() + (new Date().getMonth() >= 8 ? 1 : 0)}-06-30`);
+  const [busy, setBusy] = useState(false);
+  const apply = async (value: string | null) => {
+    setBusy(true);
+    try {
+      const n = await rpc<number>("staff_set_member_until", { p_ids: students.map((s) => s.id), p_until: value });
+      const ids = new Set(students.map((s) => s.id));
+      patchStudents((list) => list.map((s) => (ids.has(s.id) ? { ...s, memberUntil: value } : s)));
+      toast(value ? `${n} عضوية بقت سارية لحد ${fmt.day(value)}` : `${n} عضوية بقت مفتوحة`);
+      onClose();
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose} title="مدّ العضوية">
+      <div className="grid gap-3" data-testid="membership-sheet">
+        <p className="text-sm text-mist">
+          {students.length} عضو ({label}). الكارنيه في تطبيقهم بيتحدّث، وبيوصلهم تذكير قبل ما تخلص بأسبوعين.
+        </p>
+        <Field label="سارية لحد">
+          <Input type="date" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} />
+        </Field>
+        <Button variant="primary" loading={busy} disabled={!students.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)} onClick={() => void apply(until)}>
+          مدّ العضوية
+        </Button>
+        <Button variant="ghost" disabled={busy || !students.length} onClick={() => void apply(null)}>
+          خليها مفتوحة من غير تاريخ
+        </Button>
+      </div>
+    </Sheet>
   );
 }

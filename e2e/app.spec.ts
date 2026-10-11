@@ -4947,3 +4947,115 @@ test("sponsor report: from the inbox, the month's numbers, then a one-page PDF t
   if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
   expect(errors).toEqual([]);
 });
+
+test("membership card: the member shows a QR with the end date (and a nudge when it's ending), staff scan it at the door", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const until = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_card")
+      return route.fulfill({
+        json: {
+          name: "Mona Adel",
+          code: "S1",
+          group: "G1",
+          card: "BXM-1A2B3C4D5E",
+          since: "2026-02-01T10:00:00Z",
+          until,
+          state: "expiring",
+          daysLeft: 6,
+        },
+      });
+    if (fn === "student_home")
+      return route.fulfill({
+        json: {
+          now: new Date().toISOString(),
+          student: { name: "Mona Adel", code: "S1", group: "G1" },
+          materials: [],
+          quizzes: [],
+          attendance: [],
+        },
+      });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  const tile = page.getByTestId("member-tile");
+  await expect(tile).toContainText("قرّبت تخلص");
+  await expect(tile).toContainText("فاضل 6 يوم");
+  await tile.click();
+  await expect(page).toHaveURL(/#\/me\/card$/);
+  const card = page.getByTestId("member-card");
+  await expect(card.getByTestId("card-qr")).toBeVisible();
+  await expect(card).toContainText("BXM-1A2B3C4D5E");
+  await expect(card).toContainText("جدّدها مع الفريق");
+  expect(errors).toEqual([]);
+});
+
+test("membership card at the door: staff scan a card, check the member into an event, and see when a membership has ended", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const ev = {
+    id: "e1",
+    title: "Arduino workshop",
+    title_ar: "ورشة Arduino",
+    starts_at: new Date(Date.now() + 3600e3).toISOString(),
+  };
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: [ev] }));
+  let n = 0;
+  await page.route(/\/rpc\/staff_member_scan$/, (route) => {
+    calls.push({ fn: "staff_member_scan", body: route.request().postDataJSON() });
+    n++;
+    return route.fulfill({
+      json:
+        n === 1
+          ? {
+              result: "ok",
+              student: { name: "Mona Adel", code: "S1", group: "G1", until: "2027-06-30", state: "active" },
+              event: { checkedIn: true, already: false, count: 12 },
+            }
+          : {
+              result: "expired",
+              student: { name: "Ali Hassan", code: "S2", group: "G1", until: "2026-01-01", state: "expired" },
+              event: null,
+            },
+    });
+  });
+  await page.goto("/app/#/staff/more");
+  await page
+    .getByRole("link", { name: /فحص كارنيه العضوية/ })
+    .or(page.getByRole("button", { name: /فحص كارنيه العضوية/ }))
+    .first()
+    .click();
+  await expect(page).toHaveURL(/#\/staff\/member-scan$/);
+  await page.getByTestId("scan-event").selectOption("e1");
+  await page.getByRole("button", { name: "قفل الكاميرا" }).click();
+  await page.getByLabel("كود الكارنيه").fill("bxm-1a2b3c4d5e");
+  await page.getByRole("button", { name: "افحص" }).click();
+  const result = page.getByTestId("scan-result");
+  await expect(result).toContainText("عضو، يدخل ✓");
+  await expect(result).toContainText("Mona Adel");
+  await expect(result).toContainText("جوه دلوقتي 12");
+  expect(calls.find((c) => c.fn === "staff_member_scan")?.body).toEqual({
+    p_raw: "bxm-1a2b3c4d5e",
+    p_event: "e1",
+  });
+  await page.waitForTimeout(1300);
+  await page.getByLabel("كود الكارنيه").fill("S2");
+  await page.getByRole("button", { name: "افحص" }).click();
+  await expect(result).toContainText("العضوية خلصت");
+  await expect(result).toContainText("Ali Hassan");
+  expect(errors).toEqual([]);
+});
