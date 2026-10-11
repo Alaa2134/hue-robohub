@@ -92,6 +92,8 @@ const T = {
     years: ["1st year", "2nd year", "3rd year", "4th year", "5th year"],
     draft: "We kept what you wrote on this device, so you can carry on.",
     share: "Send the link to your friends",
+    group: "Join the family's WhatsApp group",
+    groupHint: "Announcements, trips and meetups are posted there first.",
     shareText: (url: string) => `Register in the BuildX family at Horus University here 👇\n${url}`,
   },
   ar: {
@@ -145,6 +147,8 @@ const T = {
     years: ["الفرقة الأولى", "الفرقة الثانية", "الفرقة الثالثة", "الفرقة الرابعة", "الفرقة الخامسة"],
     draft: "حفظنا اللي كتبته على الجهاز ده، كمّل من مكانك.",
     share: "ابعت اللينك لصحابك",
+    group: "ادخل جروب الأسرة على واتساب",
+    groupHint: "الإعلانات والرحلات ومواعيد اللقاءات بتنزل هناك الأول.",
     shareText: (url: string) => `سجّل في أسرة BuildX بجامعة حورس من هنا 👇\n${url}`,
   },
 };
@@ -252,7 +256,12 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const [settings, setSettings] = useState<FamilySettings | null>(null);
-  const [done, setDone] = useState<{ ref: string; year: string; duplicate?: boolean } | null>(null);
+  const [done, setDone] = useState<{
+    ref: string;
+    year: string;
+    duplicate?: boolean;
+    group?: string | null;
+  } | null>(null);
   const [restored, setRestored] = useState(false);
   const honey = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
@@ -371,7 +380,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         signal: AbortSignal.timeout(15_000),
       });
       const out = (await r.json().catch(() => null)) as
-        | { ok: true; ref: string; year: string; duplicate?: boolean }
+        | { ok: true; ref: string; year: string; duplicate?: boolean; group?: string | null }
         | { ok: false; error: string; field?: Field }
         | null;
       if (!r.ok || !out) throw new Error("network");
@@ -444,6 +453,26 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
             {done.ref}
           </p>
         </div>
+        {done.group && (
+          <a
+            href={done.group}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full max-w-xl items-center gap-4 rounded-2xl border border-[#25d366]/50 bg-[#25d366]/10 p-4 text-start transition hover:bg-[#25d366]/15"
+            data-testid="family-group"
+          >
+            <span
+              className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-[#25d366] text-xl text-white"
+              aria-hidden
+            >
+              💬
+            </span>
+            <span>
+              <span className="block font-semibold text-chalk">{t.group}</span>
+              <span className="block text-sm text-mist">{t.groupHint}</span>
+            </span>
+          </a>
+        )}
         <div className="flex flex-wrap gap-3">
           <a
             href={`https://wa.me/?text=${encodeURIComponent(t.shareText(`${window.location.origin}${ar ? "/ar" : ""}/family/`))}`}

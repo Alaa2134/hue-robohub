@@ -1388,6 +1388,117 @@ test("family list: sign-ups for the year, the Student Welfare list as a PDF (13 
   expect(errors).toEqual([]);
 });
 
+test("family promo and welcome: the group link is saved privately, a welcome to everyone shown goes to WhatsApp, and the poster/post/story download", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const members = ["منى عادل سامي حسن", "أحمد علي محمود سعد"].map((full_name, i) => ({
+    id: `f${i + 1}`,
+    ref: `FM-00000${i}`,
+    academic_year: "2026/2027",
+    full_name,
+    national_id: `3050101110100${i}`,
+    phone: `0101234500${i}`,
+    governorate: "دمياط",
+    address: "دمياط الجديدة",
+    level: 2,
+    faculty: "الذكاء الاصطناعي",
+    student_number: null,
+    email: null,
+    status: "new",
+    notes: null,
+    student_id: null,
+    created_at: at(10 - i),
+  }));
+  const settings = { open: true, year: "2026/2027", family: "BuildX", faculty: "الذكاء الاصطناعي" };
+  await page.route(/\/rest\/v1\/(family_members|site_settings)/, (route) => {
+    const one = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    if (route.request().url().includes("site_settings"))
+      return route.fulfill({ json: one ? { value: settings } : [] });
+    return route.fulfill({ json: members });
+  });
+  const groupCalls: unknown[] = [];
+  let group: string | null = null;
+  await page.route(/\/rpc\/staff_family_(group|settings)/, (route) => {
+    const body = route.request().postDataJSON() as { p_link?: string; p_set?: boolean };
+    if (route.request().url().includes("settings")) return route.fulfill({ json: settings });
+    groupCalls.push(body);
+    if (body.p_set) group = body.p_link || null;
+    return route.fulfill({ json: { group } });
+  });
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === "bx-wa-handoff") (window as unknown as { handoff: string }).handoff = v;
+      return set.call(this, k, v);
+    };
+  });
+  await page.goto("/app/#/staff/family");
+  await expect(page.getByText("2 عضو · العام الجامعي 2026/2027")).toBeVisible();
+
+  // The family's WhatsApp group link: kept by the database, checked before it's sent.
+  await page.getByRole("button", { name: "إعدادات الأسرة" }).click();
+  const link = page.getByLabel("لينك جروب الأسرة على واتساب");
+  await link.fill("https://example.com/group");
+  await page.getByRole("button", { name: "حفظ" }).click();
+  await expect(page.getByText("لينك الجروب لازم يبدأ بـ https://chat.whatsapp.com/")).toBeVisible();
+  await link.fill("https://chat.whatsapp.com/AbCdEfGhIjKlMnOp");
+  await page.getByRole("button", { name: "حفظ" }).click();
+  await expect
+    .poll(() => groupCalls.at(-1))
+    .toEqual({ p_link: "https://chat.whatsapp.com/AbCdEfGhIjKlMnOp", p_set: true });
+
+  // One welcome for everyone shown, with each name and the group link.
+  await page.getByTestId("family-welcome").click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp/);
+  const handoff = JSON.parse(
+    await page.evaluate(() => (window as unknown as { handoff: string }).handoff),
+  ) as {
+    people: { phone: string; name: string }[];
+    context: string;
+    text: string;
+  };
+  expect(handoff.people).toEqual([
+    { phone: "01012345000", name: "منى عادل سامي حسن" },
+    { phone: "01012345001", name: "أحمد علي محمود سعد" },
+  ]);
+  expect(handoff.context).toBe("family");
+  expect(handoff.text).toContain("أهلاً {name}");
+  expect(handoff.text).toContain("https://chat.whatsapp.com/AbCdEfGhIjKlMnOp");
+
+  // The promo kit: an A4 poster to print, an Instagram post and a story, each with the QR code.
+  await page.goto("/app/#/staff/family");
+  await page.getByRole("button", { name: "لينك التسجيل" }).click();
+  const kit = page.getByTestId("family-promo");
+  const [pdf] = await Promise.all([
+    page.waitForEvent("download"),
+    kit.getByRole("button", { name: "بوستر A4 للطباعة (PDF)" }).click(),
+  ]);
+  expect(pdf.suggestedFilename()).toBe("buildx-family-poster-A4.pdf");
+  const fs = await import("node:fs");
+  expect(fs.readFileSync(await pdf.path()).toString("latin1")).toContain("/Count 1");
+  if (process.env.SAVE_PROMO) fs.copyFileSync(await pdf.path(), `${process.env.SAVE_PROMO}/poster.pdf`);
+  for (const [name, file, w, h] of [
+    ["بوست إنستجرام", "buildx-family-post.png", 1080, 1080],
+    ["ستوري", "buildx-family-story.png", 1080, 1920],
+  ] as const) {
+    await expect(kit.getByRole("button", { name })).toBeEnabled();
+    const [png] = await Promise.all([
+      page.waitForEvent("download"),
+      kit.getByRole("button", { name }).click(),
+    ]);
+    expect(png.suggestedFilename()).toBe(file);
+    const bytes = fs.readFileSync(await png.path());
+    expect(bytes.subarray(1, 4).toString()).toBe("PNG");
+    expect([bytes.readUInt32BE(16), bytes.readUInt32BE(20)]).toEqual([w, h]);
+    if (process.env.SAVE_PROMO) fs.copyFileSync(await png.path(), `${process.env.SAVE_PROMO}/${file}`);
+  }
+  expect(errors).toEqual([]);
+});
+
 test("a trainer only sees the areas the owner gave them", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
