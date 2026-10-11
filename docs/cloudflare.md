@@ -11,6 +11,31 @@
 
 > كل ده بيتعمل من حسابك على Cloudflare وعند مزوّد الدومين. محدش بيحتاج يبعتلك أو يبعتله أي باسورد.
 
+## الطريقة السريعة: زرار واحد بيعمل كل الإعدادات
+
+فيه workflow اسمه **Cloudflare** بيعمل الخطوات من 2 لـ 6 لوحده عن طريق الـ API. مش بيمسح أي سجل DNS، ولو فيه قاعدة إنت عاملها بإيدك بيسيبها زي ما هي. اللي عليك:
+
+1. **ضيف الدومين** على Cloudflare (الخطوة 1 تحت).
+2. **غيّر الـ Nameservers** عند مزوّد الدومين للاتنين اللي Cloudflare بيديهوملك.
+3. **اعمل توكن:** من **My Profile ← API Tokens ← Create Token ← Create Custom Token**:
+   - Permissions (كلهم **Zone**):
+     - Zone → Read
+     - DNS → Edit
+     - Zone Settings → Edit
+     - Zone WAF → Edit
+     - Cache Rules → Edit
+     - Transform Rules → Edit
+     - Bot Management → Edit
+     - Cache Purge → Purge
+   - Zone Resources: **Include ← Specific zone ← buildxhue.com**
+4. **حط التوكن في GitHub:** من الـ repo افتح **Settings ← Secrets and variables ← Actions ← New repository secret**، الاسم `CLOUDFLARE_API_TOKEN` والقيمة هي التوكن. متبعتهوش لحد ومتحطهوش في أي ملف.
+5. **دوس الزرار:** من **Actions ← Cloudflare ← Run workflow**. هيكتبلك تقرير بالعربي بكل اللي عمله، ولو التوكن ناقصه صلاحية هيقولك اسمها بالظبط.
+6. **بعد ما الدومين يبقى Active** (Cloudflare بيبعتلك إيميل) وشهادة HTTPS في **Settings ← Pages** تشتغل، دوس الزرار تاني. المرة دي هيشغّل الحماية (السحابة البرتقاني).
+
+لو عايز تشوف هيعمل إيه من غير ما يغيّر حاجة، اختار **check** بدل **apply**.
+
+الخطوات اللي تحت هي نفس اللي الزرار بيعمله، لو حبيت تعملها بإيدك أو تراجعها.
+
 ## 1. ضيف الدومين على Cloudflare
 
 1. اعمل حساب على [dash.cloudflare.com](https://dash.cloudflare.com)، وبعدين **Add a domain** واكتب `buildxhue.com` واختار الخطة **Free**.

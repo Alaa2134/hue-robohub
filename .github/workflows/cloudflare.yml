@@ -1,0 +1,42 @@
+# Puts the site's Cloudflare zone in shape (scripts/cloudflare-setup.mjs, docs/cloudflare.md): DNS to GitHub
+# Pages, HTTPS + HSTS, bot protection, firewall rules, a rate limit, cache rules and security headers.
+# Runs only when someone presses "Run workflow"; "check" shows what would change without changing it.
+name: Cloudflare
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "apply = make the changes, check = only show what would change"
+        type: choice
+        options: [apply, check]
+        default: apply
+      proxy:
+        description: "Protection (orange cloud): auto turns it on once HTTPS works on the domain"
+        type: choice
+        options: [auto, "on", "off"]
+        default: auto
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare
+  cancel-in-progress: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+      - name: Set up Cloudflare
+        env:
+          MODE: ${{ inputs.mode }}
+          PROXY: ${{ inputs.proxy }}
+        run: node scripts/cloudflare-setup.mjs $([ "$MODE" = apply ] && echo --apply) --proxy "$PROXY"
