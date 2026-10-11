@@ -1862,13 +1862,11 @@ test("the owner adds the phone notification keys from the app (write-only)", asy
   await expect(card.getByText("Android ✓")).toBeVisible();
   await expect(card.getByText("7 أندرويد · 0 آيفون مسجّلين")).toBeVisible();
   await card.getByRole("button", { name: "تغيير المفاتيح" }).click();
-  await card
-    .getByLabel("Apple (iPhone): ملف AuthKey .p8")
-    .setInputFiles({
-      name: "AuthKey_ABCDE12345.p8",
-      mimeType: "application/octet-stream",
-      buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"),
-    });
+  await card.getByLabel("Apple (iPhone): ملف AuthKey .p8").setInputFiles({
+    name: "AuthKey_ABCDE12345.p8",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"),
+  });
   await card.getByLabel("Key ID").fill("abcde12345");
   await card.getByLabel("Team ID").fill("TEAM123456");
   await card.getByRole("button", { name: "حفظ" }).click();
@@ -4892,5 +4890,172 @@ test("useful websites in the app: edit a site, add a visitor's suggestion in one
     ["eq.g1", "added"],
     ["eq.g2", "declined"],
   ]);
+  expect(errors).toEqual([]);
+});
+
+test("sponsor report: from the inbox, the month's numbers, then a one-page PDF to send", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_sponsor_report = {
+    from: "2026-09-01",
+    to: "2026-09-30",
+    reach: {
+      views: 1200,
+      visitors: 430,
+      views_before: 800,
+      countries: 6,
+      mobile: 900,
+      top: [
+        { path: "/ar/robotex/", views: 300 },
+        { path: "/", views: 250 },
+      ],
+    },
+    training: { sessions: 8, attendances: 140, students: 32, active: 40, quizzes: 55 },
+    events: [{ title: "ورشة Arduino", at: "2026-09-12T14:00:00Z", registered: 60, attended: 48 }],
+    community: { applications: 25, accepted: 12, new_students: 10 },
+    output: {
+      certificates: 18,
+      projects: 3,
+      posts: 4,
+      highlights: [{ title: "المركز الأول في Robotex", kind: "achievement" }],
+    },
+    partners: [{ name: "Acme Electronics", image: null }],
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/inbox");
+  await page.getByRole("button", { name: "تقرير للرعاة" }).click();
+  await expect(page).toHaveURL(/#\/staff\/sponsor-report$/);
+  await page.getByLabel("الشهر").fill("2026-09");
+  await page.getByLabel("مقدَّم إلى (اختياري)").fill("Acme Electronics");
+  await page.getByRole("button", { name: "هات أرقام الشهر" }).click();
+  const numbers = page.getByTestId("sponsor-report");
+  await expect(numbers).toContainText("1200");
+  await expect(numbers).toContainText("+50% عن الشهر اللي قبله");
+  await expect(numbers).toContainText("48 حضروا");
+  expect(calls.find((c) => c.fn === "staff_sponsor_report")?.body).toEqual({
+    p_from: "2026-09-01",
+    p_to: "2026-09-30",
+  });
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "نزّل التقرير PDF" }).click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("buildx-sponsor-report-2026-09.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf).toContain("/Count 1");
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
+  expect(errors).toEqual([]);
+});
+
+test("membership card: the member shows a QR with the end date (and a nudge when it's ending), staff scan it at the door", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const until = new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10);
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_card")
+      return route.fulfill({
+        json: {
+          name: "Mona Adel",
+          code: "S1",
+          group: "G1",
+          card: "BXM-1A2B3C4D5E",
+          since: "2026-02-01T10:00:00Z",
+          until,
+          state: "expiring",
+          daysLeft: 6,
+        },
+      });
+    if (fn === "student_home")
+      return route.fulfill({
+        json: {
+          now: new Date().toISOString(),
+          student: { name: "Mona Adel", code: "S1", group: "G1" },
+          materials: [],
+          quizzes: [],
+          attendance: [],
+        },
+      });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me");
+  const tile = page.getByTestId("member-tile");
+  await expect(tile).toContainText("قرّبت تخلص");
+  await expect(tile).toContainText("فاضل 6 يوم");
+  await tile.click();
+  await expect(page).toHaveURL(/#\/me\/card$/);
+  const card = page.getByTestId("member-card");
+  await expect(card.getByTestId("card-qr")).toBeVisible();
+  await expect(card).toContainText("BXM-1A2B3C4D5E");
+  await expect(card).toContainText("جدّدها مع الفريق");
+  expect(errors).toEqual([]);
+});
+
+test("membership card at the door: staff scan a card, check the member into an event, and see when a membership has ended", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const ev = {
+    id: "e1",
+    title: "Arduino workshop",
+    title_ar: "ورشة Arduino",
+    starts_at: new Date(Date.now() + 3600e3).toISOString(),
+  };
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: [ev] }));
+  let n = 0;
+  await page.route(/\/rpc\/staff_member_scan$/, (route) => {
+    calls.push({ fn: "staff_member_scan", body: route.request().postDataJSON() });
+    n++;
+    return route.fulfill({
+      json:
+        n === 1
+          ? {
+              result: "ok",
+              student: { name: "Mona Adel", code: "S1", group: "G1", until: "2027-06-30", state: "active" },
+              event: { checkedIn: true, already: false, count: 12 },
+            }
+          : {
+              result: "expired",
+              student: { name: "Ali Hassan", code: "S2", group: "G1", until: "2026-01-01", state: "expired" },
+              event: null,
+            },
+    });
+  });
+  await page.goto("/app/#/staff/more");
+  await page
+    .getByRole("link", { name: /فحص كارنيه العضوية/ })
+    .or(page.getByRole("button", { name: /فحص كارنيه العضوية/ }))
+    .first()
+    .click();
+  await expect(page).toHaveURL(/#\/staff\/member-scan$/);
+  await page.getByTestId("scan-event").selectOption("e1");
+  await page.getByRole("button", { name: "قفل الكاميرا" }).click();
+  await page.getByLabel("كود الكارنيه").fill("bxm-1a2b3c4d5e");
+  await page.getByRole("button", { name: "افحص" }).click();
+  const result = page.getByTestId("scan-result");
+  await expect(result).toContainText("عضو، يدخل ✓");
+  await expect(result).toContainText("Mona Adel");
+  await expect(result).toContainText("جوه دلوقتي 12");
+  expect(calls.find((c) => c.fn === "staff_member_scan")?.body).toEqual({
+    p_raw: "bxm-1a2b3c4d5e",
+    p_event: "e1",
+  });
+  await page.waitForTimeout(1300);
+  await page.getByLabel("كود الكارنيه").fill("S2");
+  await page.getByRole("button", { name: "افحص" }).click();
+  await expect(result).toContainText("العضوية خلصت");
+  await expect(result).toContainText("Ali Hassan");
   expect(errors).toEqual([]);
 });

@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   Chip,
+  go,
   Empty,
   ErrorBox,
   Field,
@@ -167,9 +168,14 @@ export function InboxScreen({ me }: { me: StaffRow }) {
         sub="«كلّمنا» وطلبات الرعاية"
         back="/staff/more"
         actions={
-          <Button size="sm" icon="download" onClick={exportCsv} disabled={!data?.length}>
-            Excel
-          </Button>
+          <>
+            <Button size="sm" icon="chart" onClick={() => go("/staff/sponsor-report")}>
+              تقرير للرعاة
+            </Button>
+            <Button size="sm" icon="download" onClick={exportCsv} disabled={!data?.length}>
+              Excel
+            </Button>
+          </>
         }
       />
       <div className="mt-3 flex flex-wrap gap-2">

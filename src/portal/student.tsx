@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
 import { StudentBaqloz } from "./baqloz";
 import { StudentLoansCard } from "./inventory";
+import { MemberCardScreen, MemberCardTile } from "./member-card";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
 import { PushCard } from "./push";
@@ -125,6 +126,7 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
   else if (section === "attendance") screen = <Attendance data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "account") screen = <Account session={session} />;
   else if (section === "points") screen = <MyPoints />;
+  else if (section === "card") screen = <MemberCardScreen />;
   else screen = <Home data={home.data} reload={home.reload} loading={home.loading} />;
 
   return (
@@ -173,6 +175,7 @@ function Home({ data, reload, loading }: ScreenProps) {
         </p>
       </div>
 
+      <MemberCardTile />
       <StudentBaqloz first={data.student.name.split(/\s+/)[0]} quizzes={data.quizzes} />
       <Announcements />
       <ProgressCard />

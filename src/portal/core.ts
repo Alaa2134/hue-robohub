@@ -183,6 +183,7 @@ export type Student = {
   notes: string | null;
   active: boolean;
   createdAt: string;
+  memberUntil?: string | null;
   hasPin: boolean;
   locked: boolean;
   lastLogin: string | null;
