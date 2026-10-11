@@ -943,3 +943,83 @@ test("anyone can check a membership card from its QR, and a card code typed on t
   await expect(page.getByTestId("member-result")).toContainText("عضو ساري");
   expect(calls.filter((c) => c.fn === "verify_member").length).toBe(2);
 });
+
+test("family sign-up: the national ID is read back, the row previews like the university list, and it's sent", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls = await mockSupabase(page, {
+    rest: (url) =>
+      url.pathname.endsWith("/site_settings")
+        ? [{ value: { open: true, year: "2026/2027", family: "BuildX", faculty: "الذكاء الاصطناعي" } }]
+        : [],
+    rpc: { submit_family: () => ({ ok: true, ref: "FM-1A2B3C", year: "2026/2027" }) },
+  });
+  await page.goto("/ar/family/");
+  const form = page.getByTestId("family-form");
+  await expect(form.getByText("العام الجامعي 2026/2027")).toBeVisible();
+  await expect(form.getByLabel("الكلية")).toHaveValue("الذكاء الاصطناعي");
+  await expect(page.getByTestId("family-progress")).toContainText("خلصت 1 من 7");
+  await form.getByLabel("الاسم رباعي (زي البطاقة)").fill("Sara Ahmed");
+  await expect(form.getByText("اكتبه بالعربي زي البطاقة")).toBeVisible();
+  await form.getByRole("button", { name: "سجّلني في الأسرة" }).click();
+  await expect(page.getByTestId("family-problem")).toBeVisible();
+  await form.getByLabel("الاسم رباعي (زي البطاقة)").fill("سارة أحمد");
+  await form.getByLabel("الرقم القومي").fill("30513011100012");
+  await form.getByLabel("رقم الموبايل").click();
+  await expect(form.getByText("الرقم القومي ده مش مظبوط")).toBeVisible();
+  await form.getByLabel("الاسم رباعي (زي البطاقة)").fill("سارة أحمد محمود علي");
+  await form.getByLabel("الرقم القومي").fill("٣٠٥٠١٠١١١٠٠٠١٢");
+  await expect(form.getByTestId("nid-read")).toContainText("دمياط");
+  await form.getByLabel("رقم الموبايل").fill("+20 101 234 5678");
+  await form.getByLabel("العنوان (المدينة / المنطقة)").fill("دمياط الجديدة");
+  await form.getByRole("radio", { name: /3/ }).click();
+  const preview = page.getByTestId("family-preview");
+  await expect(preview).toContainText("سارة أحمد محمود علي");
+  await expect(preview).toContainText("30501011100012");
+  await expect(preview).toContainText("01012345678");
+  await expect(preview).toContainText("Level 3");
+  await expect(form.getByText("Level 3 = الفرقة الثالثة")).toBeVisible();
+  await form.getByLabel(/موافق إن بياناتي/).check();
+  await expect(page.getByTestId("family-progress")).toContainText("كله تمام");
+  await form.getByRole("button", { name: "سجّلني في الأسرة" }).click();
+  await expect(page.getByTestId("family-done")).toContainText("FM-1A2B3C");
+  await expect(page.getByRole("link", { name: "ابعت اللينك لصحابك" })).toHaveAttribute("href", /wa\.me/);
+  expect(await page.evaluate(() => localStorage.getItem("bx-family-draft"))).toBeNull();
+  const sent = calls.find((c) => c.fn === "submit_family")!.body.p as Record<string, unknown>;
+  expect(sent).toMatchObject({
+    full_name: "سارة أحمد محمود علي",
+    national_id: "30501011100012",
+    phone: "01012345678",
+    governorate: "دمياط",
+    address: "دمياط الجديدة",
+    level: 3,
+    faculty: "الذكاء الاصطناعي",
+    consent: true,
+    website: "",
+  });
+  expect(errors).toEqual([]);
+});
+
+test("family sign-up shows a closed note when the team closed it", async ({ page }) => {
+  await mockSupabase(page, { rest: () => [{ value: { open: false } }] });
+  await page.goto("/family/");
+  await expect(page.getByTestId("family-closed")).toContainText("Family registration is closed");
+});
+
+test("family sign-up keeps what was typed on the device (not the national ID) after a reload", async ({
+  page,
+}) => {
+  await mockSupabase(page, { rest: () => [{ value: { open: true, year: "2026/2027" } }] });
+  await page.goto("/ar/family/");
+  const form = page.getByTestId("family-form");
+  await form.getByLabel("الاسم رباعي (زي البطاقة)").fill("سارة أحمد محمود علي");
+  await form.getByLabel("الرقم القومي").fill("30501011100012");
+  await form.getByLabel("رقم الموبايل").fill("01012345678");
+  await page.reload();
+  await expect(page.getByText("حفظنا اللي كتبته على الجهاز ده")).toBeVisible();
+  await expect(form.getByLabel("الاسم رباعي (زي البطاقة)")).toHaveValue("سارة أحمد محمود علي");
+  await expect(form.getByLabel("رقم الموبايل")).toHaveValue("01012345678");
+  await expect(form.getByLabel("الرقم القومي")).toHaveValue("");
+});

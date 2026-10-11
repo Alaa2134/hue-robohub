@@ -259,6 +259,23 @@ export function buildClips(): THREE.AnimationClip[] {
       };
     }),
   );
+  // Pushing something heavy across the screen (the family form): leaning in, both arms out in front,
+  // short steps, and a shove on every step.
+  out.push(
+    sample("Push", 1.8, (t) => {
+      const k = env(t, 1.8, 0.2);
+      const shove = Math.max(0, sin(t, 0.9)); // two shoves per loop
+      const step = sin(t, 0.9);
+      return {
+        hips: { rot: [0.3 + 0.1 * shove, 0, 0], pos: [0, -0.02 - 0.015 * Math.abs(step), 0.05 * shove], ...breathe(t, 0.9, 0.01) },
+        head: { rot: [-0.24 - 0.06 * shove, 0, 0.03 * step] },
+        armL: { rot: [-1.3 - 0.12 * shove, 0, 0.1], pos: [0, 0, 0.05 + 0.06 * shove] },
+        armR: { rot: [-1.3 - 0.12 * shove, 0, -0.1], pos: [0, 0, 0.05 + 0.06 * shove] },
+        legL: { rot: [0.4 * step * k - 0.12, 0, 0] },
+        legR: { rot: [-0.4 * step * k + 0.12, 0, 0] },
+      };
+    }),
+  );
   // A big stretch, arms up, leaning side to side.
   out.push(
     sample("Stretch", 4, (t) => {

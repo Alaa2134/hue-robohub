@@ -43,6 +43,7 @@ import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
+import { FamilyScreen } from "./staff-family";
 import { MemberScanScreen } from "./member-card";
 import { TeamCardsScreen } from "./team-cards";
 import { SiteGapsCard } from "./site-gaps";
@@ -104,6 +105,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   announcements: "announcements",
   leaderboard: "points",
   applications: "applications",
+  family: "applications",
   events: "events",
   site: "site",
   projects: "site",
@@ -328,6 +330,9 @@ export function StaffApp({
       break;
     case "member-scan":
       screen = <MemberScanScreen canCheckIn={can(me, "events")} />;
+      break;
+    case "family":
+      screen = <FamilyScreen me={me} />;
       break;
     case "sponsor-report":
       screen = <SponsorReportScreen />;
@@ -788,6 +793,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios" },
     { icon: "user", label: "كروت الفريق للطباعة (وش بالصورة وضهر بالـ QR)", to: "/staff/team-cards" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
+    { icon: "users", label: "أسرة BuildX (التسجيلات وكشف رعاية الطلاب)", to: "/staff/family" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
     { icon: "chart", label: "تقرير الرعاة الشهري (PDF بأرقام الشهر)", to: "/staff/sponsor-report" },
     {

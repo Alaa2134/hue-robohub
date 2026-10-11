@@ -1310,6 +1310,84 @@ test("in English, staff screens, buttons, search hints and dates are English, an
   expect(errors).toEqual([]);
 });
 
+test("family list: sign-ups for the year, the Student Welfare list as a PDF (13 a page) and Excel, accept and add to the app", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const names = ["منى عادل سامي حسن", "أحمد علي محمود سعد", "يوسف خالد إبراهيم عمر"];
+  const members = Array.from({ length: 15 }, (_, i) => ({
+    id: `f${i + 1}`,
+    ref: `FM-00000${i}`,
+    academic_year: "2026/2027",
+    full_name: `${names[i % 3]} ${i + 1}`,
+    national_id: `3050101110${String(1000 + i).slice(-4)}`,
+    phone: `0101234${String(5000 + i)}`,
+    governorate: "دمياط",
+    address: "دمياط الجديدة",
+    level: (i % 5) + 1,
+    faculty: "الذكاء الاصطناعي",
+    student_number: null,
+    email: null,
+    status: i === 14 ? "rejected" : "new",
+    notes: null,
+    student_id: null,
+    created_at: at(100 - i),
+  }));
+  const writes: { method: string; url: string; body: unknown }[] = [];
+  await page.route(/\/rest\/v1\/(family_members|site_settings|students)/, (route) => {
+    const req = route.request();
+    const url = req.url();
+    const one = (req.headers().accept ?? "").includes("vnd.pgrst.object");
+    if (url.includes("site_settings"))
+      return route.fulfill({
+        json: one
+          ? { value: { open: true, year: "2026/2027", family: "BuildX", faculty: "الذكاء الاصطناعي" } }
+          : [],
+      });
+    if (req.method() !== "GET") {
+      writes.push({ method: req.method(), url, body: req.postDataJSON() });
+      if (url.includes("/students")) return route.fulfill({ json: { id: "s9", code: "BX1001" } });
+      const m = { ...members[0], ...(req.postDataJSON() as object) };
+      return route.fulfill({ json: one ? m : [m] });
+    }
+    if (url.includes("/students")) return route.fulfill({ json: [] });
+    return route.fulfill({ json: members });
+  });
+  await page.goto("/app/#/staff/family");
+  await expect(page.getByText("14 عضو · العام الجامعي 2026/2027")).toBeVisible();
+  const [pdf] = await Promise.all([page.waitForEvent("download"), page.getByTestId("family-pdf").click()]);
+  expect(pdf.suggestedFilename()).toMatch(/^family-2026-2027-.*\.pdf$/);
+  const bytes = (await import("node:fs")).readFileSync(await pdf.path()).toString("latin1");
+  expect(bytes).toContain("/Count 2");
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await pdf.path(), process.env.SAVE_PDF);
+  const [xlsx] = await Promise.all([page.waitForEvent("download"), page.getByTestId("family-xlsx").click()]);
+  expect(xlsx.suggestedFilename()).toMatch(/^family-2026-2027-.*\.xlsx$/);
+
+  await expect(page.getByTestId("family-accept-all")).toContainText("(14)");
+  await page.getByText("منى عادل سامي حسن 1", { exact: true }).click();
+  const sheet = page.getByTestId("family-member");
+  await expect(sheet).toContainText("••••••••••1000");
+  await sheet.getByRole("button", { name: "إظهار" }).click();
+  await expect(sheet).toContainText("30501011101000");
+  await sheet.getByRole("button", { name: "قبول" }).click();
+  await expect
+    .poll(() => writes.find((w) => w.url.includes("family_members"))?.body)
+    .toEqual({ status: "accepted" });
+  await sheet.getByTestId("family-to-student").click();
+  await expect
+    .poll(() => writes.find((w) => w.url.includes("/students"))?.body)
+    .toEqual({
+      code: "",
+      full_name: "منى عادل سامي حسن 1",
+      phone: "01012345000",
+      group_name: "أسرة 2026/2027",
+    });
+  await expect(sheet.getByText("متضاف كطالب في التطبيق")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("a trainer only sees the areas the owner gave them", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
