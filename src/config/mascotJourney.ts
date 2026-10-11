@@ -233,7 +233,39 @@ export const JOURNEY: Route[] = [
   { match: /^\/brand$/, scenes: [{ id: "brand", selector: "main", clip: "Think", enter: true, say: [{ en: "Our brand kit. Download the logos and use them right 😄", ar: "دي هوية BuildX… نزّل اللوجوهات واستخدمها صح 😄" }] }] },
   { match: /^\/privacy$/, scenes: [{ id: "privacy", selector: "main", clip: "Idle", enter: true, say: [{ en: "Your data is safe with us. Here's how.", ar: "بياناتك في أمان معانا… وده إزاي." }] }] },
   // Anything else: he walks in; its sections still get scenes from SECTION_RULES.
+  {
+    // The family sign-up: he walks in, then pushes the form over to the visitor (the form jolts with
+    // every shove: FamilyForm listens for the scene) and cheers them on.
+    match: /^\/family$/,
+    scenes: [
+      {
+        id: "hero",
+        selector: "#family-title",
+        clip: "Wave",
+        enter: true,
+        side: "end",
+        say: [{ ar: "أهلاً أهلاً 👋 جاي تسجّل في أسرة BuildX؟ ده أحلى قرار هتاخده النهارده!", en: "Hey there 👋 Joining the BuildX family? Best decision you'll make today!" }],
+      },
+      {
+        id: "form",
+        selector: "[data-testid='family-form']",
+        clip: "Push",
+        // The form's own side of the page (the second column), so he stands right next to it.
+        side: "end",
+        say: [
+          { ar: "استنى استنى… هزقّلك الفورم لحد عندك 💪 هوبّا!", en: "Hold on… let me push the form over to you 💪 There!" },
+          { ar: "دقيقتين بس وتبقى واحد مننا 💙 اكتب اسمك رباعي زي البطاقة وأنا مستنيك.", en: "Two minutes and you're one of us 💙 Your full name as on your ID, and I'll wait right here." },
+        ],
+      },
+    ],
+  },
   { match: /./, scenes: [{ id: "page", selector: "main", clip: "Idle", enter: true }] },
+];
+
+/** What he says when someone joins the family (the form tells him, see FamilyForm). */
+export const FAMILY_JOINED: Text[] = [
+  { ar: "مبرووووك! 🎉 بقيت رسمي من أسرة BuildX… مستنيينك في أول لقاء!", en: "Congrats! 🎉 You're officially BuildX family. See you at the first meetup!" },
+  { ar: "أهلاً بيك في العيلة 💙 ابعت اللينك لصحابك وخلّيهم ينوّروا معانا!", en: "Welcome to the family 💙 Send the link to your friends so they join too!" },
 ];
 
 /** Pages where the guide stays away (none right now: he guides everywhere, quietly on utility pages). */
@@ -347,6 +379,13 @@ export const FIELD_TIPS: Record<string, Text> = {
   student_number: { ar: "الرقم الجامعي لو فاكره… مش إجباري.", en: "Your student number if you know it (optional)." },
   portfolio_url: { ar: "لو عندك بورتفوليو أو جيت هاب حطه… ولو مفيش عادي.", en: "Portfolio or GitHub link, if you have one." },
   goals: { ar: "عايز توصل لإيه السنة دي؟ احلم براحتك 🚀", en: "What do you want to achieve this year? Dream big 🚀" },
+  family_full_name: { ar: "اسمك رباعي زي البطاقة بالظبط… الكشف ده رايح للجامعة 📝", en: "Your full name exactly as on your ID: this list goes to the university 📝" },
+  family_national_id: { ar: "الـ14 رقم اللي في البطاقة. متقلقش، محدش بيشوفه غير منظمين الأسرة 🔒", en: "The 14 digits on your ID. Only the family organisers can see it 🔒" },
+  family_phone: { ar: "رقم عليه واتساب عشان نضيفك في جروب الأسرة 📱", en: "A number on WhatsApp, so we can add you to the family group 📱" },
+  family_address: { ar: "المدينة والمنطقة بس، مش محتاجين العنوان بالتفصيل.", en: "Just the city and area, no full address needed." },
+  family_faculty: { ar: "كليتك إيه؟ الأسرة مفتوحة لكل الكليات 💙", en: "Your faculty: the family is open to everyone 💙" },
+  family_student_number: { ar: "الرقم الجامعي لو فاكره… مش إجباري.", en: "Your university ID if you know it (optional)." },
+  family_email: { ar: "إيميل لو حابب… مش إجباري.", en: "An email if you like (optional)." },
   "ph:BXC-1A2B3C4D": { ar: "الكود مكتوب تحت الـ QR في الشهادة.", en: "The code is printed under the QR on the certificate." },
   "ph:BX-1A2B3C": { ar: "كود الطلب جالك بعد ما قدّمت، ومعاه رقم الموبايل اللي سجّلت بيه.", en: "Your reference came after you applied, with the phone you used." },
   type_email: { ar: "إيميل بتفتحه فعلاً.", en: "An email you check." },

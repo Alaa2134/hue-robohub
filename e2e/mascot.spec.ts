@@ -654,3 +654,49 @@ test("an application started and not sent: he offers to finish it, and takes you
   await bubble(page).getByRole("button", { name: "كمّل التقديم" }).click();
   await expect(page).toHaveURL(/\/join\/$/, { timeout: 10_000 });
 });
+
+test("on the family page Baqloz pushes the form over (it jolts with every shove), and cheers when someone joins", async ({ page }) => {
+  test.setTimeout(90_000);
+  const errors = collectErrors(page);
+  await withGuide(page);
+  await page.unroute(/supabase\.co/);
+  await page.route(/supabase\.co\//, (route) => {
+    const url = route.request().url();
+    if (url.includes("/rpc/submit_family")) return route.fulfill({ json: { ok: true, ref: "FM-1A2B3C", year: "2026/2027" } });
+    if (url.includes("/site_settings")) return route.fulfill({ json: [{ value: { open: true, year: "2026/2027" } }] });
+    return route.fulfill({ json: [] });
+  });
+  await page.addInitScript(() => {
+    (window as unknown as { pushes: string[] }).pushes = [];
+    window.addEventListener("bx-mascot-scene", (e) => {
+      const d = (e as CustomEvent<{ id: string; clip: string; facing: number }>).detail;
+      (window as unknown as { pushes: string[] }).pushes.push(`${d.id}:${d.clip}:${d.facing}`);
+    });
+  });
+  await page.goto("/ar/family/");
+  await page.mouse.move(500, 400);
+  const form = page.getByTestId("family-form");
+  await form.scrollIntoViewIfNeeded();
+  await expect(bubble(page)).toContainText("هزقّلك الفورم", { timeout: 20_000 });
+  const pushes = await page.evaluate(() => (window as unknown as { pushes: string[] }).pushes);
+  expect(pushes.some((p) => /^form:Push:-?1$/.test(p))).toBe(true);
+  await expect.poll(() => form.evaluate((el) => el.getAnimations().length)).toBeGreaterThan(0);
+  await expect(bubble(page)).toContainText("دقيقتين بس وتبقى واحد مننا", { timeout: 20_000 });
+  // He has a tip for the family fields (on wide screens: on phones he keeps away from the keyboard).
+  if ((page.viewportSize()?.width ?? 0) >= 768) {
+    await form.getByLabel("الرقم القومي").focus();
+    await expect(bubble(page)).toContainText("محدش بيشوفه غير منظمين الأسرة", { timeout: 15_000 });
+  }
+
+  await form.getByLabel("الاسم رباعي (زي البطاقة)").fill("سارة أحمد محمود علي");
+  await form.getByLabel("الرقم القومي").fill("30501011100012");
+  await form.getByLabel("رقم الموبايل").fill("01012345678");
+  await form.getByLabel("العنوان (المدينة / المنطقة)").fill("دمياط الجديدة");
+  await form.getByRole("radio", { name: /3/ }).click();
+  await form.getByLabel("الكلية").fill("الذكاء الاصطناعي");
+  await form.getByLabel(/موافق إن بياناتي/).check();
+  await form.getByRole("button", { name: "سجّلني في الأسرة" }).click();
+  await expect(page.getByTestId("family-done")).toBeVisible();
+  await expect(bubble(page)).toContainText(anyOf(journey.FAMILY_JOINED), { timeout: 15_000 });
+  expect(errors).toEqual([]);
+});

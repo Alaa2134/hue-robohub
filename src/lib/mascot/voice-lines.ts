@@ -26,6 +26,7 @@ const GROUPS: [string, unknown][] = [
   ["لحظات بقلظ", journey.LINES],
   ["كلام وهو فاضي", journey.QUIPS],
   ["مشاهد الصفحات", journey.JOURNEY],
+  ["أسرة BuildX", journey.FAMILY_JOINED],
   ["الجولة في الموقع", journey.SITE_TOUR],
   ["أقسام الصفحات", journey.SECTION_RULES],
   ["لما يتشال ويترمي", journey.PHYSICS],

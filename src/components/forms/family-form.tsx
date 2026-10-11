@@ -257,6 +257,29 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   const honey = useRef<HTMLInputElement>(null);
   const top = useRef<HTMLDivElement>(null);
 
+  // Baqloz pushes the form over (his "form" scene, config/mascotJourney.ts): it jolts away from him
+  // on every shove of his Push clip (two a second, three times).
+  useEffect(() => {
+    const onScene = (e: Event) => {
+      const { id, clip, facing } = (e as CustomEvent<{ id: string; clip: string; facing: number }>).detail;
+      const el = top.current;
+      if (id !== "form" || clip !== "Push" || !el || !facing) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const x = 14 * facing;
+      el.animate(
+        [
+          { transform: "translateX(0) rotate(0deg)" },
+          { transform: `translateX(${x}px) rotate(${facing * 0.6}deg)`, offset: 0.25 },
+          { transform: `translateX(${x * 0.4}px) rotate(0deg)`, offset: 0.6 },
+          { transform: "translateX(0) rotate(0deg)" },
+        ],
+        { duration: 900, iterations: 3, easing: "ease-out", delay: 250 },
+      );
+    };
+    window.addEventListener("bx-mascot-scene", onScene);
+    return () => window.removeEventListener("bx-mascot-scene", onScene);
+  }, []);
+
   // What was typed stays on this device until it's sent (never the national ID: shared lab computers).
   useEffect(() => {
     try {
@@ -311,7 +334,8 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   const err = (k: Field) => errors[k];
   const aria = (k: Field) => ({
     id: `fm-${k}`,
-    name: k,
+    // Baqloz gives a tip for each field by its name (FIELD_TIPS family_*).
+    name: `family_${k}`,
     "aria-invalid": err(k) ? true : undefined,
     "aria-describedby": err(k) ? `fm-${k}-error` : undefined,
     onBlur: () => blur(k),
@@ -368,6 +392,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         throw new Error(out.error);
       }
       setDone(out);
+      if (!out.duplicate) window.dispatchEvent(new Event("bx-family-joined"));
       try {
         localStorage.removeItem(DRAFT);
       } catch {

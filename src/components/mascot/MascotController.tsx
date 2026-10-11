@@ -22,7 +22,7 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { ui, useUi } from "@/components/site/ui-state";
-import { ACTIVITIES, FORM_ROUTES, GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, TEA, type Activity, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
+import { ACTIVITIES, FAMILY_JOINED, FORM_ROUTES, GAME, GUIDE_NAME, GUIDE_VOICE, LINES, PAGES, PHYSICS, SITE_TOUR, TEA, type Activity, greeting, type Line, type Scene, type SceneAction, type Text } from "@/config/mascotJourney";
 import { mascot, useMascot, type MascotMode } from "@/hooks/useMascotState";
 import { useMascotReactions, type Brief } from "@/hooks/useMascotReactions";
 import { useScrollScenes } from "@/hooks/useScrollScenes";
@@ -408,6 +408,14 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       const box = { ...pos.current, ...sizeRef.current };
       const c: ClipName = scene.clip === "Point" ? pointClip(box, target) : scene.clip;
       mascot.play(c, "Idle");
+      let facing = 0;
+      if (c === "Push" && section) {
+        // Pushing: he turns towards what he pushes, and the page moves it with him (bx-mascot-scene).
+        const r = section.getBoundingClientRect();
+        facing = Math.sign(r.left + r.width / 2 - (box.x + box.w / 2)) || 1;
+        mascot.set({ facing });
+      }
+      window.dispatchEvent(new CustomEvent("bx-mascot-scene", { detail: { id: scene.id, clip: c, path, facing } }));
       let say: Line[] | undefined = scene.id === "hero" && returning.current && scene.say ? [LINES.welcomeBack, ...scene.say.slice(1)] : scene.say;
       let fresh = !!say && (o.force || firstTime(`${path}#${scene.id}`));
       if (scene.enter && !o.force) {
@@ -427,7 +435,11 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       if (lines) {
         const withActions = o.actions ? lines.map((l, i) => (i === lines.length - 1 ? { ...l, actions: [...(l.actions ?? []), ...o.actions!] } : l)) : lines;
         await speak(withActions, id);
-      } else if (c === "PointLeft" || c === "PointRight") await sleep(2600);
+      } else if (c === "PointLeft" || c === "PointRight" || c === "Push") await sleep(2600);
+      if (c === "Push" && seq.current === id) {
+        mascot.set({ facing: 0 });
+        mascot.play("Idle");
+      }
       if (seq.current === id && (c === "PointLeft" || c === "PointRight")) mascot.play("Idle");
       if (seq.current !== id) return;
       activeScene.current = 0;
@@ -478,6 +490,18 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     },
     [sfx],
   );
+
+  // Someone joined the family (FamilyForm): he jumps for joy, confetti, and says so (out loud too).
+  useEffect(() => {
+    const cheer = () => {
+      const b = mascot.get().box;
+      if (!brief(pick(FAMILY_JOINED), { prio: 3, clip: "Celebrate", interrupt: true, ms: 6500 })) return;
+      sfx("tada");
+      confetti({ x: b.x + b.w / 2, y: b.y + b.h * 0.3 }, 60);
+    };
+    window.addEventListener("bx-family-joined", cheer);
+    return () => window.removeEventListener("bx-family-joined", cheer);
+  }, [brief, sfx]);
 
   /**
    * One line on a tour, said out loud when his voice is on, with Next / End tour under it. It moves on
