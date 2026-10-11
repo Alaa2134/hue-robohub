@@ -110,9 +110,12 @@ jobs:
           user_email: 41898282+github-actions[bot]@users.noreply.github.com
           full_commit_message: "Deploy ${{ github.sha }}"
       - name: Clear the Cloudflare cache
-        if: env.CF_TOKEN != '' && env.CF_ZONE != ''
+        if: env.CF_TOKEN != ''
         run: |
           sleep 60 # GitHub Pages takes about a minute to serve the new files
+          # The zone is found by the domain when CLOUDFLARE_ZONE_ID isn't set.
+          [ -n "$CF_ZONE" ] || CF_ZONE=$(curl -fsS "https://api.cloudflare.com/client/v4/zones?name=buildxhue.com" -H "Authorization: Bearer $CF_TOKEN" | jq -r '.result[0].id // empty')
+          [ -n "$CF_ZONE" ] || { echo "No Cloudflare zone for buildxhue.com yet"; exit 0; }
           curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/$CF_ZONE/purge_cache" \
             -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
             --data '{"purge_everything":true}' | grep -q '"success":true'
