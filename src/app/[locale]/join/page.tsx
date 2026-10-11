@@ -73,6 +73,10 @@ export default async function Join({ params }: Params) {
               {locale === "ar" ? "قدّمت قبل كده؟ تابع حالة طلبك" : "Already applied? Track your application"}
             </a>
           )}
+          <a href={`${href("/family")}/`} className="mt-3 flex items-center gap-2 text-sm font-semibold text-cyan underline-offset-4 hover:underline">
+            <Icon name="users" size={15} />
+            {locale === "ar" ? "عايز تبقى عضو في أسرة BuildX بس؟ سجّل في الأسرة" : "Just want to be in the BuildX student family? Register here"}
+          </a>
           <div className="mt-10">
             {STATIC_SITE ? (
               <>
