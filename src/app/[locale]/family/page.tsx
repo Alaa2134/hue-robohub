@@ -79,8 +79,8 @@ export default async function Family({ params }: Params) {
 
   return (
     <div className="relative">
-      <div className="mx-auto grid max-w-[1680px] gap-10 px-5 pb-20 pt-24 sm:px-8 lg:grid-cols-12 lg:gap-14 lg:pt-32">
-        <aside className="lg:col-span-5">
+      <div className="mx-auto grid max-w-[1680px] grid-cols-1 gap-10 px-5 pb-20 pt-24 sm:px-8 lg:grid-cols-12 lg:gap-14 lg:pt-32">
+        <aside className="min-w-0 lg:col-span-5">
           <div className="lg:sticky lg:top-28">
             <div className="frame relative aspect-[4/3] overflow-hidden !rounded-[22px] lg:aspect-[4/5]">
               {img && (
@@ -124,7 +124,7 @@ export default async function Family({ params }: Params) {
             </div>
           </div>
         </aside>
-        <section className="lg:col-span-7" aria-labelledby="family-title">
+        <section className="min-w-0 lg:col-span-7" aria-labelledby="family-title">
           <p className="t-eyebrow flex items-center gap-3 text-mist">
             <Icon name="users" size={15} className="text-cyan" />
             {c.eyebrow}

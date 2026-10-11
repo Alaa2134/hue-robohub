@@ -232,7 +232,7 @@ function Row({
 
 function Section({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
-    <fieldset className="grid gap-5 border-t border-[var(--line)] pt-7 first:border-t-0 first:pt-0">
+    <fieldset className="grid min-w-0 gap-5 border-t border-[var(--line)] pt-7 first:border-t-0 first:pt-0">
       <legend className="mb-5 flex items-center gap-3">
         <span className="flex size-9 items-center justify-center rounded-xl border border-volt/40 bg-volt/10 font-mono text-sm text-cyan">
           {n}
@@ -521,7 +521,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         </label>
       </div>
 
-      <form onSubmit={submit} noValidate className="grid gap-8">
+      <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-8 [&>*]:min-w-0">
         <Section n={1} title={t.s1}>
           <Row
             id="fm-full_name"
