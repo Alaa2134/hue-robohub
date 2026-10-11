@@ -61,7 +61,7 @@
 2. في Cloudflare افتح **DNS** وحوّل سجلات الـ A والـ www لـ **Proxied** (السحابة برتقاني).
 3. **SSL/TLS ← Overview**: اختار **Full (strict)**.
 4. **SSL/TLS ← Edge Certificates**: شغّل **Always Use HTTPS** و**Automatic HTTPS Rewrites**. شغّل كمان **HSTS** بالإعدادات دي: `max-age 6 months`، و`includeSubDomains`، و`No-Sniff`.
-5. **Security ← Settings**: خلّي **Security level** على **Medium**، وشغّل **Bot Fight Mode** و**Browser Integrity Check**.
+5. **Security ← Settings**: خلّي **Security level** على **Medium**، وشغّل **Browser Integrity Check**. سيب **Bot Fight Mode** مقفول. في الخطة المجانية مفيش قاعدة تقدر تعدّي حاجة منه، وبيصدّ أي طلب جاي من سيرفر. ده معناه إنه بيقفل الموقع على المراقبة اللي بتشتغل كل ساعة، وعلى بقلظ وهو بيقرا ملف معلومات الموقع.
 6. **Speed ← Optimization**: اقفل **Rocket Loader** واقفل **Email Address Obfuscation**. الاتنين بيعدّلوا في سكريبتات الصفحة وبيبوّظوا تحميلها.
 
 ## 3. قواعد الحظر (Security ← WAF ← Custom rules)

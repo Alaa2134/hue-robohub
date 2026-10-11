@@ -44,6 +44,7 @@ import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
 import { MemberScanScreen } from "./member-card";
+import { TeamCardsScreen } from "./team-cards";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
@@ -113,6 +114,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   settings: "settings",
   apps: "settings",
   portfolios: "portfolios",
+  "team-cards": "portfolios",
   notify: "notify",
   security: "security",
   warnings: "sectors",
@@ -318,6 +320,9 @@ export function StaffApp({
       break;
     case "inbox":
       screen = <InboxScreen me={me} />;
+      break;
+    case "team-cards":
+      screen = <TeamCardsScreen me={me} />;
       break;
     case "member-scan":
       screen = <MemberScanScreen canCheckIn={can(me, "events")} />;
@@ -778,6 +783,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     },
     { icon: "user", label: "البورتفوليو بتاعي", to: "/staff/portfolio" },
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios" },
+    { icon: "user", label: "كروت الفريق للطباعة (وش بالصورة وضهر بالـ QR)", to: "/staff/team-cards" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
     { icon: "chart", label: "تقرير الرعاة الشهري (PDF بأرقام الشهر)", to: "/staff/sponsor-report" },

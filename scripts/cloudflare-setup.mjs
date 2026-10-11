@@ -224,11 +224,14 @@ await part("الإعدادات", NEEDS.settings, async () => {
   }
 });
 
+// Bot Fight Mode stays off: on the free plan no rule can let anything through it, and it challenges
+// every request from a server, which shuts out the hourly monitor and Baqloz reading the site's
+// knowledge file. The rules below, the rate limit and the security level do the protecting.
 await part("Bot Fight Mode", NEEDS.bots, async () => {
   const now = await cf("GET", `${Z}/bot_management`);
-  if (now.fight_mode) return;
-  line("🔧", "Bot Fight Mode → on");
-  if (apply) await cf("PUT", `${Z}/bot_management`, { fight_mode: true });
+  if (!now.fight_mode) return;
+  line("🔧", "Bot Fight Mode → off (كان بيقفل الموقع على المراقبة وعلى بقلظ)");
+  if (apply) await cf("PUT", `${Z}/bot_management`, { fight_mode: false });
 });
 
 // ── Rules: ours replace ours; anything else in the phase stays ──────────────────────────────────
@@ -375,11 +378,27 @@ for (const p of PHASES) {
     if (!apply) return;
     const put = (rules) =>
       cf("PUT", `${Z}/rulesets/phases/${p.phase}/entrypoint`, { rules: [...keep.map(strip), ...rules] });
+    // The free plan has room for one rate-limit rule; one made by hand keeps its place.
+    const full = (e) => /\b50001\b/.test(String(e?.message)) && keep.length > 0;
     try {
       await put(p.rules);
     } catch (e) {
+      if (full(e))
+        return void line(
+          "ℹ️",
+          `${p.name}: فيه قاعدة معمولة بالإيد واخدة المكان الوحيد في الخطة المجانية، سيبناها زي ما هي.`,
+        );
       if (!p.fallback || (e instanceof CfError && e.denied)) throw e;
-      await put(p.rules.map((r) => ({ ...r, expression: p.fallback })));
+      try {
+        await put(p.rules.map((r) => ({ ...r, expression: p.fallback })));
+      } catch (e2) {
+        if (full(e2))
+          return void line(
+            "ℹ️",
+            `${p.name}: فيه قاعدة معمولة بالإيد واخدة المكان الوحيد في الخطة المجانية، سيبناها زي ما هي.`,
+          );
+        throw e2;
+      }
     }
   });
 }
@@ -388,10 +407,20 @@ for (const p of PHASES) {
 const changed = report.some((l) => /^(➕|🔁|🔧)/u.test(l));
 if (apply && changed && failed === 0)
   await part("مسح الكاش", NEEDS.purge, () => cf("POST", `${Z}/purge_cache`, { purge_everything: true }));
-if (active && apply && changed) {
-  const r = await fetch(SITE_CHECK, { signal: AbortSignal.timeout(15_000) }).catch(() => null);
+if (active && apply) {
+  // Asked like the hourly monitor asks: a server, not a browser. It has to get the page too.
+  const r = await fetch(SITE_CHECK, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; BuildX-Check/1.0; +https://buildxhue.com)" },
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
   if (!r) line("⚠️", `${SITE_CHECK} مش بيفتح دلوقتي. لو لسه مشغّل الحماية، استنى دقيقتين وجرّب.`);
-  else {
+  else if (r.status >= 400) {
+    const challenged = r.headers.get("cf-mitigated") === "challenge";
+    line(
+      "⚠️",
+      `الموقع رد بـ ${r.status}${challenged ? " (Cloudflare عامل challenge)" : ""} على طلب من سيرفر. الزوار من المتصفح غالبًا شغالين عادي، بس المراقبة وبقلظ ممكن يتأثروا. لو فضل كده بعد دقيقتين، شغّل الزرار تاني.`,
+    );
+  } else {
     const via = r.headers.get("server") === "cloudflare";
     line(
       via ? "✅" : "ℹ️",

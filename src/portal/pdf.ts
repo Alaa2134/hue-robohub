@@ -23,10 +23,11 @@ async function capture(node: HTMLElement, widthPx: number): Promise<Jpeg> {
   return { bytes, width: Math.round(node.offsetWidth * ratio), height: Math.round(node.offsetHeight * ratio) };
 }
 
-/** A PDF with one full-page JPEG per page. */
-export function jpegsToPdf(pages: Jpeg[], landscape: boolean): Blob {
-  const pw = landscape ? A4.h : A4.w;
-  const ph = landscape ? A4.w : A4.h;
+/** A PDF with one full-page JPEG per page (A4, or a given size in mm, e.g. a card with its bleed). */
+export function jpegsToPdf(pages: Jpeg[], landscape: boolean, sizeMm?: { w: number; h: number }): Blob {
+  const mm = 72 / 25.4;
+  const pw = sizeMm ? sizeMm.w * mm : landscape ? A4.h : A4.w;
+  const ph = sizeMm ? sizeMm.h * mm : landscape ? A4.w : A4.h;
   const enc = new TextEncoder();
   const chunks: Uint8Array[] = [];
   const offsets: number[] = [];
@@ -72,8 +73,8 @@ export function jpegsToPdf(pages: Jpeg[], landscape: boolean): Blob {
 }
 
 /** Render each element as one A4 page and save or share the PDF. */
-export async function saveNodesAsPdf(nodes: HTMLElement[], name: string, o: { landscape?: boolean; widthPx?: number } = {}) {
+export async function saveNodesAsPdf(nodes: HTMLElement[], name: string, o: { landscape?: boolean; widthPx?: number; pageMm?: { w: number; h: number } } = {}) {
   const pages: Jpeg[] = [];
   for (const n of nodes) pages.push(await capture(n, o.widthPx ?? 2000));
-  download(jpegsToPdf(pages, !!o.landscape), name);
+  download(jpegsToPdf(pages, !!o.landscape, o.pageMm), name);
 }
