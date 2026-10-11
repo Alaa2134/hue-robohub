@@ -11,7 +11,9 @@ import { createPortal } from "react-dom";
 import { addressOf, currentAcademicYear, type FamilySettings } from "@/content/family";
 import { whatsappLink } from "@/lib/contact";
 import { can, errorText, isFull, must, publicOrigin, rpc, sb, today, type StaffRow } from "./core";
+import { FamilyPromoKit } from "./family-promo";
 import { saveNodesAsPdf } from "./pdf";
+import { sendOnWhatsApp } from "./wa-handoff";
 import { refreshStudents } from "./staff-data";
 import { downloadStyledXlsx, type XRow } from "./xlsx";
 import {
@@ -65,6 +67,11 @@ const STATUS: Record<FamilyMember["status"], { label: string; tone: "info" | "ok
   rejected: { label: "مستبعد", tone: "muted" },
 };
 
+const GROUP_LINK = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9]{10,40}$/;
+/** The welcome on WhatsApp ({name} = first name, filled in for each person), with the group link. */
+const welcomeText = (group: string | null) =>
+  `أهلاً {name} 👋\nتسجيلك في أسرة BuildX وصلنا، وبقيت رسمي معانا في كشف الأسرة 💙` +
+  (group ? `\nادخل جروب الأسرة عشان توصلك الإعلانات والرحلات: ${group}` : "");
 const masked = (nid: string) => `${"•".repeat(10)}${nid.slice(-4)}`;
 const byName = (a: FamilyMember, b: FamilyMember) => a.full_name.localeCompare(b.full_name, "ar");
 
@@ -395,6 +402,11 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
     ]);
     return { members, settings: fullSettings(settings?.value) };
   }, []);
+  const groupQ = useAsync(
+    () => rpc<{ group: string | null }>("staff_family_group", {}).catch(() => ({ group: null })),
+    [],
+  );
+  const group = groupQ.data?.group ?? null;
   const [year, setYear] = useState<string | null>(null);
   const [level, setLevel] = useState<number | null>(null);
   const [status, setStatus] = useState<FamilyMember["status"] | "active">("active");
@@ -596,17 +608,32 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
           </div>
 
           <div className="mt-4">
-            {write && fresh.length > 1 && (
-              <Button
-                size="sm"
-                icon="checkCircle"
-                className="mb-3"
-                onClick={acceptAll}
-                data-testid="family-accept-all"
-              >
-                قبول كل الجديد ({fresh.length})
-              </Button>
-            )}
+            <div className="mb-3 flex flex-wrap gap-2">
+              {write && fresh.length > 1 && (
+                <Button size="sm" icon="checkCircle" onClick={acceptAll} data-testid="family-accept-all">
+                  قبول كل الجديد ({fresh.length})
+                </Button>
+              )}
+              {shown.length > 0 && (
+                <Button
+                  size="sm"
+                  icon="chat"
+                  onClick={() =>
+                    sendOnWhatsApp(
+                      shown.map((m) => ({ phone: m.phone, name: m.full_name })),
+                      {
+                        label: `أسرة BuildX (${shown.length})`,
+                        context: "family",
+                        text: welcomeText(group),
+                      },
+                    )
+                  }
+                  data-testid="family-welcome"
+                >
+                  رسالة ترحيب واتساب ({shown.length})
+                </Button>
+              )}
+            </div>
             {!ofYear.length ? (
               <Empty
                 icon="users"
@@ -657,6 +684,7 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
           write={write}
           me={me}
           onClose={() => setOpen(null)}
+          group={group}
           onSaved={(m) => (patch(m), setOpen(m))}
         />
       )}
@@ -664,10 +692,12 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
         <SettingsSheet
           s={s}
           onClose={() => setSettingsOpen(false)}
+          group={group}
+          onGroup={(g) => groupQ.set({ group: g })}
           onSaved={(v) => set((d) => ({ members: d?.members ?? [], settings: fullSettings(v) }))}
         />
       )}
-      {shareOpen && <ShareSheet onClose={() => setShareOpen(false)} />}
+      {shareOpen && <ShareSheet family={s.family} year={shownYear} onClose={() => setShareOpen(false)} />}
       {printing &&
         createPortal(
           <div
@@ -688,12 +718,14 @@ function MemberSheet({
   m,
   write,
   me,
+  group,
   onClose,
   onSaved,
 }: {
   m: FamilyMember;
   write: boolean;
   me: StaffRow;
+  group: string | null;
   onClose: () => void;
   onSaved: (m: FamilyMember) => void;
 }) {
@@ -756,10 +788,7 @@ function MemberSheet({
     }
   };
 
-  const wa = whatsappLink(
-    m.phone,
-    `أهلاً ${m.full_name.split(" ")[0]} 👋\nتسجيلك في أسرة BuildX وصلنا (${m.ref}).`,
-  );
+  const wa = whatsappLink(m.phone, welcomeText(group).replace("{name}", m.full_name.split(" ")[0] ?? ""));
   const canStudents = isFull(me) || can(me, "roster");
   const line = (k: string, v: React.ReactNode, ltr?: boolean) => (
     <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] py-2.5 last:border-0">
@@ -881,19 +910,33 @@ function MemberSheet({
 
 function SettingsSheet({
   s,
+  group,
   onClose,
   onSaved,
+  onGroup,
 }: {
   s: Required<FamilySettings>;
+  group: string | null;
   onClose: () => void;
   onSaved: (v: FamilySettings) => void;
+  onGroup: (g: string | null) => void;
 }) {
   const [v, setV] = useState(s);
+  const [link, setLink] = useState(group ?? "");
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!/^\d{4}\/\d{4}$/.test(v.year)) return toast("اكتب السنة كده: 2026/2027", "error");
+    if (link.trim() && !GROUP_LINK.test(link.trim()))
+      return toast("لينك الجروب لازم يبدأ بـ https://chat.whatsapp.com/", "error");
     setBusy(true);
     try {
+      if (link.trim() !== (group ?? "")) {
+        const r = await rpc<{ group: string | null }>("staff_family_group", {
+          p_link: link.trim(),
+          p_set: true,
+        });
+        onGroup(r.group);
+      }
       onSaved(await rpc<FamilySettings>("staff_family_settings", { p: v }));
       toast("اتحفظ");
       onClose();
@@ -925,6 +968,17 @@ function SettingsSheet({
             maxLength={120}
           />
         </Field>
+        <Field
+          label="لينك جروب الأسرة على واتساب"
+          hint="بيظهر بس للي سجّل (بعد ما يبعت الفورم)، وبيتحط في رسالة الترحيب. مش بيظهر على الموقع لحد تاني."
+        >
+          <Input
+            value={link}
+            onChange={(e) => setLink(e.target.value)}
+            dir="ltr"
+            placeholder="https://chat.whatsapp.com/…"
+          />
+        </Field>
         <Button variant="primary" size="lg" icon="check" loading={busy} onClick={save} block>
           حفظ
         </Button>
@@ -933,7 +987,7 @@ function SettingsSheet({
   );
 }
 
-function ShareSheet({ onClose }: { onClose: () => void }) {
+function ShareSheet({ family, year, onClose }: { family: string; year: string; onClose: () => void }) {
   const url = `${publicOrigin()}/ar/family/`;
   const [qr, setQr] = useState<string | null>(null);
   useEffect(() => {
@@ -980,6 +1034,9 @@ function ShareSheet({ onClose }: { onClose: () => void }) {
             نزّل الـ QR للطباعة
           </a>
         )}
+        <div className="border-t border-[var(--line)] pt-4">
+          <FamilyPromoKit family={family} year={year} />
+        </div>
       </div>
     </Sheet>
   );

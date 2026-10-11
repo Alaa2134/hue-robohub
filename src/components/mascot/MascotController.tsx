@@ -1577,6 +1577,32 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
     return () => clearTimeout(t);
   }, [placed, brief]);
 
+  // A family sign-up started and not sent (the form keeps a draft, without the national ID): once a
+  // visit, on any other page, he offers to finish it. Never in the same visit as the application one.
+  useEffect(() => {
+    if (!placed || here.current.path === "/family" || FORM_ROUTES.some((r) => r.test(here.current.path))) return;
+    let name = "";
+    try {
+      if (sessionStorage.getItem("bx-guide-resume")) return;
+      const d = JSON.parse(localStorage.getItem("bx-family-draft") ?? "null") as { full_name?: string; phone?: string; address?: string; faculty?: string } | null;
+      if (!d || !(d.full_name?.trim() || d.phone?.trim() || d.address?.trim() || d.faculty?.trim())) return;
+      name = d.full_name?.trim().split(/\s+/)[0] ?? "";
+    } catch {
+      return;
+    }
+    let t = 0;
+    const attempt = () => {
+      try {
+        if (sessionStorage.getItem("bx-guide-resume")) return;
+      } catch {}
+      const line = name ? fill(LINES.resumeFamily, name) : LINES.resumeFamilyAnon;
+      if (brief({ ...line, actions: [{ kind: "go", href: "/family", label: LINES.finishFamily }, NOT_NOW] }, { prio: 1, clip: "Wave", ms: 12000 })) once("bx-guide-resume");
+      else t = window.setTimeout(attempt, 4000);
+    };
+    t = window.setTimeout(attempt, 13000);
+    return () => clearTimeout(t);
+  }, [placed, brief]);
+
   // The end of a page: he suggests the next one to see (a page not explored yet, else the next tour
   // stop). Once per page per visit; if he's busy talking it waits for a quiet moment.
   useEffect(() => {

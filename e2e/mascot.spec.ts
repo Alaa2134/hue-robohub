@@ -655,6 +655,18 @@ test("an application started and not sent: he offers to finish it, and takes you
   await expect(page).toHaveURL(/\/join\/$/, { timeout: 10_000 });
 });
 
+test("a family sign-up started and not sent: he offers to finish it, and takes you to the family form", async ({ page }) => {
+  await withGuide(page);
+  await page.addInitScript(() => localStorage.setItem("bx-family-draft", JSON.stringify({ full_name: "Omar Said", phone: "010", governorate: "دمياط" })));
+  await page.goto("/ar/about/");
+  await page.mouse.move(500, 400);
+  await expect(bubble(page).getByRole("button", { name: "بعدين" })).toBeVisible({ timeout: 15_000 });
+  await bubble(page).getByRole("button", { name: "بعدين" }).click();
+  await expect(bubble(page)).toContainText("يا Omar، تسجيلك في أسرة BuildX لسه ناقصه", { timeout: 25_000 });
+  await bubble(page).getByRole("button", { name: "كمّل التسجيل" }).click();
+  await expect(page).toHaveURL(/\/family\/$/, { timeout: 10_000 });
+});
+
 test("on the family page Baqloz pushes the form over (it jolts with every shove), and cheers when someone joins", async ({ page }) => {
   test.setTimeout(90_000);
   const errors = collectErrors(page);

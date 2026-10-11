@@ -499,6 +499,9 @@ export const LINES = {
   resumeApply: { en: "{p}, your application is still waiting 📝 Shall we finish it?", ar: "يا {p}، استمارة التقديم بتاعتك لسه مستنياك 📝 نكمّلها؟" },
   resumeApplyAnon: { en: "You started applying and didn't finish 📝 Shall we finish it?", ar: "إنت بدأت تقدّم ومكمّلتش 📝 نكمّلها سوا؟" },
   finishIt: { en: "Finish it", ar: "كمّل التقديم" },
+  resumeFamily: { en: "{p}, your BuildX family sign-up is half done 💙 Two more minutes?", ar: "يا {p}، تسجيلك في أسرة BuildX لسه ناقصه حاجات بسيطة 💙 نكمّله في دقيقتين؟" },
+  resumeFamilyAnon: { en: "You started joining the BuildX family and didn't finish 💙 Shall we finish it?", ar: "إنت بدأت تسجّل في أسرة BuildX ومكمّلتش 💙 نكمّل سوا؟" },
+  finishFamily: { en: "Finish signing up", ar: "كمّل التسجيل" },
 } satisfies Record<string, Text>;
 
 /**

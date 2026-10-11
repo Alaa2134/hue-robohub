@@ -954,7 +954,14 @@ test("family sign-up: the national ID is read back, the row previews like the un
       url.pathname.endsWith("/site_settings")
         ? [{ value: { open: true, year: "2026/2027", family: "BuildX", faculty: "الذكاء الاصطناعي" } }]
         : [],
-    rpc: { submit_family: () => ({ ok: true, ref: "FM-1A2B3C", year: "2026/2027" }) },
+    rpc: {
+      submit_family: () => ({
+        ok: true,
+        ref: "FM-1A2B3C",
+        year: "2026/2027",
+        group: "https://chat.whatsapp.com/AbCdEfGhIjKlMnOp",
+      }),
+    },
   });
   await page.goto("/ar/family/");
   const form = page.getByTestId("family-form");
@@ -986,6 +993,11 @@ test("family sign-up: the national ID is read back, the row previews like the un
   await form.getByRole("button", { name: "سجّلني في الأسرة" }).click();
   await expect(page.getByTestId("family-done")).toContainText("FM-1A2B3C");
   await expect(page.getByRole("link", { name: "ابعت اللينك لصحابك" })).toHaveAttribute("href", /wa\.me/);
+  // Only someone who signed up gets the family's WhatsApp group.
+  await expect(page.getByTestId("family-group")).toHaveAttribute(
+    "href",
+    "https://chat.whatsapp.com/AbCdEfGhIjKlMnOp",
+  );
   expect(await page.evaluate(() => localStorage.getItem("bx-family-draft"))).toBeNull();
   const sent = calls.find((c) => c.fn === "submit_family")!.body.p as Record<string, unknown>;
   expect(sent).toMatchObject({
