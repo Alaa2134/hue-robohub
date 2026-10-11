@@ -23,3 +23,11 @@ export const HTTPS_UPGRADE = `(function(){try{if(location.protocol!=="http:"||!/
  * load from there and use less data. Only over https (and on localhost for the tests).
  */
 export const SW_REGISTER = `(function(){if(!("serviceWorker" in navigator))return;if(location.protocol!=="https:"&&location.hostname!=="localhost")return;addEventListener("load",function(){navigator.serviceWorker.register("${BASE_PATH}/sw.js",{scope:"${BASE_PATH}/"}).catch(function(){})})})();`;
+
+/**
+ * Arabic for Arabic phones: a visitor whose browser prefers Arabic and lands on an English page goes
+ * to the same page in Arabic, unless they picked English themselves. Clicking any language link
+ * (they all carry hreflang) remembers the choice on the device. Crawlers are left alone, and so are
+ * pages already under /ar/ (which also keeps the shared 404 page from bouncing).
+ */
+export const AR_REDIRECT = `(function(){try{var K="bx-lang";document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[hreflang]");if(a)try{localStorage.setItem(K,a.getAttribute("hreflang"))}catch(_){}},true);if(document.documentElement.lang!=="en"||/bot|crawl|spider|slurp|headless|lighthouse|preview/i.test(navigator.userAgent))return;var p=null;try{p=localStorage.getItem(K)}catch(_){}var l=((navigator.languages&&navigator.languages[0])||navigator.language||"").toLowerCase();if((p||(l.indexOf("ar")===0?"ar":"en"))!=="ar")return;var b="${BASE_PATH}",x=location.pathname;if(b&&x.indexOf(b)===0)x=x.slice(b.length);if(/^\\/(ar|app)(\\/|$)/.test(x))return;location.replace(b+"/ar"+x+location.search+location.hash)}catch(e){}})();`;

@@ -5149,3 +5149,25 @@ test("team cards for the print shop: each card fills itself in, codes are made u
   ]);
   expect(errors).toEqual([]);
 });
+
+test("staff home says what the website is missing, and a line can be put aside", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/team_profiles/, (route) =>
+    route.fulfill({
+      json: [{ full_name: "Amr", full_name_ar: null, headline: "", photo_path: null, published: false }],
+    }),
+  );
+  await page.goto("/app/#/staff");
+  const card = page.getByTestId("site-gaps");
+  await card.getByRole("button").first().click();
+  await expect(card).toContainText("من صفحات الفريق مش منشورة");
+  await expect(card).toContainText("مفيش رعاة أو شركاء");
+  await expect(card).toContainText("مفيش لينك قناة واتساب");
+  await expect(card).toContainText("Leaked password protection");
+  const before = await card.getByRole("listitem").count();
+  await card.getByRole("listitem").first().getByRole("button", { name: "بعدين" }).click();
+  await expect(card.getByRole("listitem")).toHaveCount(before - 1);
+  expect(errors).toEqual([]);
+});

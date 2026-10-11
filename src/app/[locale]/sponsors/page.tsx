@@ -14,7 +14,9 @@ import { SectionHead } from "@/components/ui/section-head";
 import { art } from "@/lib/media-library";
 import { resolvePage, type Params } from "@/lib/page";
 import { pageMeta } from "@/lib/seo";
-import { getSponsors } from "@/server/queries/public";
+import { getSiteConfig, getSponsors } from "@/server/queries/public";
+import { LiveImpact } from "@/components/live/impact";
+import { MediaKitButton } from "@/components/forms/media-kit";
 import { LivePartners } from "@/components/live/live-content";
 import { buildItems } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
@@ -38,6 +40,8 @@ export default async function Sponsors({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
   const sponsors = STATIC_SITE ? [] : await getSponsors();
   const partners = STATIC_SITE ? await buildItems("partner") : [];
+  const contact = (await getSiteConfig())["site.contact"];
+  const kit = { locale, opportunities: PARTNERSHIP, tiers: p.sponsors.tiers, contact: { email: contact.email, phone: contact.phone, whatsapp: contact.whatsapp } };
   return (
     <>
       <PageHero
@@ -47,9 +51,12 @@ export default async function Sponsors({ params }: Params) {
         image={art("showcase", "arena", "hero")}
         crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.sponsors }]}
         actions={
-          <ButtonLink href={STATIC_SITE ? "#sponsor-request" : href("/contact")} variant="primary" arrow>
-            {p.sponsors.cta}
-          </ButtonLink>
+          <>
+            <ButtonLink href={STATIC_SITE ? "#sponsor-request" : href("/contact")} variant="primary" arrow>
+              {p.sponsors.cta}
+            </ButtonLink>
+            <MediaKitButton {...kit} />
+          </>
         }
       />
       <Band>
@@ -58,6 +65,7 @@ export default async function Sponsors({ params }: Params) {
           <CardGrid items={PARTNERSHIP} locale={locale} cols={3} />
         </div>
       </Band>
+      <LiveImpact locale={locale} id="sponsor-impact" />
       <Band alt>
         <SectionHead index="02" eyebrow={p.sponsors.tiersTitle} title={p.sponsors.tiersTitle} size="md" />
         <div className="mt-12 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

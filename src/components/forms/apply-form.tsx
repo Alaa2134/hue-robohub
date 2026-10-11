@@ -55,6 +55,18 @@ const EMPTY: Data = {
 };
 
 const DRAFT_KEY = "buildx_apply_draft_v1";
+
+/**
+ * Where people stop: each step reached (and the sent screen) is counted once per visit as a page
+ * view of /join/step-N/ (or /join/sent/), so the visits screen in the app shows the drop-off.
+ */
+const seenSteps = new Set<string>();
+function trackStep(locale: string, step: string) {
+  const path = `${locale === "ar" ? "/ar" : ""}/join/${step}/`;
+  if (seenSteps.has(path)) return;
+  seenSteps.add(path);
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/track_view`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_path: path, p_locale: locale }), keepalive: true }).catch(() => undefined);
+}
 const STEP_FIELDS: (keyof Data)[][] = [
   ["full_name", "phone", "email", "faculty", "academic_year", "student_number"],
   ["track_first", "track_second", "team_roles", "experience_level", "skills", "experience", "portfolio_url"],
@@ -245,6 +257,9 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
   const t = T[locale];
   const [d, setD] = useState<Data>(EMPTY);
   const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (step > 0) trackStep(locale, `step-${step + 1}`);
+  }, [step, locale]);
   const [errors, setErrors] = useState<Partial<Record<keyof Data, string>>>({});
   const [formError, setFormError] = useState("");
   const [sending, setSending] = useState(false);
@@ -339,6 +354,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
           ref = localStorage.getItem("bx-last-ref") ?? "";
         } catch {}
       setDone({ ref, duplicate: !!out.duplicate });
+      trackStep(locale, "sent");
       try {
         localStorage.removeItem(DRAFT_KEY);
         if (out.ref && out.ref !== "BX-000000") localStorage.setItem("bx-last-ref", out.ref);

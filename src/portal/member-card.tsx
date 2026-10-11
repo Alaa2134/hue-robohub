@@ -136,7 +136,7 @@ export function MemberCardScreen() {
             <Badge tone={s.tone}>{s.label}</Badge>
           </div>
           <div className="mt-5 flex justify-center">
-            <Qr value={data.card} size={200} />
+            <Qr value={`https://buildxhue.com/verify/member/?c=${data.card}`} size={200} />
           </div>
           <p className="mt-3 text-center font-mono text-sm tracking-wider text-mist" dir="ltr">
             {data.card}
