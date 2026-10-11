@@ -1,0 +1,22 @@
+# Response headers for the Cloudflare Pages copy of the site (GitHub Pages can't send any).
+# The page's own <meta> CSP still applies; this adds what only a header can do.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(self), microphone=(self), geolocation=()
+  Cross-Origin-Opener-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000
+
+# Next's hashed files never change under the same name.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The service worker must always be checked for a new version.
+/sw.js
+  Cache-Control: no-cache
+
+# The test address (*.pages.dev) stays out of search results; only buildxhue.com is indexed.
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex
