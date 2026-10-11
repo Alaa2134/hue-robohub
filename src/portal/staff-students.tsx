@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import { can, isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, errorText, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
@@ -158,7 +158,7 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
         )}
       </div>
 
-      <StudentSheet student={editing} me={me} groups={groups} onClose={() => setEditing(null)} onPins={setPins} />
+      <StudentSheet student={editing} me={me} groups={groups} existing={list ?? []} onClose={() => setEditing(null)} onPins={setPins} />
       <BulkSheet open={bulk} onClose={() => setBulk(false)} groups={groups} existing={list ?? []} onPins={setPins} />
       <PinsSheet open={pinsOpen} onClose={() => setPinsOpen(false)} groups={groups} students={list ?? []} onPins={setPins} />
       <PinResults items={pins} onClose={() => setPins(null)} />
@@ -169,17 +169,38 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
 
 /* ─── Add / edit one student ───────────────────────────────────────────── */
 
-function StudentSheet({ student, me, groups, onClose, onPins }: { student: Student | "new" | null; me: StaffRow; groups: string[]; onClose: () => void; onPins: (p: PinItem[]) => void }) {
+const sameName = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.replace(/\s+/g, " ").trim();
+
+/**
+ * Only the name is needed: no code → the database makes one (BX1001…). «أضِف وكمّل» keeps the sheet
+ * open for the next student (same group), and the login codes of everyone added show together at the end.
+ */
+function StudentSheet({ student, me, groups, existing, onClose, onPins }: { student: Student | "new" | null; me: StaffRow; groups: string[]; existing: Student[]; onClose: () => void; onPins: (p: PinItem[]) => void }) {
   const isNew = student === "new";
   const s = student && student !== "new" ? student : null;
   const [form, setForm] = useState({ code: "", name: "", group: "", phone: "", notes: "", barcode: "", active: true, withPin: true, memberUntil: "" });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<false | "one" | "next">(false);
   const [scanning, setScanning] = useState<null | "code" | "barcode">(null);
   const [reporting, setReporting] = useState(false);
+  const [more, setMore] = useState(false);
+  const [added, setAdded] = useState<{ name: string; code: string }[]>([]);
+  const pinsSoFar = useRef<PinItem[]>([]);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const twin = form.name.trim() ? existing.find((x) => x.id !== s?.id && sameName(x.name, form.name)) : undefined;
+
+  const close = () => {
+    if (pinsSoFar.current.length) onPins(pinsSoFar.current);
+    pinsSoFar.current = [];
+    setAdded([]);
+    onClose();
+  };
 
   useEffect(() => {
     if (!student) return;
     setScanning(null);
+    setMore(false);
+    setAdded([]);
+    pinsSoFar.current = [];
     setForm(
       s
         ? { code: s.code, name: s.name, group: s.group, phone: s.phone ?? "", notes: s.notes ?? "", barcode: s.barcode ?? "", active: s.active, withPin: false, memberUntil: s.memberUntil ?? "" }
@@ -187,24 +208,33 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
     );
   }, [student]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const save = async (e: FormEvent) => {
+  const save = async (e: Pick<FormEvent, "preventDefault">, next = false) => {
     e.preventDefault();
-    if (!codeKey(form.code)) return toast("رقم الطالب يجب أن يحتوي على حروف أو أرقام.", "error");
-    setBusy(true);
+    if (form.code.trim() && !codeKey(form.code)) return toast("رقم الطالب يجب أن يحتوي على حروف أو أرقام.", "error");
+    if (s && !form.code.trim()) return toast("اكتب رقم الطالب.", "error");
+    setBusy(next ? "next" : "one");
     try {
       const row = { code: form.code.trim(), full_name: form.name.trim(), group_name: form.group, phone: form.phone.trim() || null, notes: form.notes.trim() || null, barcode: form.barcode.trim() || null, active: form.active, member_until: form.memberUntil || null };
       if (s) {
         must(await sb().from("students").update(row).eq("id", s.id).select());
         toast("تم الحفظ");
       } else {
-        const created = must(await sb().from("students").insert(row).select("id").single()) as { id: string };
-        toast("تمت إضافة الطالب");
-        if (form.withPin) onPins(await rpc<PinItem[]>("staff_set_pins", { p_ids: [created.id], p_only_missing: false }));
+        const created = must(await sb().from("students").insert(row).select("id,code").single()) as { id: string; code: string };
+        toast(`اتضاف ${row.full_name} · ${created.code}`);
+        if (form.withPin) pinsSoFar.current = [...pinsSoFar.current, ...(await rpc<PinItem[]>("staff_set_pins", { p_ids: [created.id], p_only_missing: false }))];
+        if (next) {
+          setAdded((a) => [...a, { name: row.full_name, code: created.code }]);
+          setForm((f) => ({ ...f, code: "", name: "", phone: "", notes: "", barcode: "" }));
+          refreshStudents().catch(() => undefined);
+          nameRef.current?.focus();
+          return;
+        }
       }
       await refreshStudents();
-      onClose();
+      close();
     } catch (e2) {
-      toast.error(e2);
+      const msg = errorText(e2);
+      toast(/code_taken|barcode_taken|duplicate|unique|code_key/i.test(msg) ? "رقم الطالب ده مستخدم لطالب تاني. غيّره أو سيبه فاضي ويتعمل لوحده." : msg, "error");
     } finally {
       setBusy(false);
     }
@@ -238,11 +268,23 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
   const set = (k: "code" | "name" | "phone" | "notes" | "barcode") => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
-    <Sheet open={!!student} onClose={onClose} title={isNew ? "إضافة طالب" : (s?.name ?? "")}>
-      <form onSubmit={save} className="grid gap-4">
-        <Field label="رقم الطالب (رقم الكارنيه)">
+    <Sheet open={!!student} onClose={close} title={isNew ? "إضافة طالب" : (s?.name ?? "")}>
+      <form onSubmit={save} className="grid gap-4" data-testid="student-form">
+        {added.length > 0 && (
+          <div className="rounded-xl border border-ok/30 bg-ok/[0.07] px-3 py-2.5 text-sm text-mist" data-testid="added-list">
+            <p className="font-semibold text-chalk">اتضاف {added.length === 1 ? "طالب" : `${added.length} طلاب`}، كمّل اللي بعده</p>
+            <p className="mt-1 truncate text-xs text-fog">{added.map((a) => `${a.name} (${a.code})`).join(" · ")}</p>
+          </div>
+        )}
+        {isNew && (
+          <Field label="الاسم">
+            <Input ref={nameRef} value={form.name} onChange={set("name")} required maxLength={120} autoComplete="off" autoFocus />
+            {twin && <p className="mt-1.5 text-xs text-warn">فيه طالب بنفس الاسم: {twin.name} ({twin.code}){twin.group ? ` · ${twin.group}` : ""}</p>}
+          </Field>
+        )}
+        <Field label={isNew ? "رقم الطالب (اختياري)" : "رقم الطالب (رقم الكارنيه)"} hint={isNew ? "رقم الكارنيه لو معاك، أو امسحه بالكاميرا. لو سبته فاضي هيتعمل له رقم لوحده (BX1001…)." : undefined}>
           <div className="flex gap-2">
-            <Input value={form.code} onChange={set("code")} dir="ltr" className="font-mono" required maxLength={40} autoComplete="off" />
+            <Input value={form.code} onChange={set("code")} dir="ltr" className="font-mono" required={!isNew} maxLength={40} autoComplete="off" />
             <IconButton icon="camera" label="مسح من الكارنيه" onClick={() => setScanning(scanning === "code" ? null : "code")} className="size-12 border border-[var(--line-2)]" />
           </div>
         </Field>
@@ -256,9 +298,11 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
             }}
           />
         )}
-        <Field label="الاسم">
-          <Input value={form.name} onChange={set("name")} required maxLength={120} autoComplete="off" />
-        </Field>
+        {!isNew && (
+          <Field label="الاسم">
+            <Input value={form.name} onChange={set("name")} required maxLength={120} autoComplete="off" />
+          </Field>
+        )}
         <Field label="المجموعة">
           <GroupSelect value={form.group} onChange={(group) => setForm((f) => ({ ...f, group }))} groups={groups} allLabel="بدون مجموعة" allowNew />
         </Field>
@@ -273,20 +317,40 @@ function StudentSheet({ student, me, groups, onClose, onPins }: { student: Stude
             </div>
           </Field>
         )}
-        <Field label="ملاحظات (اختياري)">
-          <Textarea value={form.notes} onChange={set("notes")} rows={2} maxLength={2000} />
-        </Field>
-        <Field label="العضوية سارية لحد (اختياري)" hint="فاضي يعني عضوية مفتوحة. قبلها بأسبوعين بيوصله تذكير يجدّد.">
-          <Input type="date" dir="ltr" value={form.memberUntil} onChange={(e) => setForm((f) => ({ ...f, memberUntil: e.target.value }))} />
-        </Field>
-        {isNew ? (
-          <Toggle checked={form.withPin} onChange={(withPin) => setForm((f) => ({ ...f, withPin }))} label="إنشاء رمز دخول للتطبيق الآن" />
+        {isNew && !more ? (
+          <button type="button" onClick={() => setMore(true)} className="flex items-center gap-1 justify-self-start text-sm text-cyan hover:underline">
+            <Icon name="plus" size={14} />
+            تفاصيل أكتر (ملاحظات، العضوية، رمز الدخول)
+          </button>
         ) : (
-          <Toggle checked={form.active} onChange={(active) => setForm((f) => ({ ...f, active }))} label="طالب نشط" hint="الطالب الموقوف لا يُسجَّل حضوره ولا يدخل التطبيق." />
+          <>
+            <Field label="ملاحظات (اختياري)">
+              <Textarea value={form.notes} onChange={set("notes")} rows={2} maxLength={2000} />
+            </Field>
+            <Field label="العضوية سارية لحد (اختياري)" hint="فاضي يعني عضوية مفتوحة. قبلها بأسبوعين بيوصله تذكير يجدّد.">
+              <Input type="date" dir="ltr" value={form.memberUntil} onChange={(e) => setForm((f) => ({ ...f, memberUntil: e.target.value }))} />
+            </Field>
+            {isNew ? (
+              <Toggle checked={form.withPin} onChange={(withPin) => setForm((f) => ({ ...f, withPin }))} label="إنشاء رمز دخول للتطبيق الآن" />
+            ) : (
+              <Toggle checked={form.active} onChange={(active) => setForm((f) => ({ ...f, active }))} label="طالب نشط" hint="الطالب الموقوف لا يُسجَّل حضوره ولا يدخل التطبيق." />
+            )}
+          </>
         )}
-        <Button type="submit" variant="primary" size="lg" loading={busy} icon="check" block>
-          {isNew ? "إضافة" : "حفظ"}
-        </Button>
+        {isNew ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Button type="button" size="lg" loading={busy === "next"} disabled={!!busy} icon="plus" onClick={(e) => void save(e, true)} data-testid="add-next">
+              أضِف وكمّل
+            </Button>
+            <Button type="submit" variant="primary" size="lg" loading={busy === "one"} disabled={!!busy} icon="check">
+              {added.length ? "أضِف وخلّصت" : "أضِف"}
+            </Button>
+          </div>
+        ) : (
+          <Button type="submit" variant="primary" size="lg" loading={!!busy} icon="check" block>
+            حفظ
+          </Button>
+        )}
         {s && (
           <div className="grid gap-2 border-t border-[var(--line)] pt-4">
             <p className="text-xs text-fog">
@@ -331,10 +395,13 @@ function parseBulk(text: string, defaultGroup: string, existing: Set<string>) {
       const m = line.match(/^(.+?)\s+(\S*\d\S*)$/);
       if (m) cells = [m[2]!, m[1]!];
     }
+    // A line with only a name: the database makes the code (BX1001…).
+    if (cells.length === 1 && !digits(cells[0]!)) cells = ["", cells[0]!];
     const [code = "", name = "", group = defaultGroup] = cells;
     const key = codeKey(code);
     let note: string | undefined;
-    if (!key) note = "رقم غير صالح";
+    if (!code && name) note = undefined;
+    else if (!key) note = "رقم غير صالح";
     else if (!name) note = "بدون اسم";
     else if (seen.has(key)) note = "مكرر في القائمة";
     else if (existing.has(key)) note = "مسجّل بالفعل";
@@ -377,7 +444,7 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
   return (
     <Sheet open={open} onClose={onClose} title="إضافة مجموعة طلاب" wide>
       <div className="grid gap-4">
-        <Field label="الطلاب (سطر لكل طالب)" hint="رقم الطالب ثم الاسم، مفصولين بفاصلة أو مسافة أو Tab. ينفع تنسخ عمودين من Excel مباشرة. عمود ثالث اختياري للمجموعة.">
+        <Field label="الطلاب (سطر لكل طالب)" hint="رقم الطالب ثم الاسم، مفصولين بفاصلة أو مسافة أو Tab. ينفع تنسخ عمودين من Excel مباشرة. عمود ثالث اختياري للمجموعة. ولو معندكش أرقام، اكتب الأسماء بس (اسم في كل سطر) وكل واحد هيتعمل له رقم.">
           <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} dir="auto" placeholder={"20210345, أحمد علي\n20210346, منى سامي"} className="font-mono text-sm" />
         </Field>
         <Field label="المجموعة">
@@ -391,7 +458,7 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
                 {rows.map((r, i) => (
                   <tr key={i} className={r.note ? "text-fog" : "text-chalk"}>
                     <td className="px-3 py-2 font-mono" dir="ltr">
-                      {r.code}
+                      {r.code || <span className="font-sans text-xs text-fog">رقم تلقائي</span>}
                     </td>
                     <td className="px-3 py-2">{r.name}</td>
                     <td className="px-3 py-2 text-xs text-fog">{r.group}</td>

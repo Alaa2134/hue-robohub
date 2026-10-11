@@ -80,6 +80,7 @@ import {
   useAsync,
   type IconKey,
 } from "./ui";
+import { LanguageCard } from "./language";
 
 const TABS: Tab[] = [
   { href: "/staff", label: "الرئيسية", icon: "home", match: (p) => p.length === 0 },
@@ -860,6 +861,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
       <div className="mt-4">
         <InstallCard />
       </div>
+      <LanguageCard />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={() => sb().auth.signOut()}>
         تسجيل الخروج
       </Button>

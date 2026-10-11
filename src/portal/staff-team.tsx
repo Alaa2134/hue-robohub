@@ -31,6 +31,7 @@ import {
   toast,
   useAsync,
 } from "./ui";
+import { LanguageCard } from "./language";
 
 export async function staffAdmin(body: Record<string, unknown>) {
   const { data, error } = await sb().functions.invoke("staff-admin", { body });
@@ -460,6 +461,7 @@ export function AccountScreen({ me, onProfile }: { me: StaffRow; onProfile: (s: 
       <div className="mt-4">
         <BiometricToggle />
       </div>
+      <LanguageCard />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={() => sb().auth.signOut()}>
         تسجيل الخروج
       </Button>

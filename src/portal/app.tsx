@@ -13,6 +13,8 @@ import { Onboarding, needsOnboarding } from "./onboarding";
 import { ForgotForm } from "./access-requests";
 import { BiometricGate } from "./biometric";
 import { Button, Card, Field, Icon, Input, Overlays, Spinner, go, useRoute } from "./ui";
+import { appLang, startEnglish } from "./i18n";
+import { LangSwitch } from "./language";
 import { isNoise } from "@/lib/error-noise";
 
 const AppPlugin = registerPlugin<{ addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle> }>("App");
@@ -45,6 +47,7 @@ export default function PortalApp() {
 
   useEffect(() => {
     setMounted(true);
+    if (appLang() === "en") startEnglish().catch(() => document.documentElement.classList.remove("bx-en-pending"));
     setOnboarding(needsOnboarding());
     const sync = () => setStudent(studentStore.get());
     sync();
@@ -188,11 +191,13 @@ function AuthFrame({ children, back }: { children: ReactNode; back?: boolean }) 
     <div className="flex min-h-dvh flex-col bg-abyss bg-[radial-gradient(100%_55%_at_50%_0%,rgb(43_109_255/0.18),transparent_65%)] px-4 pb-10 pt-[calc(1.25rem+env(safe-area-inset-top))]">
       <div className="mx-auto flex w-full max-w-md items-center justify-between">
         <BrandLine />
-        {back && (
+        {back ? (
           <a href="#/" className="flex items-center gap-1 text-sm text-mist hover:text-chalk">
             رجوع
             <Icon name="chevron" size={16} className="rotate-180" />
           </a>
+        ) : (
+          <LangSwitch />
         )}
       </div>
       <div className="mx-auto mt-8 w-full max-w-md flex-1">{children}</div>
