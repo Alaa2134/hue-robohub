@@ -1201,6 +1201,58 @@ test("staff make a student's monthly report as a PDF", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("adding a student needs only the name, and «add and next» keeps going with the codes shown at the end", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  RPC.staff_list_students = [
+    {
+      id: "s1",
+      code: "S1",
+      codeKey: "s1",
+      barcode: null,
+      barcodeKey: null,
+      name: "Mona Adel",
+      group: "G1",
+      phone: null,
+      notes: null,
+      active: true,
+      createdAt: at(10),
+      hasPin: true,
+    },
+  ];
+  await signInAsOwner(page);
+  const inserted: Record<string, unknown>[] = [];
+  let n = 1000;
+  await page.route(/\/rest\/v1\/students/, (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ json: [] });
+    inserted.push(route.request().postDataJSON());
+    n += 1;
+    return route.fulfill({ json: { id: `new${n}`, code: `BX${n}` } });
+  });
+  await page.goto("/app/#/staff/students");
+  await page.getByRole("button", { name: "طالب", exact: true }).click();
+  const form = page.getByTestId("student-form");
+  await expect(form.getByLabel("رقم الطالب (اختياري)")).toBeVisible();
+  await expect(form.getByLabel("ملاحظات (اختياري)")).toHaveCount(0);
+  await form.getByLabel("الاسم").fill("Ahmed Ali");
+  await form.getByTestId("add-next").click();
+  await expect(form.getByTestId("added-list")).toContainText("Ahmed Ali (BX1001)");
+  await expect(form.getByLabel("الاسم")).toHaveValue("");
+  await expect(form.getByLabel("الاسم")).toBeFocused();
+  await form.getByLabel("الاسم").fill("Mona  Adel");
+  await expect(form.getByText("فيه طالب بنفس الاسم: Mona Adel (S1)")).toBeVisible();
+  await form.getByLabel("الاسم").fill("Sara Nabil");
+  await form.getByRole("button", { name: "أضِف وخلّصت" }).click();
+  await expect(page.getByRole("dialog").getByText("2 رمز دخول")).toBeVisible();
+  expect(inserted.map((r) => [r.code, r.full_name])).toEqual([
+    ["", "Ahmed Ali"],
+    ["", "Sara Nabil"],
+  ]);
+  expect(errors).toEqual([]);
+});
+
 test("a trainer only sees the areas the owner gave them", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
