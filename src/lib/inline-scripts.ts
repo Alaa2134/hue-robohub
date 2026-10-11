@@ -31,3 +31,13 @@ export const SW_REGISTER = `(function(){if(!("serviceWorker" in navigator))retur
  * pages already under /ar/ (which also keeps the shared 404 page from bouncing).
  */
 export const AR_REDIRECT = `(function(){try{var K="bx-lang";document.addEventListener("click",function(e){var a=e.target&&e.target.closest&&e.target.closest("a[hreflang]");if(a)try{localStorage.setItem(K,a.getAttribute("hreflang"))}catch(_){}},true);if(document.documentElement.lang!=="en"||/bot|crawl|spider|slurp|headless|lighthouse|preview/i.test(navigator.userAgent))return;var p=null;try{p=localStorage.getItem(K)}catch(_){}var l=((navigator.languages&&navigator.languages[0])||navigator.language||"").toLowerCase();if((p||(l.indexOf("ar")===0?"ar":"en"))!=="ar")return;var b="${BASE_PATH}",x=location.pathname;if(b&&x.indexOf(b)===0)x=x.slice(b.length);if(/^\\/(ar|app)(\\/|$)/.test(x))return;location.replace(b+"/ar"+x+location.search+location.hash)}catch(e){}})();`;
+
+/** Where the app keeps its language on the device (src/portal/i18n.ts). */
+export const APP_LANG_KEY = "bx-app-lang";
+
+/**
+ * The app in English, before anything draws: the page turns left-to-right, dates and numbers are
+ * written in English (any Arabic locale the code asks for becomes en-GB), and the page stays hidden
+ * until the texts are swapped (at most 3 seconds).
+ */
+export const APP_LANG = `(function(){try{if(localStorage.getItem("${APP_LANG_KEY}")!=="en")return;var d=document.documentElement;d.lang="en";d.dir="ltr";d.classList.add("bx-en-pending");setTimeout(function(){d.classList.remove("bx-en-pending")},3000);var fix=function(l){return Array.isArray(l)?l.map(fix):(l==null||/^ar/i.test(String(l)))?"en-GB":l};["DateTimeFormat","NumberFormat","RelativeTimeFormat","ListFormat","PluralRules"].forEach(function(n){var C=Intl[n];if(!C)return;var W=function(l,o){return new C(fix(l),o)};W.prototype=C.prototype;W.supportedLocalesOf=C.supportedLocalesOf;Intl[n]=W});[[Date.prototype,"toLocaleString"],[Date.prototype,"toLocaleDateString"],[Date.prototype,"toLocaleTimeString"],[Number.prototype,"toLocaleString"]].forEach(function(p){var f=p[0][p[1]];p[0][p[1]]=function(l,o){return f.call(this,fix(l),o)}})}catch(e){}})();`;

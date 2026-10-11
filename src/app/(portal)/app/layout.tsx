@@ -2,7 +2,7 @@ import "../../globals.css";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { portalFontVariables } from "@/lib/fonts";
-import { FRAME_GUARD, HTTPS_UPGRADE } from "@/lib/inline-scripts";
+import { APP_LANG, FRAME_GUARD, HTTPS_UPGRADE } from "@/lib/inline-scripts";
 
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 const SUPABASE = (process.env.NEXT_PUBLIC_SUPABASE_URL || "https://zrtfupdnfxxnguznphis.supabase.co").replace(/\/+$/, "");
@@ -49,14 +49,15 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-/** BuildX App: Arabic, client-only PWA backed by Supabase (works on static hosting). */
+/** BuildX App: Arabic (or English per device, see portal/i18n.ts), client-only PWA backed by Supabase (works on static hosting). */
 export default function PortalRoot({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
-        <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE }} />
+        <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + APP_LANG }} />
+        <style>{"html.bx-en-pending body{visibility:hidden}html[dir=ltr] .bx-dir{scale:-1 1}"}</style>
       </head>
       <body className="bg-abyss text-frost antialiased">{children}</body>
     </html>

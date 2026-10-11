@@ -20,6 +20,8 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npm run lint
+      # Every Arabic text in the app has its English (src/portal/i18n/en.json).
+      - run: node scripts/i18n-extract.mjs --check
       # Chromium first: the build draws the share images with it, then the smoke tests use it.
       - run: npx playwright install --with-deps chromium
       - name: Build

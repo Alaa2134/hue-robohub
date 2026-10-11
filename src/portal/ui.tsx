@@ -117,7 +117,11 @@ const APP_ICONS = {
 
 export type IconKey = IconName | keyof typeof APP_ICONS;
 
-export function Icon({ name, size = 20, className }: { name: IconKey; size?: number; className?: string }) {
+/** Icons that point along the reading direction: mirrored when the app runs left-to-right (English). */
+const DIRECTIONAL = new Set<string>(["chevron", "logout"]);
+
+export function Icon({ name, size = 20, className: cls }: { name: IconKey; size?: number; className?: string }) {
+  const className = DIRECTIONAL.has(name) ? cn("bx-dir", cls) : cls;
   if (name in APP_ICONS)
     return (
       <Svg size={size} className={className}>
@@ -486,7 +490,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
   }, [open, onClose]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true" dir="rtl">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" role="dialog" aria-modal="true">
       <button type="button" aria-label="إغلاق" className="absolute inset-0 bg-[#01030a]/75 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={panel}

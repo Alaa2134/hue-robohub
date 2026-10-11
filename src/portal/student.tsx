@@ -41,6 +41,7 @@ import {
   toast,
   useAsync,
 } from "./ui";
+import { LanguageCard } from "./language";
 
 type HomeMaterial = { id: string; title: string; description: string; kind: "file" | "link"; path: string | null; url: string | null; fileName: string | null; mime: string | null; size: number | null; pinned: boolean; at: string };
 type HomeQuiz = {
@@ -557,6 +558,7 @@ function Account({ session }: { session: StudentSession }) {
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
       <SiteCard className="mt-4" />
+      <LanguageCard />
       <Button variant="danger" icon="logout" className="mt-6" block onClick={logout}>
         تسجيل الخروج
       </Button>

@@ -1253,6 +1253,63 @@ test("adding a student needs only the name, and «add and next» keeps going wit
   expect(errors).toEqual([]);
 });
 
+test("the app in English: picked on the sign-in screen, then every screen reads left-to-right in English", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.route(/supabase\.co/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/");
+  await page.getByTestId("lang-switch").click();
+  await expect(page.locator("html")).toHaveAttribute("dir", "ltr");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.getByTestId("lang-switch")).toHaveText(/العربية/);
+  expect(errors).toEqual([]);
+});
+
+test("in English, staff screens, buttons, search hints and dates are English, and typed names stay as typed", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() => localStorage.setItem("bx-app-lang", "en"));
+  RPC.staff_list_students = [
+    {
+      id: "s1",
+      code: "S1",
+      codeKey: "s1",
+      barcode: null,
+      barcodeKey: null,
+      name: "منى عادل",
+      group: "G1",
+      phone: null,
+      notes: null,
+      active: true,
+      createdAt: at(10),
+      hasPin: true,
+    },
+  ];
+  await signInAsOwner(page);
+  await page.goto("/app/#/staff/students");
+  await expect(page.getByRole("heading", { name: "Students" })).toBeVisible();
+  await expect(page.getByPlaceholder("Search by name or ID number")).toBeVisible();
+  await expect(page.getByText("منى عادل")).toBeVisible();
+  await page
+    .getByRole("button", { name: "طالب", exact: true })
+    .or(page.getByRole("button", { name: "Student", exact: true }))
+    .click();
+  await expect(page.getByTestId("student-form").getByText("Student code (optional)")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
+  await expect(page.getByTestId("app-language")).toContainText("اللغة · Language");
+  await expect(page.getByText(/تسجيل الخروج/)).toHaveCount(0);
+  expect(
+    await page.evaluate(() => new Date(Date.UTC(2026, 9, 11)).toLocaleDateString("ar-EG", { month: "long" })),
+  ).toBe("October");
+  expect(errors).toEqual([]);
+});
+
 test("a trainer only sees the areas the owner gave them", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
