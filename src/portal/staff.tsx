@@ -1,7 +1,20 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
 import { useEffect, useMemo, useState } from "react";
-import { isFull, ROLE_LABEL, can, canSee, fmt, holdViewOnly, must, rpc, sb, type Area, type Session, type StaffRow } from "./core";
+import {
+  isFull,
+  ROLE_LABEL,
+  can,
+  canSee,
+  fmt,
+  holdViewOnly,
+  must,
+  rpc,
+  sb,
+  type Area,
+  type Session,
+  type StaffRow,
+} from "./core";
 import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
@@ -29,13 +42,22 @@ import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
 import { DirectoryScreen } from "./staff-directory";
+import { SponsorReportScreen } from "./sponsor-report";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
 import { WhatsAppScreen } from "./whatsapp";
 import { PageEditor, PagesScreen } from "./staff-pages";
 import { BansScreen, DelegationCheckin } from "./expo-delegation";
-import { MyTasksScreen, SectorScreen, SectorsScreen, TeamTaskScreen, TeamTasksHome, WarningsScreen, teamSummary } from "./staff-sectors";
+import {
+  MyTasksScreen,
+  SectorScreen,
+  SectorsScreen,
+  TeamTaskScreen,
+  TeamTasksHome,
+  WarningsScreen,
+  teamSummary,
+} from "./staff-sectors";
 import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./team";
 import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
 import { MeetingScreen, MeetingsScreen } from "./team-meetings";
@@ -84,6 +106,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   directory: "site",
   forms: ["forms", "expo"],
   inbox: "inbox",
+  "sponsor-report": "inbox",
   certificates: "certificates",
   settings: "settings",
   apps: "settings",
@@ -138,7 +161,10 @@ function ViewOnly({ areas, children }: { areas: Area[]; children: React.ReactNod
   useEffect(() => holdViewOnly(areas.flatMap((a) => AREA_TABLES[a] ?? [])), [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
-      <p data-testid="view-only" className="mt-3 flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-2 text-xs text-cyan">
+      <p
+        data-testid="view-only"
+        className="mt-3 flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-2 text-xs text-cyan"
+      >
         <Icon name="eye" size={16} />
         مشاهدة بس: تقدر تشوف كل حاجة هنا، والتعديل مقفول عليك.
       </p>
@@ -291,6 +317,9 @@ export function StaffApp({
     case "inbox":
       screen = <InboxScreen me={me} />;
       break;
+    case "sponsor-report":
+      screen = <SponsorReportScreen />;
+      break;
     case "directory":
       screen = <DirectoryScreen me={me} />;
       break;
@@ -311,11 +340,26 @@ export function StaffApp({
       screen = <MyTasksScreen key={query.get("t") ?? ""} openId={query.get("t")} />;
       break;
     case "sectors":
-      screen = id ? sub ? <TeamTaskScreen key={sub} sectorId={id} id={sub} me={me} /> : <SectorScreen key={`${id}${query.get("task") ?? ""}`} id={id} me={me} query={query} /> : <SectorsScreen />;
+      screen = id ? (
+        sub ? (
+          <TeamTaskScreen key={sub} sectorId={id} id={sub} me={me} />
+        ) : (
+          <SectorScreen key={`${id}${query.get("task") ?? ""}`} id={id} me={me} query={query} />
+        )
+      ) : (
+        <SectorsScreen />
+      );
       break;
     case "meetings":
       screen = id ? (
-        <MeetingScreen key={id} id={id} query={query} onTask={(m, text) => m.sector_id && go(`/staff/sectors/${m.sector_id}?task=${encodeURIComponent(text)}`)} />
+        <MeetingScreen
+          key={id}
+          id={id}
+          query={query}
+          onTask={(m, text) =>
+            m.sector_id && go(`/staff/sectors/${m.sector_id}?task=${encodeURIComponent(text)}`)
+          }
+        />
       ) : (
         <MeetingsScreen />
       );
@@ -396,7 +440,9 @@ function StaffHome({ me }: { me: StaffRow }) {
     const projects = can(me, "site") ? await pendingStudentProjects().catch(() => 0) : 0;
     const atRisk = can(me, "roster") ? await atRiskCount().catch(() => 0) : 0;
     const team = await teamSummary().catch(() => null);
-    const award = await rpc<{ name: string; month: string; note: string | null } | null>("staff_award_latest").catch(() => null);
+    const award = await rpc<{ name: string; month: string; note: string | null } | null>(
+      "staff_award_latest",
+    ).catch(() => null);
     return {
       open: open as OpenSession[],
       week: week.count ?? 0,
@@ -421,12 +467,44 @@ function StaffHome({ me }: { me: StaffRow }) {
     if (!reminders.list) return null;
     const extra: Reminder[] = [];
     const n = (x: number | undefined) => x ?? 0;
-    if (n(data?.applications)) extra.push({ kind: "applications", to: "/staff/applications", line: data!.applications === 1 ? "فيه طلب انضمام جديد مستني حد يراجعه 📝" : `فيه ${data!.applications} طلبات انضمام جديدة مستنية حد يراجعها 📝` });
-    if (n(data?.messages)) extra.push({ kind: "messages", to: "/staff/inbox", line: data!.messages === 1 ? "فيه رسالة جديدة من الموقع ✉️ حد يرد عليها؟" : `فيه ${data!.messages} رسايل جديدة من الموقع ✉️` });
-    if (n(data?.access)) extra.push({ kind: "access", to: "/staff/access", line: "فيه حد نسي رمز الدخول أو كلمة المرور ومستنيك 🔑" });
-    if (n(data?.projects)) extra.push({ kind: "projects", to: "/staff/projects", line: "طالب بعت مشروع للموقع، بص عليه ⭐" });
-    if (n(data?.atRisk)) extra.push({ kind: "at-risk", to: "/staff/at-risk", line: `${data!.atRisk === 1 ? "فيه طالب" : `فيه ${data!.atRisk} طلاب`} محتاجين متابعة (غابوا أو اختفوا) 👀` });
-    if (n(data?.deletions)) extra.push({ kind: "deletions", to: "/staff/deletions", line: "فيه طلب حذف حساب، والمتاجر بتطلب تنفيذه خلال 30 يوم 🗑️" });
+    if (n(data?.applications))
+      extra.push({
+        kind: "applications",
+        to: "/staff/applications",
+        line:
+          data!.applications === 1
+            ? "فيه طلب انضمام جديد مستني حد يراجعه 📝"
+            : `فيه ${data!.applications} طلبات انضمام جديدة مستنية حد يراجعها 📝`,
+      });
+    if (n(data?.messages))
+      extra.push({
+        kind: "messages",
+        to: "/staff/inbox",
+        line:
+          data!.messages === 1
+            ? "فيه رسالة جديدة من الموقع ✉️ حد يرد عليها؟"
+            : `فيه ${data!.messages} رسايل جديدة من الموقع ✉️`,
+      });
+    if (n(data?.access))
+      extra.push({
+        kind: "access",
+        to: "/staff/access",
+        line: "فيه حد نسي رمز الدخول أو كلمة المرور ومستنيك 🔑",
+      });
+    if (n(data?.projects))
+      extra.push({ kind: "projects", to: "/staff/projects", line: "طالب بعت مشروع للموقع، بص عليه ⭐" });
+    if (n(data?.atRisk))
+      extra.push({
+        kind: "at-risk",
+        to: "/staff/at-risk",
+        line: `${data!.atRisk === 1 ? "فيه طالب" : `فيه ${data!.atRisk} طلاب`} محتاجين متابعة (غابوا أو اختفوا) 👀`,
+      });
+    if (n(data?.deletions))
+      extra.push({
+        kind: "deletions",
+        to: "/staff/deletions",
+        line: "فيه طلب حذف حساب، والمتاجر بتطلب تنفيذه خلال 30 يوم 🗑️",
+      });
     const list = reminders.list;
     const unread = list.filter((r) => r.kind === "unread");
     return [...list.filter((r) => r.kind !== "unread"), ...extra, ...unread];
@@ -486,7 +564,9 @@ function StaffHome({ me }: { me: StaffRow }) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-semibold text-chalk">لوحة المؤسس</span>
-            <span className="block text-xs text-fog">الفريق كله: الالتزام، المتأخرين، الإنذارات، عضو الشهر، والقواعد</span>
+            <span className="block text-xs text-fog">
+              الفريق كله: الالتزام، المتأخرين، الإنذارات، عضو الشهر، والقواعد
+            </span>
           </span>
           <Icon name="chevron" size={18} className="rotate-180 text-fog" />
         </button>
@@ -528,7 +608,9 @@ function StaffHome({ me }: { me: StaffRow }) {
         <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="key" size={22} className="shrink-0 text-warn" />
           <p className="flex-1 text-sm text-mist">
-            {data.access === 1 ? "فيه حد نسي رمز الدخول أو كلمة المرور ومستني." : `فيه ${data.access} طلبات دخول مستنية (نسيوا الرمز أو كلمة المرور).`}
+            {data.access === 1
+              ? "فيه حد نسي رمز الدخول أو كلمة المرور ومستني."
+              : `فيه ${data.access} طلبات دخول مستنية (نسيوا الرمز أو كلمة المرور).`}
           </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/access")}>
             افتح
@@ -539,7 +621,11 @@ function StaffHome({ me }: { me: StaffRow }) {
       {!!data?.atRisk && (
         <Card className="mt-4 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="users" size={22} className="shrink-0 text-warn" />
-          <p className="flex-1 text-sm text-mist">{data.atRisk === 1 ? "فيه طالب محتاج متابعة (غاب أو اختفى)." : `فيه ${data.atRisk} طلاب محتاجين متابعة (غابوا أو اختفوا).`}</p>
+          <p className="flex-1 text-sm text-mist">
+            {data.atRisk === 1
+              ? "فيه طالب محتاج متابعة (غاب أو اختفى)."
+              : `فيه ${data.atRisk} طلاب محتاجين متابعة (غابوا أو اختفوا).`}
+          </p>
           <Button size="sm" onClick={() => go("/staff/at-risk")}>
             شوفهم
           </Button>
@@ -549,7 +635,11 @@ function StaffHome({ me }: { me: StaffRow }) {
       {!!data?.projects && (
         <Card className="mt-4 flex items-center gap-3 border-gold/30 bg-gold/[0.06]">
           <Icon name="star" size={22} className="shrink-0 text-gold" />
-          <p className="flex-1 text-sm text-mist">{data.projects === 1 ? "طالب بعت مشروع للموقع ومستني المراجعة." : `فيه ${data.projects} مشاريع طلاب مستنية المراجعة.`}</p>
+          <p className="flex-1 text-sm text-mist">
+            {data.projects === 1
+              ? "طالب بعت مشروع للموقع ومستني المراجعة."
+              : `فيه ${data.projects} مشاريع طلاب مستنية المراجعة.`}
+          </p>
           <Button size="sm" variant="primary" onClick={() => go("/staff/projects")}>
             راجِع
           </Button>
@@ -613,15 +703,21 @@ function StaffHome({ me }: { me: StaffRow }) {
       <Section title="اختصارات">
         <div className="grid grid-cols-3 gap-2">
           <Shortcut icon="flag" label="تاسكاتي" to="/staff/mytasks" />
-          {(!!data?.team?.sectors || !!data?.team?.oversees) && <Shortcut icon="users" label="السيكتورات" to="/staff/sectors" />}
-          {(!!data?.team?.sectors || !!data?.team?.oversees) && <Shortcut icon="calendar" label="الاجتماعات" to="/staff/meetings" />}
+          {(!!data?.team?.sectors || !!data?.team?.oversees) && (
+            <Shortcut icon="users" label="السيكتورات" to="/staff/sectors" />
+          )}
+          {(!!data?.team?.sectors || !!data?.team?.oversees) && (
+            <Shortcut icon="calendar" label="الاجتماعات" to="/staff/meetings" />
+          )}
           <Shortcut icon="box" label="المخزن" to="/staff/inventory" />
           {can(me, "roster") && <Shortcut icon="plus" label="إضافة طلاب" to="/staff/students?bulk=1" />}
           {can(me, "site") && <Shortcut icon="globe" label="محتوى الموقع" to="/staff/site" />}
           {canSee(me, "pages") && <Shortcut icon="layers" label="صفحات الموقع" to="/staff/pages" />}
           {can(me, "quizzes") && <Shortcut icon="quiz" label="كويز جديد" to="/staff/quizzes" />}
           {can(me, "tasks") && <Shortcut icon="upload" label="التاسكات" to="/staff/tasks" />}
-          {(canSee(me, "forms") || canSee(me, "expo")) && <Shortcut icon="list" label={canSee(me, "forms") ? "الفورمات" : "وفد المعرض"} to="/staff/forms" />}
+          {(canSee(me, "forms") || canSee(me, "expo")) && (
+            <Shortcut icon="list" label={canSee(me, "forms") ? "الفورمات" : "وفد المعرض"} to="/staff/forms" />
+          )}
           {can(me, "events") && <Shortcut icon="calendar" label="الفعاليات" to="/staff/events" />}
           {can(me, "inbox") && <Shortcut icon="bell" label="الرسائل" to="/staff/inbox" />}
           <Shortcut icon="settings" label="المزيد" to="/staff/more" />
@@ -679,7 +775,13 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "بورتفوليو الفريق", to: "/staff/portfolios" },
     { icon: "users", label: "طلبات الانضمام", to: "/staff/applications" },
     { icon: "bell", label: "رسائل الموقع وطلبات الرعاية", to: "/staff/inbox" },
-    { icon: "chat", label: "واتساب (الربط والرسايل)", to: "/staff/whatsapp", show: isFull(me) || canSee(me, "whatsapp") },
+    { icon: "chart", label: "تقرير الرعاة الشهري (PDF بأرقام الشهر)", to: "/staff/sponsor-report" },
+    {
+      icon: "chat",
+      label: "واتساب (الربط والرسايل)",
+      to: "/staff/whatsapp",
+      show: isFull(me) || canSee(me, "whatsapp"),
+    },
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
     { icon: "shield", label: "الحظر من الكميونيتي (اللي اتقبلوا ومجوش)", to: "/staff/bans" },
     { icon: "calendar", label: "تسجيل الفعاليات والدخول بالـ QR", to: "/staff/events" },
@@ -691,7 +793,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
     { icon: "users", label: "الفريق والصلاحيات", to: "/staff/team" },
-    { icon: "eye", label: "مين عنده إيه (مقارنة صلاحيات الفريق)", to: "/staff/permissions", show: isFull(me) },
+    {
+      icon: "eye",
+      label: "مين عنده إيه (مقارنة صلاحيات الفريق)",
+      to: "/staff/permissions",
+      show: isFull(me),
+    },
     { icon: "list", label: "سجل النشاط", to: "/staff/audit" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },

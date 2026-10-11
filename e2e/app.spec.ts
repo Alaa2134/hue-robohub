@@ -1862,13 +1862,11 @@ test("the owner adds the phone notification keys from the app (write-only)", asy
   await expect(card.getByText("Android ✓")).toBeVisible();
   await expect(card.getByText("7 أندرويد · 0 آيفون مسجّلين")).toBeVisible();
   await card.getByRole("button", { name: "تغيير المفاتيح" }).click();
-  await card
-    .getByLabel("Apple (iPhone): ملف AuthKey .p8")
-    .setInputFiles({
-      name: "AuthKey_ABCDE12345.p8",
-      mimeType: "application/octet-stream",
-      buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"),
-    });
+  await card.getByLabel("Apple (iPhone): ملف AuthKey .p8").setInputFiles({
+    name: "AuthKey_ABCDE12345.p8",
+    mimeType: "application/octet-stream",
+    buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n"),
+  });
   await card.getByLabel("Key ID").fill("abcde12345");
   await card.getByLabel("Team ID").fill("TEAM123456");
   await card.getByRole("button", { name: "حفظ" }).click();
@@ -4892,5 +4890,60 @@ test("useful websites in the app: edit a site, add a visitor's suggestion in one
     ["eq.g1", "added"],
     ["eq.g2", "declined"],
   ]);
+  expect(errors).toEqual([]);
+});
+
+test("sponsor report: from the inbox, the month's numbers, then a one-page PDF to send", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_sponsor_report = {
+    from: "2026-09-01",
+    to: "2026-09-30",
+    reach: {
+      views: 1200,
+      visitors: 430,
+      views_before: 800,
+      countries: 6,
+      mobile: 900,
+      top: [
+        { path: "/ar/robotex/", views: 300 },
+        { path: "/", views: 250 },
+      ],
+    },
+    training: { sessions: 8, attendances: 140, students: 32, active: 40, quizzes: 55 },
+    events: [{ title: "ورشة Arduino", at: "2026-09-12T14:00:00Z", registered: 60, attended: 48 }],
+    community: { applications: 25, accepted: 12, new_students: 10 },
+    output: {
+      certificates: 18,
+      projects: 3,
+      posts: 4,
+      highlights: [{ title: "المركز الأول في Robotex", kind: "achievement" }],
+    },
+    partners: [{ name: "Acme Electronics", image: null }],
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/inbox");
+  await page.getByRole("button", { name: "تقرير للرعاة" }).click();
+  await expect(page).toHaveURL(/#\/staff\/sponsor-report$/);
+  await page.getByLabel("الشهر").fill("2026-09");
+  await page.getByLabel("مقدَّم إلى (اختياري)").fill("Acme Electronics");
+  await page.getByRole("button", { name: "هات أرقام الشهر" }).click();
+  const numbers = page.getByTestId("sponsor-report");
+  await expect(numbers).toContainText("1200");
+  await expect(numbers).toContainText("+50% عن الشهر اللي قبله");
+  await expect(numbers).toContainText("48 حضروا");
+  expect(calls.find((c) => c.fn === "staff_sponsor_report")?.body).toEqual({
+    p_from: "2026-09-01",
+    p_to: "2026-09-30",
+  });
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "نزّل التقرير PDF" }).click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("buildx-sponsor-report-2026-09.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf).toContain("/Count 1");
+  if (process.env.SAVE_PDF) (await import("node:fs")).copyFileSync(await file.path(), process.env.SAVE_PDF);
   expect(errors).toEqual([]);
 });
