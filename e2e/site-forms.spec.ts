@@ -836,3 +836,110 @@ test("useful websites: the list the team keeps in the app replaces the built-in 
   await form.getByRole("button", { name: "Send suggestion" }).click();
   await expect(form.getByText("Please wait a little and try again.")).toBeVisible();
 });
+
+test("an Arabic phone lands on the Arabic site, and a visitor who picks English stays in English", async ({
+  browser,
+}) => {
+  const ctx = await browser.newContext({
+    locale: "ar-EG",
+    userAgent:
+      "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Mobile Safari/537.36",
+  });
+  const page = await ctx.newPage();
+  await page.route(/supabase\.co\//, (route) => route.fulfill({ json: [] }));
+  await page.goto("/join/");
+  await expect(page).toHaveURL(/\/ar\/join\/$/);
+  await expect(page.locator("html")).toHaveAttribute("lang", "ar");
+  // Picking English is remembered.
+  await page.locator('a[hreflang="en"]:visible').first().click();
+  await expect(page).toHaveURL(/\/join\/$/);
+  await expect(page).not.toHaveURL(/\/ar\//);
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await ctx.close();
+});
+
+test("live numbers: shown when they're worth showing, hidden while they're small", async ({ page }) => {
+  let impact = {
+    ok: true,
+    members: 42,
+    attendances: 310,
+    sessions: 14,
+    certificates: 3,
+    projects: 6,
+    events: 2,
+    team: 5,
+    since: "2026-01-01",
+  };
+  await mockSupabase(page, { rpc: { site_impact: () => impact } });
+  await page.goto("/");
+  const strip = page.getByTestId("live-impact");
+  await expect(strip).toContainText("42+");
+  await expect(strip).toContainText("310+");
+  await expect(strip).toContainText("community members");
+  await expect(strip).not.toContainText("certificates awarded");
+  impact = { ...impact, members: 2, attendances: 0, sessions: 0, projects: 0 };
+  await page.evaluate(() => sessionStorage.clear());
+  await page.goto("/ar/");
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByTestId("live-impact")).toHaveCount(0);
+});
+
+test("sponsors: the numbers, and a media kit PDF made from them", async ({ page }) => {
+  await mockSupabase(page, {
+    rpc: {
+      site_impact: () => ({
+        ok: true,
+        members: 40,
+        attendances: 300,
+        sessions: 12,
+        certificates: 20,
+        projects: 8,
+        events: 5,
+        team: 6,
+        since: null,
+      }),
+    },
+  });
+  await page.goto("/ar/sponsors/");
+  await expect(page.getByTestId("live-impact")).toContainText("عضو في المجتمع");
+  const [file] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("media-kit").first().click(),
+  ]);
+  expect(file.suggestedFilename()).toBe("BuildX-HUE-media-kit-ar.pdf");
+  const pdf = (await import("node:fs")).readFileSync(await file.path()).toString("latin1");
+  expect(pdf).toContain("/Count 1");
+});
+
+test("anyone can check a membership card from its QR, and a card code typed on the certificate check goes there", async ({
+  page,
+}) => {
+  const calls = await mockSupabase(page, {
+    rpc: {
+      verify_member: (b) =>
+        String(b.p_code).toUpperCase().includes("BXM-1A2B3C4D5E")
+          ? {
+              ok: true,
+              found: true,
+              name: "Mona Adel",
+              state: "active",
+              until: "2027-06-30",
+              since: "2026-02-01",
+              banned: false,
+            }
+          : { ok: true, found: false },
+    },
+  });
+  await page.goto("/verify/member/?c=BXM-1A2B3C4D5E");
+  const res = page.getByTestId("member-result");
+  await expect(res).toContainText("Valid member");
+  await expect(res).toContainText("Mona Adel");
+  // A card code typed on the certificate page goes to the member check.
+  await page.goto("/ar/verify/");
+  await page.getByRole("textbox").first().fill("bxm-1a2b3c4d5e");
+  await page.getByRole("textbox").first().press("Enter");
+  await expect(page).toHaveURL(/\/ar\/verify\/member\/\?c=BXM-1A2B3C4D5E$/);
+  await expect(page.getByTestId("member-result")).toContainText("عضو ساري");
+  expect(calls.filter((c) => c.fn === "verify_member").length).toBe(2);
+});

@@ -10,7 +10,7 @@ import { siteImageUrl } from "./site-content";
 export type GoalSetting = { value: string; label_en: string; label_ar: string; note_en: string; note_ar: string };
 export type SiteSettings = {
   contact?: { email?: string; phone?: string; whatsapp?: string; address_en?: string; address_ar?: string; map_url?: string };
-  socials?: { facebook?: string; instagram?: string; linkedin?: string; youtube?: string; github?: string };
+  socials?: { facebook?: string; instagram?: string; linkedin?: string; youtube?: string; github?: string; whatsapp?: string };
   hero?: { eyebrow_en?: string; eyebrow_ar?: string; subtitle_en?: string; subtitle_ar?: string; image?: { path: string; width: number; height: number } | null };
   announcement?: { on?: boolean; text_en?: string; text_ar?: string; url?: string };
   goals?: GoalSetting[];

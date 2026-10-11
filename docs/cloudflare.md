@@ -133,3 +133,27 @@
 ## 8. وقت الهجوم
 
 لو الموقع اتضرب ضرب جامد، شغّل من **Overview** في Cloudflare زرار **Under Attack Mode**. كل زائر هيعدّي على فحص سريع لمدة كام ثانية. اقفله لما الهجوم يخلص.
+
+## 9. نسخة على Cloudflare Pages (اختياري)
+
+الموقع لسه بيتنشر على GitHub Pages زي ما هو. الخطوة دي بتعمل **نسخة تانية** من نفس الموقع على Cloudflare Pages مع كل نشر، على العنوان `https://buildx-hue.pages.dev`. النسخة دي مش بتظهر في جوجل. الدومين buildxhue.com مش بيتغيّر لحد ما إنت تقرر.
+
+ليه ممكن تحتاجها؟
+- Cloudflare Pages بيبعت security headers حقيقية (منع الـ iframe، HSTS…) من غير قواعد إضافية.
+- لو نقلت الدومين ليها، تقدر تخلي الـ repo **Private** من غير GitHub Pro، لأن النشر هيبقى من Cloudflare.
+
+### التشغيل
+1. في Cloudflare: **My Profile ← API Tokens ← Create Token ← Create Custom Token**:
+   - Permissions: **Account ← Cloudflare Pages ← Edit**
+   - Account Resources: **Include ← حسابك**
+2. في GitHub: **Settings ← Secrets and variables ← Actions ← New repository secret**، الاسم `CLOUDFLARE_PAGES_TOKEN` والقيمة هي التوكن.
+3. من **Actions ← Deploy site ← Run workflow**. لما يخلص افتح `https://buildx-hue.pages.dev` واتأكد إن كل حاجة شغالة.
+
+لو السيكرت مش موجود، الخطوة دي بتتخطّى ومفيش حاجة بتتأثر.
+
+### نقل الدومين (لما تقرر، بإيدك)
+1. في Cloudflare: **Workers & Pages ← buildx-hue ← Custom domains ← Set up a custom domain** ← اكتب `buildxhue.com`، وبعدين `www.buildxhue.com`. Cloudflare هيعدّل الـ DNS لوحده.
+2. استنى لحد ما الحالة تبقى **Active**، وافتح الموقع واتأكد إنه شغال.
+3. بعد كده بس، من GitHub: **Settings ← Pages** شيل الـ Custom domain. ولو عايز تخلي الـ repo Private، اعملها من **Settings ← General ← Danger Zone ← Change visibility**.
+
+للرجوع: امسح الـ custom domain من Cloudflare Pages، ورجّع الـ Custom domain في GitHub Pages.

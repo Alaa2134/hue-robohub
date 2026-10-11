@@ -169,6 +169,9 @@ export function SiteSettingsScreen({ me }: { me: StaffRow }) {
                   <Input value={s.socials?.[k] ?? ""} onChange={(e) => set("socials", { [k]: e.target.value })} dir="ltr" placeholder={`https://${k}.com/…`} />
                 </Field>
               ))}
+              <Field label="قناة واتساب" hint="لينك القناة (whatsapp.com/channel/…). بيظهر زرار «تابعنا على واتساب» في الموقع.">
+                <Input value={s.socials?.whatsapp ?? ""} onChange={(e) => set("socials", { whatsapp: e.target.value })} dir="ltr" placeholder="https://whatsapp.com/channel/…" />
+              </Field>
             </Card>
           </Section>
 

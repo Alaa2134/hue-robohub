@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@/components/brand/icons";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { useRouter } from "next/navigation";
 
 type Cert = { code: string; name: string; kind: string; title: string; title_ar: string | null; details: string | null; details_ar: string | null; hours: number | null; issued_on: string; revoked: boolean; revoked_on: string | null };
 
@@ -70,10 +71,14 @@ export function CertificateVerify({ locale }: { locale: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [res, setRes] = useState<Cert | null>(null);
+  const router = useRouter();
 
   const date = (iso: string) => new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${iso}T12:00:00`));
 
   const check = async (value: string) => {
+    // A membership card's code belongs on the member check.
+    const card = value.match(/BXM-?[0-9A-F]{10}/i)?.[0];
+    if (card) return router.push(`${l === "ar" ? "/ar" : ""}/verify/member/?c=${card.toUpperCase()}`);
     if (busy || value.trim().length < 8) return;
     setBusy(true);
     setError("");

@@ -11,6 +11,7 @@ import { TeamDirectory } from "@/components/team/team-directory";
 import { LatestStrip, LivePartners, LiveTestimonials } from "@/components/live/live-content";
 import { NextEvent } from "@/components/live/next-event";
 import { HallOfFame } from "@/components/live/hall-of-fame";
+import { LiveImpact } from "@/components/live/impact";
 import type { Film } from "@/components/media/film";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
@@ -159,6 +160,8 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
       <RoadmapSection locale={locale} index="05" eventsHref={href("/events")} />
 
       <GoalsSection locale={locale} goals={goalsOf(settings).map((g) => ({ value: g.value, label: { en: g.label_en || g.label_ar, ar: g.label_ar || g.label_en }, note: { en: g.note_en || g.note_ar, ar: g.note_ar || g.note_en } }))} />
+
+      <LiveImpact locale={locale} />
 
       <HallOfFame locale={locale} />
 

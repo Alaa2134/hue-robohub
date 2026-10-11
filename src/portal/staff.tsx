@@ -45,6 +45,7 @@ import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
 import { MemberScanScreen } from "./member-card";
 import { TeamCardsScreen } from "./team-cards";
+import { SiteGapsCard } from "./site-gaps";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
@@ -585,6 +586,7 @@ function StaffHome({ me }: { me: StaffRow }) {
       <XpHomeCard />
       <TeamTasksHome summary={data?.team} />
       <AwardBanner award={data?.award} />
+      <SiteGapsCard me={me} />
 
       {!!data?.applications && (
         <Card className="mt-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">

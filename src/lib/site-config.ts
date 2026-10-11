@@ -30,6 +30,8 @@ export type SocialConfig = {
   instagram: string;
   youtube: string;
   github: string;
+  /** A WhatsApp channel (whatsapp.com/channel/…): "Follow on WhatsApp". */
+  whatsapp: string;
 };
 
 export type AboutConfig = {
@@ -107,7 +109,7 @@ export const defaultSiteConfig: SiteConfig = {
     hours: { en: "Faculty of Artificial Intelligence", ar: "كلية الذكاء الاصطناعي" },
     mapUrl: "",
   },
-  "site.socials": { linkedin: "", facebook: "", instagram: "", youtube: "", github: "" },
+  "site.socials": { linkedin: "", facebook: "", instagram: "", youtube: "", github: "", whatsapp: "" },
   "site.about": {
     vision: {
       en: "To be the leading student community at Horus University for robotics and technology — recognised locally and internationally for innovation, impactful projects and student success.",
