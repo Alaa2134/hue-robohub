@@ -97,6 +97,12 @@
 <priority>0.7</priority>
 </url>
 <url>
+<loc>https://buildxhue.com/family/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/family/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/family/" />
+<priority>0.7</priority>
+</url>
+<url>
 <loc>https://buildxhue.com/faq/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/faq/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/faq/" />
