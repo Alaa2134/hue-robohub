@@ -33,7 +33,7 @@ function Honeypot() {
     <div aria-hidden className="absolute -start-[9999px] h-px w-px overflow-hidden">
       <label>
         Website
-        <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+        <input type="text" name="bx_hp_note" tabIndex={-1} autoComplete="off" aria-hidden="true" data-lpignore="true" data-1p-ignore="true" defaultValue="" />
       </label>
     </div>
   );

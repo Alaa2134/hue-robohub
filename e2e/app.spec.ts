@@ -4676,6 +4676,254 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
   expect(errors).toEqual([]);
 });
 
+test("the owner connects email (the Resend key is sent once, never shown), sends to typed emails, and edits an automatic email", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  let state: "none" | "checking" | "ok" = "none";
+  const status = () => ({
+    connected: state === "ok",
+    status: state,
+    from_email: state === "none" ? null : "hello@buildxhue.com",
+    from_name: state === "none" ? null : "BuildX HUE",
+    reply_to: null,
+    daily_limit: 100,
+    domains: state === "ok" ? [{ name: "buildxhue.com", status: "verified" }] : null,
+    domain_ok: state === "ok" ? true : null,
+    error: null,
+    checked_at: null,
+    has_key: state !== "none",
+    sent_today: 0,
+    failed_today: 0,
+    last_day: 3,
+    unsubscribed: 1,
+    my_email: "owner@example.com",
+    can_send: true,
+    can_connect: true,
+  });
+  const templates = [
+    {
+      key: "application_received",
+      enabled: true,
+      subject: "وصلنا طلبك يا {name} 🎉",
+      body: "أهلاً {name}\nرقم طلبك: {ref}",
+      updated_at: at(10),
+    },
+    {
+      key: "application_rejected",
+      enabled: false,
+      subject: "بخصوص طلبك",
+      body: "أهلاً {name}\nرقم طلبك: {ref}\n{group}",
+      updated_at: at(10),
+    },
+  ];
+  await page.route(/\/rest\/v1\/rpc\/staff_email_[a-z_]+$/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1]!;
+    calls.push({ fn, body: route.request().postDataJSON() });
+    if (fn === "staff_email_connect") state = "checking";
+    else if (
+      fn === "staff_email_status" &&
+      state === "checking" &&
+      calls.filter((c) => c.fn === fn).length > 2
+    )
+      state = "ok";
+    if (fn === "staff_email_status") return route.fulfill({ json: status() });
+    if (fn === "staff_email_templates") return route.fulfill({ json: templates });
+    if (fn === "staff_email_send") return route.fulfill({ json: { queued: 2, skipped: 1, unsubscribed: 0 } });
+    if (fn === "staff_email_test") return route.fulfill({ json: { to: "owner@example.com" } });
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route(/\/rest\/v1\/email_messages/, (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 2,
+          to_email: "sara@example.com",
+          to_name: "Sara Ali",
+          subject: "وصلنا طلبك يا Sara 🎉",
+          kind: "auto",
+          template: "application_received",
+          status: "sent",
+          error: null,
+          created_at: at(5),
+        },
+        {
+          id: 1,
+          to_email: "x@example.com",
+          to_name: null,
+          subject: "خبر",
+          kind: "manual",
+          template: null,
+          status: "skipped",
+          error: "unsubscribed",
+          created_at: at(9),
+        },
+      ],
+    }),
+  );
+  await page.goto("/app/#/staff/more");
+  await page.getByText("الإيميل (الربط، الإيميلات التلقائية والإرسال)").click();
+  await expect(page.getByTestId("email-connect")).toBeVisible();
+  // The automatic emails are listed even before email is connected.
+  await expect(page.getByTestId("auto-application_received")).toContainText("شغّال");
+  await page.getByLabel("مفتاح Resend (API key)").fill("re_" + "A1b2".repeat(8));
+  await page.getByRole("button", { name: "اربط" }).click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_email_connect")?.body)
+    .toEqual({
+      p_key: "re_" + "A1b2".repeat(8),
+      p_from_email: "hello@buildxhue.com",
+      p_from_name: "BuildX HUE",
+      p_reply_to: null,
+      p_daily_limit: 100,
+    });
+  await expect(page.getByTestId("email-status").getByText("مربوط")).toBeVisible({ timeout: 15_000 });
+  // The key never comes back.
+  await page.getByRole("button", { name: "تغيير الربط" }).click();
+  await expect(page.getByLabel("مفتاح Resend (API key)")).toHaveValue("");
+  await expect(page.getByTestId("email-connect").getByText("متأكد", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "إلغاء" }).click();
+  // A test email to me.
+  await page.getByTestId("email-test").click();
+  await expect(page.getByText("اتبعت إيميل تجربة لـ owner@example.com")).toBeVisible();
+
+  // Typed emails: names kept, repeats and wrong lines dropped; {name} is filled by the database.
+  await page
+    .getByLabel("الإيميلات")
+    .fill("Ahmed Ali, Ahmed@Gmail.com\nsara@yahoo.com\nbad line\nahmed@gmail.com");
+  await expect(page.getByTestId("email-count")).toHaveText("2 شخص");
+  await page.getByTestId("email-subject").fill("ورشة الأردوينو يا {name}");
+  await page
+    .getByTestId("email-text")
+    .fill("أهلاً {name} 👋\nالتسجيل من هنا: https://buildxhue.com/ar/events/");
+  await page.getByRole("button", { name: "شكل الإيميل" }).click();
+  await expect(page.getByTestId("email-preview")).toContainText("ورشة الأردوينو يا Ahmed");
+  await expect(
+    page.getByTestId("email-preview").getByRole("link", { name: "https://buildxhue.com/ar/events/" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByTestId("email-send-btn").click();
+  await page.locator('[role="dialog"] button', { hasText: "ابعت" }).last().click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_email_send")?.body)
+    .toEqual({
+      p_people: [
+        { email: "ahmed@gmail.com", name: "Ahmed Ali" },
+        { email: "sara@yahoo.com", name: "" },
+      ],
+      p_subject: "ورشة الأردوينو يا {name}",
+      p_text: "أهلاً {name} 👋\nالتسجيل من هنا: https://buildxhue.com/ar/events/",
+      p_context: null,
+    });
+  await expect(page.getByText("اتبعت 2 · 1 إيميل غلط أو مكرر")).toBeVisible();
+  if (process.env.SHOT) await page.screenshot({ path: `${process.env.SHOT}/email-app-${page.viewportSize()?.width}.png`, fullPage: true });
+
+  // An automatic email: turned on and reworded; the preview leaves out a line with nothing to fill in.
+  await page.getByTestId("auto-application_rejected").click();
+  const sheet = page.getByTestId("auto-sheet");
+  await expect(sheet.getByTestId("email-preview")).toContainText("رقم طلبك: BX-7F3A2C");
+  await expect(sheet.getByTestId("email-preview")).not.toContainText("{group}");
+  await sheet.getByRole("switch").click();
+  await sheet.getByLabel("العنوان").fill("بخصوص طلبك يا {name}");
+  await sheet.getByRole("button", { name: "حفظ" }).click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_email_template_save")?.body)
+    .toEqual({
+      p_key: "application_rejected",
+      p_enabled: true,
+      p_subject: "بخصوص طلبك يا {name}",
+      p_body: "أهلاً {name}\nرقم طلبك: {ref}\n{group}",
+    });
+  // The log: sent, and skipped for someone who unsubscribed.
+  await expect(page.getByTestId("email-log-row").first()).toContainText("تلقائي (طلب انضمام وصل)");
+  await expect(page.getByTestId("email-log-row").nth(1)).toContainText("لاغي الاشتراك");
+  expect(errors).toEqual([]);
+});
+
+test("from the family list, «إيميل» opens the email screen with the members who gave an email and a welcome ready", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const base = {
+    academic_year: "2026/2027",
+    governorate: "دمياط",
+    address: "دمياط",
+    level: 2,
+    faculty: "AI",
+    student_number: null,
+    status: "new",
+    notes: null,
+    student_id: null,
+    national_id: "30501011101000",
+  };
+  await page.route(/\/rest\/v1\/(family_members|site_settings)/, (route) => {
+    const one = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    if (route.request().url().includes("site_settings"))
+      return route.fulfill({ json: one ? { value: { open: true, year: "2026/2027" } } : [] });
+    return route.fulfill({
+      json: [
+        {
+          ...base,
+          id: "f1",
+          ref: "FM-000001",
+          full_name: "منى عادل سامي حسن",
+          phone: "01012345000",
+          email: "mona@example.com",
+          created_at: at(10),
+        },
+        {
+          ...base,
+          id: "f2",
+          ref: "FM-000002",
+          full_name: "أحمد علي محمود سعد",
+          phone: "01012345001",
+          email: null,
+          created_at: at(11),
+        },
+      ],
+    });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_email_[a-z_]+$/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1]!;
+    if (fn === "staff_email_templates") return route.fulfill({ json: [] });
+    return route.fulfill({
+      json: {
+        connected: true,
+        status: "ok",
+        from_email: "hello@buildxhue.com",
+        from_name: "BuildX HUE",
+        reply_to: null,
+        daily_limit: 100,
+        domains: null,
+        domain_ok: null,
+        error: null,
+        checked_at: null,
+        has_key: true,
+        sent_today: 0,
+        failed_today: 0,
+        last_day: 0,
+        unsubscribed: 0,
+        my_email: null,
+        can_send: true,
+        can_connect: true,
+      },
+    });
+  });
+  await page.goto("/app/#/staff/family");
+  await page.getByTestId("family-email").click();
+  await expect(page).toHaveURL(/#\/staff\/email/);
+  await expect(page.getByTestId("email-source")).toHaveValue("handoff");
+  await expect(page.getByTestId("email-count")).toHaveText("1 شخص");
+  await expect(page.getByTestId("email-subject")).toHaveValue("أهلاً بيك في أسرة BuildX يا {name} 💙");
+  await expect(page.getByTestId("email-text")).toHaveValue(/تسجيلك في أسرة BuildX وصلنا/);
+  expect(errors).toEqual([]);
+});
+
 test("expo delegation runs by itself: dates per visit day, waiting list, WhatsApp acceptance and reminder, no-show bans", async ({
   page,
 }) => {

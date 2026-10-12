@@ -1035,3 +1035,32 @@ test("family sign-up keeps what was typed on the device (not the national ID) af
   await expect(form.getByLabel("رقم الموبايل")).toHaveValue("01012345678");
   await expect(form.getByLabel("الرقم القومي")).toHaveValue("");
 });
+
+test("unsubscribe: the link from an email stops our emails to that address", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls = await mockSupabase(page, { rpc: { email_unsubscribe: () => ({ ok: true }) } });
+  const token = "0123456789abcdef0123456789abcdef";
+  await page.goto(`/ar/unsubscribe/?e=Sara%2Bnews%40Example.com&t=${token}`);
+  await expect(page.getByTestId("unsub-ask")).toContainText("sara+news@example.com");
+  await page.getByRole("button", { name: "ألغِ الاشتراك" }).click();
+  await expect(page.getByTestId("unsub-done")).toContainText("اتلغى اشتراكك");
+  expect(calls.find((c) => c.fn === "email_unsubscribe")!.body).toEqual({
+    p_email: "sara+news@example.com",
+    p_token: token,
+  });
+  expect(errors).toEqual([]);
+});
+
+test("unsubscribe: a cut or changed link says so, and nothing is sent without a link", async ({ page }) => {
+  await page.route(/supabase\.co\//, (route) =>
+    route.request().url().includes("/rpc/email_unsubscribe")
+      ? route.fulfill({ status: 400, json: { code: "22023", message: "invalid_link" } })
+      : route.fulfill({ json: [] }),
+  );
+  await page.goto("/unsubscribe/");
+  await expect(page.getByTestId("unsub-bad")).toContainText("This link isn't complete");
+  await page.goto(`/ar/unsubscribe/?e=sara%40example.com&t=${"f".repeat(32)}`);
+  await page.getByRole("button", { name: "ألغِ الاشتراك" }).click();
+  await expect(page.getByTestId("unsub-ask").getByRole("alert")).toContainText("اللينك ده ناقص أو قديم");
+});
