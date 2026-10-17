@@ -111,6 +111,7 @@ export function StaffContent({ me }: { me: StaffRow }) {
           </div>
         )}
       </div>
+      <CourseBonus groups={groups.filter(Boolean)} />
       <div className="mt-4">
         {loading && !data ? (
           <Loading />
@@ -159,6 +160,51 @@ export function StaffContent({ me }: { me: StaffRow }) {
   );
 }
 
+/** A bonus each group's students earn once their course progress reaches 100%. */
+function CourseBonus({ groups }: { groups: string[] }) {
+  const { data, reload } = useAsync(async () => must(await sb().from("course_bonus").select("group_name, points")) as { group_name: string; points: number }[], []);
+  const [open, setOpen] = useState(false);
+  const [vals, setVals] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  if (!groups.length) return null;
+  const current = (g: string) => vals[g] ?? String(data?.find((x) => x.group_name === g)?.points ?? 0);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const rows = groups.map((g) => ({ group_name: g, points: Math.max(0, Math.min(1000, Math.round(Number(current(g))) || 0)), updated_at: new Date().toISOString() }));
+      must(await sb().from("course_bonus").upsert(rows, { onConflict: "group_name" }).select("group_name"));
+      toast("اتحفظت نقط إتمام الكورس");
+      setVals({});
+      reload();
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-3 rounded-2xl border border-[var(--line)] p-3">
+      <button type="button" className="flex w-full items-center justify-between text-sm font-semibold text-chalk" onClick={() => setOpen(!open)} aria-expanded={open}>
+        نقط إتمام الكورس
+        <span className="text-xs text-fog">{open ? "إخفاء" : "تعديل"}</span>
+      </button>
+      {open && (
+        <div className="mt-3 grid gap-3">
+          <p className="text-xs text-fog">الطالب بياخدها مرة واحدة لما تقدّمه في الكورس يوصل 100% (محاضرات + كويزات + حضور).</p>
+          {groups.map((g) => (
+            <Field key={g} label={g}>
+              <Input type="number" inputMode="numeric" min={0} max={1000} dir="ltr" value={current(g)} onChange={(e) => setVals({ ...vals, [g]: e.target.value })} data-testid={`course-bonus-${g}`} />
+            </Field>
+          ))}
+          <Button variant="primary" icon="check" loading={busy} onClick={save} block>
+            حفظ
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MaterialSheet({
   material: m,
   me,
@@ -174,7 +220,7 @@ function MaterialSheet({
   onUpdate: (m: Material, patch: Partial<Material>) => Promise<boolean>;
   onRemove: (m: Material) => void;
 }) {
-  const [edit, setEdit] = useState<{ title: string; description: string; group: string } | null>(null);
+  const [edit, setEdit] = useState<{ title: string; description: string; group: string; points: string } | null>(null);
   if (!m) return null;
   const href = m.kind === "link" ? m.url! : fileUrl(m.storage_path!);
   const canDelete = isFull(me) || m.created_by === me.user_id;
@@ -192,7 +238,9 @@ function MaterialSheet({
           className="grid gap-4"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (await onUpdate(m, { title: edit.title.trim(), description: edit.description.trim(), group_name: edit.group })) setEdit(null);
+            const points = Math.round(Number(edit.points));
+            if (!Number.isFinite(points) || points < 0 || points > 1000) return toast("النقط من 0 لـ 1000", "error");
+            if (await onUpdate(m, { title: edit.title.trim(), description: edit.description.trim(), group_name: edit.group, points })) setEdit(null);
           }}
         >
           <Field label="العنوان">
@@ -203,6 +251,9 @@ function MaterialSheet({
           </Field>
           <Field label="يظهر لـ">
             <GroupSelect value={edit.group} onChange={(group) => setEdit({ ...edit, group })} groups={groups} allLabel="كل الطلاب" allowNew />
+          </Field>
+          <Field label="نقط الاطّلاع" hint="الطالب بياخدها مرة واحدة لما يفتح المحاضرة أو الملف.">
+            <Input type="number" inputMode="numeric" min={0} max={1000} value={edit.points} onChange={(e) => setEdit({ ...edit, points: e.target.value })} dir="ltr" data-testid="material-points" />
           </Field>
           <Button type="submit" variant="primary" icon="check" block>
             حفظ
@@ -220,7 +271,7 @@ function MaterialSheet({
                 <bdi>{m.file_name ?? ""}</bdi> · <bdi dir="ltr">{fmt.size(m.size_bytes)}</bdi>
               </>
             )}{" "}
-            · {fmt.dateTime(m.created_at)}
+            · {fmt.dateTime(m.created_at)} · {m.points ?? 5} نقطة
           </p>
           <div className="grid grid-cols-2 gap-2">
             <a href={href} target="_blank" rel="noreferrer" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-[#3d7dff] to-[#1f57e6] font-semibold text-white">
@@ -234,7 +285,7 @@ function MaterialSheet({
           <Toggle checked={m.published} onChange={(published) => onUpdate(m, { published })} label="ظاهر للطلاب" />
           <Toggle checked={m.pinned} onChange={(pinned) => onUpdate(m, { pinned })} label="تثبيت في الأعلى" />
           <div className="grid grid-cols-2 gap-2">
-            <Button icon="edit" onClick={() => setEdit({ title: m.title, description: m.description, group: m.group_name })}>
+            <Button icon="edit" onClick={() => setEdit({ title: m.title, description: m.description, group: m.group_name, points: String(m.points ?? 5) })}>
               تعديل
             </Button>
             {canDelete && (
@@ -249,6 +300,12 @@ function MaterialSheet({
   );
 }
 
+/** Points typed in a form, kept inside 0–1000 (a blank or odd value means the default 5). */
+function pointsOf(v: string): number {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) && v.trim() !== "" ? Math.max(0, Math.min(1000, n)) : 5;
+}
+
 type Pending = { id: string; file: File; title: string; progress: number; state: "wait" | "up" | "done" | "error"; error?: string };
 
 function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: () => void; groups: string[]; onDone: () => void }) {
@@ -256,6 +313,7 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
   const [group, setGroup] = useState("");
   const [description, setDescription] = useState("");
   const [later, setLater] = useState("");
+  const [points, setPoints] = useState("5");
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
@@ -285,7 +343,7 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
         must(
           await sb()
             .from("materials")
-            .insert({ title: it.title.trim() || it.file.name, description: description.trim(), kind: "file", storage_path: path, file_name: it.file.name.slice(0, 200), mime: it.file.type || null, size_bytes: it.file.size, group_name: group, ...schedule(later) })
+            .insert({ title: it.title.trim() || it.file.name, description: description.trim(), kind: "file", storage_path: path, file_name: it.file.name.slice(0, 200), mime: it.file.type || null, size_bytes: it.file.size, group_name: group, points: pointsOf(points), ...schedule(later) })
             .select("id"),
         );
         patch(it.id, { state: "done", progress: 1 });
@@ -363,6 +421,9 @@ function UploadSheet({ open, onClose, groups, onDone }: { open: boolean; onClose
         <Field label="وصف (اختياري)">
           <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={2000} />
         </Field>
+        <Field label="نقط الاطّلاع" hint="الطالب بياخدها مرة واحدة لما يفتحه.">
+          <Input type="number" inputMode="numeric" min={0} max={1000} value={points} onChange={(e) => setPoints(e.target.value)} dir="ltr" data-testid="upload-points" />
+        </Field>
         <LaterField value={later} onChange={setLater} />
         {finished ? (
           <Button variant="primary" size="lg" icon="check" onClick={close} block>
@@ -393,7 +454,7 @@ function LaterField({ value, onChange }: { value: string; onChange: (v: string) 
 }
 
 function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: () => void; groups: string[]; onDone: () => void }) {
-  const [form, setForm] = useState({ title: "", url: "", description: "", group: "" });
+  const [form, setForm] = useState({ title: "", url: "", description: "", group: "", points: "5" });
   const [later, setLater] = useState("");
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
@@ -403,9 +464,9 @@ function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: 
     url = url.replace(/^http:\/\//i, "https://");
     setBusy(true);
     try {
-      must(await sb().from("materials").insert({ title: form.title.trim(), url, description: form.description.trim(), kind: "link", group_name: form.group, ...schedule(later) }).select("id"));
+      must(await sb().from("materials").insert({ title: form.title.trim(), url, description: form.description.trim(), kind: "link", group_name: form.group, points: pointsOf(form.points), ...schedule(later) }).select("id"));
       toast("تمت إضافة الرابط");
-      setForm({ title: "", url: "", description: "", group: "" });
+      setForm({ title: "", url: "", description: "", group: "", points: "5" });
       setLater("");
       onDone();
       onClose();
@@ -429,6 +490,9 @@ function LinkSheet({ open, onClose, groups, onDone }: { open: boolean; onClose: 
         </Field>
         <Field label="وصف (اختياري)">
           <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} maxLength={2000} />
+        </Field>
+        <Field label="نقط الاطّلاع" hint="الطالب بياخدها مرة واحدة لما يفتحه.">
+          <Input type="number" inputMode="numeric" min={0} max={1000} value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} dir="ltr" data-testid="link-points" />
         </Field>
         <LaterField value={later} onChange={setLater} />
         <Button type="submit" variant="primary" size="lg" icon="plus" loading={busy} block>

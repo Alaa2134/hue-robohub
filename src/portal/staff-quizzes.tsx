@@ -136,7 +136,7 @@ export function QuizzesScreen() {
 
 /* ─── Editor ───────────────────────────────────────────────────────────── */
 
-type Settings = { title: string; description: string; group: string; opens: string; closes: string; limit: string; attempts: string; shuffle: boolean; show: boolean; published: boolean; weekly: boolean };
+type Settings = { title: string; description: string; group: string; opens: string; closes: string; limit: string; attempts: string; points: string; shuffle: boolean; show: boolean; published: boolean; weekly: boolean };
 
 function blankQuestion(quizId: string, kind: QuestionKind, position: number): Question {
   return {
@@ -253,6 +253,7 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
             closes_at: closes,
             time_limit_min: next.limit ? Math.max(1, Math.min(600, Number(next.limit))) : null,
             max_attempts: Math.max(1, Math.min(20, Number(next.attempts) || 1)),
+            points: Math.max(0, Math.min(1000, Math.round(Number(next.points)) || 0)),
             shuffle: next.shuffle,
             show_answers: next.show,
             published: next.published,
@@ -455,6 +456,21 @@ export function QuizEditor({ id, me }: { id: string; me: StaffRow }) {
                 }}
               />
             </Field>
+            <Field label="نقط الكويز" hint="أقصى نقط يكسبها الطالب، وبتتحسب بنسبة أحسن درجة جابها.">
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={1000}
+                dir="ltr"
+                data-testid="quiz-points"
+                value={settings.points}
+                onChange={(e) => {
+                  setSettings({ ...settings, points: e.target.value });
+                  setDirty(true);
+                }}
+              />
+            </Field>
           </div>
           <Toggle
             checked={settings.shuffle}
@@ -505,6 +521,7 @@ function toSettings(q: Quiz): Settings {
     closes: toLocalInput(q.closes_at),
     limit: q.time_limit_min ? String(q.time_limit_min) : "",
     attempts: String(q.max_attempts),
+    points: String(q.points ?? 20),
     shuffle: q.shuffle,
     show: q.show_answers,
     published: q.published,

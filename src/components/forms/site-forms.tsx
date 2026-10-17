@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { cn } from "@/lib/cn";
+import { MediaError, mediaErrorText, prepareMedia, type MediaKind } from "@/lib/client-media";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 type Locale = "ar" | "en";
@@ -46,6 +47,13 @@ const C = {
     notMember: "مش عضو في الكميونيتي؟",
     askInterview: "اطلب انترفيو مع منظم الموقع",
     tooLong: "الكلام طويل زيادة.",
+    fileChoose: "اختار ملف",
+    fileHint: "الصور والفيديو بيتضغطوا قبل ما يتبعتوا.",
+    fileWorking: "بنجهّز الملف وبنضغطه…",
+    fileUp: "بنرفع الملف…",
+    fileDone: (name: string, before: string, after: string) => `✓ ${name} · ${before} ← ${after}`,
+    fileWait: "استنى لحد ما الملف يخلص رفع.",
+    fileBad: "الملف ماوصلش، ارفعه تاني.",
     errors: { rate_limited: "بعت كذا مرة في وقت قصير. استنى شوية وجرّب تاني.", busy: "في ضغط دلوقتي. جرّب بعد دقيقة.", invalid: "في بيانات مش مظبوطة. راجعها وجرّب تاني.", network: "مقدرناش نوصل. اتأكد من النت وجرّب تاني.", closed: "الفورم ده اتقفل.", not_found: "الفورم ده مش موجود.", banned: "عليك حظر من كميونيتي BuildX HUE (اتقبلت في وفد قبل كده ومحضرتش)، فمش هتقدر تقدّم دلوقتي. لو شايف إن ده غلط كلّمنا." },
     sentTitle: "وصلتنا رسالتك ✅",
     sentBody: "بنقرا كل رسالة ونرد خلال أيام قليلة.",
@@ -123,6 +131,13 @@ const C = {
     notMember: "Not a community member?",
     askInterview: "Ask the organiser for an interview",
     tooLong: "That's too long.",
+    fileChoose: "Choose a file",
+    fileHint: "Photos and videos are compressed before they are sent.",
+    fileWorking: "Preparing and compressing the file…",
+    fileUp: "Uploading the file…",
+    fileDone: (name: string, before: string, after: string) => `✓ ${name} · ${before} → ${after}`,
+    fileWait: "Wait until the file has finished uploading.",
+    fileBad: "The file didn't arrive, please upload it again.",
     errors: { rate_limited: "Too many tries in a short time. Wait a little and try again.", busy: "We're busy right now. Try again in a minute.", invalid: "Something isn't right. Check the form and try again.", network: "We couldn't connect. Check your connection and try again.", closed: "This form is closed.", not_found: "This form doesn't exist.", banned: "You're banned from the BuildX HUE community (accepted for a delegation before and didn't come), so you can't apply now. If you think this is a mistake, contact us." },
     sentTitle: "Message received ✅",
     sentBody: "We read every message and reply within a few days.",
@@ -481,10 +496,11 @@ export function WaitlistForm({ locale }: { locale: string }) {
 
 /* ─── Forms built in the app ───────────────────────────────────────────── */
 
-export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member";
+export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file";
 /** The form someone without a community membership sends to ask the organiser for an interview. */
 export const INTERVIEW_FORM = "membership-interview";
-export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[] };
+export type FileAccept = "image" | "pdf" | "video" | "any";
+export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[]; /** For a file question: what it takes. */ accept?: FileAccept };
 export type PublicForm = {
   slug: string;
   title_ar: string;
@@ -499,6 +515,8 @@ export type PublicForm = {
   open: boolean;
   opens_at?: string | null;
   closes_at?: string | null;
+  background_path?: string | null;
+  background_kind?: "image" | "video" | null;
 };
 
 const titleOf = (f: PublicForm, l: Locale) => (l === "en" && f.title_en) || f.title_ar;
@@ -572,6 +590,46 @@ export function TeamFormCta({ locale, team, base }: { locale: string; team: stri
   );
 }
 
+const FILE_KINDS: Record<FileAccept, MediaKind[]> = { image: ["image"], pdf: ["pdf"], video: ["video"], any: ["image", "pdf", "video"] };
+const FILE_ATTR: Record<FileAccept, string> = { image: "image/*", pdf: "application/pdf", video: "video/*", any: "image/*,video/*,application/pdf" };
+type FileState = { name: string; status: "prep" | "up" | "done" | "error"; progress: number; before?: number; after?: number; error?: string };
+const sizeText = (n: number) => (n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+/** One file straight into the form's private bucket, to the exact path a ticket named. */
+function uploadForm(path: string, file: File, onProgress: (p: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${SUPABASE_URL}/storage/v1/object/form-files/${path.split("/").map(encodeURIComponent).join("/")}`);
+    xhr.setRequestHeader("apikey", SUPABASE_KEY);
+    xhr.setRequestHeader("Authorization", `Bearer ${SUPABASE_KEY}`);
+    xhr.setRequestHeader("x-upsert", "false");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(String(xhr.status))));
+    xhr.onerror = () => reject(new Error("network"));
+    xhr.send(file);
+  });
+}
+
+/** The form's own background (a picture or a looping video) behind the questions, dimmed so they stay readable. */
+function FormStage({ form, children }: { form: PublicForm; children: ReactNode }) {
+  const [still, setStill] = useState(false);
+  useEffect(() => setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches), []);
+  if (!form.background_path) return <>{children}</>;
+  const src = `${SUPABASE_URL}/storage/v1/object/public/form-media/${form.background_path.split("/").map(encodeURIComponent).join("/")}`;
+  return (
+    <div className="relative isolate overflow-hidden rounded-[28px] p-4 sm:p-8" data-testid="form-stage">
+      {form.background_kind === "video" ? (
+        <video src={src} autoPlay={!still} muted loop playsInline preload={still ? "metadata" : "auto"} aria-hidden className="absolute inset-0 -z-20 size-full object-cover" />
+      ) : (
+        <img src={src} alt="" aria-hidden className="absolute inset-0 -z-20 size-full object-cover" />
+      )}
+      <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-[#060b18]/80 via-[#060b18]/70 to-[#060b18]/90" />
+      {children}
+    </div>
+  );
+}
+
 /** /form?f=<slug>: fill in one form (or a fixed form embedded in a page, with a status link). */
 export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { locale: string; listHref: string; slug?: string; statusHref?: string }) {
   const l = L(locale);
@@ -585,6 +643,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "ok" | "dup">("");
   const [ref, setRef] = useState("");
+  const [fs, setFs] = useState<Record<string, FileState>>({});
   const elapsed = useElapsed();
 
   useEffect(() => {
@@ -618,7 +677,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 
   if (!form.open)
     return (
-      <>
+      <FormStage form={form}>
         {head}
         <div role="status" className="frame flex flex-col items-start gap-3 p-8">
           <span className="flex size-12 items-center justify-center rounded-2xl border border-warn/40 bg-warn/10 text-warn">
@@ -630,7 +689,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             {t.back}
           </Link>
         </div>
-      </>
+      </FormStage>
     );
 
   if (done)
@@ -657,13 +716,36 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setA((x) => ({ ...x, [id]: v }));
     if (errors[id]) setErrors((e) => ({ ...e, [id]: "" }));
   };
-  const reason: Record<string, string> = { required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember };
+  const setFile = (id: string, st: FileState | null) => setFs((m) => (st ? { ...m, [id]: st } : Object.fromEntries(Object.entries(m).filter(([k]) => k !== id))));
+  const pickFile = async (x: FormField, file: File | undefined) => {
+    if (!file) return;
+    const base = { name: file.name, progress: 0 };
+    setA((v) => ({ ...v, [x.id]: "" }));
+    setErrors((e) => ({ ...e, [x.id]: "" }));
+    setFile(x.id, { ...base, status: "prep" });
+    try {
+      const p = await prepareMedia(file, { accept: FILE_KINDS[x.accept ?? "image"], profile: "attachment", onProgress: (v) => setFile(x.id, { ...base, status: "prep", progress: v }) });
+      setFile(x.id, { ...base, status: "up", progress: 0 });
+      const tk = await rpc<{ ok: boolean; path?: string; error?: string }>("form_upload_ticket", { p_slug: slug, p_field: x.id, p_mime: p.file.type, p_size: p.file.size });
+      if (!tk.ok || !tk.path) throw new Error(tk.error ?? "invalid");
+      await uploadForm(tk.path, p.file, (v) => setFile(x.id, { ...base, status: "up", progress: v }));
+      setA((v) => ({ ...v, [x.id]: tk.path! }));
+      setFile(x.id, { ...base, status: "done", progress: 1, before: p.before, after: p.after });
+    } catch (e) {
+      setFile(x.id, { ...base, status: "error", progress: 0, error: e instanceof MediaError ? mediaErrorText(e, l) : t.fileBad });
+    }
+  };
+  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember };
 
   const check = () => {
     const e: Record<string, string> = {};
     for (const x of fields) {
       const v = a[x.id];
       const s = typeof v === "string" ? v.trim() : "";
+      if (x.type === "file" && (fs[x.id]?.status === "prep" || fs[x.id]?.status === "up")) {
+        e[x.id] = t.fileWait;
+        continue;
+      }
       const empty = x.type === "multi" ? !(Array.isArray(v) && v.length) : x.type === "checkbox" ? v !== true : !s;
       if (empty) {
         if (x.required) e[x.id] = t.required;
@@ -709,7 +791,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   };
 
   return (
-    <>
+    <FormStage form={form}>
       {head}
       <form onSubmit={submit} noValidate className="frame relative grid gap-6 p-5 sm:p-8">
         <Honeypot value={honey} />
@@ -768,6 +850,30 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
               </fieldset>
             );
           }
+          if (x.type === "file") {
+            const st = fs[x.id];
+            const pct = Math.round((st?.progress ?? 0) * 100);
+            return (
+              <Row key={x.id} id={id} label={label} optional={opt} error={err} hint={helpOf(x, l) || t.fileHint}>
+                <input
+                  {...aria(id, err)}
+                  type="file"
+                  accept={FILE_ATTR[x.accept ?? "image"]}
+                  className={cn(inputCls, "h-auto cursor-pointer py-3 file:me-3 file:rounded-lg file:border-0 file:bg-volt/25 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-chalk")}
+                  data-testid={`file-${x.id}`}
+                  onChange={(e) => {
+                    void pickFile(x, e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+                {st && (
+                  <p role="status" className={cn("mt-2 text-sm", st.status === "error" ? "text-danger" : st.status === "done" ? "text-ok" : "text-mist")} data-testid={`file-status-${x.id}`}>
+                    {st.status === "prep" ? `${t.fileWorking} ${pct}%` : st.status === "up" ? `${t.fileUp} ${pct}%` : st.status === "done" ? t.fileDone(st.name, sizeText(st.before ?? 0), sizeText(st.after ?? 0)) : st.error}
+                  </p>
+                )}
+              </Row>
+            );
+          }
           const s = typeof v === "string" ? v : "";
           if (x.type === "member")
             return (
@@ -824,7 +930,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
           <Submit busy={busy} label={t.send} busyLabel={t.sending} />
         </div>
       </form>
-    </>
+    </FormStage>
   );
 }
 

@@ -72,6 +72,18 @@ export function readNationalId(raw: string, now = new Date()): NationalId | null
   return { birth, governorate, male: Number(d[12]) % 2 === 1 };
 }
 
+/**
+ * The last digit of the national ID checks the other 13 (weights 2,7,6,5,4,3,2,7,6,5,4,3,2, from 11).
+ * Only a warning for staff: a mismatch usually means a mistyped digit.
+ */
+export function nationalIdCheckOk(raw: string) {
+  const d = digitsOnly(raw);
+  if (!/^\d{14}$/.test(d)) return false;
+  const w = [2, 7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = w.reduce((t, x, i) => t + x * Number(d[i]), 0);
+  return ((11 - (sum % 11)) % 11) % 10 === Number(d[13]);
+}
+
 /** The academic year running now in Egypt (it starts in September), e.g. "2026/2027". */
 export function currentAcademicYear(now = new Date()) {
   const y = now.getFullYear();

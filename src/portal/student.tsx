@@ -43,7 +43,7 @@ import {
 } from "./ui";
 import { LanguageCard } from "./language";
 
-type HomeMaterial = { id: string; title: string; description: string; kind: "file" | "link"; path: string | null; url: string | null; fileName: string | null; mime: string | null; size: number | null; pinned: boolean; at: string };
+type HomeMaterial = { id: string; title: string; description: string; kind: "file" | "link"; path: string | null; url: string | null; fileName: string | null; mime: string | null; size: number | null; points?: number; pinned: boolean; at: string };
 type HomeQuiz = {
   id: string;
   title: string;
@@ -52,6 +52,7 @@ type HomeQuiz = {
   closesAt: string | null;
   timeLimit: number | null;
   maxAttempts: number;
+  points?: number;
   questions: number;
   maxScore: number;
   used: number;
@@ -336,6 +337,7 @@ function MaterialRow({ m, seen }: { m: HomeMaterial; seen?: boolean }) {
         <span className="block truncate text-[15px] font-semibold text-chalk">{m.title}</span>
         <span className="block truncate text-xs text-fog">
           {m.kind === "link" ? "رابط" : <bdi dir="ltr">{fmt.size(m.size)}</bdi>} · {fmt.short(m.at)}
+          {m.points ? ` · ${seen ? "" : "+"}${m.points} نقطة` : ""}
           {m.description ? ` · ${m.description}` : ""}
         </span>
       </span>
@@ -407,6 +409,7 @@ function QuizCard({ q }: { q: HomeQuiz }) {
         <p className="truncate text-[15px] font-semibold text-chalk">{q.title}</p>
         <p className="truncate text-xs text-fog">
           {q.questions} سؤال
+          {q.points ? ` · حتى ${q.points} نقطة` : ""}
           {q.timeLimit ? ` · ${q.timeLimit} دقيقة` : ""}
           {q.state === "upcoming" && q.opensAt ? ` · يفتح ${fmt.dateTime(q.opensAt)}` : q.closesAt && q.state === "open" ? ` · حتى ${fmt.dateTime(q.closesAt)}` : ""}
         </p>

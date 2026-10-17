@@ -1940,6 +1940,56 @@ test("drafts the team wrote wait at the top of the content screen for whoever pu
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
+test("content staff set the points of a lecture and the bonus a group earns for finishing the course", async ({ page }) => {
+  await signInAsOwner(page);
+  const material = {
+    id: "m1",
+    title: "Servo basics",
+    description: "",
+    kind: "link",
+    storage_path: null,
+    url: "https://example.com/servo",
+    file_name: null,
+    mime: null,
+    size_bytes: null,
+    group_name: "G1",
+    published: true,
+    pinned: false,
+    points: 7,
+    created_by: "u1",
+    created_at: at(3),
+  };
+  const patched: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/materials/, async (route) => {
+    const m = route.request().method();
+    if (m === "PATCH") {
+      const body = route.request().postDataJSON();
+      patched.push(body);
+      return route.fulfill({ json: { ...material, ...body } });
+    }
+    return route.fulfill({ json: [material] });
+  });
+  const bonus: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/course_bonus/, async (route) => {
+    if (route.request().method() === "POST") {
+      bonus.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ group_name: "G1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/content");
+  await page.getByRole("button", { name: /نقط إتمام الكورس/ }).click();
+  await page.getByTestId("course-bonus-G1").fill("40");
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => bonus[0]?.[0]).toMatchObject({ group_name: "G1", points: 40 });
+  await page.getByText("Servo basics").first().click();
+  await expect(page.getByText("7 نقطة")).toBeVisible();
+  await page.getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("material-points").fill("12");
+  await page.getByRole("button", { name: "حفظ", exact: true }).last().click();
+  await expect.poll(() => patched[0]).toMatchObject({ points: 12 });
+});
+
 test("certificates go in one tap to every student who attended enough sessions", async ({ page }) => {
   await signInAsOwner(page);
   const s = (id: string, name: string) => ({
@@ -2834,6 +2884,7 @@ test("a head gives the sector an urgent task, approves a hand-in and gives a war
     staff_sector_tasks: [teamTask({})],
     staff_warnings: [],
     staff_task_save: "t1",
+    staff_task_points: null,
     staff_task: { ...teamTask({}), leads: true },
     staff_task_review: { ok: true },
     staff_warning_give: "w1",
@@ -2846,8 +2897,12 @@ test("a head gives the sector an urgent task, approves a hand-in and gives a war
   await page.getByRole("button", { name: "تاسك", exact: true }).click();
   await page.getByLabel("العنوان").fill("Workshop reel");
   await page.getByLabel("الأولوية").selectOption("urgent");
+  await expect(page.getByTestId("task-points")).toHaveValue("30");
+  await page.getByTestId("task-points").fill("50");
   await page.getByRole("checkbox", { name: "Omar Design" }).check();
   await page.getByRole("button", { name: "ابعت التاسك" }).click();
+  // The supervisor's points are saved with the task.
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_points")?.body).toEqual({ p_task: "t1", p_points: 50 });
   await expect
     .poll(() => calls.find((c) => c.fn === "staff_task_save")?.body)
     .toMatchObject({
@@ -5715,5 +5770,136 @@ test("staff home says what the website is missing, and a line can be put aside",
   const before = await card.getByRole("listitem").count();
   await card.getByRole("listitem").first().getByRole("button", { name: "بعدين" }).click();
   await expect(card.getByRole("listitem")).toHaveCount(before - 1);
+  expect(errors).toEqual([]);
+});
+
+test("form builder: a file question that takes video, and a background video that is compressed before it is uploaded", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "with-media",
+    title_ar: "فورم بميديا",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: false,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(10),
+    accepted_ar: null,
+    accepted_url: null,
+    capacity: null,
+    delegation: null,
+    background_path: null,
+    background_kind: null,
+    fields: [{ id: "name", type: "name", label_ar: "الاسم", required: true }],
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: [], headers: { "content-range": "*/0" } }));
+  const uploads: { url: string; type: string | undefined; size: number }[] = [];
+  await page.route(/\/storage\/v1\/object\/form-media\//, (route) => {
+    const req = route.request();
+    uploads.push({ url: req.url(), type: req.headers()["content-type"], size: req.postDataBuffer()?.length ?? 0 });
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.goto("/app/#/staff/forms/f1");
+  await expect(page.getByText("خلفية الفورم")).toBeVisible();
+  // A 3-second 1080p clip (about 96 KB) stands in for a phone video; it is larger than the 720p-class size backgrounds are scaled to.
+  await page.getByTestId("form-bg-input").setInputFiles({ name: "intro.webm", mimeType: "video/webm", buffer: readFileSync("e2e/fixtures/bg-1080p.webm") });
+  await expect(page.getByTestId("form-bg-status")).toContainText("اترفع", { timeout: 30_000 });
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0].type).toMatch(/^video\/webm/);
+  expect(uploads[0].url).toMatch(/\/form-media\/b\/[0-9a-f-]{36}\/intro\.webm$/);
+  // And a question that takes a video.
+  await page.getByRole("button", { name: "ملف (صورة / PDF / فيديو)" }).click();
+  await page.getByPlaceholder("السؤال بالعربي").last().fill("فيديو المشروع");
+  await page.getByLabel("بيقبل إيه؟").selectOption("video");
+  await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ background_kind: "video" });
+  const saved = patches.at(-1) as { background_path: string; fields: { type: string; accept?: string }[] };
+  expect(saved.background_path).toMatch(/^b\/[0-9a-f-]{36}\/intro\.webm$/);
+  expect(saved.fields.at(-1)).toMatchObject({ type: "file", accept: "video", label_ar: "فيديو المشروع" });
+  expect(errors).toEqual([]);
+});
+
+test("the join form editor: hide a question, rename one, add a question with choices; answers show on the application", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/applications/form");
+  await expect(page.getByRole("heading", { name: "فورم الانضمام" })).toBeVisible();
+  // On a phone the tab bar sits over the bottom of the screen: bring each card to the middle first.
+  const card = async (id: string) => {
+    const c = page.getByTestId(id).first();
+    await c.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+    return c;
+  };
+  // Hide the faculty question.
+  await (await card("af-faculty")).getByRole("checkbox").uncheck();
+  // Rename the year question and change its choices.
+  await (await card("af-academic_year")).getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("af-academic_year").getByPlaceholder("السنة الدراسية").fill("انت في سنة كام؟");
+  await page.getByTestId("af-academic_year").getByRole("button", { name: "اختيار جديد" }).click();
+  await page.getByTestId("af-academic_year").getByPlaceholder("بالعربي").last().fill("سنة تحضيرية");
+  // Make the second choice required.
+  await (await card("af-track_second")).getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("af-track_second").getByRole("switch").click();
+  // A new question in step 2 with choices.
+  await page.getByRole("button", { name: "سؤال جديد في الخطوة دي" }).nth(1).click();
+  const q = await card("af-extra");
+  await q.getByPlaceholder("السؤال بالعربي").fill("بتعرف تلحم؟");
+  await q.locator("select").first().selectOption("select");
+  await q.locator("textarea").fill("أيوه\nلأ\nشوية");
+  await q.getByRole("switch").click();
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_apply_form_save")).toBeTruthy();
+  const p = (calls.find((c) => c.fn === "staff_apply_form_save")!.body as { p: Record<string, any> }).p;
+  expect(p.fields.faculty).toEqual({ hidden: true });
+  expect(p.fields.academic_year.label_ar).toBe("انت في سنة كام؟");
+  expect(p.fields.academic_year.options.at(-1)).toMatchObject({ ar: "سنة تحضيرية" });
+  expect(p.fields.academic_year.options.at(-1).key).toMatch(/^o_[a-z0-9]{6,}$/);
+  expect(p.fields.track_second).toEqual({ required: true });
+  expect(p.extra).toEqual([
+    { id: expect.stringMatching(/^q_[a-z0-9]{4,16}$/), step: 1, type: "select", label_ar: "بتعرف تلحم؟", required: true, options: [{ ar: "أيوه" }, { ar: "لأ" }, { ar: "شوية" }] },
+  ]);
+  // An application shows the answers to added questions, with the question as it was asked.
+  await page.route(/\/rest\/v1\/applications/, (route) =>
+    route.fulfill({
+      json: {
+        id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
+        national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس", repeats: 2, last_repeat_at: at(5),
+        faculty: null, academic_year: "o_x", student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: "beginner",
+        skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
+        answers: [{ id: "q_weld01", q: "بتعرف تلحم؟", a: "شوية" }], status: "new", staff_notes: "", public_note: "", reviewed_at: null, student_id: null,
+      },
+    }),
+  );
+  await page.goto("/app/#/staff/applications/a1");
+  // Applying again is counted here; the family-list data shows with the birth date read from the ID.
+  await expect(page.getByTestId("application-repeats")).toContainText("قدّم تاني 2 مرات");
+  await expect(page.getByText("30601121100035")).toBeVisible();
+  await expect(page.getByText(/مواليد .*2006 · دمياط/)).toBeVisible();
+  await expect(page.getByText("دمياط الجديدة - الحي الخامس")).toBeVisible();
+  const box = page.getByTestId("application-answers");
+  await expect(box.getByText("بتعرف تلحم؟")).toBeVisible();
+  await expect(box.getByText("شوية")).toBeVisible();
   expect(errors).toEqual([]);
 });

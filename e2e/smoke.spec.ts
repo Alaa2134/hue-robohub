@@ -42,11 +42,26 @@ test("application form validates and submits", async ({ page }) => {
   await page.goto("/ar/join/");
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByText("اكتب اسمك بالكامل (3 حروف على الأقل).")).toBeVisible();
+  // The family list needs four names and a real national ID.
   await page.fill("#ap-full_name", "طالب اختبار");
+  await page.fill("#ap-national_id", "30613451100035");
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByText("اكتب اسمك رباعي زي البطاقة.")).toBeVisible();
+  await expect(page.getByText("الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.")).toBeVisible();
+  await page.fill("#ap-full_name", "طالب اختبار محمد علي");
+  await page.fill("#ap-national_id", "٣٠٦٠١١٢١١٠٠٠٣٥");
+  await expect(page.locator("#ap-national_id")).toHaveValue("30601121100035");
+  await expect(page.getByTestId("ap-nid-read")).toContainText("دمياط");
   await page.fill("#ap-phone", "01012345678");
   await page.fill("#ap-email", "test@example.com");
+  await page.selectOption("#ap-governorate", "دمياط");
+  await page.fill("#ap-address", "دمياط الجديدة - الحي الخامس - المجاورة 28");
   await page.fill("#ap-faculty", "الذكاء الاصطناعي");
   await page.selectOption("#ap-academic_year", "1");
+  await page.getByRole("button", { name: "التالي" }).click();
+  // The university ID is required too.
+  await expect(page.locator("#ap-student_number-error")).toBeVisible();
+  await page.fill("#ap-student_number", "8240001");
   await page.getByRole("button", { name: "التالي" }).click();
   await page.getByRole("radio").first().click();
   await page.getByRole("radio", { name: /مبتدئ/ }).click();
@@ -59,6 +74,9 @@ test("application form validates and submits", async ({ page }) => {
   await expect(page.getByText("BX-TEST01")).toBeVisible();
   expect(sent[0]?.p?.phone).toBe("01012345678");
   expect(sent[0]?.p?.consent).toBe(true);
+  expect(sent[0]?.p).toMatchObject({ national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس - المجاورة 28", student_number: "8240001" });
+  // The national ID is never kept in the saved draft.
+  expect(await page.evaluate(() => localStorage.getItem("buildx_apply_draft_v1") ?? "")).not.toContain("30601121100035");
   expect(errors).toEqual([]);
 });
 
@@ -190,5 +208,67 @@ test("success stories page shows the team's stories, and the footer offers the a
   // Desktop shows every store that has a link; only Google Play is set here.
   await expect(page.locator("footer").getByRole("link", { name: /Google Play/ })).toHaveAttribute("href", /buildx\.hue\.app/);
   await expect(page.locator("footer").getByRole("link", { name: /App Store/ })).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("the join form follows the setup the team saved in the app", async ({ page }) => {
+  const errors = collectErrors(page);
+  const sent: { p?: Record<string, unknown> }[] = [];
+  await mockSupabase(page, { submit: (b) => sent.push(b as { p?: Record<string, unknown> }) });
+  const setup = {
+    steps_ar: ["عنك", "", ""],
+    fields: {
+      full_name: { label_ar: "اسمك الرباعي" },
+      faculty: { hidden: true },
+      academic_year: { options: [{ key: "o_first1", ar: "أولى" }, { key: "o_other1", ar: "سنة تانية أو أكتر" }] },
+      motivation: { required: false },
+      hours_per_week: { hidden: true },
+    },
+    extra: [
+      { id: "q_like01", step: 0, type: "select", label_ar: "بتحب إيه أكتر؟", required: true, options: [{ ar: "روبوتات" }, { ar: "برمجة" }] },
+      { id: "q_laptop", step: 2, type: "yesno", label_ar: "عندك لابتوب؟", required: true },
+    ],
+    tracks_hidden: ["business"],
+    consent_ar: "موافق على شروط الأسرة.",
+  };
+  await page.route("**/rest/v1/site_settings**", (route) =>
+    route.fulfill({ json: new URL(route.request().url()).searchParams.get("key") === "eq.apply_form" ? [{ value: setup }] : [{ value: { open: true } }] }),
+  );
+  await page.goto("/ar/join/");
+  await expect(page.getByText("اسمك الرباعي")).toBeVisible();
+  await expect(page.locator("legend", { hasText: "عنك" })).toBeVisible();
+  await expect(page.locator("#ap-faculty")).toHaveCount(0);
+  await page.fill("#ap-full_name", "طالب اختبار محمد علي");
+  await page.fill("#ap-national_id", "30601121100035");
+  await page.fill("#ap-phone", "01012345678");
+  await page.fill("#ap-email", "test@example.com");
+  await page.selectOption("#ap-governorate", "الدقهلية");
+  await page.fill("#ap-address", "المنصورة - شارع الجمهورية");
+  await page.selectOption("#ap-academic_year", "o_first1");
+  await page.fill("#ap-student_number", "8251234");
+  // The added question is required.
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "الخانة دي مطلوبة." })).toBeVisible();
+  await page.getByRole("radio", { name: "برمجة" }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // A hidden track isn't offered.
+  await expect(page.getByRole("radio", { name: /الأعمال/ })).toHaveCount(0);
+  await page.getByRole("radio").first().click();
+  await page.getByRole("radio", { name: /مبتدئ/ }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // «Why» is optional now and the hours question is gone; the added yes/no is required.
+  await expect(page.locator("#ap-hours_per_week")).toHaveCount(0);
+  await page.check("#ap-consent");
+  await expect(page.getByText("موافق على شروط الأسرة.")).toBeVisible();
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "الخانة دي مطلوبة." })).toBeVisible();
+  await page.getByRole("radio", { name: "أيوه" }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // The review shows the added answers.
+  await expect(page.getByText("بتحب إيه أكتر؟")).toBeVisible();
+  await expect(page.getByText("أولى")).toBeVisible();
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByText("BX-TEST01")).toBeVisible();
+  expect(sent[0]?.p).toMatchObject({ faculty: "", hours_per_week: "", academic_year: "o_first1", answers: { q_like01: "برمجة", q_laptop: "yes" } });
   expect(errors).toEqual([]);
 });

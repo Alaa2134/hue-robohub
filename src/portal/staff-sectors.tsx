@@ -54,6 +54,7 @@ type Task = {
   priority: Priority;
   due_at: string;
   warn_on_miss: boolean;
+  points?: number;
   status: "open" | "closed" | "cancelled";
   created_by_name: string | null;
   created_at: string;
@@ -561,6 +562,7 @@ function MyTaskSheet({ initial, onClose }: { initial: Task; onClose: () => void 
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={s.tone}>{s.label}</Badge>
           <Badge tone={PRIORITY[t.priority].tone}>{PRIORITY[t.priority].label}</Badge>
+          <Badge tone="info">{t.points ?? 30} نقطة</Badge>
           {t.repeat !== "none" && <Badge tone="muted">🔁 {REPEAT[t.repeat]}</Badge>}
           <span className="text-xs text-fog">
             {t.sector_name}
@@ -1348,6 +1350,7 @@ function TaskSheet({
     priority: (task?.priority ?? "normal") as Priority,
     due: toLocalInput(task?.due_at ?? new Date(Date.now() + 3 * 86_400_000)),
     warn: task?.warn_on_miss ?? true,
+    points: String(task?.points ?? 30),
     repeat: (task?.repeat ?? "none") as Repeat,
   });
   const [steps, setSteps] = useState<CheckItem[]>(task?.checklist ?? []);
@@ -1378,6 +1381,8 @@ function TaskSheet({
     if (!due) return toast("حدد آخر ميعاد", "error");
     if (!task && new Date(due).getTime() < Date.now()) return toast("آخر ميعاد لازم يكون بعد دلوقتي", "error");
     if (f.link.trim() && !/^https:\/\/\S+$/i.test(f.link.trim())) return toast("اللينك لازم يبدأ بـ https://", "error");
+    const points = Math.round(Number(f.points));
+    if (!Number.isFinite(points) || points < 0 || points > 1000) return toast("النقط من 0 لـ 1000", "error");
     setBusy(true);
     try {
       const id = await rpc<string>("staff_task_save", {
@@ -1391,6 +1396,7 @@ function TaskSheet({
         p_assignees: who,
         p_warn: f.warn,
       });
+      if (points !== (task?.points ?? 30)) await rpc("staff_task_points", { p_task: id, p_points: points });
       if (steps.length || f.repeat !== "none" || task) await rpc("staff_task_extras", { p_task: id, p_checklist: steps, p_repeat: f.repeat });
       if (asTemplate) {
         const days = Math.max(0, Math.round((new Date(due).getTime() - Date.now()) / 86_400_000));
@@ -1429,9 +1435,12 @@ function TaskSheet({
         <Field label="لينك مرجع (اختياري)">
           <Input value={f.link} onChange={(e) => setF({ ...f, link: e.target.value })} dir="ltr" placeholder="https://" maxLength={300} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Field label="آخر ميعاد">
             <Input type="datetime-local" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} required />
+          </Field>
+          <Field label="النقط" hint="التسليم في الميعاد بياخد النقط كلها، المتأخر تلت النقط، وعدم التسليم بيخصم ثلثين.">
+            <Input type="number" inputMode="numeric" min={0} max={1000} value={f.points} onChange={(e) => setF({ ...f, points: e.target.value })} dir="ltr" data-testid="task-points" />
           </Field>
           <Field label="الأولوية">
             <Select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value as Priority })}>
