@@ -6062,3 +6062,124 @@ test("the activity log is the owner's alone: a full admin sees neither the menu 
   await page.goto("/app/#/staff/audit");
   await expect(page.getByText("الصفحة دي للقائد بس")).toBeVisible();
 });
+
+test("QR attendance from a form: turned on in the editor with a session for one group, then scanned by code, forced, marked by hand, absentees listed and exported", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const fields = [
+    { id: "n", type: "name", label_ar: "الاسم", required: true },
+    { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    { id: "g", type: "select", label_ar: "المجموعة", required: true, options: [{ ar: "A" }, { ar: "B" }] },
+  ];
+  const form: Record<string, unknown> = {
+    id: "f1",
+    slug: "ros-course",
+    title_ar: "كورس ROS",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    fields,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    background_path: null,
+    background_kind: null,
+    created_at: at(600),
+  };
+  const patches: Record<string, unknown>[] = [];
+  const marks: Record<string, unknown>[] = [];
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/forms(\?|$)/, async (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      Object.assign(form, body);
+      return route.fulfill({ json: [form] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  const people = [
+    { id: "r1", ref: "F-AAAA0001", name: "أحمد سامي", phone: "01011111111", status: "new", answers: { n: "أحمد سامي", g: "A" }, pass: "AAAAAAAAAAAAAAA1" },
+    { id: "r2", ref: "F-BBBB0002", name: "بسمة علي", phone: "01022222222", status: "new", answers: { n: "بسمة علي", g: "B" }, pass: "BBBBBBBBBBBBBBB2" },
+    { id: "r3", ref: "F-CCCC0003", name: "كريم حسن", phone: "01033333333", status: "accepted", answers: { n: "كريم حسن", g: "A" }, pass: "CCCCCCCCCCCCCCC3" },
+  ];
+  await page.route(/\/rest\/v1\/form_responses\?select=id%2Cref/, (route) => route.fulfill({ json: people }));
+  await page.route(/\/rest\/v1\/form_attendance/, (route) =>
+    route.fulfill({ json: [{ response_id: "r3", session: (form.attendance as { sessions: { id: string }[] }).sessions[0].id, present: true, at: at(20), method: "qr" }] }),
+  );
+  await page.route(/\/rest\/v1\/rpc\/staff_form_mark/, (route) => {
+    const b = route.request().postDataJSON() as { p_code: string | null; p_response: string | null; p_present: boolean; p_force: boolean; p_session: string };
+    marks.push(b);
+    const who = people.find((p) => p.id === b.p_response || (b.p_code && b.p_code.toUpperCase().includes(p.ref)));
+    if (!who) return route.fulfill({ json: { ok: false, error: "not_found" } });
+    const s2 = (form.attendance as { sessions: { id: string }[] }).sessions[1].id;
+    if (who.id === "r2" && b.p_session === s2 && !b.p_force)
+      return route.fulfill({ json: { ok: false, error: "not_this_session", id: "r2", name: who.name, ref: who.ref, answer: "B" } });
+    return route.fulfill({ json: { ok: true, id: who.id, name: who.name, ref: who.ref, status: who.status, present: b.p_present, at: new Date().toISOString() } });
+  });
+
+  // The editor: QR on, split by «المجموعة», two lectures, the second only for group A.
+  await page.goto("/app/#/staff/forms/f1");
+  await page.getByRole("switch", { name: /كل اللي يسجّل ياخد QR للحضور/ }).click();
+  await page.getByTestId("attendance-by").selectOption("g");
+  await page.getByRole("button", { name: "موعد", exact: true }).click();
+  await page.getByRole("button", { name: "موعد", exact: true }).click();
+  const second = page.getByTestId("attendance-session").nth(1);
+  await second.getByLabel("لمين").selectOption("A");
+  await page.getByTestId("attendance-session").first().getByLabel("الميعاد").fill("2026-01-01T10:00");
+  await page.getByRole("button", { name: "حفظ" }).first().click();
+  await expect.poll(() => patches.length).toBe(1);
+  const att = patches[0].attendance as { on: boolean; by: string; sessions: { id: string; name: string; only: string | null }[] };
+  expect(att).toMatchObject({ on: true, by: "g" });
+  expect(att.sessions.map((x) => [x.name, x.only])).toEqual([
+    ["محاضرة 1", null],
+    ["محاضرة 2", "A"],
+  ]);
+  expect(att.sessions[0].id).toMatch(/^s_[a-z0-9]{1,8}$/);
+
+  // The scan screen: the first lecture is for everyone; Karim was scanned already.
+  await page.goto("/app/#/staff/forms/f1/attendance");
+  await expect(page.getByTestId("attendance-stats")).toContainText("حضروا1");
+  await expect(page.getByTestId("attendance-stats")).toContainText("المتوقعين3");
+  await page.getByLabel("كود الطلب").fill("F-AAAA0001");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("attendance-flash")).toContainText("✓ أحمد سامي حاضر");
+  await expect(page.getByTestId("attendance-stats")).toContainText("حضروا2");
+  await page.getByRole("button", { name: /^غايبين/ }).click();
+  await expect(page.getByTestId("attendance-row")).toHaveCount(1);
+  await expect(page.getByTestId("attendance-row")).toContainText("بسمة علي");
+  await expect(page.getByRole("button", { name: "انسخ الغايبين وأرقامهم" })).toBeVisible();
+
+  // The second lecture is group A's: Basma (B) is flagged, and can still be let in.
+  await page.getByTestId("attendance-sessions").getByRole("button", { name: /محاضرة 2/ }).click();
+  await expect(page.getByTestId("attendance-stats")).toContainText("المتوقعين2");
+  await page.getByLabel("كود الطلب").fill("f-bbbb0002");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("attendance-flash")).toContainText("مش من «محاضرة 2» (اختار: B)");
+  await page.getByRole("button", { name: "سجّله حاضر برضه" }).click();
+  await expect(page.getByTestId("attendance-flash")).toContainText("✓ بسمة علي حاضر");
+  expect(marks.at(-1)).toMatchObject({ p_force: true });
+  // By hand from the list.
+  await page.getByRole("button", { name: /^الكل/ }).click();
+  await page.getByTestId("attendance-row").filter({ hasText: "كريم حسن" }).getByRole("button", { name: "غايب" }).click();
+  await expect(page.getByTestId("attendance-row").filter({ hasText: "كريم حسن" }).getByRole("button", { name: "حاضر ✓" })).toBeVisible();
+  expect(marks.at(-1)).toMatchObject({ p_response: "r3", p_present: true });
+
+  const file = page.waitForEvent("download");
+  await page.getByTestId("attendance-xlsx").click();
+  expect((await file).suggestedFilename()).toMatch(/^buildx-attendance-ros-course-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  expect(errors).toEqual([]);
+});

@@ -50,6 +50,7 @@ import { MemberScanScreen } from "./member-card";
 import { TeamCardsScreen } from "./team-cards";
 import { SiteGapsCard } from "./site-gaps";
 import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
+import { FormAttendance } from "./form-attendance";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
 import { WhatsAppScreen } from "./whatsapp";
@@ -360,6 +361,8 @@ export function StaffApp({
           <FormResponses key={id} id={id} me={me} />
         ) : sub === "checkin" ? (
           <DelegationCheckin key={id} id={id} />
+        ) : sub === "attendance" ? (
+          <FormAttendance key={id} id={id} />
         ) : (
           <FormEditor key={id} id={id} me={me} />
         )

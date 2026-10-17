@@ -183,6 +183,66 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   });
 });
 
+test("a form with QR attendance: after sending, a QR to save on the phone; its link and the status show the sessions attended", async ({
+  page,
+}) => {
+  const PASS = "A1B2C3D4E5F60718";
+  const COURSE = {
+    slug: "ros-course",
+    title_ar: "كورس ROS",
+    open: true,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    ],
+  };
+  const passOut = {
+    ok: true,
+    pass: PASS,
+    ref: "F-1A2B3C4D",
+    name: "منى عادل",
+    status: "new",
+    title_ar: "كورس ROS",
+    sessions: [
+      { id: "s1", name: "محاضرة 1", at: null, here: true, here_at: inHours(-24) },
+      { id: "s2", name: "محاضرة 2", at: inHours(48), here: false, here_at: null },
+    ],
+  };
+  await mockSupabase(page, {
+    rpc: {
+      public_form: () => COURSE,
+      submit_form: () => ({ ok: true, ref: "F-1A2B3C4D", pass: PASS }),
+      form_pass: (b) => (String(b.p_token).toUpperCase() === PASS ? passOut : { ok: false, error: "not_found" }),
+      form_status: () => ({ ok: true, status: "new", title_ar: "كورس ROS", attend_pass: PASS }),
+    },
+  });
+  await page.goto("/ar/form/?f=ros-course");
+  await page.getByLabel("الاسم بالكامل").fill("منى عادل");
+  await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  const card = page.getByTestId("attend-pass");
+  await expect(card).toContainText("الـ QR بتاعك للحضور");
+  await expect(card).toContainText("منى عادل");
+  expect(await page.getByTestId("attend-qr").getAttribute("src")).toMatch(/^data:image\/png/);
+  await expect(page.getByTestId("attend-sessions")).toContainText("حضرت ✅");
+  await expect(page.getByTestId("attend-sessions")).toContainText("لسه");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("attend-save").click();
+  expect((await file).suggestedFilename()).toBe("buildx-qr-F-1A2B3C4D.png");
+
+  // The QR opens its own page (what the team scans, and what the student keeps).
+  await page.goto(`/ar/form/?pass=${PASS.toLowerCase()}`);
+  await expect(page.getByTestId("attend-pass")).toContainText("كورس ROS");
+  await page.goto("/ar/form/?pass=ffffffffffffffff");
+  await expect(page.getByTestId("attend-pass-missing")).toBeVisible();
+
+  // Lost it? The status check with code + phone shows it again.
+  await page.goto("/ar/form/?ref=F-1A2B3C4D#status");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01112223334");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.locator("#status").getByTestId("attend-pass")).toBeVisible();
+});
+
 test("a closed form says so instead of taking answers", async ({ page }) => {
   await mockSupabase(page, {
     rpc: { public_form: () => ({ ...TRYOUT, open: false, opens_at: inHours(24) }) },
