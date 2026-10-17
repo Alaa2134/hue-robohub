@@ -192,3 +192,61 @@ test("success stories page shows the team's stories, and the footer offers the a
   await expect(page.locator("footer").getByRole("link", { name: /App Store/ })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("the join form follows the setup the team saved in the app", async ({ page }) => {
+  const errors = collectErrors(page);
+  const sent: { p?: Record<string, unknown> }[] = [];
+  await mockSupabase(page, { submit: (b) => sent.push(b as { p?: Record<string, unknown> }) });
+  const setup = {
+    steps_ar: ["عنك", "", ""],
+    fields: {
+      full_name: { label_ar: "اسمك الرباعي" },
+      faculty: { hidden: true },
+      academic_year: { options: [{ key: "o_first1", ar: "أولى" }, { key: "o_other1", ar: "سنة تانية أو أكتر" }] },
+      motivation: { required: false },
+      hours_per_week: { hidden: true },
+    },
+    extra: [
+      { id: "q_like01", step: 0, type: "select", label_ar: "بتحب إيه أكتر؟", required: true, options: [{ ar: "روبوتات" }, { ar: "برمجة" }] },
+      { id: "q_laptop", step: 2, type: "yesno", label_ar: "عندك لابتوب؟", required: true },
+    ],
+    tracks_hidden: ["business"],
+    consent_ar: "موافق على شروط الأسرة.",
+  };
+  await page.route("**/rest/v1/site_settings**", (route) =>
+    route.fulfill({ json: new URL(route.request().url()).searchParams.get("key") === "eq.apply_form" ? [{ value: setup }] : [{ value: { open: true } }] }),
+  );
+  await page.goto("/ar/join/");
+  await expect(page.getByText("اسمك الرباعي")).toBeVisible();
+  await expect(page.locator("legend", { hasText: "عنك" })).toBeVisible();
+  await expect(page.locator("#ap-faculty")).toHaveCount(0);
+  await page.fill("#ap-full_name", "طالب اختبار");
+  await page.fill("#ap-phone", "01012345678");
+  await page.fill("#ap-email", "test@example.com");
+  await page.selectOption("#ap-academic_year", "o_first1");
+  // The added question is required.
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "الخانة دي مطلوبة." })).toBeVisible();
+  await page.getByRole("radio", { name: "برمجة" }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // A hidden track isn't offered.
+  await expect(page.getByRole("radio", { name: /الأعمال/ })).toHaveCount(0);
+  await page.getByRole("radio").first().click();
+  await page.getByRole("radio", { name: /مبتدئ/ }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // «Why» is optional now and the hours question is gone; the added yes/no is required.
+  await expect(page.locator("#ap-hours_per_week")).toHaveCount(0);
+  await page.check("#ap-consent");
+  await expect(page.getByText("موافق على شروط الأسرة.")).toBeVisible();
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "الخانة دي مطلوبة." })).toBeVisible();
+  await page.getByRole("radio", { name: "أيوه" }).click();
+  await page.getByRole("button", { name: "التالي" }).click();
+  // The review shows the added answers.
+  await expect(page.getByText("بتحب إيه أكتر؟")).toBeVisible();
+  await expect(page.getByText("أولى")).toBeVisible();
+  await page.getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByText("BX-TEST01")).toBeVisible();
+  expect(sent[0]?.p).toMatchObject({ faculty: "", hours_per_week: "", academic_year: "o_first1", answers: { q_like01: "برمجة", q_laptop: "yes" } });
+  expect(errors).toEqual([]);
+});

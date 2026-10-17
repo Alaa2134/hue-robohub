@@ -5836,3 +5836,64 @@ test("form builder: a file question that takes video, and a background video tha
   expect(saved.fields.at(-1)).toMatchObject({ type: "file", accept: "video", label_ar: "فيديو المشروع" });
   expect(errors).toEqual([]);
 });
+
+test("the join form editor: hide a question, rename one, add a question with choices; answers show on the application", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/applications/form");
+  await expect(page.getByRole("heading", { name: "فورم الانضمام" })).toBeVisible();
+  // On a phone the tab bar sits over the bottom of the screen: bring each card to the middle first.
+  const card = async (id: string) => {
+    const c = page.getByTestId(id).first();
+    await c.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+    return c;
+  };
+  // Hide the faculty question.
+  await (await card("af-faculty")).getByRole("checkbox").uncheck();
+  // Rename the year question and change its choices.
+  await (await card("af-academic_year")).getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("af-academic_year").getByPlaceholder("السنة الدراسية").fill("انت في سنة كام؟");
+  await page.getByTestId("af-academic_year").getByRole("button", { name: "اختيار جديد" }).click();
+  await page.getByTestId("af-academic_year").getByPlaceholder("بالعربي").last().fill("سنة تحضيرية");
+  // Make the second choice required.
+  await (await card("af-track_second")).getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("af-track_second").getByRole("switch").click();
+  // A new question in step 2 with choices.
+  await page.getByRole("button", { name: "سؤال جديد في الخطوة دي" }).nth(1).click();
+  const q = await card("af-extra");
+  await q.getByPlaceholder("السؤال بالعربي").fill("بتعرف تلحم؟");
+  await q.locator("select").first().selectOption("select");
+  await q.locator("textarea").fill("أيوه\nلأ\nشوية");
+  await q.getByRole("switch").click();
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_apply_form_save")).toBeTruthy();
+  const p = (calls.find((c) => c.fn === "staff_apply_form_save")!.body as { p: Record<string, any> }).p;
+  expect(p.fields.faculty).toEqual({ hidden: true });
+  expect(p.fields.academic_year.label_ar).toBe("انت في سنة كام؟");
+  expect(p.fields.academic_year.options.at(-1)).toMatchObject({ ar: "سنة تحضيرية" });
+  expect(p.fields.academic_year.options.at(-1).key).toMatch(/^o_[a-z0-9]{6,}$/);
+  expect(p.fields.track_second).toEqual({ required: true });
+  expect(p.extra).toEqual([
+    { id: expect.stringMatching(/^q_[a-z0-9]{4,16}$/), step: 1, type: "select", label_ar: "بتعرف تلحم؟", required: true, options: [{ ar: "أيوه" }, { ar: "لأ" }, { ar: "شوية" }] },
+  ]);
+  // An application shows the answers to added questions, with the question as it was asked.
+  await page.route(/\/rest\/v1\/applications/, (route) =>
+    route.fulfill({
+      json: {
+        id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
+        faculty: null, academic_year: "o_x", student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: "beginner",
+        skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
+        answers: [{ id: "q_weld01", q: "بتعرف تلحم؟", a: "شوية" }], status: "new", staff_notes: "", public_note: "", reviewed_at: null, student_id: null,
+      },
+    }),
+  );
+  await page.goto("/app/#/staff/applications/a1");
+  const box = page.getByTestId("application-answers");
+  await expect(box.getByText("بتعرف تلحم؟")).toBeVisible();
+  await expect(box.getByText("شوية")).toBeVisible();
+  expect(errors).toEqual([]);
+});

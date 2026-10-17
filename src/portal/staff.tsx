@@ -17,6 +17,7 @@ import {
 } from "./core";
 import { InstallCard, AppShell, BrandLine, SiteButton, SiteCard, type Tab } from "./shell";
 import { ApplicationDetail, ApplicationsScreen, newApplicationsCount } from "./staff-applications";
+import { ApplyFormEditor } from "./staff-apply-form";
 import { SessionScreen, SessionSheet, SessionsScreen } from "./staff-attendance";
 import { PortfolioScreen, PortfoliosAdmin } from "./staff-portfolio";
 import { ErrorsScreen, SecurityAlert, SecurityScreen, SiteStatsScreen, UsageCard } from "./staff-insights";
@@ -250,7 +251,7 @@ export function StaffApp({
       );
       break;
     case "applications":
-      screen = id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen me={me} />;
+      screen = id === "form" ? <ApplyFormEditor /> : id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen me={me} />;
       break;
     case "site":
       screen = <SiteContentScreen me={me} query={query} />;

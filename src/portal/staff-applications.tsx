@@ -1,10 +1,12 @@
 "use client";
 /** Staff review of website applications: filter, read, change status, take notes, reach the applicant. */
 import { useMemo, useState } from "react";
-import { DAYS, HEARD_FROM, HOURS, LEVELS, STATUSES, TEAM_ROLES, YEARS, label } from "@/content/application";
+import { STATUSES } from "@/content/application";
+import { choiceLabel, type ApplyConfig, type ExtraAnswer } from "@/content/apply-form";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
 import { can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
+import { useApplyConfig } from "./staff-apply-form";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { sendByEmail } from "./email-handoff";
 import { PinResults, type PinItem } from "./staff-students";
@@ -20,21 +22,23 @@ export type Application = {
   full_name: string;
   phone: string;
   email: string;
-  faculty: string;
-  academic_year: string;
+  faculty: string | null;
+  academic_year: string | null;
   student_number: string | null;
   track_first: string;
   track_second: string | null;
   team_roles: string[];
-  experience_level: string;
+  experience_level: string | null;
   skills: string | null;
   experience: string | null;
   portfolio_url: string | null;
-  motivation: string;
+  motivation: string | null;
   goals: string | null;
-  hours_per_week: string;
+  hours_per_week: string | null;
   days: string[];
   heard_from: string | null;
+  /** Answers to the questions the team added to the form. */
+  answers: ExtraAnswer[] | null;
   status: Status;
   staff_notes: string;
   public_note: string;
@@ -64,6 +68,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
   const [status, setStatus] = useState<Status | "all">("all");
   const [track, setTrack] = useState("");
   const [q, setQ] = useState("");
+  const cfg = useApplyConfig();
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: data?.length ?? 0 };
@@ -82,8 +87,11 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
   }, [data, status, track, q]);
 
   const exportCsv = () => {
+    // One column per added question (newest wording), in the order they were first answered.
+    const extra = new Map<string, string>();
+    for (const a of list) for (const x of a.answers ?? []) if (!extra.has(x.id)) extra.set(x.id, x.q);
     downloadCsv(`buildx-applications-${today()}.csv`, [
-      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", "ملاحظات الفريق", "رسالة للمتقدم"],
+      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", ...extra.values(), "ملاحظات الفريق", "رسالة للمتقدم"],
       ...list.map((a) => [
         a.ref,
         fmt.dateTime(a.created_at),
@@ -92,20 +100,21 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         a.phone,
         a.email,
         a.faculty,
-        label(YEARS, a.academic_year, "ar"),
+        choiceLabel(cfg, "academic_year", a.academic_year),
         a.student_number,
         trackAr(a.track_first),
         trackAr(a.track_second),
-        label(LEVELS, a.experience_level, "ar"),
+        choiceLabel(cfg, "experience_level", a.experience_level),
         a.skills,
         a.experience,
         a.portfolio_url,
         a.motivation,
         a.goals,
-        label(HOURS, a.hours_per_week, "ar"),
-        a.days.map((d) => label(DAYS, d, "ar")).join("، "),
-        a.team_roles.map((r) => label(TEAM_ROLES, r, "ar")).join("، "),
-        label(HEARD_FROM, a.heard_from, "ar"),
+        choiceLabel(cfg, "hours_per_week", a.hours_per_week),
+        a.days.map((d) => choiceLabel(cfg, "days", d)).join("، "),
+        a.team_roles.map((r) => choiceLabel(cfg, "team_roles", r)).join("، "),
+        choiceLabel(cfg, "heard_from", a.heard_from),
+        ...[...extra.keys()].map((id) => (a.answers ?? []).find((x) => x.id === id)?.a ?? ""),
         a.staff_notes,
         a.public_note,
       ]),
@@ -132,6 +141,11 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
           <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
             Excel
           </Button>
+          {can(me, "applications") && (
+            <Button size="sm" icon="edit" onClick={() => go("/staff/applications/form")} data-testid="apply-form-edit">
+              تعديل الفورم
+            </Button>
+          )}
           </>
         }
       />
@@ -166,7 +180,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
               </Chip>
             ))}
           </div>
-          <Stats list={data} />
+          <Stats list={data} cfg={cfg} />
           {list.length ? (
             <List className="mt-4">
               {list.map((a) => (
@@ -178,7 +192,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
                         {a.full_name}
                       </p>
                       <p className="truncate text-xs text-fog">
-                        {trackAr(a.track_first)} · {a.faculty} · {fmt.rel(a.created_at)}
+                        {[trackAr(a.track_first), a.faculty, fmt.rel(a.created_at)].filter(Boolean).join(" · ")}
                       </p>
                     </div>
                     <Badge tone={TONE[a.status]}>{statusAr(a.status)}</Badge>
@@ -214,6 +228,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   const [busy, setBusy] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [pins, setPins] = useState<PinItem[] | null>(null);
+  const cfg = useApplyConfig();
 
   if (loading && !a) return <Loading />;
   if (error || !a) return <ErrorBox error={error ?? "الطلب مش موجود"} retry={reload} />;
@@ -319,7 +334,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
           <Item k="الموبايل" v={a.phone} ltr />
           <Item k="الإيميل" v={a.email} ltr />
           <Item k="الكلية" v={a.faculty} />
-          <Item k="السنة" v={label(YEARS, a.academic_year, "ar")} />
+          <Item k="السنة" v={choiceLabel(cfg, "academic_year", a.academic_year)} />
           <Item k="الرقم الجامعي" v={a.student_number} ltr />
           <Item k="لغة الفورم" v={a.locale === "en" ? "English" : "عربي"} />
         </Card>
@@ -329,7 +344,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         <Card>
           <Item k="المسار الأول" v={trackAr(a.track_first)} />
           <Item k="المسار التاني" v={trackAr(a.track_second)} />
-          <Item k="المستوى" v={label(LEVELS, a.experience_level, "ar")} />
+          <Item k="المستوى" v={choiceLabel(cfg, "experience_level", a.experience_level)} />
           <Item k="المهارات" v={a.skills} />
           <Item k="الخبرة السابقة" v={a.experience} />
           <Item
@@ -345,7 +360,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
             }
             ltr
           />
-          <Item k="أدوار تنظيمية مهتم بيها" v={a.team_roles.map((r) => label(TEAM_ROLES, r, "ar")).join("، ")} />
+          <Item k="أدوار تنظيمية مهتم بيها" v={a.team_roles.map((r) => choiceLabel(cfg, "team_roles", r)).join("، ")} />
         </Card>
       </Section>
 
@@ -353,11 +368,21 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         <Card>
           <Item k="ليه عايز ينضم" v={a.motivation} />
           <Item k="عايز يبني / يتعلّم إيه" v={a.goals} />
-          <Item k="ساعات في الأسبوع" v={label(HOURS, a.hours_per_week, "ar")} />
-          <Item k="الأيام المناسبة" v={a.days.map((d) => label(DAYS, d, "ar")).join("، ")} />
-          <Item k="عرف عنّا منين" v={label(HEARD_FROM, a.heard_from, "ar")} />
+          <Item k="ساعات في الأسبوع" v={choiceLabel(cfg, "hours_per_week", a.hours_per_week)} />
+          <Item k="الأيام المناسبة" v={a.days.map((d) => choiceLabel(cfg, "days", d)).join("، ")} />
+          <Item k="عرف عنّا منين" v={choiceLabel(cfg, "heard_from", a.heard_from)} />
         </Card>
       </Section>
+
+      {!!a.answers?.length && (
+        <Section title="أسئلة إضافية">
+          <Card data-testid="application-answers">
+            {a.answers.map((x) => (
+              <Item key={x.id} k={x.q} v={x.a} />
+            ))}
+          </Card>
+        </Section>
+      )}
 
       {isFull(me) && (
         <Button variant="danger" icon="trash" className="mt-8" block onClick={remove}>
@@ -462,7 +487,7 @@ function IntakeCard() {
 }
 
 /** Where applications come from: counts per track, faculty and source. */
-function Stats({ list }: { list: Application[] }) {
+function Stats({ list, cfg }: { list: Application[]; cfg: ApplyConfig }) {
   const [open, setOpen] = useState(false);
   const count = (key: (a: Application) => string | null | undefined) => {
     const m = new Map<string, number>();
@@ -474,9 +499,9 @@ function Stats({ list }: { list: Application[] }) {
   };
   const groups: [string, [string, number][]][] = [
     ["المسار الأول", count((a) => trackAr(a.track_first))],
-    ["الكلية", count((a) => a.faculty.trim())],
-    ["عرفوا منين", count((a) => label(HEARD_FROM, a.heard_from, "ar"))],
-    ["المستوى", count((a) => label(LEVELS, a.experience_level, "ar"))],
+    ["الكلية", count((a) => a.faculty?.trim())],
+    ["عرفوا منين", count((a) => choiceLabel(cfg, "heard_from", a.heard_from))],
+    ["المستوى", count((a) => choiceLabel(cfg, "experience_level", a.experience_level))],
   ];
   return (
     <div className="mt-3">
