@@ -1064,3 +1064,79 @@ test("unsubscribe: a cut or changed link says so, and nothing is sent without a 
   await page.getByRole("button", { name: "ألغِ الاشتراك" }).click();
   await expect(page.getByTestId("unsub-ask").getByRole("alert")).toContainText("اللينك ده ناقص أو قديم");
 });
+
+test("A file question: a big photo is compressed in the browser, uploaded to its ticket path, and the form shows the form's own background", async ({ page }) => {
+  const FILE_FORM = {
+    ...TRYOUT,
+    background_path: "b/11111111-1111-1111-1111-111111111111/bg.jpg",
+    background_kind: "image",
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "cv", type: "file", label_ar: "صورة المشروع", required: true, accept: "image" },
+    ],
+  };
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_form: () => FILE_FORM,
+      form_upload_ticket: () => ({ ok: true, path: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg" }),
+      submit_form: () => ({ ok: true }),
+    },
+  });
+  const uploads: { url: string; type: string | undefined; size: number }[] = [];
+  await page.route(/supabase\.co\/storage\/v1\/object\/form-files\//, async (route) => {
+    const req = route.request();
+    uploads.push({ url: req.url(), type: req.headers()["content-type"], size: req.postDataBuffer()?.length ?? 0 });
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/supabase\.co\/storage\/v1\/object\/public\/form-media\//, (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHZ7FWQAAAABJRU5ErkJggg==", "base64") }));
+  await page.goto("/ar/form/?f=sumo-tryouts");
+  await expect(page.getByTestId("form-stage")).toBeVisible();
+  // A 2400×2400 bitmap (about 17 MB) stands in for a phone photo.
+  const w = 2400;
+  const bmp = Buffer.alloc(54 + w * w * 3);
+  bmp.write("BM", 0);
+  bmp.writeUInt32LE(bmp.length, 2);
+  bmp.writeUInt32LE(54, 10);
+  bmp.writeUInt32LE(40, 14);
+  bmp.writeInt32LE(w, 18);
+  bmp.writeInt32LE(w, 22);
+  bmp.writeUInt16LE(1, 26);
+  bmp.writeUInt16LE(24, 28);
+  for (let i = 54; i < bmp.length; i += 3) {
+    bmp[i] = (i >> 9) & 255;
+    bmp[i + 1] = (i >> 13) & 255;
+    bmp[i + 2] = (i >> 5) & 255;
+  }
+  await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+  await page.getByTestId("file-cv").setInputFiles({ name: "project.bmp", mimeType: "image/bmp", buffer: bmp });
+  await expect(page.getByTestId("file-status-cv")).toContainText("✓");
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0].type).toBe("image/jpeg");
+  expect(uploads[0].size).toBeGreaterThan(1000);
+  expect(uploads[0].size).toBeLessThan(1_500_000);
+  expect(uploads[0].url).toContain("/form-files/f/22222222-2222-2222-2222-222222222222/");
+  const ticket = calls.find((c) => c.fn === "form_upload_ticket")!.body;
+  expect(ticket).toMatchObject({ p_slug: "sumo-tryouts", p_field: "cv", p_mime: "image/jpeg" });
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("وصلنا ردك")).toBeVisible();
+  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({
+    p_answers: { n: "يوسف خالد", cv: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg" },
+  });
+});
+
+test("A file question is required, and a file of the wrong kind is refused before anything is uploaded", async ({ page }) => {
+  const FILE_FORM = { ...TRYOUT, fields: [{ id: "cv", type: "file", label_ar: "ملف PDF", required: true, accept: "pdf" }] };
+  const calls = await mockSupabase(page, { rpc: { public_form: () => FILE_FORM, submit_form: () => ({ ok: true }) } });
+  let uploaded = 0;
+  await page.route(/supabase\.co\/storage\//, (route) => {
+    uploaded++;
+    return route.fulfill({ json: {} });
+  });
+  await page.goto("/ar/form/?f=sumo-tryouts");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("الخانة دي مطلوبة.")).toBeVisible();
+  await page.getByTestId("file-cv").setInputFiles({ name: "a.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgo=", "base64") });
+  await expect(page.getByTestId("file-status-cv")).toContainText("مش مقبول");
+  expect(uploaded).toBe(0);
+  expect(calls.some((c) => c.fn === "form_upload_ticket")).toBe(false);
+});

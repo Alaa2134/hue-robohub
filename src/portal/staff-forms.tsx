@@ -6,9 +6,11 @@
  */
 import { useMemo, useState } from "react";
 import { coreTeams } from "@/content/core-content";
-import type { FieldType, FormField } from "@/components/forms/site-forms";
+import type { FieldType, FileAccept, FormField } from "@/components/forms/site-forms";
+import { MediaError, mediaErrorText, prepareMedia } from "@/lib/client-media";
+import { SUPABASE_URL } from "@/lib/supabase-public";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, fmt, must, sb, today, type StaffRow } from "./core";
+import { can, isFull, fmt, must, removeObjects, safeName, sb, today, uid, uploadObject, type StaffRow } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
@@ -37,6 +39,8 @@ type Form = {
   accepted_url: string | null;
   delegation: Delegation | null;
   capacity: number | null;
+  background_path: string | null;
+  background_kind: "image" | "video" | null;
   created_at: string;
 };
 type Response = {
@@ -71,6 +75,13 @@ const TYPES: { k: FieldType; ar: string }[] = [
   { k: "url", ar: "رابط" },
   { k: "checkbox", ar: "موافقة (صح)" },
   { k: "member", ar: "رقم عضوية الكميونيتي" },
+  { k: "file", ar: "ملف (صورة / PDF / فيديو)" },
+];
+const ACCEPTS: { k: FileAccept; ar: string }[] = [
+  { k: "image", ar: "صورة" },
+  { k: "pdf", ar: "PDF" },
+  { k: "video", ar: "فيديو" },
+  { k: "any", ar: "أي واحد منهم" },
 ];
 const typeAr = (k: string) => TYPES.find((x) => x.k === k)?.ar ?? k;
 const RESP: Record<Response["status"], { ar: string; tone: "info" | "ok" | "danger" | "warn" }> = {
@@ -225,6 +236,58 @@ function NewFormSheet({ open, onClose }: { open: boolean; onClose: () => void })
 const toLocal = (iso: string | null) => (iso ? new Date(new Date(iso).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "");
 const fromLocal = (v: string) => (v ? new Date(v).toISOString() : null);
 
+/** A picture or a short silent video behind the form on the website; compressed here before it is uploaded. */
+function FormBackground({ form, onChange }: { form: Form; onChange: (p: Partial<Form>) => void }) {
+  const [state, setState] = useState<{ text: string; busy: boolean }>({ text: "", busy: false });
+  const url = form.background_path ? `${SUPABASE_URL}/storage/v1/object/public/form-media/${form.background_path.split("/").map(encodeURIComponent).join("/")}` : "";
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    setState({ text: "بنجهّز الملف وبنضغطه…", busy: true });
+    try {
+      const p = await prepareMedia(file, { accept: ["image", "video"], profile: "background", onProgress: (v) => setState({ text: `بنضغط الفيديو… ${Math.round(v * 100)}%`, busy: true }) });
+      const path = `b/${uid()}/${safeName(p.file.name)}`;
+      setState({ text: "بنرفع…", busy: true });
+      await uploadObject(path, p.file, p.file.type, (v) => setState({ text: `بنرفع… ${Math.round(v * 100)}%`, busy: true }), "form-media");
+      if (form.background_path) await removeObjects([form.background_path], "form-media").catch(() => undefined);
+      onChange({ background_path: path, background_kind: p.kind === "video" ? "video" : "image" });
+      setState({ text: `اترفع (${(p.before / 1_048_576).toFixed(1)} MB ← ${(p.after / 1_048_576).toFixed(1)} MB). اضغط «حفظ» عشان يظهر على الموقع.`, busy: false });
+    } catch (e) {
+      setState({ text: e instanceof MediaError ? mediaErrorText(e) : "الرفع فشل، جرّب تاني", busy: false });
+    }
+  };
+  return (
+    <Card className="grid gap-3">
+      <p className="text-xs text-fog">صورة أو فيديو قصير (لحد 30 ثانية، من غير صوت) بيظهروا ورا الأسئلة على الموقع. بيتضغطوا قبل الرفع.</p>
+      {url && (
+        <div className="relative overflow-hidden rounded-xl border border-[var(--line)]">
+          {form.background_kind === "video" ? <video src={url} muted loop autoPlay playsInline className="h-40 w-full object-cover" /> : <img src={url} alt="" className="h-40 w-full object-cover" />}
+        </div>
+      )}
+      <input
+        type="file"
+        accept="image/*,video/*"
+        disabled={state.busy}
+        data-testid="form-bg-input"
+        onChange={(e) => {
+          void pick(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+        className="block w-full text-sm text-mist file:me-3 file:rounded-lg file:border-0 file:bg-volt/25 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-chalk"
+      />
+      {state.text && (
+        <p role="status" className="text-sm text-mist" data-testid="form-bg-status">
+          {state.text}
+        </p>
+      )}
+      {form.background_path && (
+        <Button size="sm" variant="danger" icon="trash" disabled={state.busy} onClick={() => onChange({ background_path: null, background_kind: null })}>
+          شيل الخلفية
+        </Button>
+      )}
+    </Card>
+  );
+}
+
 export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, count] = await Promise.all([
@@ -343,6 +406,10 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
         </Card>
       </Section>
 
+      <Section title="خلفية الفورم">
+        <FormBackground form={x} onChange={(p) => edit(p)} />
+      </Section>
+
       <Section title="بعد القبول">
         <Card className="grid gap-3">
           <p className="text-xs text-fog">اللي بيتقبل بيشوف الرسالة دي واللينك لما يتابع طلبه بكود الطلب، ويقدر يقول إنه سجّل في اللينك (زي موقع تسجيل المعرض).</p>
@@ -405,11 +472,22 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
                   />
                 </Field>
               )}
+              {fl.type === "file" && (
+                <Field label="بيقبل إيه؟" hint="الصور والفيديو بتتضغط في متصفح الزائر قبل ما تتبعت. الـPDF لازم يكون أقل من 10 ميجا.">
+                  <Select value={fl.accept ?? "image"} onChange={(e) => setField(i, { accept: e.target.value as FileAccept })}>
+                    {ACCEPTS.map((o) => (
+                      <option key={o.k} value={o.k}>
+                        {o.ar}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <Input placeholder="توضيح تحت السؤال (اختياري)" value={fl.help_ar ?? ""} maxLength={300} onChange={(e) => setField(i, { help_ar: e.target.value })} />
             </Card>
           ))}
           <div className="flex flex-wrap gap-2">
-            {(["name", "phone", "text", "textarea", "select", "multi", "checkbox", "member"] as FieldType[]).map((k) => (
+            {(["name", "phone", "text", "textarea", "select", "multi", "checkbox", "member", "file"] as FieldType[]).map((k) => (
               <Button key={k} size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined)] })}>
                 {typeAr(k)}
               </Button>
@@ -453,6 +531,32 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   );
 }
 
+/** An attached file: opened through a short-lived private link, only for whoever may read the responses. */
+function FileAnswer({ path }: { path: string }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      size="sm"
+      icon="external"
+      loading={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const { data, error } = await sb().storage.from("form-files").createSignedUrl(path, 300);
+          if (error || !data) throw error ?? new Error("no_link");
+          window.open(data.signedUrl, "_blank", "noopener");
+        } catch (e) {
+          toast.error(e);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      فتح الملف المرفق
+    </Button>
+  );
+}
+
 export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses] = await Promise.all([
@@ -477,7 +581,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
     const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
     downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
       ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
-      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []), ...form.fields.map((fl) => show(r.answers[fl.id])), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
+      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []), ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
     ], { sheet: only === "accepted" ? "المقبولين" : "الردود" });
   };
   const acceptMessage = (r: Response) =>
@@ -651,7 +755,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               {form.fields.map((fl) => (
                 <div key={fl.id}>
                   <dt className="text-xs text-fog">{fl.label_ar}</dt>
-                  <dd className="whitespace-pre-line text-chalk">{show(open.answers[fl.id]) || "—"}</dd>
+                  <dd className="whitespace-pre-line text-chalk">{fl.type === "file" && open.answers[fl.id] ? <FileAnswer path={String(open.answers[fl.id])} /> : show(open.answers[fl.id]) || "—"}</dd>
                 </div>
               ))}
             </dl>

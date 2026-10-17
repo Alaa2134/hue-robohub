@@ -5772,3 +5772,67 @@ test("staff home says what the website is missing, and a line can be put aside",
   await expect(card.getByRole("listitem")).toHaveCount(before - 1);
   expect(errors).toEqual([]);
 });
+
+test("form builder: a file question that takes video, and a background video that is compressed before it is uploaded", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "with-media",
+    title_ar: "فورم بميديا",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: false,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(10),
+    accepted_ar: null,
+    accepted_url: null,
+    capacity: null,
+    delegation: null,
+    background_path: null,
+    background_kind: null,
+    fields: [{ id: "name", type: "name", label_ar: "الاسم", required: true }],
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: [], headers: { "content-range": "*/0" } }));
+  const uploads: { url: string; type: string | undefined; size: number }[] = [];
+  await page.route(/\/storage\/v1\/object\/form-media\//, (route) => {
+    const req = route.request();
+    uploads.push({ url: req.url(), type: req.headers()["content-type"], size: req.postDataBuffer()?.length ?? 0 });
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.goto("/app/#/staff/forms/f1");
+  await expect(page.getByText("خلفية الفورم")).toBeVisible();
+  // A 3-second 1080p clip (about 96 KB) stands in for a phone video; it is larger than the 720p-class size backgrounds are scaled to.
+  await page.getByTestId("form-bg-input").setInputFiles({ name: "intro.webm", mimeType: "video/webm", buffer: readFileSync("e2e/fixtures/bg-1080p.webm") });
+  await expect(page.getByTestId("form-bg-status")).toContainText("اترفع", { timeout: 30_000 });
+  expect(uploads).toHaveLength(1);
+  expect(uploads[0].type).toMatch(/^video\/webm/);
+  expect(uploads[0].url).toMatch(/\/form-media\/b\/[0-9a-f-]{36}\/intro\.webm$/);
+  // And a question that takes a video.
+  await page.getByRole("button", { name: "ملف (صورة / PDF / فيديو)" }).click();
+  await page.getByPlaceholder("السؤال بالعربي").last().fill("فيديو المشروع");
+  await page.getByLabel("بيقبل إيه؟").selectOption("video");
+  await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
+  await expect.poll(() => patches.at(-1)).toMatchObject({ background_kind: "video" });
+  const saved = patches.at(-1) as { background_path: string; fields: { type: string; accept?: string }[] };
+  expect(saved.background_path).toMatch(/^b\/[0-9a-f-]{36}\/intro\.webm$/);
+  expect(saved.fields.at(-1)).toMatchObject({ type: "file", accept: "video", label_ar: "فيديو المشروع" });
+  expect(errors).toEqual([]);
+});
