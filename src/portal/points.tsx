@@ -225,7 +225,7 @@ function BonusSheet({ line, onClose, onDone }: { line: Line; onClose: () => void
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const give = async () => {
-    if (reason.trim().length < 2) return toast("اكتب السبب (بيظهر في سجل النشاط)", "error");
+    if (reason.trim().length < 2) return toast("اكتب السبب (بيظهر في سجل الحركات)", "error");
     setBusy(true);
     try {
       await sb().from("student_bonus").insert({ student_id: line.id, points, reason: reason.trim() }).then(must);

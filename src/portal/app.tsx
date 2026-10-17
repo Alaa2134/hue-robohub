@@ -245,6 +245,9 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
       if (error) {
         setBusy(false);
         setErr(/invalid login credentials/i.test(error.message) ? "البريد الإلكتروني أو كلمة المرور غير صحيحة." : errorText(error));
+      } else {
+        // Shows in the owner's activity log.
+        rpc("staff_log_login").catch(() => {});
       }
       // On success the root loads the staff profile and moves on.
       return;
