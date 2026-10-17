@@ -42,11 +42,26 @@ test("application form validates and submits", async ({ page }) => {
   await page.goto("/ar/join/");
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByText("اكتب اسمك بالكامل (3 حروف على الأقل).")).toBeVisible();
+  // The family list needs four names and a real national ID.
   await page.fill("#ap-full_name", "طالب اختبار");
+  await page.fill("#ap-national_id", "30613451100035");
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByText("اكتب اسمك رباعي زي البطاقة.")).toBeVisible();
+  await expect(page.getByText("الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.")).toBeVisible();
+  await page.fill("#ap-full_name", "طالب اختبار محمد علي");
+  await page.fill("#ap-national_id", "٣٠٦٠١١٢١١٠٠٠٣٥");
+  await expect(page.locator("#ap-national_id")).toHaveValue("30601121100035");
+  await expect(page.getByTestId("ap-nid-read")).toContainText("دمياط");
   await page.fill("#ap-phone", "01012345678");
   await page.fill("#ap-email", "test@example.com");
+  await page.selectOption("#ap-governorate", "دمياط");
+  await page.fill("#ap-address", "دمياط الجديدة - الحي الخامس - المجاورة 28");
   await page.fill("#ap-faculty", "الذكاء الاصطناعي");
   await page.selectOption("#ap-academic_year", "1");
+  await page.getByRole("button", { name: "التالي" }).click();
+  // The university ID is required too.
+  await expect(page.locator("#ap-student_number-error")).toBeVisible();
+  await page.fill("#ap-student_number", "8240001");
   await page.getByRole("button", { name: "التالي" }).click();
   await page.getByRole("radio").first().click();
   await page.getByRole("radio", { name: /مبتدئ/ }).click();
@@ -59,6 +74,9 @@ test("application form validates and submits", async ({ page }) => {
   await expect(page.getByText("BX-TEST01")).toBeVisible();
   expect(sent[0]?.p?.phone).toBe("01012345678");
   expect(sent[0]?.p?.consent).toBe(true);
+  expect(sent[0]?.p).toMatchObject({ national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس - المجاورة 28", student_number: "8240001" });
+  // The national ID is never kept in the saved draft.
+  expect(await page.evaluate(() => localStorage.getItem("buildx_apply_draft_v1") ?? "")).not.toContain("30601121100035");
   expect(errors).toEqual([]);
 });
 
@@ -220,10 +238,14 @@ test("the join form follows the setup the team saved in the app", async ({ page 
   await expect(page.getByText("اسمك الرباعي")).toBeVisible();
   await expect(page.locator("legend", { hasText: "عنك" })).toBeVisible();
   await expect(page.locator("#ap-faculty")).toHaveCount(0);
-  await page.fill("#ap-full_name", "طالب اختبار");
+  await page.fill("#ap-full_name", "طالب اختبار محمد علي");
+  await page.fill("#ap-national_id", "30601121100035");
   await page.fill("#ap-phone", "01012345678");
   await page.fill("#ap-email", "test@example.com");
+  await page.selectOption("#ap-governorate", "الدقهلية");
+  await page.fill("#ap-address", "المنصورة - شارع الجمهورية");
   await page.selectOption("#ap-academic_year", "o_first1");
+  await page.fill("#ap-student_number", "8251234");
   // The added question is required.
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "الخانة دي مطلوبة." })).toBeVisible();

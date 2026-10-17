@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { STATUSES } from "@/content/application";
 import { choiceLabel, type ApplyConfig, type ExtraAnswer } from "@/content/apply-form";
+import { nationalIdCheckOk, readNationalId } from "@/content/family";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
 import { can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
@@ -22,6 +23,9 @@ export type Application = {
   full_name: string;
   phone: string;
   email: string;
+  national_id: string | null;
+  governorate: string | null;
+  address: string | null;
   faculty: string | null;
   academic_year: string | null;
   student_number: string | null;
@@ -39,6 +43,9 @@ export type Application = {
   heard_from: string | null;
   /** Answers to the questions the team added to the form. */
   answers: ExtraAnswer[] | null;
+  /** Times they applied again within a week (kept on this application). */
+  repeats: number | null;
+  last_repeat_at: string | null;
   status: Status;
   staff_notes: string;
   public_note: string;
@@ -53,6 +60,11 @@ const TONE: Record<Status, "info" | "volt" | "ok" | "warn" | "danger" | "muted">
   accepted: "ok",
   waitlist: "warn",
   rejected: "danger",
+};
+/** «مواليد 12 يناير 2006 · دمياط» from the national ID. */
+const birthOf = (nid: string | null) => {
+  const r = nid ? readNationalId(nid) : null;
+  return r ? `مواليد ${fmt.full(r.birth.toISOString())} · ${r.governorate.ar}` : "";
 };
 const statusAr = (s: string) => STATUSES.find((x) => x.key === s)?.ar ?? s;
 export const trackAr = (slug: string | null | undefined) => (slug ? (coreTracks.find((t) => t.slug === slug)?.nameAr ?? slug) : "");
@@ -91,7 +103,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
     const extra = new Map<string, string>();
     for (const a of list) for (const x of a.answers ?? []) if (!extra.has(x.id)) extra.set(x.id, x.q);
     downloadCsv(`buildx-applications-${today()}.csv`, [
-      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", ...extra.values(), "ملاحظات الفريق", "رسالة للمتقدم"],
+      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الرقم القومي", "تاريخ الميلاد", "المحافظة", "العنوان", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", ...extra.values(), "قدّم تاني", "ملاحظات الفريق", "رسالة للمتقدم"],
       ...list.map((a) => [
         a.ref,
         fmt.dateTime(a.created_at),
@@ -99,6 +111,10 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         a.full_name,
         a.phone,
         a.email,
+        a.national_id,
+        birthOf(a.national_id),
+        a.governorate,
+        a.address,
         a.faculty,
         choiceLabel(cfg, "academic_year", a.academic_year),
         a.student_number,
@@ -115,6 +131,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         a.team_roles.map((r) => choiceLabel(cfg, "team_roles", r)).join("، "),
         choiceLabel(cfg, "heard_from", a.heard_from),
         ...[...extra.keys()].map((id) => (a.answers ?? []).find((x) => x.id === id)?.a ?? ""),
+        a.repeats || "",
         a.staff_notes,
         a.public_note,
       ]),
@@ -195,6 +212,7 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
                         {[trackAr(a.track_first), a.faculty, fmt.rel(a.created_at)].filter(Boolean).join(" · ")}
                       </p>
                     </div>
+                    {!!a.repeats && <Badge tone="warn">قدّم تاني</Badge>}
                     <Badge tone={TONE[a.status]}>{statusAr(a.status)}</Badge>
                   </div>
                 </Row>
@@ -298,6 +316,16 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         </Button>
       )}
 
+      {!!a.repeats && (
+        <Card className="mt-4 border-warn/30 bg-warn/[0.06] text-sm text-mist" data-testid="application-repeats">
+          <p className="font-semibold text-chalk">
+            {a.repeats === 1 ? "قدّم تاني مرة" : `قدّم تاني ${a.repeats} مرات`}
+            {a.last_repeat_at ? ` · آخر مرة ${fmt.rel(a.last_repeat_at)}` : ""}
+          </p>
+          <p className="mt-1 text-xs">لو قدّم تاني خلال أسبوع من أول طلب، مابيتعملّوش طلب جديد؛ بيتحسب هنا على طلبه الأول.</p>
+        </Card>
+      )}
+
       <Section title="الحالة">
         <div className="flex flex-wrap gap-2">
           {STATUSES.map((s) => (
@@ -333,6 +361,22 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
         <Card>
           <Item k="الموبايل" v={a.phone} ltr />
           <Item k="الإيميل" v={a.email} ltr />
+          <Item
+            k="الرقم القومي"
+            v={
+              a.national_id && (
+                <span className="grid gap-0.5">
+                  <span dir="ltr" className="font-mono">
+                    {a.national_id}
+                  </span>
+                  <span className="text-xs text-fog">{birthOf(a.national_id)}</span>
+                  {!nationalIdCheckOk(a.national_id) && <span className="text-xs text-warn">آخر رقم مش متطابق مع باقي الرقم — غالباً فيه رقم متكتب غلط، اتأكد منه.</span>}
+                </span>
+              )
+            }
+          />
+          <Item k="المحافظة" v={a.governorate} />
+          <Item k="العنوان" v={a.address} />
           <Item k="الكلية" v={a.faculty} />
           <Item k="السنة" v={choiceLabel(cfg, "academic_year", a.academic_year)} />
           <Item k="الرقم الجامعي" v={a.student_number} ltr />
@@ -430,6 +474,7 @@ function AcceptSheet({ app, onClose, onDone }: { app: Application; onClose: () =
     <Sheet open onClose={onClose} title={`قبول ${app.full_name}`}>
       <div className="grid gap-4">
         <p className="text-sm text-mist">هيتعمل له حساب طالب في التطبيق برمز دخول، وحالة الطلب هتبقى «مقبول».</p>
+        {app.national_id && app.governorate && app.address && <p className="text-sm text-mist">ولأن بياناته كاملة، هيتضاف لكشف الأسرة للسنة دي.</p>}
         <Field label="كود الطالب" hint="الرقم الجامعي لو موجود، أو أي كود تختاره. ده اللي بيدخل بيه التطبيق.">
           <Input value={code} dir="ltr" maxLength={40} onChange={(e) => setCode(e.target.value)} />
         </Field>

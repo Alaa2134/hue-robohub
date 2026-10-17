@@ -12,8 +12,11 @@ export type Locale = "ar" | "en";
 
 export type BuiltinKey =
   | "full_name"
+  | "national_id"
   | "phone"
   | "email"
+  | "governorate"
+  | "address"
   | "faculty"
   | "academic_year"
   | "student_number"
@@ -61,12 +64,16 @@ type Meta = {
 };
 
 export const BUILTIN: Meta[] = [
-  { key: "full_name", step: 0, lock: true, label: { ar: "الاسم بالكامل", en: "Full name" } },
+  { key: "full_name", step: 0, lock: true, label: { ar: "الاسم رباعي (زي البطاقة)", en: "Full name (four names, as on your ID)" } },
+  // What the Student Welfare family list asks for: national ID, address, level.
+  { key: "national_id", step: 0, req: true, label: { ar: "الرقم القومي", en: "National ID number" }, hint: { ar: "الـ14 رقم اللي على البطاقة — بنحتاجه لكشف الأسرة في رعاية الطلاب.", en: "The 14 digits on your ID card — needed for the Student Welfare family list." } },
   { key: "phone", step: 0, lock: true, label: { ar: "رقم الموبايل / واتساب", en: "Phone / WhatsApp" }, hint: { ar: "هنتواصل معاك على واتساب.", en: "We'll contact you on WhatsApp." } },
   { key: "email", step: 0, lock: true, label: { ar: "الإيميل", en: "Email" } },
+  { key: "governorate", step: 0, req: true, label: { ar: "المحافظة", en: "Governorate" } },
+  { key: "address", step: 0, req: true, label: { ar: "العنوان بالتفصيل", en: "Full address" }, hint: { ar: "المدينة أو القرية والمنطقة والشارع، مثلاً: دمياط الجديدة - الحي الخامس - المجاورة 28", en: "City or village, area and street, e.g. New Damietta - 5th district - block 28" } },
   { key: "faculty", step: 0, req: true, list: "faculty", label: { ar: "الكلية", en: "Faculty" }, hint: { ar: "اختار من القايمة أو اكتب اسم كليتك.", en: "Pick from the list or type your faculty." } },
   { key: "academic_year", step: 0, req: true, list: "year", label: { ar: "السنة الدراسية", en: "Academic year" } },
-  { key: "student_number", step: 0, label: { ar: "الرقم الجامعي", en: "University ID" } },
+  { key: "student_number", step: 0, req: true, label: { ar: "الرقم الجامعي (الكود)", en: "University ID (student code)" } },
   { key: "track_first", step: 1, lock: true, label: { ar: "عايز تنضم لأنهي مسار؟", en: "Which track do you want to join?" } },
   { key: "track_second", step: 1, label: { ar: "اختيارك التاني", en: "Second choice" } },
   { key: "experience_level", step: 1, req: true, list: "level", label: { ar: "مستوى خبرتك", en: "Your experience level" } },

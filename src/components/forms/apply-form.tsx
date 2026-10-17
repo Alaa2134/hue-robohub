@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { BUILTIN_KEYS, consentText, extraHelp, extraLabel, optionText, parseApplyConfig, resolveField, stepTitles, type ApplyConfig, type BuiltinKey, type ExtraQ, type Resolved } from "@/content/apply-form";
+import { GOVERNORATES, digitsOnly, readNationalId } from "@/content/family";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
@@ -12,8 +13,11 @@ export type ApplyTrack = { slug: string; name: string; tagline: string };
 
 type Data = {
   full_name: string;
+  national_id: string;
   phone: string;
   email: string;
+  governorate: string;
+  address: string;
   faculty: string;
   academic_year: string;
   student_number: string;
@@ -36,8 +40,11 @@ type Data = {
 
 const EMPTY: Data = {
   full_name: "",
+  national_id: "",
   phone: "",
   email: "",
+  governorate: "",
+  address: "",
   faculty: "",
   academic_year: "",
   student_number: "",
@@ -71,7 +78,7 @@ function trackStep(locale: string, step: string) {
   fetch(`${SUPABASE_URL}/rest/v1/rpc/track_view`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_path: path, p_locale: locale }), keepalive: true }).catch(() => undefined);
 }
 const STEP_FIELDS: BuiltinKey[][] = [
-  ["full_name", "phone", "email", "faculty", "academic_year", "student_number"],
+  ["full_name", "national_id", "phone", "email", "governorate", "address", "faculty", "academic_year", "student_number"],
   ["track_first", "track_second", "experience_level", "skills", "experience", "portfolio_url", "team_roles"],
   ["motivation", "goals", "hours_per_week", "days", "heard_from"],
 ];
@@ -89,9 +96,13 @@ const T = {
     none: "No second choice",
     yes: "Yes",
     no: "No",
+    born: "Born",
     err: {
       required: "This field is required.",
       name: "Write your full name (at least 3 letters).",
+      four: "Write your four names, as on your ID card.",
+      nid: "This doesn't look like a national ID — check the 14 digits.",
+      address: "Write the full address: city or village, area and street.",
       phone: "Enter a valid phone number, e.g. 01012345678.",
       email: "Enter a valid email address.",
       motivation: "Write at least 20 characters.",
@@ -126,9 +137,13 @@ const T = {
     none: "مفيش اختيار تاني",
     yes: "أيوه",
     no: "لأ",
+    born: "مواليد",
     err: {
       required: "الخانة دي مطلوبة.",
       name: "اكتب اسمك بالكامل (3 حروف على الأقل).",
+      four: "اكتب اسمك رباعي زي البطاقة.",
+      nid: "الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.",
+      address: "اكتب العنوان بالتفصيل: المدينة أو القرية والمنطقة والشارع.",
       phone: "اكتب رقم صحيح، مثلاً 01012345678.",
       email: "اكتب إيميل صحيح.",
       motivation: "اكتب 20 حرف على الأقل.",
@@ -170,13 +185,16 @@ function validate(d: Data, step: number, F: Fields, extra: ExtraQ[], t: (typeof 
   const on = (k: BuiltinKey) => STEP_FIELDS[step]!.includes(k) && !F[k].hidden;
   const empty = (k: BuiltinKey) => isEmpty(d[k] as string | string[]);
   if (on("full_name") && d.full_name.trim().length < 3) e.full_name = t.err.name;
+  else if (on("full_name") && d.full_name.trim().split(/\s+/).length < 4) e.full_name = t.err.four;
+  if (on("national_id") && (F.national_id.required || d.national_id.trim()) && !readNationalId(d.national_id)) e.national_id = d.national_id.trim() ? t.err.nid : t.err.required;
+  if (on("address") && (F.address.required || d.address.trim()) && d.address.trim().length < 5) e.address = d.address.trim() ? t.err.address : t.err.required;
   if (on("phone") && !PHONE_RE.test(cleanPhone(d.phone))) e.phone = t.err.phone;
   if (on("email") && !EMAIL_RE.test(d.email.trim())) e.email = t.err.email;
   if (on("faculty") && (F.faculty.required || d.faculty.trim()) && d.faculty.trim().length < 2) e.faculty = t.err.required;
   if (on("track_first") && !d.track_first) e.track_first = t.err.required;
   if (on("portfolio_url") && d.portfolio_url.trim() && !URL_RE.test(d.portfolio_url.trim())) e.portfolio_url = t.err.url;
   if (on("motivation") && F.motivation.required && d.motivation.trim().length < 20) e.motivation = t.err.motivation;
-  for (const k of ["academic_year", "student_number", "track_second", "experience_level", "skills", "experience", "portfolio_url", "team_roles", "goals", "hours_per_week", "days", "heard_from"] as BuiltinKey[])
+  for (const k of ["governorate", "academic_year", "student_number", "track_second", "experience_level", "skills", "experience", "portfolio_url", "team_roles", "goals", "hours_per_week", "days", "heard_from"] as BuiltinKey[])
     if (on(k) && F[k].required && empty(k) && !e[k]) e[k] = t.err.required;
   for (const q of extra.filter((x) => x.step === step)) {
     const v = answerOf(d, q);
@@ -348,6 +366,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
   const F = useMemo(() => Object.fromEntries(BUILTIN_KEYS.map((k) => [k, resolveField(cfg, k, locale)])) as Fields, [cfg, locale]);
   const extra = useMemo(() => cfg.extra ?? [], [cfg]);
   const steps = useMemo(() => [...stepTitles(cfg, locale), t.review], [cfg, locale, t.review]);
+  const nid = useMemo(() => readNationalId(d.national_id), [d.national_id]);
   const shownTracks = useMemo(() => tracks.filter((x) => !cfg.tracks_hidden?.includes(x.slug)), [tracks, cfg]);
 
   // Restore an unfinished draft (per browser only), then keep it saved as the student types.
@@ -356,7 +375,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const saved = JSON.parse(raw) as Partial<Data>;
-        setD({ ...EMPTY, ...saved, answers: saved.answers && typeof saved.answers === "object" ? saved.answers : {}, consent: false });
+        setD({ ...EMPTY, ...saved, answers: saved.answers && typeof saved.answers === "object" ? saved.answers : {}, national_id: "", consent: false });
       }
     } catch {}
     loaded.current = true;
@@ -364,7 +383,8 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
   useEffect(() => {
     if (!loaded.current || done) return;
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, consent: false }));
+      // The national ID never stays on the device.
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...d, national_id: "", consent: false }));
     } catch {}
   }, [d, done]);
 
@@ -415,7 +435,7 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_application`, {
         method: "POST",
         headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
-        body: JSON.stringify({ p: { ...d, ...blank, answers, phone: cleanPhone(d.phone), locale, website: honey.current?.value ?? "" } }),
+        body: JSON.stringify({ p: { ...d, ...blank, answers, national_id: digitsOnly(d.national_id), phone: cleanPhone(d.phone), locale, website: honey.current?.value ?? "" } }),
       });
       const out = (await res.json().catch(() => null)) as { ok?: boolean; ref?: string; duplicate?: boolean; error?: string } | null;
       if (!res.ok || !out) throw new Error("network");
@@ -546,12 +566,57 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
           <Row id="ap-full_name" label={F.full_name.label} hint={F.full_name.hint} error={err("full_name")} className="sm:col-span-2">
             <input {...aria("full_name")} className={inputCls} autoComplete="name" maxLength={120} value={d.full_name} onChange={(e) => set("full_name", e.target.value)} />
           </Row>
+          {show("national_id") && (
+            <Row
+              id="ap-national_id"
+              label={F.national_id.label}
+              optional={opt("national_id")}
+              error={err("national_id")}
+              className="sm:col-span-2"
+              hint={
+                nid ? (
+                  <span className="flex flex-wrap items-center gap-2 text-ok" data-testid="ap-nid-read">
+                    <Icon name="check" size={15} />
+                    {t.born} {nid.birth.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })} · {locale === "ar" ? nid.governorate.ar : nid.governorate.en}
+                  </span>
+                ) : (
+                  <span>
+                    {F.national_id.hint}{" "}
+                    <span dir="ltr" className="font-mono">
+                      {digitsOnly(d.national_id).length}/14
+                    </span>
+                  </span>
+                )
+              }
+            >
+              <input {...aria("national_id")} className={cn(inputCls, "font-mono tracking-[0.18em]")} inputMode="numeric" dir="ltr" autoComplete="off" maxLength={20} placeholder="3xxxxxxxxxxxxx" value={d.national_id} onChange={(e) => set("national_id", digitsOnly(e.target.value).slice(0, 14))} />
+            </Row>
+          )}
           <Row id="ap-phone" label={F.phone.label} hint={F.phone.hint} error={err("phone")}>
             <input {...aria("phone")} className={inputCls} type="tel" inputMode="tel" autoComplete="tel" dir="ltr" placeholder="01xxxxxxxxx" maxLength={20} value={d.phone} onChange={(e) => set("phone", e.target.value)} />
           </Row>
           <Row id="ap-email" label={F.email.label} hint={F.email.hint} error={err("email")}>
             <input {...aria("email")} className={inputCls} type="email" inputMode="email" autoComplete="email" dir="ltr" maxLength={200} value={d.email} onChange={(e) => set("email", e.target.value)} />
           </Row>
+          {show("governorate") && (
+            <Row id="ap-governorate" label={F.governorate.label} optional={opt("governorate")} hint={F.governorate.hint} error={err("governorate")}>
+              <select {...aria("governorate")} className={cn(inputCls, "appearance-none")} value={d.governorate} onChange={(e) => set("governorate", e.target.value)}>
+                <option value="" disabled={F.governorate.required}>
+                  —
+                </option>
+                {GOVERNORATES.map((g) => (
+                  <option key={g.code} value={g.label.ar}>
+                    {locale === "ar" ? g.label.ar : g.label.en}
+                  </option>
+                ))}
+              </select>
+            </Row>
+          )}
+          {show("address") && (
+            <Row id="ap-address" label={F.address.label} optional={opt("address")} hint={F.address.hint} error={err("address")}>
+              <input {...aria("address")} className={inputCls} autoComplete="street-address" maxLength={200} value={d.address} onChange={(e) => set("address", e.target.value)} />
+            </Row>
+          )}
           {show("faculty") && (
             <Row id="ap-faculty" label={F.faculty.label} optional={opt("faculty")} hint={F.faculty.hint} error={err("faculty")}>
               <input {...aria("faculty")} className={inputCls} list="ap-faculties" maxLength={120} value={d.faculty} onChange={(e) => set("faculty", e.target.value)} />

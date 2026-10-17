@@ -5885,6 +5885,7 @@ test("the join form editor: hide a question, rename one, add a question with cho
     route.fulfill({
       json: {
         id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
+        national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس", repeats: 2, last_repeat_at: at(5),
         faculty: null, academic_year: "o_x", student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: "beginner",
         skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
         answers: [{ id: "q_weld01", q: "بتعرف تلحم؟", a: "شوية" }], status: "new", staff_notes: "", public_note: "", reviewed_at: null, student_id: null,
@@ -5892,6 +5893,11 @@ test("the join form editor: hide a question, rename one, add a question with cho
     }),
   );
   await page.goto("/app/#/staff/applications/a1");
+  // Applying again is counted here; the family-list data shows with the birth date read from the ID.
+  await expect(page.getByTestId("application-repeats")).toContainText("قدّم تاني 2 مرات");
+  await expect(page.getByText("30601121100035")).toBeVisible();
+  await expect(page.getByText(/مواليد .*2006 · دمياط/)).toBeVisible();
+  await expect(page.getByText("دمياط الجديدة - الحي الخامس")).toBeVisible();
   const box = page.getByTestId("application-answers");
   await expect(box.getByText("بتعرف تلحم؟")).toBeVisible();
   await expect(box.getByText("شوية")).toBeVisible();
