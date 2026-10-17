@@ -106,6 +106,15 @@ const C = {
     passMeet: "التجمع",
     passShot: "خد سكرين شوت للتصريح وخليه معاك يوم الزيارة.",
     passReg: "✓ اتسجّلت في موقع المعرض، والبادج على إيميلك.",
+    qrTitle: "الـ QR بتاعك للحضور",
+    qrHint: "احفظ الصورة على موبايلك ووريها للفريق عند الدخول كل مرة.",
+    qrSave: "احفظ الصورة",
+    qrCopy: "انسخ لينك الـ QR",
+    qrCopied: "اتنسخ ✅",
+    qrSessions: "مواعيد الحضور",
+    qrHere: "حضرت ✅",
+    qrNot: "لسه",
+    qrNotFound: "مش لاقيين الـ QR ده. لو سجّلت، تابع طلبك بالكود ورقم موبايلك وهيظهرلك تاني.",
   },
   en: {
     name: "Name",
@@ -190,6 +199,15 @@ const C = {
     passMeet: "Meeting point",
     passShot: "Take a screenshot of your pass and keep it with you on the day.",
     passReg: "✓ You're registered on the expo's site; your badge goes to your email.",
+    qrTitle: "Your attendance QR",
+    qrHint: "Save the picture on your phone and show it to the team at the door each time.",
+    qrSave: "Save the picture",
+    qrCopy: "Copy the QR link",
+    qrCopied: "Copied ✅",
+    qrSessions: "Sessions",
+    qrHere: "Attended ✅",
+    qrNot: "Not yet",
+    qrNotFound: "We can't find this QR. If you registered, check your application with your code and mobile number and it shows again.",
   },
 };
 
@@ -643,11 +661,16 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<"" | "ok" | "dup">("");
   const [ref, setRef] = useState("");
+  const [pass, setPass] = useState("");
+  const [viewPass, setViewPass] = useState("");
   const [fs, setFs] = useState<Record<string, FileState>>({});
   const elapsed = useElapsed();
 
   useEffect(() => {
-    const s = fixed ?? new URLSearchParams(location.search).get("f") ?? "";
+    const q = new URLSearchParams(location.search);
+    const token = fixed ? "" : (q.get("pass") ?? "").trim();
+    if (/^[0-9a-fA-F]{16}$/.test(token)) return setViewPass(token);
+    const s = fixed ?? q.get("f") ?? "";
     setSlug(s);
     if (!s) return setForm(null);
     rpc<PublicForm | null>("public_form", { p_slug: s })
@@ -655,6 +678,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       .catch(() => setForm(null));
   }, [fixed]);
 
+  if (viewPass) return <AttendPass token={viewPass} locale={l} page />;
   if (form === undefined) return <p className="text-mist">{t.loading}</p>;
   if (!form || !slug)
     return (
@@ -704,6 +728,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             <p className="max-w-lg text-sm text-mist">{t.refHint}</p>
           </div>
         )}
+        {pass && <AttendPass token={pass} locale={l} />}
         {ref && statusHref && (
           <a href={`${statusHref}${statusHref.includes("?") ? "&" : "?"}${fixed ? "" : `f=${encodeURIComponent(slug)}&`}ref=${encodeURIComponent(ref)}#status`} className="btn btn-sm">
             {t.checkStatus}
@@ -772,9 +797,10 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setFormError("");
     try {
       const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), __t: elapsed() };
-      const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
+      const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) {
         setRef(out.ref ?? "");
+        setPass(out.pass ?? "");
         setDone(out.duplicate ? "dup" : "ok");
       }
       else if (out.error === "fields" && out.fields) {
@@ -935,7 +961,164 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 }
 
 type Pass = { no: string; ref: string; name: string | null; name_en: string | null; day: string | null; org: string | null; event: string | null; dates: string | null; venue: string | null; meet_ar: string | null };
-type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null };
+type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
+
+type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null }[] };
+const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
+
+/** A form's attendance QR: kept on the phone (saved as a picture) and scanned by the team each session. */
+function AttendPass({ token, locale, page }: { token: string; locale: Locale; page?: boolean }) {
+  const t = C[locale];
+  const [qr, setQr] = useState("");
+  const [info, setInfo] = useState<PassOut | null>(null);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    import("qrcode").then((Q) => Q.toDataURL(passUrl(token, locale), { margin: 1, width: 480, errorCorrectionLevel: "M", color: { dark: "#0b1f4d", light: "#ffffff" } })).then(setQr, () => setQr(""));
+    rpc<PassOut>("form_pass", { p_token: token }).then(setInfo, () => setInfo({ ok: false, error: "network" }));
+  }, [token, locale]);
+  if (page && info && !info.ok)
+    return (
+      <div role="alert" className="frame p-8 text-mist" data-testid="attend-pass-missing">
+        {info.error === "rate_limited" ? t.errors.rate_limited : t.qrNotFound}
+      </div>
+    );
+  const title = info?.ok ? (locale === "en" && info.title_en) || info.title_ar : "";
+  const save = async () => {
+    if (!qr) return;
+    const png = await passPicture(qr, { title: title ?? "", name: info?.name ?? "", ref: info?.ref ?? "", label: t.qrTitle, rtl: locale === "ar" });
+    const file = new File([png], `buildx-qr-${info?.ref ?? token.slice(0, 6)}.png`, { type: "image/png" });
+    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+    if (nav.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: t.qrTitle });
+        return;
+      } catch {
+        /* share sheet closed: fall back to a download */
+      }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(passUrl(token, locale));
+      setCopied(true);
+    } catch {
+      /* no clipboard: the link is still in the QR */
+    }
+  };
+  return (
+    <div data-testid="attend-pass" className="grid w-full max-w-md gap-4 rounded-3xl border border-cyan/40 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#06213a] p-5 text-white shadow-[0_30px_80px_-40px_rgb(56_189_248/0.6)] sm:p-6">
+      <div className="grid gap-1">
+        <p className="text-xs font-semibold uppercase tracking-widest text-cyan">{t.qrTitle}</p>
+        {title && <p className="text-lg font-bold leading-snug">{title}</p>}
+        {info?.name && <p className="text-white/80">{info.name}</p>}
+      </div>
+      <div className="mx-auto rounded-2xl bg-white p-3">
+        {qr ? <img src={qr} alt={t.qrTitle} width={240} height={240} className="size-60" data-testid="attend-qr" /> : <div className="size-60 animate-pulse rounded-xl bg-slate-200" />}
+      </div>
+      {info?.ref && (
+        <p dir="ltr" className="text-center font-mono text-sm tracking-widest text-white/70">
+          {info.ref}
+        </p>
+      )}
+      <p className="text-sm text-white/75">{t.qrHint}</p>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={save} disabled={!qr} className="btn btn-primary btn-sm disabled:opacity-60" data-testid="attend-save">
+          <Icon name="image" size={15} />
+          <span>{t.qrSave}</span>
+        </button>
+        <button type="button" onClick={copy} className="btn btn-sm">
+          {copied ? t.qrCopied : t.qrCopy}
+        </button>
+      </div>
+      {!!info?.sessions?.length && (
+        <div className="grid gap-2 border-t border-white/10 pt-4">
+          <p className="text-sm font-semibold">{t.qrSessions}</p>
+          <ul className="grid gap-1.5" data-testid="attend-sessions">
+            {info.sessions.map((x) => (
+              <li key={x.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block truncate">{x.name}</span>
+                  {x.at && <span className="block text-xs text-white/55">{fmtWhen(x.at, locale)}</span>}
+                </span>
+                <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", x.here ? "bg-ok/20 text-[#7cf0c6]" : "bg-white/10 text-white/60")}>{x.here ? t.qrHere : t.qrNot}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The pass as one picture for the phone's gallery: title, name, the QR and the code. */
+async function passPicture(qr: string, o: { title: string; name: string; ref: string; label: string; rtl: boolean }): Promise<Blob> {
+  const W = 1080;
+  const H = 1440;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  const bg = g.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#0b1f4d");
+  bg.addColorStop(1, "#06213a");
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+  const font = getComputedStyle(document.body).fontFamily || "sans-serif";
+  g.textAlign = "center";
+  g.direction = o.rtl ? "rtl" : "ltr";
+  g.fillStyle = "#38bdf8";
+  g.font = `600 40px ${font}`;
+  g.fillText(o.label, W / 2, 130);
+  g.fillStyle = "#ffffff";
+  g.font = `700 58px ${font}`;
+  wrap(g, o.title, W / 2, 220, W - 160, 70);
+  g.fillStyle = "rgba(255,255,255,0.85)";
+  g.font = `500 48px ${font}`;
+  g.fillText(o.name, W / 2, 420);
+  const img = new Image();
+  img.src = qr;
+  await img.decode();
+  const size = 720;
+  g.fillStyle = "#ffffff";
+  roundRect(g, (W - size) / 2 - 30, 480, size + 60, size + 60, 40);
+  g.drawImage(img, (W - size) / 2, 510, size, size);
+  g.fillStyle = "rgba(255,255,255,0.7)";
+  g.direction = "ltr";
+  g.font = `500 44px ui-monospace, monospace`;
+  g.fillText(o.ref, W / 2, 1360);
+  return new Promise((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error("png"))), "image/png"));
+}
+
+function wrap(g: CanvasRenderingContext2D, text: string, x: number, y: number, max: number, lh: number) {
+  const words = text.split(/\s+/);
+  let line = "";
+  let row = 0;
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (g.measureText(next).width > max && line && row < 2) {
+      g.fillText(line, x, y + row * lh);
+      line = w;
+      row++;
+    } else line = next;
+  }
+  g.fillText(line, x, y + row * lh);
+}
+
+function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+  g.fill();
+}
 
 /** An accepted applicant's delegation pass: number, name, day and a QR back to their status. */
 function PassCard({ pass, locale, registered }: { pass: Pass; locale: Locale; registered?: boolean }) {
@@ -1059,6 +1242,7 @@ export function FormStatus({ locale }: { locale: string }) {
           <p className={cn("t-headline text-2xl", out.status === "accepted" ? "text-ok" : out.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[out.status]}</p>
           {out.status === "accepted" && out.accepted_ar && <p className="max-w-2xl whitespace-pre-line leading-relaxed text-mist">{out.accepted_ar}</p>}
           {out.status === "accepted" && out.pass && <PassCard pass={out.pass} locale={l} registered={out.external_done} />}
+          {out.attend_pass && <AttendPass token={out.attend_pass} locale={l} />}
           {out.status === "accepted" && (
             <div className="flex flex-wrap gap-3">
               {out.accepted_url && (

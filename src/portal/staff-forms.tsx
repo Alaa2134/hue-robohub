@@ -14,6 +14,7 @@ import { can, isFull, fmt, must, removeObjects, safeName, sb, today, uid, upload
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
+import { AttendanceSettings, PassLinkRow, attendanceProblem, type Attendance } from "./form-attendance";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -38,6 +39,7 @@ type Form = {
   accepted_ar: string | null;
   accepted_url: string | null;
   delegation: Delegation | null;
+  attendance: Attendance | null;
   capacity: number | null;
   background_path: string | null;
   background_kind: "image" | "video" | null;
@@ -59,6 +61,7 @@ type Response = {
   accepted_at: string | null;
   checked_in_at: string | null;
   messaged_at: string | null;
+  pass: string | null;
   created_at: string;
 };
 
@@ -95,7 +98,7 @@ const fid = () => Math.random().toString(36).slice(2, 8);
 const f = (type: FieldType, label_ar: string, label_en: string, required = true, options?: string[]): FormField => ({ id: fid(), type, label_ar, label_en, required, ...(options ? { options: options.map((ar) => ({ ar })) } : {}) });
 const YEARS = ["أولى", "تانية", "تالتة", "رابعة", "خامسة", "خريج"];
 
-const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: boolean; fields: () => FormField[] }[] = [
+const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: boolean; attendance?: () => Attendance; fields: () => FormField[] }[] = [
   {
     k: "tryout",
     ar: "اختبارات فريق مسابقة",
@@ -133,6 +136,14 @@ const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: b
     title: "رأيك يهمنا",
     intro: "قولنا رأيك عشان نخلي BuildX أحسن.",
     fields: () => [f("select", "تقييمك العام", "Overall rating", true, ["⭐️⭐️⭐️⭐️⭐️ ممتاز", "⭐️⭐️⭐️⭐️ كويس جداً", "⭐️⭐️⭐️ كويس", "⭐️⭐️ محتاج تحسين", "⭐️ مش راضي"]), f("textarea", "إيه أكتر حاجة عجبتك؟", "What did you like most?", false), f("textarea", "إيه اللي نحسنه؟", "What should we improve?", false), f("name", "اسمك", "Your name", false)],
+  },
+  {
+    k: "attend",
+    ar: "كورس أو ورشة بحضور QR",
+    title: "التسجيل في الكورس",
+    intro: "سجّل وهيطلعلك QR احفظه على موبايلك، وبيه بنسجّل حضورك كل محاضرة.",
+    attendance: () => ({ on: true, sessions: [1, 2, 3].map((n) => ({ id: `s_${fid()}`, name: `محاضرة ${n}`, at: null, only: null })) }),
+    fields: () => [f("name", "الاسم بالكامل", "Full name"), f("phone", "رقم الموبايل (واتساب)", "Mobile (WhatsApp)"), f("select", "السنة الدراسية", "Academic year", true, YEARS)],
   },
   { k: "blank", ar: "فورم فاضي", title: "فورم جديد", intro: "", fields: () => [f("name", "الاسم", "Name"), f("phone", "رقم الموبايل", "Mobile")] },
 ];
@@ -210,7 +221,7 @@ function NewFormSheet({ open, onClose }: { open: boolean; onClose: () => void })
     setBusy(k);
     try {
       const slug = `${k}-${Date.now().toString(36).slice(-5)}`;
-      const row = (await sb().from("forms").insert({ slug, title_ar: t.title, intro_ar: t.intro || null, fields: t.fields(), open: false }).select("id").single().then(must)) as { id: string };
+      const row = (await sb().from("forms").insert({ slug, title_ar: t.title, intro_ar: t.intro || null, fields: t.fields(), attendance: t.attendance?.() ?? null, open: false }).select("id").single().then(must)) as { id: string };
       onClose();
       go(`/staff/forms/${row.id}`);
     } catch (e) {
@@ -311,6 +322,8 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     if (next.title_ar.trim().length < 2) return toast("اكتب عنوان الفورم", "error");
     if (next.accepted_url && !/^https:\/\/\S+$/.test(next.accepted_url)) return toast("لينك ما بعد القبول لازم يبدأ بـ https://", "error");
     if (next.delegation?.register_url && !/^https:\/\/\S+$/.test(next.delegation.register_url)) return toast("لينك تسجيل الزوار لازم يبدأ بـ https://", "error");
+    const attendIssue = attendanceProblem(next.attendance);
+    if (attendIssue) return toast(attendIssue, "error");
     for (const fl of next.fields) {
       if (!fl.label_ar.trim()) return toast("في سؤال من غير عنوان", "error");
       if ((fl.type === "select" || fl.type === "multi") && !(fl.options ?? []).length) return toast(`السؤال «${fl.label_ar}» محتاج اختيارات`, "error");
@@ -420,6 +433,10 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             <Input dir="ltr" placeholder="https://" value={x.accepted_url ?? ""} maxLength={300} onChange={(e) => edit({ accepted_url: e.target.value.trim() || null })} />
           </Field>
         </Card>
+      </Section>
+
+      <Section title="الحضور بالـ QR">
+        <AttendanceSettings value={x.attendance ?? null} fields={fields} onChange={(a) => edit({ attendance: a })} />
       </Section>
 
       <Section title="وفد (زيارة معرض أو فعالية)">
@@ -653,6 +670,14 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           }
         />
       )}
+      {form.attendance?.on && (
+        <Card className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-sm text-mist">كل واحد سجّل معاه QR للحضور. امسحه عند الدخول وشوف مين غاب.</p>
+          <Button size="sm" variant="primary" icon="scan" onClick={() => go(`/staff/forms/${id}/attendance`)} data-testid="open-attendance">
+            الحضور بالـ QR
+          </Button>
+        </Card>
+      )}
       {queue && (
         <MessageQueue
           responses={data.responses}
@@ -769,6 +794,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   كلّمه على واتساب
                 </a>
               ))}
+            {form.attendance?.on && open.pass && <PassLinkRow pass={open.pass} phone={open.phone} name={open.name} title={form.title_ar} />}
             {open.status === "accepted" && (
               <Button size="sm" icon="copy" onClick={() => copyText(acceptMessage(open), "اتنسخت رسالة القبول")}>
                 انسخ رسالة القبول
