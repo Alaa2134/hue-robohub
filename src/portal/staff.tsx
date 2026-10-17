@@ -51,6 +51,7 @@ import { FormEditor, FormResponses, FormsScreen } from "./staff-forms";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
 import { WhatsAppScreen } from "./whatsapp";
+import { EmailScreen } from "./email";
 import { PageEditor, PagesScreen } from "./staff-pages";
 import { BansScreen, DelegationCheckin } from "./expo-delegation";
 import {
@@ -130,6 +131,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   bans: ["forms", "expo", "roster"],
   pages: "pages",
   whatsapp: "whatsapp",
+  email: "email",
 };
 const areasOf = (section: string | undefined): Area[] => {
   const a = section ? AREA_OF[section] : undefined;
@@ -407,6 +409,9 @@ export function StaffApp({
       break;
     case "whatsapp":
       screen = <WhatsAppScreen me={me} />;
+      break;
+    case "email":
+      screen = <EmailScreen me={me} />;
       break;
     case "permissions":
       screen = isFull(me) ? <PermissionsScreen /> : <StaffHome me={me} />;
@@ -801,6 +806,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
       label: "واتساب (الربط والرسايل)",
       to: "/staff/whatsapp",
       show: isFull(me) || canSee(me, "whatsapp"),
+    },
+    {
+      icon: "mail",
+      label: "الإيميل (الربط، الإيميلات التلقائية والإرسال)",
+      to: "/staff/email",
+      show: isFull(me) || canSee(me, "email"),
     },
     { icon: "list", label: "الفورمات (اختبارات الفرق، تجديد، متطوعين…)", to: "/staff/forms" },
     { icon: "shield", label: "الحظر من الكميونيتي (اللي اتقبلوا ومجوش)", to: "/staff/bans" },

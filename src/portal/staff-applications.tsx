@@ -6,6 +6,7 @@ import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
 import { can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
+import { sendByEmail } from "./email-handoff";
 import { PinResults, type PinItem } from "./staff-students";
 import { WaitlistCard } from "./staff-inbox";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
@@ -121,6 +122,11 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
           {can(me, "whatsapp") && (
             <Button size="sm" icon="chat" disabled={!list.length} onClick={() => sendOnWhatsApp(list.map((a) => ({ phone: a.phone, name: a.full_name })), { label: `طلبات الانضمام الظاهرة (${list.length})`, context: "applications" })}>
               واتساب
+            </Button>
+          )}
+          {can(me, "email") && (
+            <Button size="sm" icon="mail" disabled={!list.some((a) => a.email)} onClick={() => sendByEmail(list.map((a) => ({ email: a.email, name: a.full_name })), { label: `طلبات الانضمام الظاهرة، اللي ليهم إيميل (${list.filter((a) => a.email).length})`, context: "applications" })} data-testid="applications-email">
+              إيميل
             </Button>
           )}
           <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>

@@ -88,7 +88,7 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
 export type Area =
   | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
   | "site" | "pages" | "publish" | "forms" | "expo" | "portfolios" | "settings" | "voice"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "security" | "sectors" | "inventory";
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "email" | "security" | "sectors" | "inventory";
 export type Level = "none" | "view" | "full";
 /** `view`: what "view only" lets them see (absent = the area has no view-only level). */
 export const AREAS: { key: Area; group: string; label: string; hint: string; view?: string }[] = [
@@ -113,6 +113,7 @@ export const AREAS: { key: Area; group: string; label: string; hint: string; vie
   { key: "certificates", group: "تاني", label: "الشهادات", hint: "إصدار وطباعة الشهادات", view: "يشوف الشهادات اللي اتعملت" },
   { key: "notify", group: "تاني", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
   { key: "whatsapp", group: "تاني", label: "واتساب", hint: "يبعت رسايل واتساب من التطبيق (للوفد، المقبولين، الطلاب) ويشوف سجل الرسايل. ربط الحساب نفسه للمالك بس", view: "يشوف سجل الرسايل وحالتها" },
+  { key: "email", group: "تاني", label: "الإيميل", hint: "يبعت إيميلات للمتقدمين والأسرة وأي حد، ويعدّل الإيميلات التلقائية (طلب وصل، اتقبلت، تذكرة فعالية…). ربط الحساب نفسه للمالك بس", view: "يشوف سجل الإيميلات والإيميلات التلقائية" },
   { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، سجل النشاط، زيارات الموقع وأخطاؤه، واستهلاك الباقة", view: "يشوف الهجمات والسجلات والزيارات من غير حظر" },
   { key: "sectors", group: "تاني", label: "متابعة كل السيكتورات", hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)" },
   { key: "inventory", group: "تاني", label: "المخزن (القطع والأدوات)", hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)" },
@@ -144,8 +145,8 @@ export const ROLE_PRESETS: { name: string; about: string; full: Area[]; view: Ar
   { name: "مدرّب", about: "بيدرّس ويتابع طلابه", full: TRAINING, view: ["events"] },
   { name: "مشرف محتوى", about: "الموقع والصفحات والنشر", full: ["site", "pages", "publish", "portfolios", "voice"], view: ["inbox", "settings"] },
   { name: "منظّم معارض", about: "وفود المعارض والفعاليات", full: ["expo", "events", "whatsapp"], view: ["forms", "applications", "roster"] },
-  { name: "مسؤول عضوية", about: "الطلبات والطلاب والحضور", full: ["applications", "roster", "whatsapp"], view: ["attendance", "expo"] },
-  { name: "مسؤول تواصل", about: "الرسائل والواتساب والإشعارات", full: ["inbox", "whatsapp", "notify"], view: ["applications", "expo", "events"] },
+  { name: "مسؤول عضوية", about: "الطلبات والطلاب والحضور", full: ["applications", "roster", "whatsapp", "email"], view: ["attendance", "expo"] },
+  { name: "مسؤول تواصل", about: "الرسائل والواتساب والإيميل والإشعارات", full: ["inbox", "whatsapp", "email", "notify"], view: ["applications", "expo", "events"] },
   { name: "متابع (مشاهدة بس)", about: "يشوف كل حاجة ومايعدّلش", full: [], view: AREAS.filter((a) => a.view).map((a) => a.key) },
   { name: "أمين المخزن", about: "القطع والأدوات", full: ["inventory"], view: [] },
 ];
@@ -153,7 +154,7 @@ export const ROLE_PRESETS: { name: string; about: string; full: Area[]; view: Ar
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[]; view?: Area[] }[] = [
   { title: "نائب القائد", areas: AREAS.map((a) => a.key) },
-  { title: "إداري الموقع", areas: ["site", "pages", "publish", "forms", "expo", "portfolios", "settings", "notify", "inbox", "security", "voice", "whatsapp"] },
+  { title: "إداري الموقع", areas: ["site", "pages", "publish", "forms", "expo", "portfolios", "settings", "notify", "inbox", "security", "voice", "whatsapp", "email"] },
   { title: "هيد الميديا", areas: ["site", "pages", "publish", "portfolios", "notify", "voice"] },
   { title: "المدير التقني", areas: [...TRAINING, "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: TRAINING },
@@ -164,7 +165,7 @@ export const POSITIONS: { title: string; areas: Area[]; view?: Area[] }[] = [
   { title: "مسؤول التنظيم والعمليات", areas: ["events", "attendance", "expo"] },
   { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"], view: ["expo"] },
   { title: "مسؤول الإعلام والتصميم", areas: ["site", "pages"] },
-  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site", "whatsapp"] },
+  { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site", "whatsapp", "email"] },
   { title: "أمين المخزن", areas: ["inventory"] },
   { title: "صوت بقلظ", areas: ["voice"] },
   { title: "منظّم", areas: ["events"], view: ["expo"] },

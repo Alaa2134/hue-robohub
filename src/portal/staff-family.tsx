@@ -14,6 +14,7 @@ import { can, errorText, isFull, must, publicOrigin, rpc, sb, today, type StaffR
 import { FamilyPromoKit } from "./family-promo";
 import { saveNodesAsPdf } from "./pdf";
 import { sendOnWhatsApp } from "./wa-handoff";
+import { sendByEmail } from "./email-handoff";
 import { refreshStudents } from "./staff-data";
 import { downloadStyledXlsx, type XRow } from "./xlsx";
 import {
@@ -631,6 +632,26 @@ export function FamilyScreen({ me }: { me: StaffRow }) {
                   data-testid="family-welcome"
                 >
                   رسالة ترحيب واتساب ({shown.length})
+                </Button>
+              )}
+              {(isFull(me) || can(me, "email")) && shown.some((m) => m.email) && (
+                <Button
+                  size="sm"
+                  icon="mail"
+                  onClick={() =>
+                    sendByEmail(
+                      shown.map((m) => ({ email: m.email, name: m.full_name })),
+                      {
+                        label: `أسرة BuildX، اللي كتبوا إيميل (${shown.filter((m) => m.email).length})`,
+                        context: "family",
+                        subject: "أهلاً بيك في أسرة BuildX يا {name} 💙",
+                        text: welcomeText(group),
+                      },
+                    )
+                  }
+                  data-testid="family-email"
+                >
+                  إيميل ({shown.filter((m) => m.email).length})
                 </Button>
               )}
             </div>
