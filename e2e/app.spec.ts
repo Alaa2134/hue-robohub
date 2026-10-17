@@ -1940,6 +1940,56 @@ test("drafts the team wrote wait at the top of the content screen for whoever pu
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
+test("content staff set the points of a lecture and the bonus a group earns for finishing the course", async ({ page }) => {
+  await signInAsOwner(page);
+  const material = {
+    id: "m1",
+    title: "Servo basics",
+    description: "",
+    kind: "link",
+    storage_path: null,
+    url: "https://example.com/servo",
+    file_name: null,
+    mime: null,
+    size_bytes: null,
+    group_name: "G1",
+    published: true,
+    pinned: false,
+    points: 7,
+    created_by: "u1",
+    created_at: at(3),
+  };
+  const patched: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/materials/, async (route) => {
+    const m = route.request().method();
+    if (m === "PATCH") {
+      const body = route.request().postDataJSON();
+      patched.push(body);
+      return route.fulfill({ json: { ...material, ...body } });
+    }
+    return route.fulfill({ json: [material] });
+  });
+  const bonus: Record<string, unknown>[][] = [];
+  await page.route(/\/rest\/v1\/course_bonus/, async (route) => {
+    if (route.request().method() === "POST") {
+      bonus.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [{ group_name: "G1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/content");
+  await page.getByRole("button", { name: /نقط إتمام الكورس/ }).click();
+  await page.getByTestId("course-bonus-G1").fill("40");
+  await page.getByRole("button", { name: "حفظ", exact: true }).click();
+  await expect.poll(() => bonus[0]?.[0]).toMatchObject({ group_name: "G1", points: 40 });
+  await page.getByText("Servo basics").first().click();
+  await expect(page.getByText("7 نقطة")).toBeVisible();
+  await page.getByRole("button", { name: "تعديل" }).click();
+  await page.getByTestId("material-points").fill("12");
+  await page.getByRole("button", { name: "حفظ", exact: true }).last().click();
+  await expect.poll(() => patched[0]).toMatchObject({ points: 12 });
+});
+
 test("certificates go in one tap to every student who attended enough sessions", async ({ page }) => {
   await signInAsOwner(page);
   const s = (id: string, name: string) => ({
@@ -2834,6 +2884,7 @@ test("a head gives the sector an urgent task, approves a hand-in and gives a war
     staff_sector_tasks: [teamTask({})],
     staff_warnings: [],
     staff_task_save: "t1",
+    staff_task_points: null,
     staff_task: { ...teamTask({}), leads: true },
     staff_task_review: { ok: true },
     staff_warning_give: "w1",
@@ -2846,8 +2897,12 @@ test("a head gives the sector an urgent task, approves a hand-in and gives a war
   await page.getByRole("button", { name: "تاسك", exact: true }).click();
   await page.getByLabel("العنوان").fill("Workshop reel");
   await page.getByLabel("الأولوية").selectOption("urgent");
+  await expect(page.getByTestId("task-points")).toHaveValue("30");
+  await page.getByTestId("task-points").fill("50");
   await page.getByRole("checkbox", { name: "Omar Design" }).check();
   await page.getByRole("button", { name: "ابعت التاسك" }).click();
+  // The supervisor's points are saved with the task.
+  await expect.poll(() => calls.find((c) => c.fn === "staff_task_points")?.body).toEqual({ p_task: "t1", p_points: 50 });
   await expect
     .poll(() => calls.find((c) => c.fn === "staff_task_save")?.body)
     .toMatchObject({

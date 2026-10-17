@@ -216,6 +216,8 @@ export type Material = {
   /** Hidden until this time, then it publishes itself (and the group is notified). */
   publish_at?: string | null;
   pinned: boolean;
+  /** What a student earns for opening it (set by whoever uploads it). */
+  points?: number;
   created_by: string | null;
   created_at: string;
 };
@@ -243,6 +245,8 @@ export type Quiz = {
   closes_at: string | null;
   time_limit_min: number | null;
   max_attempts: number;
+  /** The most a student can earn from it (scaled by their best score); set by whoever writes the quiz. */
+  points?: number;
   shuffle: boolean;
   show_answers: boolean;
   /** The weekly contest (first attempt counts; top three get bonus points). */
