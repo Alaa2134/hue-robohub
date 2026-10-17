@@ -33,7 +33,8 @@ import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
 import { StudentsScreen } from "./staff-students";
-import { AccountScreen, AuditScreen, ReportsScreen, TeamScreen } from "./staff-team";
+import { AccountScreen, ReportsScreen, TeamScreen } from "./staff-team";
+import { ActivityScreen } from "./staff-activity";
 import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
@@ -73,12 +74,14 @@ import {
   Badge,
   Button,
   Card,
+  Empty,
   Icon,
   IconButton,
   List,
   Row,
   Section,
   Stat,
+  TopBar,
   go,
   useAsync,
   type IconKey,
@@ -269,7 +272,15 @@ export function StaffApp({
       screen = <AccountScreen me={me} onProfile={onProfile} />;
       break;
     case "audit":
-      screen = <AuditScreen />;
+      screen =
+        me.role === "owner" ? (
+          <ActivityScreen />
+        ) : (
+          <>
+            <TopBar title="سجل الحركات" back="/staff/more" />
+            <Empty icon="lock" title="الصفحة دي للقائد بس" body="سجل كل الحركات بيشوفه صاحب الحساب الرئيسي (المالك) بس." />
+          </>
+        );
       break;
     case "reports":
       screen = <ReportsScreen />;
@@ -832,7 +843,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
       to: "/staff/permissions",
       show: isFull(me),
     },
-    { icon: "list", label: "سجل النشاط", to: "/staff/audit" },
+    { icon: "list", label: "سجل الحركات (كل تعديل وحذف من كل الناس)", to: "/staff/audit", show: me.role === "owner" },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },

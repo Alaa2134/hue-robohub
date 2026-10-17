@@ -470,49 +470,6 @@ export function AccountScreen({ me, onProfile }: { me: StaffRow; onProfile: (s: 
   );
 }
 
-type AuditRow = { id: number; at: string; actor_email: string | null; action: string; entity: string; detail: Record<string, unknown> };
-const ACTION_LABEL: Record<string, string> = {
-  insert: "أضاف",
-  update: "عدّل",
-  delete: "حذف",
-  set_pins: "أنشأ رموز دخول",
-  bootstrap: "أنشأ حساب المالك",
-  staff_create: "أضاف عضوًا للفريق",
-  staff_password: "غيّر كلمة مرور عضو",
-  staff_delete: "حذف عضوًا من الفريق",
-};
-const ENTITY_LABEL: Record<string, string> = { students: "طالب", staff: "عضو فريق", attendance_sessions: "جلسة حضور", materials: "محتوى", quizzes: "كويز" };
-
-export function AuditScreen() {
-  const { data, error, loading, reload } = useAsync(async () => must(await sb().from("audit_log").select("*").order("at", { ascending: false }).limit(200)) as AuditRow[], []);
-  return (
-    <>
-      <TopBar title="سجل النشاط" sub="آخر 200 إجراء مهم" back="/staff/more" />
-      {loading && !data ? (
-        <Loading />
-      ) : error ? (
-        <ErrorBox error={error} retry={reload} />
-      ) : !data?.length ? (
-        <Empty icon="list" title="لا يوجد نشاط بعد" />
-      ) : (
-        <List>
-          {data.map((a) => (
-            <div key={a.id} className="px-4 py-3">
-              <p className="text-sm text-chalk">
-                {ACTION_LABEL[a.action] ?? a.action} {a.action === "set_pins" ? `(${String(a.detail?.count ?? "")})` : ENTITY_LABEL[a.entity] ?? a.entity}
-                {typeof a.detail?.name === "string" && a.detail.name ? `: ${a.detail.name}` : ""}
-              </p>
-              <p className="text-xs text-fog">
-                <span dir="ltr">{a.actor_email ?? "النظام"}</span> · {fmt.dateTime(a.at)}
-              </p>
-            </div>
-          ))}
-        </List>
-      )}
-    </>
-  );
-}
-
 /* ─── Attendance report ────────────────────────────────────────────────── */
 
 type AttData = { now: string; sessions: { id: string; title: string; group: string; startsAt: string; closed: boolean }[]; records: [string, string, AttStatus][] };

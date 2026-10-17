@@ -1754,7 +1754,7 @@ test("an admin the owner limited sees only those areas: no security, activity lo
   await expect(page.getByText("التاسكات (تسليم وتصحيح)")).toBeVisible();
   for (const item of [
     "الأمان والهجمات",
-    "سجل النشاط",
+    "سجل الحركات (كل تعديل وحذف من كل الناس)",
     "زيارات الموقع (مين بيزور وبيشوف إيه)",
     "أخطاء الموقع",
     "طلبات الانضمام",
@@ -5902,4 +5902,163 @@ test("the join form editor: hide a question, rename one, add a question with cho
   await expect(box.getByText("بتعرف تلحم؟")).toBeVisible();
   await expect(box.getByText("شوية")).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("the owner's activity log: who did what, grouped and filtered, old → new, and a deleted application put back", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const NOW = new Date("2026-10-15T10:00:00Z").getTime();
+  const t = (min: number) => new Date(NOW - min * 60_000).toISOString();
+  const deleted = {
+    id: 10,
+    at: t(5),
+    actor: "u2",
+    actor_email: "m@example.com",
+    action: "delete",
+    entity: "applications",
+    entity_id: "a1",
+    detail: { t: "محمد اسامه منصور", an: "محمد النجار" },
+    has_row: true,
+    restored: false,
+  };
+  const rows = [
+    deleted,
+    {
+      id: 9,
+      at: t(8),
+      actor: "u2",
+      actor_email: "m@example.com",
+      action: "update",
+      entity: "applications",
+      entity_id: "a2",
+      detail: { t: "منى عادل", an: "محمد النجار", ch: { status: ["new", "interview"], staff_notes: [null, "مقابلة يوم الأحد"] } },
+    },
+    ...[11, 11.5, 12].map((m, i) => ({
+      id: 8 - i,
+      at: t(m),
+      actor: "u3",
+      actor_email: "c@example.com",
+      action: "insert",
+      entity: "attendance",
+      entity_id: null,
+      detail: { an: "Coach Admin", st: `طالب ${i + 1}`, of: "جلسة الروبوتكس 1" },
+    })),
+    { id: 5, at: t(20), actor: null, actor_email: null, action: "insert", entity: "applications", entity_id: "a3", detail: { t: "زائر جديد", by: "visitor" } },
+    { id: 4, at: t(30), actor: "u2", actor_email: "m@example.com", action: "login", entity: "staff", entity_id: "u2", detail: { t: "محمد النجار", an: "محمد النجار" } },
+  ];
+  const lists: Record<string, unknown>[] = [];
+  const restores: unknown[] = [];
+  let restored = false;
+  await page.clock.setFixedTime(NOW);
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/rpc\/staff_audit_/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    const body = route.request().postDataJSON() as { p?: Record<string, unknown>; p_id?: number };
+    if (fn === "staff_audit_stats")
+      return route.fulfill({
+        json: {
+          today: { insert: 4, update: 1, delete: 1, other: 1, total: 7 },
+          week: { insert: 9, update: 3, delete: 2, other: 4, total: 18 },
+          top: [{ actor: "u2", name: "محمد النجار", n: 3, deletes: 1 }],
+          people: [
+            { actor: "u3", name: "Coach Admin", n: 3 },
+            { actor: "u2", name: "محمد النجار", n: 3 },
+          ],
+          entities: { applications: 3, attendance: 3, staff: 1 },
+          total: 7,
+          since: t(9999),
+        },
+      });
+    if (fn === "staff_audit_list") {
+      lists.push(body.p ?? {});
+      const only = body.p?.kind === "delete" ? [{ ...deleted, restored }] : rows;
+      return route.fulfill({ json: { rows: only, more: false } });
+    }
+    if (fn === "staff_audit_get") {
+      const e = rows.find((r) => r.id === body.p_id)!;
+      const row = { id: "a1", ref: "BX-C649FF", full_name: "محمد اسامه منصور", phone: "01000000000", status: "new", created_at: t(600) };
+      return route.fulfill({
+        json: {
+          ...e,
+          ip: "41.33.1.2",
+          detail: e.action === "delete" ? { ...e.detail, row } : e.detail,
+          restored: restored ? { at: t(1), by: "Owner Test" } : null,
+          can_restore: e.action === "delete",
+        },
+      });
+    }
+    if (fn === "staff_audit_restore") {
+      restores.push(body);
+      restored = true;
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: null });
+  });
+
+  await page.goto("/app/#/staff/more");
+  await page.getByText("سجل الحركات (كل تعديل وحذف من كل الناس)").click();
+  await expect(page.getByTestId("activity-stats")).toContainText("حذف النهارده");
+  await expect(page.getByTestId("activity-stats")).toContainText("2 في آخر 7 أيام");
+  // Who did what, in words.
+  const first = page.getByTestId("activity-row").first();
+  await expect(first).toContainText("محمد النجار");
+  await expect(first).toContainText("حذف طلب انضمام «محمد اسامه منصور»");
+  await expect(page.getByTestId("activity-row").nth(1)).toContainText("الحالة، ملاحظات الفريق");
+  await expect(page.getByText("زائر", { exact: true })).toBeVisible();
+  await expect(page.getByText("دخل التطبيق")).toBeVisible();
+  // Three attendance marks a minute apart show as one line that opens up.
+  const group = page.getByTestId("activity-group");
+  await expect(group).toContainText("Coach Admin أضاف 3 في الحضور");
+  await group.click();
+  await expect(page.getByTestId("activity-row").filter({ hasText: "أضاف حضور في «جلسة الروبوتكس 1» للطالب طالب 1" })).toHaveCount(1);
+  expect(lists[0]).toMatchObject({ limit: 80 });
+  expect(typeof lists[0].from).toBe("string");
+
+  // An edit: what it was and what it became.
+  await page.getByTestId("activity-row").nth(1).click();
+  const sheet = page.getByTestId("activity-details");
+  await expect(sheet.getByTestId("activity-change").first()).toContainText("الحالة");
+  await expect(sheet.getByTestId("activity-change").first()).toContainText("جديد");
+  await expect(sheet.getByTestId("activity-change").first()).toContainText("مقابلة");
+  await expect(sheet.getByTestId("activity-change").nth(1)).toContainText("فاضي");
+  await expect(sheet).toContainText("41.33.1.2");
+  await page.getByRole("button", { name: "إغلاق" }).last().click();
+
+  // Only deletes, then put the deleted application back.
+  await page.getByRole("button", { name: "حذف", exact: true }).click();
+  await expect.poll(() => lists.at(-1)?.kind).toBe("delete");
+  await expect(page.getByTestId("activity-row")).toHaveCount(1);
+  await page.getByTestId("activity-row").click();
+  await expect(sheet).toContainText("البيانات اللي اتحذفت");
+  await expect(sheet).toContainText("BX-C649FF");
+  await page.getByTestId("activity-restore").click();
+  await page.getByRole("button", { name: "رجّعه", exact: true }).click();
+  await expect(page.getByText("رجع زي ما كان.")).toBeVisible();
+  expect(restores).toEqual([{ p_id: 10 }]);
+  await expect(sheet).toContainText("اترجّع");
+  await expect(page.getByTestId("activity-restore")).toHaveCount(0);
+  await page.getByRole("button", { name: "إغلاق" }).last().click();
+
+  // A person from the list of the most active, and the Excel of what's shown.
+  await page.getByRole("button", { name: /محمد النجار/ }).first().click();
+  await expect.poll(() => lists.at(-1)?.who).toBe("u2");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("activity-xlsx").click();
+  expect((await file).suggestedFilename()).toMatch(/^buildx-activity-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  expect(errors).toEqual([]);
+});
+
+test("the activity log is the owner's alone: a full admin sees neither the menu item nor the page", async ({ page }) => {
+  await signInAsOwner(page);
+  const me = { user_id: "u1", email: "admin@example.com", full_name: "Full Admin", role: "admin", active: true, created_at: at(9999), title: null, permissions: null };
+  await page.route(/\/rest\/v1\/staff/, (route) =>
+    route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? me : [me] }),
+  );
+  await page.goto("/app/#/staff/more");
+  await expect(page.getByText("الأمان والهجمات")).toBeVisible();
+  await expect(page.getByText("سجل الحركات (كل تعديل وحذف من كل الناس)")).toHaveCount(0);
+  await page.goto("/app/#/staff/audit");
+  await expect(page.getByText("الصفحة دي للقائد بس")).toBeVisible();
 });
