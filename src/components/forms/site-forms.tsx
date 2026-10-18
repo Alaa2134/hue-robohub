@@ -93,12 +93,14 @@ const C = {
     checkStatus: "تابع حالة طلبك",
     stTitle: "حالة طلبك",
     stRef: "كود الطلب",
-    stPhone: "رقم الموبايل اللي قدّمت بيه",
+    stPhone: "أو رقم الموبايل اللي قدّمت بيه",
     stCheck: "اعرف حالتي",
     stChecking: "بندوّر…",
-    stNotFound: "مش لاقيين طلب بالكود والرقم دول. الكود هو اللي ظهرلك بعد ما بعت الفورم وبيبدأ بـ F- (زي F-1A2B3C4D)، والرقم لازم يكون نفس اللي كتبته في الفورم.",
+    stNotFound: "مش لاقيين طلب بالكود أو الرقم ده. الكود هو اللي ظهرلك بعد ما بعت الفورم وبيبدأ بـ F- (زي F-1A2B3C4D)، والرقم لازم يكون نفس اللي كتبته في الفورم.",
+    stNeedOne: "اكتب كود الطلب أو رقم الموبايل.",
+    stListNote: "علشان تشوف الـ QR وتفاصيل طلبك اكتب كود الطلب (بيبدأ بـ F-)، وده بيوصلك في رسالة الواتساب.",
     stJoinCode: "ده كود طلب انضمام (BX-…). تابعه من صفحة «تابع طلب الانضمام».",
-    stRefHint: "كود الطلب بيبدأ بـ F- وظهرلك بعد ما بعت الفورم، وبيوصلك كمان في رسالة الواتساب.",
+    stRefHint: "اكتب كود الطلب أو رقم الموبايل، واحد منهم بس يكفي. الكود بيبدأ بـ F- وبيوصلك في رسالة الواتساب.",
     st: { new: "طلبك وصل وبيتراجع ⏳", waiting: "إنت على قايمة الانتظار ⏳ هنبلّغك لو مكان فضي.", accepted: "اتقبلت 🎉", rejected: "للأسف المرة دي مقدرناش نقبل طلبك. شكراً لاهتمامك 🙏" },
     stOpen: "افتح موقع التسجيل",
     stDone: "سجّلت في موقع المعرض",
@@ -188,12 +190,14 @@ const C = {
     checkStatus: "Check your application",
     stTitle: "Your application",
     stRef: "Reference code",
-    stPhone: "The mobile number you applied with",
+    stPhone: "Or the mobile number you applied with",
     stCheck: "Check",
     stChecking: "Checking…",
-    stNotFound: "No application matches that code and number. The code was shown after you sent the form and starts with F- (like F-1A2B3C4D); the number must be the one you wrote in the form.",
+    stNotFound: "No application matches that code or number. The code was shown after you sent the form and starts with F- (like F-1A2B3C4D); the number must be the one you wrote in the form.",
+    stNeedOne: "Type the application code or the mobile number.",
+    stListNote: "To see your QR and the details, type the application code (it starts with F- and comes in the WhatsApp message).",
     stJoinCode: "That's a join-application code (BX-…). Check it on the «Track your join application» page.",
-    stRefHint: "The code starts with F- and was shown after you sent the form; it also comes in the WhatsApp message.",
+    stRefHint: "Type the application code or the mobile number; either one is enough. The code starts with F- and comes in the WhatsApp message.",
     st: { new: "Received and under review ⏳", waiting: "You're on the waiting list ⏳ We'll tell you if a place opens up.", accepted: "Accepted 🎉", rejected: "Sorry, we couldn't accept your application this time. Thank you for your interest 🙏" },
     stOpen: "Open the registration site",
     stDone: "I've registered on the expo site",
@@ -968,7 +972,9 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 }
 
 type Pass = { no: string; ref: string; name: string | null; name_en: string | null; day: string | null; org: string | null; event: string | null; dates: string | null; venue: string | null; meet_ar: string | null };
-type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
+type RespStatus = "new" | "accepted" | "rejected" | "waiting";
+/** One code: the full answer. Only a number: that number's requests (form, status, when), nothing personal. */
+type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
 
 type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null }[] };
 const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
@@ -1204,11 +1210,13 @@ export function FormStatus({ locale }: { locale: string }) {
   }, []);
   const check = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ref.trim() || !PHONE.test(cleanPhone(phone))) return setErr(t.stNotFound);
+    if (!ref.trim() && !phone.trim()) return setErr(t.stNeedOne);
+    if (!ref.trim() && !PHONE.test(cleanPhone(phone))) return setErr(t.badPhone);
     setBusy(true);
     setErr("");
+    setOut(null);
     try {
-      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: asciiDigits(phone.trim()) });
+      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: phone.trim() ? asciiDigits(phone.trim()) : null });
       if (r.ok) setOut(r);
       else setErr(r.error === "rate_limited" ? t.errors.rate_limited : r.error === "join_code" ? t.stJoinCode : t.stNotFound);
     } catch {
@@ -1243,6 +1251,19 @@ export function FormStatus({ locale }: { locale: string }) {
         <p role="alert" className="text-sm text-danger">
           {err}
         </p>
+      )}
+      {out?.list && (
+        <div role="status" className="grid gap-3">
+          {out.list.map((x, i) => (
+            <div key={i} className="grid gap-1 rounded-2xl border border-[var(--line-2)] p-5" data-testid="status-item">
+              <p className="text-sm text-fog">
+                {(l === "en" && x.title_en) || x.title_ar} · {fmtWhen(x.at, l)}
+              </p>
+              <p className={cn("t-headline text-xl", x.status === "accepted" ? "text-ok" : x.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[x.status]}</p>
+            </div>
+          ))}
+          <p className="text-sm text-fog">{t.stListNote}</p>
+        </div>
       )}
       {out?.status && (
         <div role="status" className="grid gap-3 rounded-2xl border border-[var(--line-2)] p-5">

@@ -494,10 +494,7 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
     rpc: {
       public_form: () => EXPO_FORM,
       submit_form: () => ({ ok: true, ref: "F-1A2B3C4D" }),
-      form_status: (b) =>
-        b.p_ref === "F-1A2B3C4D" && b.p_phone === "01012345678"
-          ? { ok: true, status: "new", title_ar: EXPO_FORM.title_ar }
-          : { ok: false, error: "not_found" },
+      form_status: (b) => (b.p_ref === "F-1A2B3C4D" ? { ok: true, status: "new", title_ar: EXPO_FORM.title_ar } : { ok: false, error: "not_found" }),
     },
   });
   await page.goto("/ar/robotex/");
@@ -527,19 +524,19 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
       agree: true,
     },
   });
-  // The status link fills in the code; with the phone it shows the status.
+  // The status link fills in the code, and the code alone shows the status.
   await page.getByRole("link", { name: "تابع حالة طلبك" }).click();
   await expect(page.getByLabel("كود الطلب")).toHaveValue("F-1A2B3C4D");
-  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01099999999");
+  await page.getByLabel("كود الطلب").fill("F-0000AAAA");
   await page.getByRole("button", { name: "اعرف حالتي" }).click();
-  await expect(page.getByText("مش لاقيين طلب بالكود والرقم دول")).toBeVisible();
-  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await expect(page.getByText("مش لاقيين طلب بالكود أو الرقم ده")).toBeVisible();
+  await page.getByLabel("كود الطلب").fill("F-1A2B3C4D");
   await page.getByRole("button", { name: "اعرف حالتي" }).click();
   await expect(page.getByText("طلبك وصل وبيتراجع")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("«تابع طلبك» takes the code without «F-» and a number in Arabic digits, and says when a join code was typed", async ({ page }) => {
+test("«تابع طلبك» works with the code alone or the number alone (in Arabic digits too), and says when a join code was typed", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls = await mockSupabase(page, {
@@ -547,27 +544,39 @@ test("«تابع طلبك» takes the code without «F-» and a number in Arabic
       form_status: (b) =>
         String(b.p_ref).startsWith("BX")
           ? { ok: false, error: "join_code" }
-          : String(b.p_ref).endsWith("1A2B3C4D") && b.p_phone === "01012345678"
-            ? { ok: true, status: "new", title_ar: "كورس ROS" }
-            : { ok: false, error: "not_found" },
+          : !b.p_ref && b.p_phone === "01012345678"
+            ? { ok: true, list: [{ title_ar: "كورس ROS", title_en: null, status: "accepted", at: "2026-10-18T10:00:00Z" }] }
+            : String(b.p_ref).endsWith("1A2B3C4D")
+              ? { ok: true, status: "new", title_ar: "كورس ROS" }
+              : { ok: false, error: "not_found" },
     },
   });
   await page.goto("/ar/form/#status");
   const code = page.getByLabel("كود الطلب");
   const phone = page.getByLabel("رقم الموبايل اللي قدّمت بيه");
-  await expect(page.getByText("كود الطلب بيبدأ بـ F-")).toBeVisible();
+  const check = page.getByRole("button", { name: "اعرف حالتي" });
+  await expect(page.getByText("واحد منهم بس يكفي")).toBeVisible();
+  await check.click();
+  await expect(page.getByText("اكتب كود الطلب أو رقم الموبايل.")).toBeVisible();
   // A join code on the form page says where to look.
   await code.fill("BX-1A2B3C");
-  await phone.fill("01012345678");
-  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await check.click();
   await expect(page.getByText("ده كود طلب انضمام")).toBeVisible();
-  // The code without «F-» and the number in Arabic digits.
+  // The number alone, in Arabic digits: that number's requests, without the QR.
+  await code.fill("");
+  await phone.fill("٠١٠١٢٣٤٥٦٧٨");
+  await check.click();
+  await expect(page.getByTestId("status-item")).toContainText("اتقبلت 🎉");
+  await expect(page.getByTestId("status-item")).toContainText("كورس ROS");
+  await expect(page.getByText("علشان تشوف الـ QR وتفاصيل طلبك اكتب كود الطلب")).toBeVisible();
+  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "", p_phone: "01012345678" });
+  // The code alone, without «F-».
+  await phone.fill("");
   await code.fill("1a2b3c4d");
   await expect(code).toHaveValue("1A2B3C4D");
-  await phone.fill("٠١٠١٢٣٤٥٦٧٨");
-  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await check.click();
   await expect(page.getByText("طلبك وصل وبيتراجع")).toBeVisible();
-  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "1A2B3C4D", p_phone: "01012345678" });
+  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "1A2B3C4D", p_phone: null });
   expect(errors).toEqual([]);
 });
 
