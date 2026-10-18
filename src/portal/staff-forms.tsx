@@ -38,6 +38,8 @@ type Form = {
   archived: boolean;
   accepted_ar: string | null;
   accepted_url: string | null;
+  /** When the event happens; WhatsApp messages use it when the form has no QR-attendance session. */
+  event_at?: string | null;
   delegation: Delegation | null;
   attendance: Attendance | null;
   capacity: number | null;
@@ -431,6 +433,9 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
           </Field>
           <Field label="لينك الخطوة الجاية" hint="اختياري — مثلاً تسجيل الزوار في موقع المعرض">
             <Input dir="ltr" placeholder="https://" value={x.accepted_url ?? ""} maxLength={300} onChange={(e) => edit({ accepted_url: e.target.value.trim() || null })} />
+          </Field>
+          <Field label="ميعاد الفعالية" hint="اختياري — بيتكتب في رسالة القبول على واتساب. لو الفورم فيه «الحضور بالـ QR» بياخد أول موعد منه.">
+            <Input type="datetime-local" data-testid="form-event-at" value={toLocal(x.event_at ?? null)} onChange={(e) => edit({ event_at: fromLocal(e.target.value) })} />
           </Field>
         </Card>
       </Section>

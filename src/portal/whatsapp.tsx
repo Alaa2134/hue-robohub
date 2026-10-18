@@ -119,6 +119,7 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
               <StatusCard st={st} />
               {st.can_connect && <ConnectCard st={st} onDone={reload} />}
               {st.connected && <AutoCard st={st} />}
+              {st.connected && <TemplatesCard canSend={st.can_send} />}
               {st.connected && st.can_send && <SendCard st={st} me={me} handoff={handoff} onSent={reload} />}
               {!st.connected && !st.can_connect && <Empty icon="chat" title="واتساب لسه مش مربوط" body="المالك بيربط رقم الفريق من هنا، وبعدها تقدر تبعت." />}
             </>
@@ -186,6 +187,8 @@ type AutoRule = {
   lang: string;
   enabled: boolean;
   ok: boolean;
+  /** Our new template for this moment, still under Meta's review (it switches to it by itself once approved). */
+  waiting?: string | null;
   bulk?: boolean;
   to_phone?: string | null;
   audience?: number | null;
@@ -283,7 +286,11 @@ function AutoCard({ st }: { st: Status }) {
                         }}
                       >
                         <option value="">— من غير قالب (مش بتتبعت) —</option>
-                        {r.template && !r.ok && <option value={`${r.template}|${r.lang}`}>{r.template} (مش متوافق عليه)</option>}
+                        {r.template && !r.ok && (
+                          <option value={`${r.template}|${r.lang}`}>
+                            {r.template} ({r.waiting === r.template ? "عند ميتا للمراجعة" : "مش متوافق عليه"})
+                          </option>
+                        )}
                         {st.templates.map((t) => (
                           <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
                             {t.name} · {t.language}
@@ -299,7 +306,9 @@ function AutoCard({ st }: { st: Status }) {
                         </Button>
                       </div>
                     )}
-                    {r.template && !r.ok ? (
+                    {r.template && !r.ok && r.waiting === r.template ? (
+                      <p className="text-xs leading-relaxed text-warn" data-testid="wa-auto-waiting">قالبها عند ميتا للمراجعة. أول ما يتوافق عليه الرسالة دي هتبدأ تتبعت لوحدها.</p>
+                    ) : r.template && !r.ok ? (
                       <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
                     ) : body ? (
                       <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
@@ -307,6 +316,11 @@ function AutoCard({ st }: { st: Status }) {
                       </p>
                     ) : (
                       !r.template && <p className="text-xs leading-relaxed text-fog">مفيش قالب للحظة دي لسه. اعمل قالب في ميتا (WhatsApp Manager ← Message templates)، ولما يتوافق عليه اختاره هنا.</p>
+                    )}
+                    {r.ok && r.waiting && (
+                      <p className="text-[11px] leading-relaxed text-fog" data-testid="wa-auto-waiting">
+                        قالب أحسن ليها ({r.waiting}) عند ميتا للمراجعة، وأول ما يتوافق عليه الرسالة هتتحول له لوحدها.
+                      </p>
                     )}
                     {(r.vars_ar || !!r.sent) && (
                       <p className="text-[11px] text-fog" dir="auto">
@@ -321,6 +335,105 @@ function AutoCard({ st }: { st: Status }) {
             </div>
           );
         })
+      )}
+    </Card>
+  );
+}
+
+type OurTemplate = {
+  name: string;
+  lang: string;
+  category: string;
+  body: string;
+  moments: string[];
+  status: "APPROVED" | "PENDING" | "IN_APPEAL" | "REJECTED" | "DISABLED" | "PAUSED" | "SENDING" | "ERROR" | "NEW";
+  error: string | null;
+  submitted_at: string | null;
+};
+const TEMPLATE_STATE: Record<OurTemplate["status"], [string, "ok" | "info" | "warn" | "danger" | "muted"]> = {
+  APPROVED: ["متوافق عليه", "ok"],
+  PENDING: ["عند ميتا للمراجعة", "info"],
+  IN_APPEAL: ["في الاستئناف", "info"],
+  SENDING: ["بيتبعت لميتا", "info"],
+  NEW: ["لسه ماتبعتش", "muted"],
+  REJECTED: ["اترفض", "danger"],
+  ERROR: ["ميتا رفضت تستلمه", "danger"],
+  PAUSED: ["متوقف مؤقتًا", "warn"],
+  DISABLED: ["متوقف", "danger"],
+};
+
+/** Our own templates (one per moment): what Meta said about each, and a button that sends the missing ones. */
+function TemplatesCard({ canSend }: { canSend: boolean }) {
+  const { data, error, loading, reload } = useAsync(() => rpc<OurTemplate[]>("staff_wa_templates"), []);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const list = Array.isArray(data) ? data : [];
+  const count = (s: OurTemplate["status"][]) => list.filter((t) => s.includes(t.status)).length;
+  const missing = count(["NEW", "ERROR"]);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const n = await rpc<number>("staff_wa_templates_submit");
+      toast(n ? `اتبعت ${n} لميتا` : "مفيش حاجة ناقصة");
+      reload();
+    } catch (e) {
+      toast.error(waError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (loading && !data) return null;
+  if (error) return <ErrorBox error={error} retry={reload} />;
+  if (!list.length) return null;
+  return (
+    <Card className="grid gap-3" data-testid="wa-templates">
+      <div className="grid gap-0.5">
+        <p className="text-sm font-semibold text-chalk">قوالبنا عند ميتا</p>
+        <p className="text-xs leading-relaxed text-fog">
+          قالب عربي لكل لحظة، اتبعت لميتا من هنا. اللي اتوافق عليه بيشتغل لوحده في الرسايل الأوتوماتيك، واللي اترفض بنعدّله ونبعته تاني.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Badge tone="ok">متوافق عليه {count(["APPROVED"])}</Badge>
+        <Badge tone="info">للمراجعة {count(["PENDING", "IN_APPEAL", "SENDING"])}</Badge>
+        {!!count(["REJECTED", "ERROR", "DISABLED", "PAUSED"]) && <Badge tone="danger">محتاج تعديل {count(["REJECTED", "ERROR", "DISABLED", "PAUSED"])}</Badge>}
+        {!!count(["NEW"]) && <Badge tone="muted">لسه ماتبعتش {count(["NEW"])}</Badge>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "اخفي القوالب" : `اعرض القوالب (${list.length})`}
+        </Button>
+        {canSend && !!missing && (
+          <Button size="sm" variant="primary" loading={busy} onClick={() => void submit()}>
+            ابعت الناقص لميتا ({missing})
+          </Button>
+        )}
+      </div>
+      {open && (
+        <ul className="grid gap-2" data-testid="wa-templates-list">
+          {list.map((t) => {
+            const [label, tone] = TEMPLATE_STATE[t.status] ?? [t.status, "muted"];
+            return (
+              <li key={t.name} className="grid gap-1.5 rounded-xl border border-[var(--line)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs text-chalk" dir="ltr">
+                    {t.name}
+                  </span>
+                  <Badge tone={tone}>{label}</Badge>
+                  {t.category === "MARKETING" && <span className="text-[11px] text-fog">تسويقي</span>}
+                </div>
+                <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
+                  {t.body}
+                </p>
+                {t.error && (
+                  <p className="font-mono text-[11px] text-danger" dir="ltr">
+                    {t.error}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Card>
   );

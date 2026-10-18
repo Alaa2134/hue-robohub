@@ -4737,7 +4737,9 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   await signInAsOwner(page);
   const rules = [
     { key: "application_received", section: "join", label_ar: "استلام طلب الانضمام", hint_ar: "أول ما حد يبعت فورم الانضمام", vars_ar: "{{1}} الاسم الأول · {{2}} كود الطلب", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false, sent: 3 },
+    { key: "application_review", section: "join", label_ar: "الطلب تحت المراجعة", template: "bx_application_received_v4", lang: "ar", enabled: true, ok: true, waiting: "bx_join_review_v5", bulk: false },
     { key: "family_joined", section: "family", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false },
+    { key: "form_received", section: "forms", label_ar: "استلام رد على فورم", template: "bx_form_received_v5", lang: "ar", enabled: true, ok: false, waiting: "bx_form_received_v5", bulk: false },
     { key: "event_published", section: "events", label_ar: "فعالية جديدة لكل الطلاب", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: true, audience: 42 },
     { key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false },
     { key: "send_failed_alert", section: "team", label_ar: "تنبيه لما رسالة تفشل", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: false, to_phone: null },
@@ -4753,6 +4755,21 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
     if (b.p_enabled !== undefined) r.enabled = b.p_enabled;
     if (b.p_phone) r.to_phone = "20" + b.p_phone.slice(1);
     return route.fulfill({ status: 204, body: "" });
+  });
+  const ours = [
+    { name: "bx_join_received_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، استلمنا طلب انضمامك لأسرة BuildX HUE ✅", moments: ["application_received"], status: "APPROVED", error: null, submitted_at: at(60) },
+    { name: "bx_join_review_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، طلبك تحت المراجعة.", moments: ["application_review"], status: "PENDING", error: null, submitted_at: at(60) },
+    { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: [], status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
+    { name: "bx_loan_overdue_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، ميعاد رجوع «{{2}}» عدّى.", moments: ["loan_overdue"], status: "NEW", error: null, submitted_at: null },
+  ] as Record<string, unknown>[];
+  let submitted = 0;
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_templates(_submit)?$/, (route) => {
+    if (route.request().url().endsWith("_submit")) {
+      submitted++;
+      ours[3].status = "PENDING";
+      return route.fulfill({ json: 1 });
+    }
+    return route.fulfill({ json: ours });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_status$/, (route) =>
     route.fulfill({
@@ -4818,6 +4835,24 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_phone", p_key: "send_failed_alert", p_phone: "01065316500" });
   await alert.getByRole("switch").click();
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "send_failed_alert", p_enabled: true });
+
+  // A moment whose new template Meta is reviewing: it keeps the approved one meanwhile, or waits if it has none.
+  await expect(page.getByTestId("wa-auto-rule").filter({ hasText: "الطلب تحت المراجعة" })).toContainText("قالب أحسن ليها (bx_join_review_v5) عند ميتا للمراجعة");
+  const waiting = page.getByTestId("wa-auto-forms").getByTestId("wa-auto-rule");
+  await expect(waiting).toContainText("قالبها عند ميتا للمراجعة");
+  await expect(waiting).not.toContainText("مش هتتبعت");
+
+  // Our templates at Meta: counts, the refused one's reason, and the missing one sent.
+  const ourCard = page.getByTestId("wa-templates");
+  await expect(ourCard).toContainText("متوافق عليه 1");
+  await expect(ourCard).toContainText("للمراجعة 1");
+  await expect(ourCard).toContainText("محتاج تعديل 1");
+  await ourCard.getByRole("button", { name: "اعرض القوالب (4)" }).click();
+  await expect(page.getByTestId("wa-templates-list").locator("li").filter({ hasText: "bx_certificate_ready_v5" })).toContainText("INCORRECT_CATEGORY");
+  await ourCard.getByRole("button", { name: "ابعت الناقص لميتا (1)" }).click();
+  await expect(page.getByText("اتبعت 1 لميتا")).toBeVisible();
+  expect(submitted).toBe(1);
+  await expect(ourCard).toContainText("للمراجعة 2");
   expect(errors).toEqual([]);
 });
 
@@ -6268,8 +6303,11 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   const second = page.getByTestId("attendance-session").nth(1);
   await second.getByLabel("لمين").selectOption("A");
   await page.getByTestId("attendance-session").first().getByLabel("الميعاد").fill("2026-01-01T10:00");
+  // The event's date for the WhatsApp acceptance message.
+  await page.getByTestId("form-event-at").fill("2026-01-02T12:30");
   await page.getByRole("button", { name: "حفظ" }).first().click();
   await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0].event_at).toBe(new Date("2026-01-02T12:30").toISOString());
   const att = patches[0].attendance as { on: boolean; by: string; sessions: { id: string; name: string; only: string | null }[] };
   expect(att).toMatchObject({ on: true, by: "g" });
   expect(att.sessions.map((x) => [x.name, x.only])).toEqual([
