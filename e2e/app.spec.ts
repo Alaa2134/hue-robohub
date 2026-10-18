@@ -4761,6 +4761,7 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
     { name: "bx_join_review_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، طلبك تحت المراجعة.", moments: ["application_review"], status: "PENDING", error: null, submitted_at: at(60) },
     { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: [], status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
     { name: "bx_loan_overdue_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، ميعاد رجوع «{{2}}» عدّى.", moments: ["loan_overdue"], status: "NEW", error: null, submitted_at: null },
+    { name: "bx_form_pass_v5", lang: "ar", category: "UTILITY", body: "مبروك 🎉 تم قبولك في «{{1}}».", moments: ["form_accepted"], button: "الـ QR بتاعي", status: "PENDING", error: null, submitted_at: at(5) },
   ] as Record<string, unknown>[];
   let submitted = 0;
   await page.route(/\/rest\/v1\/rpc\/staff_wa_templates(_submit)?$/, (route) => {
@@ -4845,14 +4846,16 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   // Our templates at Meta: counts, the refused one's reason, and the missing one sent.
   const ourCard = page.getByTestId("wa-templates");
   await expect(ourCard).toContainText("متوافق عليه 1");
-  await expect(ourCard).toContainText("للمراجعة 1");
+  await expect(ourCard).toContainText("للمراجعة 2");
   await expect(ourCard).toContainText("محتاج تعديل 1");
-  await ourCard.getByRole("button", { name: "اعرض القوالب (4)" }).click();
-  await expect(page.getByTestId("wa-templates-list").locator("li").filter({ hasText: "bx_certificate_ready_v5" })).toContainText("INCORRECT_CATEGORY");
+  await ourCard.getByRole("button", { name: "اعرض القوالب (5)" }).click();
+  const items = page.getByTestId("wa-templates-list").locator("li");
+  await expect(items.filter({ hasText: "bx_certificate_ready_v5" })).toContainText("INCORRECT_CATEGORY");
+  await expect(items.filter({ hasText: "bx_form_pass_v5" })).toContainText("زرار «الـ QR بتاعي» بيفتح الـ QR بتاع الشخص نفسه");
   await ourCard.getByRole("button", { name: "ابعت الناقص لميتا (1)" }).click();
   await expect(page.getByText("اتبعت 1 لميتا")).toBeVisible();
   expect(submitted).toBe(1);
-  await expect(ourCard).toContainText("للمراجعة 2");
+  await expect(ourCard).toContainText("للمراجعة 3");
   expect(errors).toEqual([]);
 });
 

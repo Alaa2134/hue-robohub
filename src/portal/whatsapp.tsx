@@ -346,6 +346,8 @@ type OurTemplate = {
   category: string;
   body: string;
   moments: string[];
+  /** A link button that opens the person's own QR (attendance pass or event ticket). */
+  button?: string | null;
   status: "APPROVED" | "PENDING" | "IN_APPEAL" | "REJECTED" | "DISABLED" | "PAUSED" | "SENDING" | "ERROR" | "NEW";
   error: string | null;
   submitted_at: string | null;
@@ -425,6 +427,7 @@ function TemplatesCard({ canSend }: { canSend: boolean }) {
                 <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
                   {t.body}
                 </p>
+                {t.button && <p className="text-[11px] text-mist">زرار «{t.button}» بيفتح الـ QR بتاع الشخص نفسه</p>}
                 {t.error && (
                   <p className="font-mono text-[11px] text-danger" dir="ltr">
                     {t.error}
