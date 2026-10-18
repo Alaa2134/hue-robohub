@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { canSee, errorText, fmt, isFull, must, rpc, sb, type StaffRow } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
 import { takeHandoff, type Handoff } from "./wa-handoff";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Stat, Textarea, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 type Template = { name: string; language: string; category?: string; body?: string | null };
 type Status = {
@@ -43,6 +43,7 @@ const WA_ERRORS: Record<string, string> = {
   too_many: "أقصى حاجة 300 رقم في المرة.",
   daily_limit: "وصلت للحد اليومي (1000 رسالة في اليوم). كمّل بكرة.",
   invalid_message: "اكتب الرسالة أو اختار قالب، واختار الناس.",
+  unknown_template: "القالب ده مش في القوالب المتوافق عليها.",
 };
 const waError = (e: unknown) => WA_ERRORS[(e as { message?: string })?.message ?? ""] ?? errorText(e);
 
@@ -114,6 +115,7 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
             <>
               <StatusCard st={st} />
               {st.can_connect && <ConnectCard st={st} onDone={reload} />}
+              {st.connected && <AutoCard st={st} />}
               {st.connected && st.can_send && <SendCard st={st} me={me} handoff={handoff} onSent={reload} />}
               {!st.connected && !st.can_connect && <Empty icon="chat" title="واتساب لسه مش مربوط" body="المالك بيربط رقم الفريق من هنا، وبعدها تقدر تبعت." />}
             </>
@@ -166,6 +168,70 @@ function StatusCard({ st }: { st: Status }) {
           <Stat label="اتبعت النهارده" value={st.sent_today} tone="ok" />
           <Stat label="فشل النهارده" value={st.failed_today} tone={st.failed_today ? "danger" : undefined} />
         </div>
+      )}
+    </Card>
+  );
+}
+
+type AutoRule = { key: string; label_ar: string; template: string; lang: string; enabled: boolean; ok: boolean };
+
+/** The messages that go by themselves (application received, accepted…): on/off and which approved template. */
+function AutoCard({ st }: { st: Status }) {
+  const { data: rules, error, loading, reload } = useAsync(() => rpc<AutoRule[]>("staff_wa_auto_rules"), []);
+  const [busy, setBusy] = useState<string | null>(null);
+  const save = async (key: string, fn: () => Promise<unknown>) => {
+    setBusy(key);
+    try {
+      await fn();
+      toast("اتحفظ");
+      reload();
+    } catch (e) {
+      toast.error(waError(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <Card className="grid gap-3" data-testid="wa-auto">
+      <div className="grid gap-0.5">
+        <p className="text-sm font-semibold text-chalk">رسايل أوتوماتيك</p>
+        <p className="text-xs leading-relaxed text-fog">بتتبعت لوحدها في اللحظة دي، بقالب متوافق عليه من ميتا. لو القالب فيه متغيرات، {"{{1}}"} بيبقى الاسم الأول.</p>
+      </div>
+      {loading && !rules ? (
+        <Loading />
+      ) : error ? (
+        <ErrorBox error={error} retry={reload} />
+      ) : (
+        (rules ?? []).map((r) => {
+          const body = st.templates.find((t) => t.name === r.template && t.language === r.lang)?.body;
+          return (
+            <div key={r.key} className="grid gap-2 rounded-xl border border-[var(--line)] p-3" data-testid="wa-auto-rule">
+              <Toggle checked={r.enabled} disabled={!st.can_send || busy === r.key} label={r.label_ar} onChange={(v) => save(r.key, () => rpc("staff_wa_auto_set", { p_key: r.key, p_enabled: v }))} />
+              <Field label="القالب">
+                <Select
+                  value={`${r.template}|${r.lang}`}
+                  disabled={!st.can_send || busy === r.key}
+                  onChange={(e) => {
+                    const [t, l] = e.target.value.split("|");
+                    void save(r.key, () => rpc("staff_wa_auto_template", { p_key: r.key, p_template: t, p_lang: l }));
+                  }}
+                >
+                  {!r.ok && <option value={`${r.template}|${r.lang}`}>{r.template} (مش متوافق عليه)</option>}
+                  {st.templates.map((t) => (
+                    <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                      {t.name} · {t.language}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {!r.ok ? (
+                <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
+              ) : (
+                body && <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">{body}</p>
+              )}
+            </div>
+          );
+        })
       )}
     </Card>
   );

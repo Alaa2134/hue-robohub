@@ -4731,10 +4731,25 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
   expect(errors).toEqual([]);
 });
 
-test("WhatsApp says why messages fail: templates Meta won't give, and the last refused message with what to do", async ({ page }) => {
+test("WhatsApp says why messages fail (templates Meta won't give, the last refused message) and the automatic messages pick an approved template", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
+  const rules = [
+    { key: "application_received", label_ar: "استلام طلب الانضمام", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
+    { key: "family_joined", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
+  ];
+  const sets: unknown[] = [];
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template)$/, (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "staff_wa_auto_rules") return route.fulfill({ json: rules });
+    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean };
+    sets.push({ fn, ...b });
+    const r = rules.find((x) => x.key === b.p_key)!;
+    if (b.p_template) Object.assign(r, { template: b.p_template, lang: b.p_lang, ok: true });
+    if (b.p_enabled !== undefined) r.enabled = b.p_enabled;
+    return route.fulfill({ status: 204, body: "" });
+  });
   await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_status$/, (route) =>
     route.fulfill({
       json: {
@@ -4747,7 +4762,7 @@ test("WhatsApp says why messages fail: templates Meta won't give, and the last r
         quality: "GREEN",
         error: null,
         checked_at: null,
-        templates: [{ name: "bx_join_received", language: "ar", body: "أهلًا {{1}}" }],
+        templates: [{ name: "bx_application_received_v4", language: "ar", body: "مرحبًا، نؤكد استلام طلب انضمامك إلى أسرة BuildX HUE." }],
         templates_error: "(#100) Tried accessing nonexisting field (message_templates)",
         has_token: true,
         sent_today: 0,
@@ -4768,6 +4783,15 @@ test("WhatsApp says why messages fail: templates Meta won't give, and the last r
   await expect(last).toContainText("bx_join_received");
   await expect(last).toContainText("Assign assets");
   await expect(last).toContainText("#132001");
+
+  // Automatic messages: a template that isn't approved is flagged; picking an approved one saves it, and a switch turns one off.
+  const received = page.getByTestId("wa-auto-rule").filter({ hasText: "استلام طلب الانضمام" });
+  await expect(received).toContainText("مش هتتبعت");
+  await received.getByLabel("القالب").selectOption("bx_application_received_v4|ar");
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_template", p_key: "application_received", p_template: "bx_application_received_v4", p_lang: "ar" });
+  await expect(received).toContainText("نؤكد استلام طلب انضمامك");
+  await page.getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "family_joined", p_enabled: false });
   expect(errors).toEqual([]);
 });
 
