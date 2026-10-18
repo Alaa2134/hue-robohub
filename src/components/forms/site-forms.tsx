@@ -11,6 +11,7 @@ import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { cn } from "@/lib/cn";
 import { MediaError, mediaErrorText, prepareMedia, type MediaKind } from "@/lib/client-media";
+import { asciiDigits } from "@/lib/format";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 type Locale = "ar" | "en";
@@ -92,10 +93,14 @@ const C = {
     checkStatus: "تابع حالة طلبك",
     stTitle: "حالة طلبك",
     stRef: "كود الطلب",
-    stPhone: "رقم الموبايل اللي قدّمت بيه",
+    stPhone: "أو رقم الموبايل اللي قدّمت بيه",
     stCheck: "اعرف حالتي",
     stChecking: "بندوّر…",
-    stNotFound: "مش لاقيين طلب بالكود والرقم دول. راجعهم وجرّب تاني.",
+    stNotFound: "مش لاقيين طلب بالكود أو الرقم ده. الكود هو اللي ظهرلك بعد ما بعت الفورم وبيبدأ بـ F- (زي F-1A2B3C4D)، والرقم لازم يكون نفس اللي كتبته في الفورم.",
+    stNeedOne: "اكتب كود الطلب أو رقم الموبايل.",
+    stListNote: "علشان تشوف الـ QR وتفاصيل طلبك اكتب كود الطلب (بيبدأ بـ F-)، وده بيوصلك في رسالة الواتساب.",
+    stJoinCode: "ده كود طلب انضمام (BX-…). تابعه من صفحة «تابع طلب الانضمام».",
+    stRefHint: "اكتب كود الطلب أو رقم الموبايل، واحد منهم بس يكفي. الكود بيبدأ بـ F- وبيوصلك في رسالة الواتساب.",
     st: { new: "طلبك وصل وبيتراجع ⏳", waiting: "إنت على قايمة الانتظار ⏳ هنبلّغك لو مكان فضي.", accepted: "اتقبلت 🎉", rejected: "للأسف المرة دي مقدرناش نقبل طلبك. شكراً لاهتمامك 🙏" },
     stOpen: "افتح موقع التسجيل",
     stDone: "سجّلت في موقع المعرض",
@@ -185,10 +190,14 @@ const C = {
     checkStatus: "Check your application",
     stTitle: "Your application",
     stRef: "Reference code",
-    stPhone: "The mobile number you applied with",
+    stPhone: "Or the mobile number you applied with",
     stCheck: "Check",
     stChecking: "Checking…",
-    stNotFound: "No application matches that code and number. Check them and try again.",
+    stNotFound: "No application matches that code or number. The code was shown after you sent the form and starts with F- (like F-1A2B3C4D); the number must be the one you wrote in the form.",
+    stNeedOne: "Type the application code or the mobile number.",
+    stListNote: "To see your QR and the details, type the application code (it starts with F- and comes in the WhatsApp message).",
+    stJoinCode: "That's a join-application code (BX-…). Check it on the «Track your join application» page.",
+    stRefHint: "Type the application code or the mobile number; either one is enough. The code starts with F- and comes in the WhatsApp message.",
     st: { new: "Received and under review ⏳", waiting: "You're on the waiting list ⏳ We'll tell you if a place opens up.", accepted: "Accepted 🎉", rejected: "Sorry, we couldn't accept your application this time. Thank you for your interest 🙏" },
     stOpen: "Open the registration site",
     stDone: "I've registered on the expo site",
@@ -222,7 +231,7 @@ function useElapsed() {
   return () => (shown.current ? Date.now() - shown.current : 0);
 }
 const PHONE = /^\+?[0-9]{7,16}$/;
-const cleanPhone = (s: string) => s.replace(/[^0-9+]/g, "");
+const cleanPhone = (s: string) => asciiDigits(s).replace(/[^0-9+]/g, "");
 const fmtWhen = (iso: string, l: Locale) => new Date(iso).toLocaleString(l === "ar" ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 function Row({ id, label, optional, error, hint, children, className }: { id: string; label: string; optional?: string; error?: string; hint?: ReactNode; children: ReactNode; className?: string }) {
@@ -796,7 +805,9 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setBusy(true);
     setFormError("");
     try {
-      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), __t: elapsed() };
+      // Numbers typed in Arabic digits go as 0-9, the way the server reads them.
+      const phones = new Set(fields.filter((x) => x.type === "phone").map((x) => x.id));
+      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? (phones.has(k) ? asciiDigits(v.trim()) : v.trim()) : v])), __t: elapsed() };
       const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) {
         setRef(out.ref ?? "");
@@ -961,7 +972,9 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 }
 
 type Pass = { no: string; ref: string; name: string | null; name_en: string | null; day: string | null; org: string | null; event: string | null; dates: string | null; venue: string | null; meet_ar: string | null };
-type StatusOut = { ok: boolean; error?: string; status?: "new" | "accepted" | "rejected" | "waiting"; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
+type RespStatus = "new" | "accepted" | "rejected" | "waiting";
+/** One code: the full answer. Only a number: that number's requests (form, status, when), nothing personal. */
+type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
 
 type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null }[] };
 const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
@@ -1197,13 +1210,15 @@ export function FormStatus({ locale }: { locale: string }) {
   }, []);
   const check = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ref.trim() || !PHONE.test(cleanPhone(phone))) return setErr(t.stNotFound);
+    if (!ref.trim() && !phone.trim()) return setErr(t.stNeedOne);
+    if (!ref.trim() && !PHONE.test(cleanPhone(phone))) return setErr(t.badPhone);
     setBusy(true);
     setErr("");
+    setOut(null);
     try {
-      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: phone.trim() });
+      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: phone.trim() ? asciiDigits(phone.trim()) : null });
       if (r.ok) setOut(r);
-      else setErr(r.error === "rate_limited" ? t.errors.rate_limited : t.stNotFound);
+      else setErr(r.error === "rate_limited" ? t.errors.rate_limited : r.error === "join_code" ? t.stJoinCode : t.stNotFound);
     } catch {
       setErr(t.errors.network);
     } finally {
@@ -1212,7 +1227,7 @@ export function FormStatus({ locale }: { locale: string }) {
   };
   const markDone = async () => {
     try {
-      const r = await rpc<{ ok: boolean }>("form_external_done", { p_ref: ref.trim(), p_phone: phone.trim() });
+      const r = await rpc<{ ok: boolean }>("form_external_done", { p_ref: ref.trim(), p_phone: asciiDigits(phone.trim()) });
       if (r.ok) setMarked(true);
     } catch {
       setErr(t.errors.network);
@@ -1222,7 +1237,7 @@ export function FormStatus({ locale }: { locale: string }) {
     <div className="frame grid gap-5 p-5 sm:p-8">
       <form onSubmit={check} noValidate className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <Row id="st-ref" label={t.stRef}>
-          <input id="st-ref" className={inputCls} dir="ltr" value={ref} maxLength={20} onChange={(e) => setRef(e.target.value.toUpperCase())} placeholder="F-XXXXXXXX" autoComplete="off" />
+          <input id="st-ref" className={inputCls} dir="ltr" value={ref} maxLength={20} onChange={(e) => setRef(asciiDigits(e.target.value).toUpperCase())} placeholder="F-XXXXXXXX" autoComplete="off" />
         </Row>
         <Row id="st-phone" label={t.stPhone}>
           <input id="st-phone" className={inputCls} dir="ltr" type="tel" inputMode="tel" value={phone} maxLength={20} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" autoComplete="tel" />
@@ -1231,10 +1246,24 @@ export function FormStatus({ locale }: { locale: string }) {
           {busy ? t.stChecking : t.stCheck}
         </button>
       </form>
+      {!out && <p className="-mt-2 text-sm text-fog">{t.stRefHint}</p>}
       {err && (
         <p role="alert" className="text-sm text-danger">
           {err}
         </p>
+      )}
+      {out?.list && (
+        <div role="status" className="grid gap-3">
+          {out.list.map((x, i) => (
+            <div key={i} className="grid gap-1 rounded-2xl border border-[var(--line-2)] p-5" data-testid="status-item">
+              <p className="text-sm text-fog">
+                {(l === "en" && x.title_en) || x.title_ar} · {fmtWhen(x.at, l)}
+              </p>
+              <p className={cn("t-headline text-xl", x.status === "accepted" ? "text-ok" : x.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[x.status]}</p>
+            </div>
+          ))}
+          <p className="text-sm text-fog">{t.stListNote}</p>
+        </div>
       )}
       {out?.status && (
         <div role="status" className="grid gap-3 rounded-2xl border border-[var(--line-2)] p-5">

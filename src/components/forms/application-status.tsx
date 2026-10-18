@@ -16,6 +16,7 @@ const T = {
     check: "Check status",
     checking: "Checking…",
     notFound: "We couldn't find an application with this reference and phone number. Check both and try again.",
+    formCode: "That's a form code (F-…). Check it on the page of the form you filled in, under «Your application».",
     limited: "Too many tries from this network. Please wait 15 minutes and try again.",
     network: "We couldn't reach the server. Check your connection and try again.",
     hi: (n: string) => `Hi ${n}!`,
@@ -41,6 +42,7 @@ const T = {
     check: "اعرف حالة طلبك",
     checking: "بندوّر…",
     notFound: "مش لاقيين طلب بالرقم ده ورقم الموبايل ده. اتأكد من الاتنين وجرّب تاني.",
+    formCode: "ده كود فورم (F-…). تابعه من صفحة الفورم اللي ملّيته، في «تابع طلبك».",
     limited: "محاولات كتير من الشبكة دي. استنى ربع ساعة وجرّب تاني.",
     network: "مقدرناش نوصل للسيرفر. اتأكد من النت وجرّب تاني.",
     hi: (n: string) => `أهلاً ${n}!`,
@@ -104,7 +106,7 @@ export function ApplicationStatus({ locale, tracks }: { locale: string; tracks: 
       });
       const out = (await r.json().catch(() => null)) as ({ ok: true } & Result) | { ok: false; error: string } | null;
       if (!r.ok || !out) throw new Error("network");
-      if (!out.ok) return setError(out.error === "rate_limited" ? t.limited : t.notFound);
+      if (!out.ok) return setError(out.error === "rate_limited" ? t.limited : out.error === "form_code" ? t.formCode : t.notFound);
       setRes(out);
     } catch {
       setError(t.network);
