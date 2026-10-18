@@ -20,6 +20,9 @@ export type Attendance = { on: boolean; by?: string | null; sessions?: AttendSes
 const SITE = "https://buildxhue.com";
 /** The QR's own page on the website (what the QR holds). */
 export const passLink = (token: string) => `${SITE}/ar/form/?pass=${token.toLowerCase()}`;
+/** Where an applicant checks their status (and, once accepted, finds the next step). */
+export const statusLink = (slug: string, ref: string) =>
+  slug === "robotex-2026" ? `${SITE}/ar/robotex/?ref=${encodeURIComponent(ref)}#status` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}&ref=${encodeURIComponent(ref)}#status`;
 /** A form's sessions; one called «الحضور» when none were added (same rule as the database). */
 export const sessionsOf = (a: Attendance | null | undefined): AttendSession[] => (a?.sessions?.length ? a.sessions : [{ id: "main", name: "الحضور" }]);
 const sid = () => `s_${Math.random().toString(36).slice(2, 8)}`;

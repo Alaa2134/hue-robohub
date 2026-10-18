@@ -6,6 +6,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canSee, errorText, fmt, isFull, must, rpc, sb, type StaffRow } from "./core";
+import { useFormPick } from "./form-pick";
 import { groupsOf, useStudents } from "./staff-data";
 import { fillVars, missingVar, takeHandoff, varsOf, type Handoff, type HandoffPerson, type WaVars } from "./wa-handoff";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
@@ -684,40 +685,31 @@ function ConnectCard({ st, onDone }: { st: Status; onDone: () => void }) {
   );
 }
 
-type Source = "typed" | "delegation" | "group" | "handoff";
+type Source = "typed" | "form" | "group" | "handoff";
 
-/** Who to send to: typed numbers, an expo delegation (the accepted) or students (a group or all). */
+/** Who to send to: typed numbers, people from a form (the accepted, everyone…) or students (a group or all). */
 function useRecipients(me: StaffRow, handoff: Handoff | null) {
-  const delegations = canSee(me, "expo") || canSee(me, "forms");
+  const forms = canSee(me, "forms") || canSee(me, "expo");
   const students = canSee(me, "training");
   const [source, setSource] = useState<Source>(handoff ? "handoff" : "typed");
   const [typed, setTyped] = useState("");
-  const [formId, setFormId] = useState("");
   const [group, setGroup] = useState("");
-  const forms = useAsync(
-    async () => (delegations ? ((await sb().from("forms").select("id, title_ar").not("delegation", "is", null).order("created_at", { ascending: false }).then(must)) as { id: string; title_ar: string }[]) : []),
-    [delegations],
-  );
-  const delegates = useAsync(
-    async () =>
-      formId ? ((await sb().from("form_responses").select("name, phone").eq("form_id", formId).eq("status", "accepted").then(must)) as { name: string | null; phone: string | null }[]) : [],
-    [formId],
-  );
+  const pick = useFormPick(source === "form", !canSee(me, "forms"));
   const roster = useStudents();
   const people: Person[] = useMemo(() => {
     if (source === "handoff") return handoff?.people ?? [];
     if (source === "typed") return parsePeople(typed);
-    if (source === "delegation") return (delegates.data ?? []).filter((d) => d.phone).map((d) => ({ phone: d.phone!, name: d.name ?? "" }));
+    if (source === "form") return pick.people.filter((p) => p.phone).map((p) => ({ phone: p.phone!, name: p.name, vars: p.vars }));
     return (roster.list ?? []).filter((s) => s.active && s.phone && (!group || s.group === group)).map((s) => ({ phone: s.phone!, name: s.name }));
-  }, [source, typed, delegates.data, roster.list, group, handoff]);
-  const context = source === "handoff" ? (handoff?.context ?? null) : source === "delegation" ? `expo:${formId}` : source === "group" ? `group:${group || "all"}` : null;
+  }, [source, typed, pick.people, roster.list, group, handoff]);
+  const context = source === "handoff" ? (handoff?.context ?? null) : source === "form" ? pick.context : source === "group" ? `group:${group || "all"}` : null;
   const ui = (
     <>
       <Field label="لمين؟">
         <Select value={source} onChange={(e) => setSource(e.target.value as Source)}>
           {handoff && <option value="handoff">{handoff.label}</option>}
           <option value="typed">أرقام أكتبها</option>
-          {delegations && <option value="delegation">وفد معرض (المقبولين)</option>}
+          {forms && <option value="form">ناس من فورم</option>}
           {students && <option value="group">طلاب (مجموعة أو الكل)</option>}
         </Select>
       </Field>
@@ -726,18 +718,7 @@ function useRecipients(me: StaffRow, handoff: Handoff | null) {
           <Textarea rows={4} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={"أحمد، 01012345678\n01198765432"} />
         </Field>
       )}
-      {source === "delegation" && (
-        <Field label="الوفد">
-          <Select value={formId} onChange={(e) => setFormId(e.target.value)}>
-            <option value="">اختار…</option>
-            {(forms.data ?? []).map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.title_ar}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      )}
+      {source === "form" && pick.ui}
       {source === "group" && (
         <Field label="المجموعة">
           <Select value={group} onChange={(e) => setGroup(e.target.value)}>

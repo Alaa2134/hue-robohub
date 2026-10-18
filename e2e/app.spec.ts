@@ -6480,3 +6480,37 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   await expect(page.getByText("اتبعت لميتا باسم bx_custom_261018150100")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("WhatsApp to people from any form: pick the form and who in it, each with their own link", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  await mockRpc(page, calls, {
+    staff_whatsapp_status: { connected: false, status: "none", templates: [], has_token: false, sent_today: 0, failed_today: 0, can_send: true, can_connect: true },
+  });
+  await page.route(/\/rest\/v1\/forms\?select=id%2Ctitle_ar/, (route) =>
+    route.fulfill({ json: [{ id: "f1", title_ar: "ورشة 01", slug: "workshop", delegation: null, attendance: { on: true } }] }),
+  );
+  const asked: string[] = [];
+  await page.route(/\/rest\/v1\/form_responses\?select=name%2Cphone%2Cemail%2Cref%2Cpass/, (route) => {
+    asked.push(decodeURIComponent(route.request().url()));
+    return route.fulfill({
+      json: [
+        { name: "أحمد سامي", phone: "01011111111", email: "a@example.com", ref: "F-AAAA0001", pass: "AAAAAAAAAAAAAAA1" },
+        { name: "بسمة علي", phone: null, email: "b@example.com", ref: "F-BBBB0002", pass: "BBBBBBBBBBBBBBB2" },
+      ],
+    });
+  });
+  await page.goto("/app/#/staff/whatsapp");
+  const box = page.getByTestId("wa-web");
+  await box.getByLabel("لمين؟").selectOption("form");
+  await box.getByTestId("pick-form").selectOption("f1");
+  // The accepted first; only those with a number count, and each carries their own link and code.
+  await expect(box).toContainText("1 شخص");
+  await expect(box).toContainText("{link} = لينك كل واحد");
+  expect(asked.at(-1)).toContain("status=eq.accepted");
+  await box.getByTestId("pick-form-who").selectOption("all");
+  await expect.poll(() => asked.at(-1)).toContain("status=neq.rejected");
+  expect(errors).toEqual([]);
+});
