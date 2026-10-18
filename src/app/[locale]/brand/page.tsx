@@ -33,6 +33,7 @@ const FILES: { file: string; label: string; dark?: boolean }[] = [
   { file: "mark-black.svg", label: "Mark · black", dark: false },
   { file: "mark-silver.svg", label: "Mark · metallic" },
   { file: "wordmark-color.svg", label: "Wordmark · colour" },
+  { file: "logo-badge.png", label: "Robotics badge · PNG" },
   { file: "badge.svg", label: "App badge" },
   { file: "icon-512.png", label: "App icon · 512" },
   { file: "favicon.svg", label: "Favicon · SVG" },
