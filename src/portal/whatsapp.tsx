@@ -44,6 +44,9 @@ const WA_ERRORS: Record<string, string> = {
   daily_limit: "وصلت للحد اليومي (1000 رسالة في اليوم). كمّل بكرة.",
   invalid_message: "اكتب الرسالة أو اختار قالب، واختار الناس.",
   unknown_template: "القالب ده مش في القوالب المتوافق عليها.",
+  no_template: "اختار قالب للرسالة دي الأول.",
+  no_phone: "اكتب رقمك الأول واحفظه.",
+  invalid_phone: "الرقم ده مش صح. اكتبه زي 01xxxxxxxxx.",
 };
 const waError = (e: unknown) => WA_ERRORS[(e as { message?: string })?.message ?? ""] ?? errorText(e);
 
@@ -173,12 +176,38 @@ function StatusCard({ st }: { st: Status }) {
   );
 }
 
-type AutoRule = { key: string; label_ar: string; template: string; lang: string; enabled: boolean; ok: boolean };
+type AutoRule = {
+  key: string;
+  section?: string;
+  label_ar: string;
+  hint_ar?: string | null;
+  vars_ar?: string | null;
+  template: string | null;
+  lang: string;
+  enabled: boolean;
+  ok: boolean;
+  bulk?: boolean;
+  to_phone?: string | null;
+  audience?: number | null;
+  sent?: number;
+};
 
 /** The messages that go by themselves (application received, accepted…): on/off and which approved template. */
+const SECTIONS: [string, string][] = [
+  ["join", "طلبات الانضمام"],
+  ["family", "الأسرة"],
+  ["events", "الفعاليات"],
+  ["forms", "الفورمز والكورسات"],
+  ["students", "الطلاب"],
+  ["site", "الموقع"],
+  ["team", "تنبيهات ليك"],
+];
+
+/** Every moment that sends a WhatsApp by itself: on/off, which approved template, and what fills it. */
 function AutoCard({ st }: { st: Status }) {
   const { data: rules, error, loading, reload } = useAsync(() => rpc<AutoRule[]>("staff_wa_auto_rules"), []);
   const [busy, setBusy] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const save = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
     try {
@@ -191,44 +220,104 @@ function AutoCard({ st }: { st: Status }) {
       setBusy(null);
     }
   };
+  const toggle = async (r: AutoRule, on: boolean) => {
+    if (on && !r.template) return toast("اختار قالب للرسالة دي الأول", "error");
+    if (on && r.key === "send_failed_alert" && !r.to_phone) return toast("اكتب رقمك الأول واحفظه", "error");
+    if (
+      on &&
+      r.bulk &&
+      !(await confirmDialog({
+        title: `تشغيل «${r.label_ar}»؟`,
+        body: `الرسالة دي بتوصل لناس كتير مرة واحدة${r.audience != null ? ` (دلوقتي ${r.audience} شخص)` : ""}. هتتبعت بس للي هيحصل من دلوقتي، مش لحاجات قديمة.`,
+        ok: "شغّلها",
+      }))
+    )
+      return;
+    void save(r.key, () => rpc("staff_wa_auto_set", { p_key: r.key, p_enabled: on }));
+  };
+  const on = (rules ?? []).filter((r) => r.enabled).length;
   return (
     <Card className="grid gap-3" data-testid="wa-auto">
       <div className="grid gap-0.5">
-        <p className="text-sm font-semibold text-chalk">رسايل أوتوماتيك</p>
-        <p className="text-xs leading-relaxed text-fog">بتتبعت لوحدها في اللحظة دي، بقالب متوافق عليه من ميتا. لو القالب فيه متغيرات، {"{{1}}"} بيبقى الاسم الأول.</p>
+        <p className="text-sm font-semibold text-chalk">
+          رسايل أوتوماتيك {rules && <span className="text-xs font-normal text-fog">· شغّالة {on} من {rules.length}</span>}
+        </p>
+        <p className="text-xs leading-relaxed text-fog">
+          كل لحظة ليها رسالة بتطلع لوحدها بقالب متوافق عليه من ميتا، ومرة واحدة بس لكل شخص. اللي بتوصل لناس كتير بتسأل قبل ما تشتغل، والتذكيرات مبتوصلش لحاجات قديمة.
+        </p>
       </div>
       {loading && !rules ? (
         <Loading />
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : (
-        (rules ?? []).map((r) => {
-          const body = st.templates.find((t) => t.name === r.template && t.language === r.lang)?.body;
+        SECTIONS.map(([section, title]) => {
+          const list = (rules ?? []).filter((r) => (r.section ?? "join") === section);
+          if (!list.length) return null;
           return (
-            <div key={r.key} className="grid gap-2 rounded-xl border border-[var(--line)] p-3" data-testid="wa-auto-rule">
-              <Toggle checked={r.enabled} disabled={!st.can_send || busy === r.key} label={r.label_ar} onChange={(v) => save(r.key, () => rpc("staff_wa_auto_set", { p_key: r.key, p_enabled: v }))} />
-              <Field label="القالب">
-                <Select
-                  value={`${r.template}|${r.lang}`}
-                  disabled={!st.can_send || busy === r.key}
-                  onChange={(e) => {
-                    const [t, l] = e.target.value.split("|");
-                    void save(r.key, () => rpc("staff_wa_auto_template", { p_key: r.key, p_template: t, p_lang: l }));
-                  }}
-                >
-                  {!r.ok && <option value={`${r.template}|${r.lang}`}>{r.template} (مش متوافق عليه)</option>}
-                  {st.templates.map((t) => (
-                    <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
-                      {t.name} · {t.language}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {!r.ok ? (
-                <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
-              ) : (
-                body && <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">{body}</p>
-              )}
+            <div key={section} className="grid gap-2" data-testid={`wa-auto-${section}`}>
+              <p className="pt-1 text-xs font-semibold text-mist">{title}</p>
+              {list.map((r) => {
+                const body = r.ok ? st.templates.find((t) => t.name === r.template && t.language === r.lang)?.body : null;
+                return (
+                  <div key={r.key} className="grid gap-2 rounded-xl border border-[var(--line)] p-3" data-testid="wa-auto-rule">
+                    <Toggle
+                      checked={r.enabled}
+                      disabled={!st.can_send || busy === r.key}
+                      label={
+                        <>
+                          {r.label_ar}
+                          {r.bulk && <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-normal text-warn">لناس كتير</span>}
+                        </>
+                      }
+                      hint={r.hint_ar ?? undefined}
+                      onChange={(v) => void toggle(r, v)}
+                    />
+                    <Field label="القالب">
+                      <Select
+                        value={r.template ? `${r.template}|${r.lang}` : ""}
+                        disabled={!st.can_send || busy === r.key}
+                        onChange={(e) => {
+                          const [t, l] = e.target.value ? e.target.value.split("|") : [null, null];
+                          void save(r.key, () => rpc("staff_wa_auto_template", { p_key: r.key, p_template: t, p_lang: l }));
+                        }}
+                      >
+                        <option value="">— من غير قالب (مش بتتبعت) —</option>
+                        {r.template && !r.ok && <option value={`${r.template}|${r.lang}`}>{r.template} (مش متوافق عليه)</option>}
+                        {st.templates.map((t) => (
+                          <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                            {t.name} · {t.language}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    {r.key === "send_failed_alert" && (
+                      <div className="flex gap-2">
+                        <Input value={phone ?? r.to_phone ?? ""} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" inputMode="tel" dir="ltr" aria-label="رقمك للتنبيهات" />
+                        <Button size="sm" className="shrink-0 whitespace-nowrap" disabled={phone === null || busy === r.key} onClick={() => void save(r.key, () => rpc("staff_wa_auto_phone", { p_key: r.key, p_phone: phone }).then(() => setPhone(null)))}>
+                          حفظ الرقم
+                        </Button>
+                      </div>
+                    )}
+                    {r.template && !r.ok ? (
+                      <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
+                    ) : body ? (
+                      <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
+                        {body}
+                      </p>
+                    ) : (
+                      !r.template && <p className="text-xs leading-relaxed text-fog">مفيش قالب للحظة دي لسه. اعمل قالب في ميتا (WhatsApp Manager ← Message templates)، ولما يتوافق عليه اختاره هنا.</p>
+                    )}
+                    {(r.vars_ar || !!r.sent) && (
+                      <p className="text-[11px] text-fog" dir="auto">
+                        {r.vars_ar && `المتغيرات: ${r.vars_ar}`}
+                        {r.vars_ar && !!r.sent && " · "}
+                        {!!r.sent && (r.sent >= 3 && r.sent <= 10 ? `اتبعتت ${r.sent} مرات` : `اتبعتت ${r.sent} مرة`)}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })

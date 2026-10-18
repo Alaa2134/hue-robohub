@@ -4736,18 +4736,22 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
   const rules = [
-    { key: "application_received", label_ar: "استلام طلب الانضمام", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
-    { key: "family_joined", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
-  ];
+    { key: "application_received", section: "join", label_ar: "استلام طلب الانضمام", hint_ar: "أول ما حد يبعت فورم الانضمام", vars_ar: "{{1}} الاسم الأول · {{2}} كود الطلب", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false, sent: 3 },
+    { key: "family_joined", section: "family", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false },
+    { key: "event_published", section: "events", label_ar: "فعالية جديدة لكل الطلاب", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: true, audience: 42 },
+    { key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false },
+    { key: "send_failed_alert", section: "team", label_ar: "تنبيه لما رسالة تفشل", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: false, to_phone: null },
+  ] as Record<string, unknown>[];
   const sets: unknown[] = [];
-  await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template)$/, (route) => {
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template|phone)$/, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     if (fn === "staff_wa_auto_rules") return route.fulfill({ json: rules });
-    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean };
+    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean; p_phone?: string };
     sets.push({ fn, ...b });
     const r = rules.find((x) => x.key === b.p_key)!;
     if (b.p_template) Object.assign(r, { template: b.p_template, lang: b.p_lang, ok: true });
     if (b.p_enabled !== undefined) r.enabled = b.p_enabled;
+    if (b.p_phone) r.to_phone = "20" + b.p_phone.slice(1);
     return route.fulfill({ status: 204, body: "" });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_status$/, (route) =>
@@ -4790,8 +4794,68 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   await received.getByLabel("القالب").selectOption("bx_application_received_v4|ar");
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_template", p_key: "application_received", p_template: "bx_application_received_v4", p_lang: "ar" });
   await expect(received).toContainText("نؤكد استلام طلب انضمامك");
-  await page.getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
+  await expect(received).toContainText("المتغيرات: {{1}} الاسم الأول · {{2}} كود الطلب · اتبعتت 3 مرات");
+  await page.getByTestId("wa-auto-family").getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "family_joined", p_enabled: false });
+
+  // One that reaches many people asks first, with how many; a moment without a template can't be turned on.
+  const bulk = page.getByTestId("wa-auto-events").getByTestId("wa-auto-rule").filter({ hasText: "فعالية جديدة لكل الطلاب" });
+  await expect(bulk).toContainText("لناس كتير");
+  await bulk.getByRole("switch").click();
+  await expect(page.getByRole("dialog")).toContainText("42 شخص");
+  await page.getByRole("dialog").getByRole("button", { name: "شغّلها" }).click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "event_published", p_enabled: true });
+  const none = page.getByTestId("wa-auto-students").getByTestId("wa-auto-rule").filter({ hasText: "شهادة جديدة" });
+  await expect(none).toContainText("مفيش قالب للحظة دي لسه");
+  await none.getByRole("switch").click();
+  await expect(page.getByText("اختار قالب للرسالة دي الأول")).toBeVisible();
+  expect(sets.some((x) => (x as { p_key: string }).p_key === "certificate_issued")).toBe(false);
+
+  // The failure alert needs the owner's number first.
+  const alert = page.getByTestId("wa-auto-team").getByTestId("wa-auto-rule");
+  await alert.getByLabel("رقمك للتنبيهات").fill("01065316500");
+  await alert.getByRole("button", { name: "حفظ الرقم" }).click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_phone", p_key: "send_failed_alert", p_phone: "01065316500" });
+  await alert.getByRole("switch").click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "send_failed_alert", p_enabled: true });
+  expect(errors).toEqual([]);
+});
+
+test("an interview date on an application: set it, the status moves to interview, and it can be changed or removed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const app: Record<string, unknown> = {
+    id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
+    national_id: null, governorate: null, address: null, repeats: 0, last_repeat_at: null,
+    faculty: null, academic_year: null, student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: null,
+    skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
+    answers: [], status: "contacted", staff_notes: "", public_note: "", reviewed_at: null, student_id: null, interview_at: null,
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/applications/, async (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      Object.assign(app, body);
+    }
+    return route.fulfill({ json: app });
+  });
+  await page.goto("/app/#/staff/applications/a1");
+  const box = page.getByTestId("interview");
+  await box.getByLabel("ميعاد المقابلة").fill("2030-03-10T14:30");
+  await box.getByRole("button", { name: "حدد الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0].status).toBe("interview");
+  expect(new Date(patches[0].interview_at as string).getTime()).toBe(new Date("2030-03-10T14:30").getTime());
+  await expect(page.getByText(/المقابلة .*2030|المقابلة .*10/)).toBeVisible();
+  await box.getByLabel("ميعاد المقابلة").fill("2030-03-11T10:00");
+  await box.getByRole("button", { name: "غيّر الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(2);
+  expect(patches[1]).not.toHaveProperty("status");
+  await box.getByRole("button", { name: "شيل الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(3);
+  expect(patches[2]).toEqual({ interview_at: null });
   expect(errors).toEqual([]);
 });
 

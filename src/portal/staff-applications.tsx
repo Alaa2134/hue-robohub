@@ -6,7 +6,7 @@ import { choiceLabel, type ApplyConfig, type ExtraAnswer } from "@/content/apply
 import { nationalIdCheckOk, readNationalId } from "@/content/family";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
+import { can, isFull, downloadCsv, errorText, fmt, fromLocalInput, must, rpc, sb, toLocalInput, today, type StaffRow } from "./core";
 import { useApplyConfig } from "./staff-apply-form";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { sendByEmail } from "./email-handoff";
@@ -51,6 +51,7 @@ export type Application = {
   public_note: string;
   reviewed_at: string | null;
   student_id: string | null;
+  interview_at?: string | null;
 };
 
 const TONE: Record<Status, "info" | "volt" | "ok" | "warn" | "danger" | "muted"> = {
@@ -243,6 +244,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   const { data: a, error, loading, reload, set } = useAsync(async () => (await sb().from("applications").select("*").eq("id", id).single().then(must)) as Application, [id]);
   const [notes, setNotes] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [interview, setInterview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [pins, setPins] = useState<PinItem[] | null>(null);
@@ -251,7 +253,7 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   if (loading && !a) return <Loading />;
   if (error || !a) return <ErrorBox error={error ?? "الطلب مش موجود"} retry={reload} />;
 
-  const save = async (patch: Partial<Pick<Application, "status" | "staff_notes" | "public_note">>, okText: string) => {
+  const save = async (patch: Partial<Pick<Application, "status" | "staff_notes" | "public_note" | "interview_at">>, okText: string) => {
     setBusy(true);
     try {
       const row = (await sb().from("applications").update(patch).eq("id", a.id).select("*").single().then(must)) as Application;
@@ -335,6 +337,33 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
           ))}
         </div>
         {a.reviewed_at && <p className="mt-2 text-xs text-fog">آخر مراجعة {fmt.rel(a.reviewed_at)}</p>}
+      </Section>
+
+      <Section title="ميعاد المقابلة">
+        <div className="flex flex-wrap items-center gap-2" data-testid="interview">
+          <Input type="datetime-local" value={interview ?? toLocalInput(a.interview_at)} onChange={(e) => setInterview(e.target.value)} aria-label="ميعاد المقابلة" dir="ltr" className="max-w-60" />
+          <Button
+            size="sm"
+            loading={busy}
+            disabled={!interview || fromLocalInput(interview) === (a.interview_at ? new Date(a.interview_at).toISOString() : null)}
+            onClick={() =>
+              void save(
+                { interview_at: fromLocalInput(interview!), ...(a.status === "new" || a.status === "contacted" ? { status: "interview" as Status } : {}) },
+                a.interview_at ? "اتغيّر ميعاد المقابلة" : "اتحدد ميعاد المقابلة",
+              ).then(() => setInterview(null))
+            }
+          >
+            {a.interview_at ? "غيّر الميعاد" : "حدد الميعاد"}
+          </Button>
+          {a.interview_at && (
+            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save({ interview_at: null }, "اتشال ميعاد المقابلة").then(() => setInterview(null))}>
+              شيل الميعاد
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-fog">
+          {a.interview_at ? `المقابلة ${fmt.dateTime(a.interview_at)}. ` : ""}لو رسايل الواتساب الأوتوماتيك شغّالة، بيوصله الميعاد على واتساب، وأي تغيير، وتذكير قبلها بيوم.
+        </p>
       </Section>
 
       <Section title="رسالة للمتقدم">
