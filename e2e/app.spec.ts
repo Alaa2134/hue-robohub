@@ -6386,7 +6386,12 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
     staff_wa_auto_rules: [{ key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false }],
     staff_wa_templates: ours,
     staff_whatsapp_send: { queued: 1, skipped: 1 },
-    staff_wa_template_save: "bx_custom_261018150000",
+  });
+  // Each saved template gets its own name (the fixed one first, then the new one).
+  let saved = 0;
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_template_save$/, (route) => {
+    calls.push({ fn: "staff_wa_template_save", body: route.request().postDataJSON() });
+    return route.fulfill({ json: ++saved === 1 ? "bx_certificate_ready_261018150000" : "bx_custom_261018150100" });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_form_send_passes$/, (route) => {
     const b = route.request().postDataJSON() as { p_form: string; p_dry: boolean };
@@ -6472,6 +6477,6 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   await expect
     .poll(() => calls.filter((c) => c.fn === "staff_wa_template_save").at(-1)?.body)
     .toEqual({ p_body: "أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.", p_category: "UTILITY", p_examples: ["منى"], p_button: "pass", p_moment: "certificate_issued", p_replaces: null });
-  await expect(page.getByText("اتبعت لميتا باسم bx_custom_261018150000")).toBeVisible();
+  await expect(page.getByText("اتبعت لميتا باسم bx_custom_261018150100")).toBeVisible();
   expect(errors).toEqual([]);
 });
