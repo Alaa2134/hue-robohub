@@ -299,7 +299,7 @@ export function StaffApp({
       screen = <LeaderboardScreen />;
       break;
     case "events":
-      screen = id ? <EventRegistrations key={id} id={id} /> : <EventsScreen />;
+      screen = id ? <EventRegistrations key={id} id={id} me={me} /> : <EventsScreen />;
       break;
     case "certificates":
       screen = <CertificatesScreen me={me} />;
@@ -362,7 +362,7 @@ export function StaffApp({
         ) : sub === "checkin" ? (
           <DelegationCheckin key={id} id={id} />
         ) : sub === "attendance" ? (
-          <FormAttendance key={id} id={id} />
+          <FormAttendance key={id} id={id} me={me} />
         ) : (
           <FormEditor key={id} id={id} me={me} />
         )

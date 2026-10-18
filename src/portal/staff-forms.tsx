@@ -14,7 +14,8 @@ import { can, isFull, fmt, must, removeObjects, safeName, sb, today, uid, upload
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
-import { AttendanceSettings, PassLinkRow, attendanceProblem, type Attendance } from "./form-attendance";
+import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, type Attendance } from "./form-attendance";
+import { SendQrButton } from "./wa-qr-send";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -655,6 +656,12 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       return n;
     });
   const count = (s: Response["status"]) => data.responses.filter((r) => r.status === s).length;
+  /** Each person's own {link} (their QR, or their status page) and {code} in a WhatsApp message. */
+  const waVars = (r: Response) => ({
+    code: r.ref,
+    link: form.attendance?.on && r.pass ? passLink(r.pass) : statusLink(form.slug, r.ref),
+    ...(r.pass ? { pass: r.pass.toLowerCase() } : {}),
+  });
   const first = form.fields.find((fl) => fl.type !== "name" && fl.type !== "phone" && fl.type !== "email" && fl.type !== "checkbox");
   return (
     <>
@@ -678,6 +685,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       {form.attendance?.on && (
         <Card className="mt-3 flex flex-wrap items-center gap-2">
           <p className="flex-1 text-sm text-mist">كل واحد سجّل معاه QR للحضور. امسحه عند الدخول وشوف مين غاب.</p>
+          {me && can(me, "whatsapp") && count("accepted") > 0 && <SendQrButton kind="form" id={id} />}
           <Button size="sm" variant="primary" icon="scan" onClick={() => go(`/staff/forms/${id}/attendance`)} data-testid="open-attendance">
             الحضور بالـ QR
           </Button>
@@ -739,7 +747,12 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               size="sm"
               icon="chat"
               disabled={!pick.size}
-              onClick={() => sendOnWhatsApp(data.responses.filter((r) => pick.has(r.id)), { label: `المختارين من «${data.form.title_ar}» (${pick.size})`, context: data.form.delegation ? `expo:${id}` : `form:${id}` })}
+              onClick={() =>
+                sendOnWhatsApp(
+                  data.responses.filter((r) => pick.has(r.id)).map((r) => ({ ...r, vars: waVars(r) })),
+                  { label: `المختارين من «${data.form.title_ar}» (${pick.size})`, context: data.form.delegation ? `expo:${id}` : `form:${id}` },
+                )
+              }
             >
               واتساب للمختارين ({pick.size})
             </Button>

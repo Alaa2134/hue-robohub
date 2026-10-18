@@ -2,8 +2,10 @@
 /** BuildX App → events: who registered on the website, the waiting list, CSV export and door check-in by QR. */
 import { useMemo, useState } from "react";
 import type { SiteItem } from "@/lib/site-content";
-import { downloadCsv, errorText, fmt, must, rpc, sb, today } from "./core";
+import { can, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { Scanner } from "./scanner";
+import { sendOnWhatsApp } from "./wa-handoff";
+import { SendQrButton } from "./wa-qr-send";
 import { whatsappLink } from "@/lib/contact";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Row, SearchBox, Sheet, Stat, Textarea, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
@@ -76,7 +78,7 @@ export function EventsScreen() {
 
 type CheckResult = { ok: boolean; error?: string; name?: string; status?: string; already?: boolean; event?: string };
 
-export function EventRegistrations({ id }: { id: string }) {
+export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
   const ev = useAsync(async () => (await sb().from("site_content").select("id,title,title_ar,starts_at,capacity,rsvp_open,published").eq("id", id).single().then(must)) as Ev, [id]);
   const regs = useAsync(async () => (await sb().from("event_registrations").select("*").eq("event_id", id).order("created_at").limit(5000).then(must)) as Reg[], [id]);
   const [q, setQ] = useState("");
@@ -173,6 +175,28 @@ export function EventRegistrations({ id }: { id: string }) {
         <Stat label="انتظار" value={counts.waitlist} />
         <Stat label="دخلوا" value={counts.inside} />
       </div>
+
+      {me && can(me, "whatsapp") && counts.going + counts.waitlist > 0 && (
+        <Card className="mt-3 flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-sm text-mist">كل حد حاجز ليه تذكرة QR. ابعتها للمؤكَّدين مرة واحدة، أو ابعت رسالة للي ظاهرين في القايمة تحت.</p>
+          {counts.going > 0 && <SendQrButton kind="event" id={id} />}
+          <Button
+            size="sm"
+            icon="chat"
+            disabled={!shown.some((r) => r.status !== "cancelled")}
+            data-testid="event-whatsapp"
+            onClick={() => {
+              const people = shown.filter((r) => r.status !== "cancelled");
+              sendOnWhatsApp(
+                people.map((r) => ({ phone: r.phone, name: r.full_name, vars: { code: r.ticket, ticket: r.ticket, link: `https://buildxhue.com/ar/ticket/?t=${r.ticket}` } })),
+                { label: `${e.title_ar || e.title} (${people.length})`, context: `event:${id}` },
+              );
+            }}
+          >
+            واتساب للظاهرين
+          </Button>
+        </Card>
+      )}
 
       {e.starts_at && new Date(e.starts_at).getTime() <= Date.now() && <FeedbackCard ev={e} regs={list} />}
 

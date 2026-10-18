@@ -8,7 +8,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
 import { cn } from "@/lib/cn";
-import { errorText, fmt, must, rpc, sb, toLocalInput, fromLocalInput, today } from "./core";
+import { can, errorText, fmt, must, rpc, sb, toLocalInput, fromLocalInput, today, type StaffRow } from "./core";
+import { sendOnWhatsApp } from "./wa-handoff";
 import { Scanner } from "./scanner";
 import { downloadXlsx } from "./xlsx";
 import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, SearchBox, Section, Select, Stat, Toggle, TopBar, copyText, useAsync } from "./ui";
@@ -107,7 +108,7 @@ type MarkOut = { ok: boolean; error?: string; already?: boolean; id?: string; na
 type Flash = { tone: "ok" | "warn" | "danger"; text: string; force?: { code: string; name: string } };
 
 /** The scan, the list of who came and who's absent per session, and the Excel sheet. */
-export function FormAttendance({ id }: { id: string }) {
+export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses, marks] = await Promise.all([
       sb().from("forms").select("id, title_ar, slug, fields, attendance").eq("id", id).single().then(must) as Promise<FormRow>,
@@ -316,9 +317,30 @@ export function FormAttendance({ id }: { id: string }) {
           </Chip>
         </div>
         {show === "out" && absent.some((r) => r.phone) && (
-          <Button size="sm" icon="copy" className="mt-3" onClick={() => copyText(absent.map((r) => `${r.name ?? r.ref} — ${r.phone ?? ""}`).join("\n"), "اتنسخت أسماء الغايبين وأرقامهم")}>
-            انسخ الغايبين وأرقامهم
-          </Button>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {me && can(me, "whatsapp") && (
+              <Button
+                size="sm"
+                icon="chat"
+                data-testid="absent-whatsapp"
+                onClick={() =>
+                  sendOnWhatsApp(
+                    absent.map((r) => ({ phone: r.phone, name: r.name, vars: { code: r.ref, ...(r.pass ? { link: passLink(r.pass), pass: r.pass.toLowerCase() } : {}) } })),
+                    {
+                      label: `الغايبين من «${cur.name}» (${absent.filter((r) => r.phone).length})`,
+                      context: `form:${id}:absent:${cur.id}`,
+                      text: `{hi} {name}، معاك فريق BuildX HUE. افتقدناك النهارده في «${cur.name}» من «${data.form.title_ar}». كله تمام؟`,
+                    },
+                  )
+                }
+              >
+                واتساب للغايبين
+              </Button>
+            )}
+            <Button size="sm" icon="copy" onClick={() => copyText(absent.map((r) => `${r.name ?? r.ref} — ${r.phone ?? ""}`).join("\n"), "اتنسخت أسماء الغايبين وأرقامهم")}>
+              انسخ الغايبين وأرقامهم
+            </Button>
+          </div>
         )}
         {!shown.length ? (
           <Empty icon="users" title={expected.length ? "مفيش حد هنا" : "لسه محدش سجّل للموعد ده"} />
