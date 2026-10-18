@@ -4736,19 +4736,41 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
   const rules = [
-    { key: "application_received", label_ar: "استلام طلب الانضمام", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
-    { key: "family_joined", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false },
-  ];
+    { key: "application_received", section: "join", label_ar: "استلام طلب الانضمام", hint_ar: "أول ما حد يبعت فورم الانضمام", vars_ar: "{{1}} الاسم الأول · {{2}} كود الطلب", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false, sent: 3 },
+    { key: "application_review", section: "join", label_ar: "الطلب تحت المراجعة", template: "bx_application_received_v4", lang: "ar", enabled: true, ok: true, waiting: "bx_join_review_v5", bulk: false },
+    { key: "family_joined", section: "family", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false },
+    { key: "form_received", section: "forms", label_ar: "استلام رد على فورم", template: "bx_form_received_v5", lang: "ar", enabled: true, ok: false, waiting: "bx_form_received_v5", bulk: false },
+    { key: "event_published", section: "events", label_ar: "فعالية جديدة لكل الطلاب", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: true, audience: 42 },
+    { key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false },
+    { key: "send_failed_alert", section: "team", label_ar: "تنبيه لما رسالة تفشل", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: false, to_phone: null },
+  ] as Record<string, unknown>[];
   const sets: unknown[] = [];
-  await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template)$/, (route) => {
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template|phone)$/, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     if (fn === "staff_wa_auto_rules") return route.fulfill({ json: rules });
-    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean };
+    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean; p_phone?: string };
     sets.push({ fn, ...b });
     const r = rules.find((x) => x.key === b.p_key)!;
     if (b.p_template) Object.assign(r, { template: b.p_template, lang: b.p_lang, ok: true });
     if (b.p_enabled !== undefined) r.enabled = b.p_enabled;
+    if (b.p_phone) r.to_phone = "20" + b.p_phone.slice(1);
     return route.fulfill({ status: 204, body: "" });
+  });
+  const ours = [
+    { name: "bx_join_received_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، استلمنا طلب انضمامك لأسرة BuildX HUE ✅", moments: ["application_received"], status: "APPROVED", error: null, submitted_at: at(60) },
+    { name: "bx_join_review_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، طلبك تحت المراجعة.", moments: ["application_review"], status: "PENDING", error: null, submitted_at: at(60) },
+    { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: [], status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
+    { name: "bx_loan_overdue_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، ميعاد رجوع «{{2}}» عدّى.", moments: ["loan_overdue"], status: "NEW", error: null, submitted_at: null },
+    { name: "bx_form_pass_v5", lang: "ar", category: "UTILITY", body: "مبروك 🎉 تم قبولك في «{{1}}».", moments: ["form_accepted"], button: "الـ QR بتاعي", status: "PENDING", error: null, submitted_at: at(5) },
+  ] as Record<string, unknown>[];
+  let submitted = 0;
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_templates(_submit)?$/, (route) => {
+    if (route.request().url().endsWith("_submit")) {
+      submitted++;
+      ours[3].status = "PENDING";
+      return route.fulfill({ json: 1 });
+    }
+    return route.fulfill({ json: ours });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_status$/, (route) =>
     route.fulfill({
@@ -4790,8 +4812,88 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   await received.getByLabel("القالب").selectOption("bx_application_received_v4|ar");
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_template", p_key: "application_received", p_template: "bx_application_received_v4", p_lang: "ar" });
   await expect(received).toContainText("نؤكد استلام طلب انضمامك");
-  await page.getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
+  await expect(received).toContainText("المتغيرات: {{1}} الاسم الأول · {{2}} كود الطلب · اتبعتت 3 مرات");
+  await page.getByTestId("wa-auto-family").getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
   await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "family_joined", p_enabled: false });
+
+  // One that reaches many people asks first, with how many; a moment without a template can't be turned on.
+  const bulk = page.getByTestId("wa-auto-events").getByTestId("wa-auto-rule").filter({ hasText: "فعالية جديدة لكل الطلاب" });
+  await expect(bulk).toContainText("لناس كتير");
+  await bulk.getByRole("switch").click();
+  await expect(page.getByRole("dialog")).toContainText("42 شخص");
+  await page.getByRole("dialog").getByRole("button", { name: "شغّلها" }).click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "event_published", p_enabled: true });
+  const none = page.getByTestId("wa-auto-students").getByTestId("wa-auto-rule").filter({ hasText: "شهادة جديدة" });
+  await expect(none).toContainText("مفيش قالب للحظة دي لسه");
+  await none.getByRole("switch").click();
+  await expect(page.getByText("اختار قالب للرسالة دي الأول")).toBeVisible();
+  expect(sets.some((x) => (x as { p_key: string }).p_key === "certificate_issued")).toBe(false);
+
+  // The failure alert needs the owner's number first.
+  const alert = page.getByTestId("wa-auto-team").getByTestId("wa-auto-rule");
+  await alert.getByLabel("رقمك للتنبيهات").fill("01065316500");
+  await alert.getByRole("button", { name: "حفظ الرقم" }).click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_phone", p_key: "send_failed_alert", p_phone: "01065316500" });
+  await alert.getByRole("switch").click();
+  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "send_failed_alert", p_enabled: true });
+
+  // A moment whose new template Meta is reviewing: it keeps the approved one meanwhile, or waits if it has none.
+  await expect(page.getByTestId("wa-auto-rule").filter({ hasText: "الطلب تحت المراجعة" })).toContainText("قالب أحسن ليها (bx_join_review_v5) عند ميتا للمراجعة");
+  const waiting = page.getByTestId("wa-auto-forms").getByTestId("wa-auto-rule");
+  await expect(waiting).toContainText("قالبها عند ميتا للمراجعة");
+  await expect(waiting).not.toContainText("مش هتتبعت");
+
+  // Our templates at Meta: counts, the refused one's reason, and the missing one sent.
+  const ourCard = page.getByTestId("wa-templates");
+  await expect(ourCard).toContainText("متوافق عليه 1");
+  await expect(ourCard).toContainText("للمراجعة 2");
+  await expect(ourCard).toContainText("محتاج تعديل 1");
+  await ourCard.getByRole("button", { name: "اعرض القوالب (5)" }).click();
+  const items = page.getByTestId("wa-templates-list").locator("li");
+  await expect(items.filter({ hasText: "bx_certificate_ready_v5" })).toContainText("INCORRECT_CATEGORY");
+  await expect(items.filter({ hasText: "bx_form_pass_v5" })).toContainText("زرار «الـ QR بتاعي» بيفتح الـ QR بتاع الشخص نفسه");
+  await ourCard.getByRole("button", { name: "ابعت الناقص لميتا (1)" }).click();
+  await expect(page.getByText("اتبعت 1 لميتا")).toBeVisible();
+  expect(submitted).toBe(1);
+  await expect(ourCard).toContainText("للمراجعة 3");
+  expect(errors).toEqual([]);
+});
+
+test("an interview date on an application: set it, the status moves to interview, and it can be changed or removed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const app: Record<string, unknown> = {
+    id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
+    national_id: null, governorate: null, address: null, repeats: 0, last_repeat_at: null,
+    faculty: null, academic_year: null, student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: null,
+    skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
+    answers: [], status: "contacted", staff_notes: "", public_note: "", reviewed_at: null, student_id: null, interview_at: null,
+  };
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/applications/, async (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      Object.assign(app, body);
+    }
+    return route.fulfill({ json: app });
+  });
+  await page.goto("/app/#/staff/applications/a1");
+  const box = page.getByTestId("interview");
+  await box.getByLabel("ميعاد المقابلة").fill("2030-03-10T14:30");
+  await box.getByRole("button", { name: "حدد الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0].status).toBe("interview");
+  expect(new Date(patches[0].interview_at as string).getTime()).toBe(new Date("2030-03-10T14:30").getTime());
+  await expect(page.getByText(/المقابلة .*2030|المقابلة .*10/)).toBeVisible();
+  await box.getByLabel("ميعاد المقابلة").fill("2030-03-11T10:00");
+  await box.getByRole("button", { name: "غيّر الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(2);
+  expect(patches[1]).not.toHaveProperty("status");
+  await box.getByRole("button", { name: "شيل الميعاد" }).click();
+  await expect.poll(() => patches.length).toBe(3);
+  expect(patches[2]).toEqual({ interview_at: null });
   expect(errors).toEqual([]);
 });
 
@@ -6204,8 +6306,11 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   const second = page.getByTestId("attendance-session").nth(1);
   await second.getByLabel("لمين").selectOption("A");
   await page.getByTestId("attendance-session").first().getByLabel("الميعاد").fill("2026-01-01T10:00");
+  // The event's date for the WhatsApp acceptance message.
+  await page.getByTestId("form-event-at").fill("2026-01-02T12:30");
   await page.getByRole("button", { name: "حفظ" }).first().click();
   await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0].event_at).toBe(new Date("2026-01-02T12:30").toISOString());
   const att = patches[0].attendance as { on: boolean; by: string; sessions: { id: string; name: string; only: string | null }[] };
   expect(att).toMatchObject({ on: true, by: "g" });
   expect(att.sessions.map((x) => [x.name, x.only])).toEqual([

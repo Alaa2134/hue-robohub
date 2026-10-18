@@ -44,6 +44,9 @@ const WA_ERRORS: Record<string, string> = {
   daily_limit: "وصلت للحد اليومي (1000 رسالة في اليوم). كمّل بكرة.",
   invalid_message: "اكتب الرسالة أو اختار قالب، واختار الناس.",
   unknown_template: "القالب ده مش في القوالب المتوافق عليها.",
+  no_template: "اختار قالب للرسالة دي الأول.",
+  no_phone: "اكتب رقمك الأول واحفظه.",
+  invalid_phone: "الرقم ده مش صح. اكتبه زي 01xxxxxxxxx.",
 };
 const waError = (e: unknown) => WA_ERRORS[(e as { message?: string })?.message ?? ""] ?? errorText(e);
 
@@ -116,6 +119,7 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
               <StatusCard st={st} />
               {st.can_connect && <ConnectCard st={st} onDone={reload} />}
               {st.connected && <AutoCard st={st} />}
+              {st.connected && <TemplatesCard canSend={st.can_send} />}
               {st.connected && st.can_send && <SendCard st={st} me={me} handoff={handoff} onSent={reload} />}
               {!st.connected && !st.can_connect && <Empty icon="chat" title="واتساب لسه مش مربوط" body="المالك بيربط رقم الفريق من هنا، وبعدها تقدر تبعت." />}
             </>
@@ -173,12 +177,40 @@ function StatusCard({ st }: { st: Status }) {
   );
 }
 
-type AutoRule = { key: string; label_ar: string; template: string; lang: string; enabled: boolean; ok: boolean };
+type AutoRule = {
+  key: string;
+  section?: string;
+  label_ar: string;
+  hint_ar?: string | null;
+  vars_ar?: string | null;
+  template: string | null;
+  lang: string;
+  enabled: boolean;
+  ok: boolean;
+  /** Our new template for this moment, still under Meta's review (it switches to it by itself once approved). */
+  waiting?: string | null;
+  bulk?: boolean;
+  to_phone?: string | null;
+  audience?: number | null;
+  sent?: number;
+};
 
 /** The messages that go by themselves (application received, accepted…): on/off and which approved template. */
+const SECTIONS: [string, string][] = [
+  ["join", "طلبات الانضمام"],
+  ["family", "الأسرة"],
+  ["events", "الفعاليات"],
+  ["forms", "الفورمز والكورسات"],
+  ["students", "الطلاب"],
+  ["site", "الموقع"],
+  ["team", "تنبيهات ليك"],
+];
+
+/** Every moment that sends a WhatsApp by itself: on/off, which approved template, and what fills it. */
 function AutoCard({ st }: { st: Status }) {
   const { data: rules, error, loading, reload } = useAsync(() => rpc<AutoRule[]>("staff_wa_auto_rules"), []);
   const [busy, setBusy] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
   const save = async (key: string, fn: () => Promise<unknown>) => {
     setBusy(key);
     try {
@@ -191,47 +223,220 @@ function AutoCard({ st }: { st: Status }) {
       setBusy(null);
     }
   };
+  const toggle = async (r: AutoRule, on: boolean) => {
+    if (on && !r.template) return toast("اختار قالب للرسالة دي الأول", "error");
+    if (on && r.key === "send_failed_alert" && !r.to_phone) return toast("اكتب رقمك الأول واحفظه", "error");
+    if (
+      on &&
+      r.bulk &&
+      !(await confirmDialog({
+        title: `تشغيل «${r.label_ar}»؟`,
+        body: `الرسالة دي بتوصل لناس كتير مرة واحدة${r.audience != null ? ` (دلوقتي ${r.audience} شخص)` : ""}. هتتبعت بس للي هيحصل من دلوقتي، مش لحاجات قديمة.`,
+        ok: "شغّلها",
+      }))
+    )
+      return;
+    void save(r.key, () => rpc("staff_wa_auto_set", { p_key: r.key, p_enabled: on }));
+  };
+  const on = (rules ?? []).filter((r) => r.enabled).length;
   return (
     <Card className="grid gap-3" data-testid="wa-auto">
       <div className="grid gap-0.5">
-        <p className="text-sm font-semibold text-chalk">رسايل أوتوماتيك</p>
-        <p className="text-xs leading-relaxed text-fog">بتتبعت لوحدها في اللحظة دي، بقالب متوافق عليه من ميتا. لو القالب فيه متغيرات، {"{{1}}"} بيبقى الاسم الأول.</p>
+        <p className="text-sm font-semibold text-chalk">
+          رسايل أوتوماتيك {rules && <span className="text-xs font-normal text-fog">· شغّالة {on} من {rules.length}</span>}
+        </p>
+        <p className="text-xs leading-relaxed text-fog">
+          كل لحظة ليها رسالة بتطلع لوحدها بقالب متوافق عليه من ميتا، ومرة واحدة بس لكل شخص. اللي بتوصل لناس كتير بتسأل قبل ما تشتغل، والتذكيرات مبتوصلش لحاجات قديمة.
+        </p>
       </div>
       {loading && !rules ? (
         <Loading />
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : (
-        (rules ?? []).map((r) => {
-          const body = st.templates.find((t) => t.name === r.template && t.language === r.lang)?.body;
+        SECTIONS.map(([section, title]) => {
+          const list = (rules ?? []).filter((r) => (r.section ?? "join") === section);
+          if (!list.length) return null;
           return (
-            <div key={r.key} className="grid gap-2 rounded-xl border border-[var(--line)] p-3" data-testid="wa-auto-rule">
-              <Toggle checked={r.enabled} disabled={!st.can_send || busy === r.key} label={r.label_ar} onChange={(v) => save(r.key, () => rpc("staff_wa_auto_set", { p_key: r.key, p_enabled: v }))} />
-              <Field label="القالب">
-                <Select
-                  value={`${r.template}|${r.lang}`}
-                  disabled={!st.can_send || busy === r.key}
-                  onChange={(e) => {
-                    const [t, l] = e.target.value.split("|");
-                    void save(r.key, () => rpc("staff_wa_auto_template", { p_key: r.key, p_template: t, p_lang: l }));
-                  }}
-                >
-                  {!r.ok && <option value={`${r.template}|${r.lang}`}>{r.template} (مش متوافق عليه)</option>}
-                  {st.templates.map((t) => (
-                    <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
-                      {t.name} · {t.language}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              {!r.ok ? (
-                <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
-              ) : (
-                body && <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">{body}</p>
-              )}
+            <div key={section} className="grid gap-2" data-testid={`wa-auto-${section}`}>
+              <p className="pt-1 text-xs font-semibold text-mist">{title}</p>
+              {list.map((r) => {
+                const body = r.ok ? st.templates.find((t) => t.name === r.template && t.language === r.lang)?.body : null;
+                return (
+                  <div key={r.key} className="grid gap-2 rounded-xl border border-[var(--line)] p-3" data-testid="wa-auto-rule">
+                    <Toggle
+                      checked={r.enabled}
+                      disabled={!st.can_send || busy === r.key}
+                      label={
+                        <>
+                          {r.label_ar}
+                          {r.bulk && <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-[11px] font-normal text-warn">لناس كتير</span>}
+                        </>
+                      }
+                      hint={r.hint_ar ?? undefined}
+                      onChange={(v) => void toggle(r, v)}
+                    />
+                    <Field label="القالب">
+                      <Select
+                        value={r.template ? `${r.template}|${r.lang}` : ""}
+                        disabled={!st.can_send || busy === r.key}
+                        onChange={(e) => {
+                          const [t, l] = e.target.value ? e.target.value.split("|") : [null, null];
+                          void save(r.key, () => rpc("staff_wa_auto_template", { p_key: r.key, p_template: t, p_lang: l }));
+                        }}
+                      >
+                        <option value="">— من غير قالب (مش بتتبعت) —</option>
+                        {r.template && !r.ok && (
+                          <option value={`${r.template}|${r.lang}`}>
+                            {r.template} ({r.waiting === r.template ? "عند ميتا للمراجعة" : "مش متوافق عليه"})
+                          </option>
+                        )}
+                        {st.templates.map((t) => (
+                          <option key={`${t.name}|${t.language}`} value={`${t.name}|${t.language}`}>
+                            {t.name} · {t.language}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    {r.key === "send_failed_alert" && (
+                      <div className="flex gap-2">
+                        <Input value={phone ?? r.to_phone ?? ""} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" inputMode="tel" dir="ltr" aria-label="رقمك للتنبيهات" />
+                        <Button size="sm" className="shrink-0 whitespace-nowrap" disabled={phone === null || busy === r.key} onClick={() => void save(r.key, () => rpc("staff_wa_auto_phone", { p_key: r.key, p_phone: phone }).then(() => setPhone(null)))}>
+                          حفظ الرقم
+                        </Button>
+                      </div>
+                    )}
+                    {r.template && !r.ok && r.waiting === r.template ? (
+                      <p className="text-xs leading-relaxed text-warn" data-testid="wa-auto-waiting">قالبها عند ميتا للمراجعة. أول ما يتوافق عليه الرسالة دي هتبدأ تتبعت لوحدها.</p>
+                    ) : r.template && !r.ok ? (
+                      <p className="text-xs text-danger">القالب ده مش في القوالب المتوافق عليها، فالرسالة دي مش هتتبعت. اختار قالب من القايمة.</p>
+                    ) : body ? (
+                      <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
+                        {body}
+                      </p>
+                    ) : (
+                      !r.template && <p className="text-xs leading-relaxed text-fog">مفيش قالب للحظة دي لسه. اعمل قالب في ميتا (WhatsApp Manager ← Message templates)، ولما يتوافق عليه اختاره هنا.</p>
+                    )}
+                    {r.ok && r.waiting && (
+                      <p className="text-[11px] leading-relaxed text-fog" data-testid="wa-auto-waiting">
+                        قالب أحسن ليها ({r.waiting}) عند ميتا للمراجعة، وأول ما يتوافق عليه الرسالة هتتحول له لوحدها.
+                      </p>
+                    )}
+                    {(r.vars_ar || !!r.sent) && (
+                      <p className="text-[11px] text-fog" dir="auto">
+                        {r.vars_ar && `المتغيرات: ${r.vars_ar}`}
+                        {r.vars_ar && !!r.sent && " · "}
+                        {!!r.sent && (r.sent >= 3 && r.sent <= 10 ? `اتبعتت ${r.sent} مرات` : `اتبعتت ${r.sent} مرة`)}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         })
+      )}
+    </Card>
+  );
+}
+
+type OurTemplate = {
+  name: string;
+  lang: string;
+  category: string;
+  body: string;
+  moments: string[];
+  /** A link button that opens the person's own QR (attendance pass or event ticket). */
+  button?: string | null;
+  status: "APPROVED" | "PENDING" | "IN_APPEAL" | "REJECTED" | "DISABLED" | "PAUSED" | "SENDING" | "ERROR" | "NEW";
+  error: string | null;
+  submitted_at: string | null;
+};
+const TEMPLATE_STATE: Record<OurTemplate["status"], [string, "ok" | "info" | "warn" | "danger" | "muted"]> = {
+  APPROVED: ["متوافق عليه", "ok"],
+  PENDING: ["عند ميتا للمراجعة", "info"],
+  IN_APPEAL: ["في الاستئناف", "info"],
+  SENDING: ["بيتبعت لميتا", "info"],
+  NEW: ["لسه ماتبعتش", "muted"],
+  REJECTED: ["اترفض", "danger"],
+  ERROR: ["ميتا رفضت تستلمه", "danger"],
+  PAUSED: ["متوقف مؤقتًا", "warn"],
+  DISABLED: ["متوقف", "danger"],
+};
+
+/** Our own templates (one per moment): what Meta said about each, and a button that sends the missing ones. */
+function TemplatesCard({ canSend }: { canSend: boolean }) {
+  const { data, error, loading, reload } = useAsync(() => rpc<OurTemplate[]>("staff_wa_templates"), []);
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const list = Array.isArray(data) ? data : [];
+  const count = (s: OurTemplate["status"][]) => list.filter((t) => s.includes(t.status)).length;
+  const missing = count(["NEW", "ERROR"]);
+  const submit = async () => {
+    setBusy(true);
+    try {
+      const n = await rpc<number>("staff_wa_templates_submit");
+      toast(n ? `اتبعت ${n} لميتا` : "مفيش حاجة ناقصة");
+      reload();
+    } catch (e) {
+      toast.error(waError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (loading && !data) return null;
+  if (error) return <ErrorBox error={error} retry={reload} />;
+  if (!list.length) return null;
+  return (
+    <Card className="grid gap-3" data-testid="wa-templates">
+      <div className="grid gap-0.5">
+        <p className="text-sm font-semibold text-chalk">قوالبنا عند ميتا</p>
+        <p className="text-xs leading-relaxed text-fog">
+          قالب عربي لكل لحظة، اتبعت لميتا من هنا. اللي اتوافق عليه بيشتغل لوحده في الرسايل الأوتوماتيك، واللي اترفض بنعدّله ونبعته تاني.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2 text-xs">
+        <Badge tone="ok">متوافق عليه {count(["APPROVED"])}</Badge>
+        <Badge tone="info">للمراجعة {count(["PENDING", "IN_APPEAL", "SENDING"])}</Badge>
+        {!!count(["REJECTED", "ERROR", "DISABLED", "PAUSED"]) && <Badge tone="danger">محتاج تعديل {count(["REJECTED", "ERROR", "DISABLED", "PAUSED"])}</Badge>}
+        {!!count(["NEW"]) && <Badge tone="muted">لسه ماتبعتش {count(["NEW"])}</Badge>}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "اخفي القوالب" : `اعرض القوالب (${list.length})`}
+        </Button>
+        {canSend && !!missing && (
+          <Button size="sm" variant="primary" loading={busy} onClick={() => void submit()}>
+            ابعت الناقص لميتا ({missing})
+          </Button>
+        )}
+      </div>
+      {open && (
+        <ul className="grid gap-2" data-testid="wa-templates-list">
+          {list.map((t) => {
+            const [label, tone] = TEMPLATE_STATE[t.status] ?? [t.status, "muted"];
+            return (
+              <li key={t.name} className="grid gap-1.5 rounded-xl border border-[var(--line)] p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs text-chalk" dir="ltr">
+                    {t.name}
+                  </span>
+                  <Badge tone={tone}>{label}</Badge>
+                  {t.category === "MARKETING" && <span className="text-[11px] text-fog">تسويقي</span>}
+                </div>
+                <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
+                  {t.body}
+                </p>
+                {t.button && <p className="text-[11px] text-mist">زرار «{t.button}» بيفتح الـ QR بتاع الشخص نفسه</p>}
+                {t.error && (
+                  <p className="font-mono text-[11px] text-danger" dir="ltr">
+                    {t.error}
+                  </p>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </Card>
   );
