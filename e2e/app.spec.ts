@@ -6331,6 +6331,7 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   await expect(page.getByTestId("attendance-row")).toHaveCount(1);
   await expect(page.getByTestId("attendance-row")).toContainText("بسمة علي");
   await expect(page.getByRole("button", { name: "انسخ الغايبين وأرقامهم" })).toBeVisible();
+  await expect(page.getByTestId("absent-whatsapp")).toBeVisible();
 
   // The second lecture is group A's: Basma (B) is flagged, and can still be let in.
   await page.getByTestId("attendance-sessions").getByRole("button", { name: /محاضرة 2/ }).click();
@@ -6350,5 +6351,127 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   const file = page.waitForEvent("download");
   await page.getByTestId("attendance-xlsx").click();
   expect((await file).suggestedFilename()).toMatch(/^buildx-attendance-ros-course-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  expect(errors).toEqual([]);
+});
+
+test("WhatsApp without a developer: one tap sends each accepted person their QR, a list carries each person's link to a button template, and templates are tried, fixed and written in the app", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page);
+  const ours = [
+    { name: "bx_form_pass_v5", lang: "ar", category: "UTILITY", body: "مبروك 🎉 تم قبولك في «{{1}}».", moments: ["form_accepted"], example: ["Workshop"], button: "الـ QR بتاعي", button_kind: "pass", status: "APPROVED", error: null, submitted_at: at(60) },
+    { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: ["certificate_issued"], example: ["أحمد"], button: null, button_kind: null, status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
+  ];
+  await mockRpc(page, calls, {
+    staff_whatsapp_status: {
+      connected: true,
+      status: "ok",
+      phone_number_id: "123456789012345",
+      business_id: "1214964801478471",
+      display_phone: "+20 10 0000 0000",
+      verified_name: "BuildX HUE",
+      quality: "GREEN",
+      error: null,
+      checked_at: null,
+      templates: [{ name: "bx_form_pass_v5", language: "ar", body: "مبروك 🎉 تم قبولك في «{{1}}».", button: "الـ QR بتاعي" }],
+      has_token: true,
+      sent_today: 0,
+      failed_today: 0,
+      can_send: true,
+      can_connect: true,
+    },
+    staff_wa_auto_rules: [{ key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false }],
+    staff_wa_templates: ours,
+    staff_whatsapp_send: { queued: 1, skipped: 1 },
+    staff_wa_template_save: "bx_custom_261018150000",
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_form_send_passes$/, (route) => {
+    const b = route.request().postDataJSON() as { p_form: string; p_dry: boolean };
+    calls.push({ fn: "staff_form_send_passes", body: b });
+    return route.fulfill({ json: { ready: 1, sent: b.p_dry ? 0 : 1, already: 1, no_phone: 0, no_template: 0 } });
+  });
+  const form = {
+    id: "f1", slug: "ros-course", title_ar: "كورس ROS", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null,
+    fields: [{ id: "n", type: "name", label_ar: "الاسم", required: true }], team: null, open: true, opens_at: null, closes_at: null, max_responses: null,
+    listed: true, archived: false, accepted_ar: null, accepted_url: null, delegation: null, attendance: { on: true, sessions: [{ id: "s_1", name: "محاضرة 1" }] },
+    capacity: null, background_path: null, background_kind: null, created_at: at(600),
+  };
+  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  const resp = (id: string, name: string, phone: string | null, pass: string) => ({
+    id, form_id: "f1", ref: `F-${id.toUpperCase()}0000`, answers: { n: name }, name, phone, email: null, locale: "ar", status: "accepted", note: null, created_at: at(30), pass,
+  });
+  await page.route(/\/rest\/v1\/form_responses\?select=\*/, (route) =>
+    route.fulfill({ json: [resp("r1", "أحمد سامي", "01011111111", "AAAAAAAAAAAAAAA1"), resp("r2", "بسمة علي", null, "BBBBBBBBBBBBBBB2")] }),
+  );
+
+  // One tap: it says how many first (and who already has theirs), then sends.
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("send-qr-form").click();
+  await expect(page.getByRole("dialog")).toContainText("ابعت الـ QR لـ شخص واحد؟");
+  await expect(page.getByRole("dialog")).toContainText("1 وصلهم قبل كده ومش هيتبعتلهم تاني");
+  await page.getByRole("dialog").getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("اتبعت لـ 1")).toBeVisible();
+  expect(calls.filter((c) => c.fn === "staff_form_send_passes").map((c) => c.body)).toEqual([
+    { p_form: "f1", p_dry: true },
+    { p_form: "f1", p_dry: false },
+  ]);
+
+  // From the list: each person's own QR goes to the template's button.
+  await page.getByRole("button", { name: "تحديد أكتر من واحد" }).click();
+  await page.getByRole("button", { name: /حدد كل اللي ظاهرين/ }).click();
+  await page.getByRole("button", { name: /واتساب للمختارين/ }).click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp$/);
+  const send = page.getByTestId("wa-send");
+  await expect(send.getByTestId("wa-send-button")).toHaveValue("{pass}");
+  await send.getByLabel("{{1}}").fill("كورس ROS — {link}");
+  await send.getByRole("button", { name: "ابعت", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "ابعت" }).click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_whatsapp_send")?.body)
+    .toEqual({
+      p_people: [
+        { phone: "01011111111", name: "أحمد سامي", vars: { code: "F-R10000", link: "https://buildxhue.com/ar/form/?pass=aaaaaaaaaaaaaaa1", pass: "aaaaaaaaaaaaaaa1" }, button: "{pass}" },
+      ],
+      p_text: null,
+      p_template: "bx_form_pass_v5",
+      p_lang: "ar",
+      p_params: ["كورس ROS — {link}"],
+      p_context: "form:f1",
+    });
+  await expect(page.getByText("اتبعت لـ 1 · 1 اتخطّوا")).toBeVisible();
+
+  // Templates: try an approved one on my phone, fix the refused one, write a new one.
+  const card = page.getByTestId("wa-templates");
+  await card.getByRole("button", { name: "اعرض القوالب (2)" }).click();
+  await card.getByTestId("wa-template").filter({ hasText: "bx_form_pass_v5" }).getByTestId("wa-template-test").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_wa_template_test")?.body).toEqual({ p_name: "bx_form_pass_v5" });
+  await card.getByTestId("wa-template").filter({ hasText: "bx_certificate_ready_v5" }).getByTestId("wa-template-fix").click();
+  const composer = page.getByTestId("wa-template-composer");
+  await expect(composer.getByTestId("wa-template-body")).toHaveValue("مبروك يا {{1}} 🎓 شهادتك جاهزة.");
+  await composer.getByTestId("wa-template-body").fill("مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.");
+  await composer.getByTestId("wa-template-save").click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_wa_template_save")?.body)
+    .toEqual({ p_body: "مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.", p_category: "UTILITY", p_examples: ["أحمد"], p_button: "none", p_moment: null, p_replaces: "bx_certificate_ready_v5" });
+  await expect(composer).toBeHidden();
+
+  await card.getByTestId("wa-template-new").click();
+  // A variable at the very start is what Meta refuses: said before sending.
+  await composer.getByTestId("wa-template-body").fill("{{1}} شهادتك جاهزة");
+  await expect(composer).toContainText("مش بتقبل قالب يبدأ أو يخلص بمتغير");
+  await expect(composer.getByTestId("wa-template-save")).toBeDisabled();
+  await composer.getByTestId("wa-template-body").fill("أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.");
+  await composer.getByTestId("wa-template-example").fill("منى");
+  await expect(composer).toContainText("أهلًا منى، شهادتك");
+  await composer.getByLabel("زرار تحت الرسالة").selectOption("pass");
+  await composer.getByLabel("يتبعت لوحده في").selectOption("certificate_issued");
+  await composer.getByTestId("wa-template-save").click();
+  await expect
+    .poll(() => calls.filter((c) => c.fn === "staff_wa_template_save").at(-1)?.body)
+    .toEqual({ p_body: "أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.", p_category: "UTILITY", p_examples: ["منى"], p_button: "pass", p_moment: "certificate_issued", p_replaces: null });
+  await expect(page.getByText("اتبعت لميتا باسم bx_custom_261018150000")).toBeVisible();
   expect(errors).toEqual([]);
 });

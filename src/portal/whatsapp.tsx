@@ -7,10 +7,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canSee, errorText, fmt, isFull, must, rpc, sb, type StaffRow } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
-import { takeHandoff, type Handoff } from "./wa-handoff";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { fillVars, missingVar, takeHandoff, varsOf, type Handoff, type HandoffPerson, type WaVars } from "./wa-handoff";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
-type Template = { name: string; language: string; category?: string; body?: string | null };
+/** An approved template; `button` is the text of its link button whose end is filled per person. */
+type Template = { name: string; language: string; category?: string; body?: string | null; button?: string | null };
 type Status = {
   connected: boolean;
   status: "none" | "checking" | "ok" | "failed" | "off";
@@ -33,7 +34,7 @@ type Status = {
   can_connect: boolean;
 };
 type Message = { id: number; to_phone: string; to_name: string | null; kind: "text" | "template"; body: string | null; template: string | null; status: "queued" | "sent" | "failed"; error: string | null; created_at: string; context: string | null; via?: "api" | "web" };
-type Person = { phone: string; name: string };
+type Person = HandoffPerson;
 
 const WA_ERRORS: Record<string, string> = {
   whatsapp_not_connected: "واتساب مش مربوط أو الربط فيه مشكلة. اربطه الأول.",
@@ -47,6 +48,10 @@ const WA_ERRORS: Record<string, string> = {
   no_template: "اختار قالب للرسالة دي الأول.",
   no_phone: "اكتب رقمك الأول واحفظه.",
   invalid_phone: "الرقم ده مش صح. اكتبه زي 01xxxxxxxxx.",
+  template_length: "القالب لازم يكون بين 10 و1024 حرف.",
+  template_edges: "ميتا مش بتقبل قالب يبدأ أو يخلص بمتغير زي {{1}}. حط كلام قبله وبعده.",
+  template_vars: "المتغيرات لازم تبقى بالترتيب: {{1}} وبعده {{2}}… من غير ما تنط رقم.",
+  template_examples: "اكتب مثال لكل متغير، ميتا بتراجع القالب بيه.",
 };
 const waError = (e: unknown) => WA_ERRORS[(e as { message?: string })?.message ?? ""] ?? errorText(e);
 
@@ -66,6 +71,10 @@ const metaReason = (error: string, template: string | null) =>
             : /#131058/.test(error)
               ? "قالب hello_world بيشتغل من أرقام التجربة بس. استخدم قالب من قوالبك."
               : null;
+
+/** What each per-person value means, for the hints. */
+const VAR_HINT: Record<keyof WaVars, string> = { link: "{link} = لينك كل واحد", code: "{code} = الكود بتاعه", pass: "{pass} = كود الـ QR بتاعه", ticket: "{ticket} = كود تذكرته" };
+const varsHint = (people: Person[]) => varsOf(people).map((k) => VAR_HINT[k]).join("، ");
 
 /** "Ahmed, 01012345678" / "01012345678" lines → people. */
 function parsePeople(text: string): Person[] {
@@ -346,11 +355,15 @@ type OurTemplate = {
   category: string;
   body: string;
   moments: string[];
+  /** Example values Meta reviews it with (and the owner's test message uses). */
+  example?: string[];
   /** A link button that opens the person's own QR (attendance pass or event ticket). */
   button?: string | null;
+  button_kind?: "pass" | "ticket" | null;
   status: "APPROVED" | "PENDING" | "IN_APPEAL" | "REJECTED" | "DISABLED" | "PAUSED" | "SENDING" | "ERROR" | "NEW";
   error: string | null;
   submitted_at: string | null;
+  tested_at?: string | null;
 };
 const TEMPLATE_STATE: Record<OurTemplate["status"], [string, "ok" | "info" | "warn" | "danger" | "muted"]> = {
   APPROVED: ["متوافق عليه", "ok"],
@@ -363,51 +376,63 @@ const TEMPLATE_STATE: Record<OurTemplate["status"], [string, "ok" | "info" | "wa
   PAUSED: ["متوقف مؤقتًا", "warn"],
   DISABLED: ["متوقف", "danger"],
 };
+const NEEDS_FIX: OurTemplate["status"][] = ["REJECTED", "ERROR", "DISABLED", "PAUSED"];
+type Draft = { body: string; category: "UTILITY" | "MARKETING"; examples: string[]; button: "none" | "pass" | "ticket"; moment: string; replaces: string | null };
 
-/** Our own templates (one per moment): what Meta said about each, and a button that sends the missing ones. */
+/** Our own templates (one per moment): what Meta said about each; try one on your phone, fix a refused one, or write a new one. */
 function TemplatesCard({ canSend }: { canSend: boolean }) {
   const { data, error, loading, reload } = useAsync(() => rpc<OurTemplate[]>("staff_wa_templates"), []);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const list = Array.isArray(data) ? data : [];
   const count = (s: OurTemplate["status"][]) => list.filter((t) => s.includes(t.status)).length;
   const missing = count(["NEW", "ERROR"]);
-  const submit = async () => {
-    setBusy(true);
+  const act = async (key: string, fn: () => Promise<unknown>, done: string) => {
+    setBusy(key);
     try {
-      const n = await rpc<number>("staff_wa_templates_submit");
-      toast(n ? `اتبعت ${n} لميتا` : "مفيش حاجة ناقصة");
+      await fn();
+      toast(done);
       reload();
     } catch (e) {
       toast.error(waError(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
+  const submit = () => act("submit", () => rpc<number>("staff_wa_templates_submit"), `اتبعت ${missing} لميتا`);
   if (loading && !data) return null;
   if (error) return <ErrorBox error={error} retry={reload} />;
-  if (!list.length) return null;
   return (
     <Card className="grid gap-3" data-testid="wa-templates">
       <div className="grid gap-0.5">
         <p className="text-sm font-semibold text-chalk">قوالبنا عند ميتا</p>
         <p className="text-xs leading-relaxed text-fog">
-          قالب عربي لكل لحظة، اتبعت لميتا من هنا. اللي اتوافق عليه بيشتغل لوحده في الرسايل الأوتوماتيك، واللي اترفض بنعدّله ونبعته تاني.
+          قالب عربي لكل لحظة. اللي اتوافق عليه بيشتغل لوحده في الرسايل الأوتوماتيك وتقدر تجربه على رقمك. اللي يترفض عدّله من هنا وابعته تاني، أو اكتب قالب جديد خالص.
         </p>
       </div>
-      <div className="flex flex-wrap gap-2 text-xs">
-        <Badge tone="ok">متوافق عليه {count(["APPROVED"])}</Badge>
-        <Badge tone="info">للمراجعة {count(["PENDING", "IN_APPEAL", "SENDING"])}</Badge>
-        {!!count(["REJECTED", "ERROR", "DISABLED", "PAUSED"]) && <Badge tone="danger">محتاج تعديل {count(["REJECTED", "ERROR", "DISABLED", "PAUSED"])}</Badge>}
-        {!!count(["NEW"]) && <Badge tone="muted">لسه ماتبعتش {count(["NEW"])}</Badge>}
-      </div>
+      {!!list.length && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          <Badge tone="ok">متوافق عليه {count(["APPROVED"])}</Badge>
+          <Badge tone="info">للمراجعة {count(["PENDING", "IN_APPEAL", "SENDING"])}</Badge>
+          {!!count(NEEDS_FIX) && <Badge tone="danger">محتاج تعديل {count(NEEDS_FIX)}</Badge>}
+          {!!count(["NEW"]) && <Badge tone="muted">لسه ماتبعتش {count(["NEW"])}</Badge>}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
-          {open ? "اخفي القوالب" : `اعرض القوالب (${list.length})`}
-        </Button>
+        {!!list.length && (
+          <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+            {open ? "اخفي القوالب" : `اعرض القوالب (${list.length})`}
+          </Button>
+        )}
         {canSend && !!missing && (
-          <Button size="sm" variant="primary" loading={busy} onClick={() => void submit()}>
+          <Button size="sm" variant="primary" loading={busy === "submit"} onClick={() => void submit()}>
             ابعت الناقص لميتا ({missing})
+          </Button>
+        )}
+        {canSend && (
+          <Button size="sm" icon="plus" onClick={() => setDraft({ body: "", category: "UTILITY", examples: [], button: "none", moment: "", replaces: null })} data-testid="wa-template-new">
+            قالب جديد
           </Button>
         )}
       </div>
@@ -416,7 +441,7 @@ function TemplatesCard({ canSend }: { canSend: boolean }) {
           {list.map((t) => {
             const [label, tone] = TEMPLATE_STATE[t.status] ?? [t.status, "muted"];
             return (
-              <li key={t.name} className="grid gap-1.5 rounded-xl border border-[var(--line)] p-3">
+              <li key={t.name} className="grid gap-1.5 rounded-xl border border-[var(--line)] p-3" data-testid="wa-template">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-xs text-chalk" dir="ltr">
                     {t.name}
@@ -427,18 +452,161 @@ function TemplatesCard({ canSend }: { canSend: boolean }) {
                 <p className="whitespace-pre-line text-xs leading-relaxed text-fog" dir="auto">
                   {t.body}
                 </p>
-                {t.button && <p className="text-[11px] text-mist">زرار «{t.button}» بيفتح الـ QR بتاع الشخص نفسه</p>}
+                {t.button && <p className="text-[11px] text-mist">زرار «{t.button}» بيفتح {t.button_kind === "ticket" ? "تذكرة" : "الـ QR بتاع"} الشخص نفسه</p>}
                 {t.error && (
                   <p className="font-mono text-[11px] text-danger" dir="ltr">
                     {t.error}
                   </p>
+                )}
+                {canSend && (t.status === "APPROVED" || NEEDS_FIX.includes(t.status)) && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {t.status === "APPROVED" && (
+                      <Button size="sm" variant="ghost" icon="chat" loading={busy === t.name} onClick={() => void act(t.name, () => rpc("staff_wa_template_test", { p_name: t.name }), "اتبعت لرقمك بالأمثلة بتاعته")} data-testid="wa-template-test">
+                        جرّب على رقمي{t.tested_at ? " تاني" : ""}
+                      </Button>
+                    )}
+                    {NEEDS_FIX.includes(t.status) && (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        icon="edit"
+                        onClick={() =>
+                          setDraft({ body: t.body, category: t.category === "MARKETING" ? "MARKETING" : "UTILITY", examples: t.example ?? [], button: t.button_kind ?? "none", moment: "", replaces: t.name })
+                        }
+                        data-testid="wa-template-fix"
+                      >
+                        عدّله وابعته تاني
+                      </Button>
+                    )}
+                  </div>
                 )}
               </li>
             );
           })}
         </ul>
       )}
+      {draft && (
+        <TemplateComposer
+          draft={draft}
+          onClose={() => setDraft(null)}
+          onSaved={() => {
+            setDraft(null);
+            setOpen(true);
+            reload();
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+const slotsOf = (body: string) => Math.max(0, ...[...body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])));
+/** What Meta will refuse, said before sending (same checks as the database). */
+function draftProblem(d: Draft): string | null {
+  const body = d.body.trim();
+  if (body.length < 10) return "اكتب نص القالب (10 حروف على الأقل).";
+  if (/^\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}[\s\p{P}]*$/u.test(body)) return WA_ERRORS.template_edges!;
+  const nums = [...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1])))].sort((a, b) => a - b);
+  if (nums.some((n, i) => n !== i + 1)) return WA_ERRORS.template_vars!;
+  if (nums.some((_, i) => !d.examples[i]?.trim())) return WA_ERRORS.template_examples!;
+  return null;
+}
+
+/** Write a template (or fix a refused one): text with {{1}} {{2}}…, an example for each, an optional QR button and moment. */
+function TemplateComposer({ draft, onClose, onSaved }: { draft: Draft; onClose: () => void; onSaved: () => void }) {
+  const [d, setD] = useState(draft);
+  const [busy, setBusy] = useState(false);
+  const area = useRef<HTMLTextAreaElement>(null);
+  const rules = useAsync(() => rpc<AutoRule[]>("staff_wa_auto_rules"), []);
+  const slots = slotsOf(d.body);
+  const set = (p: Partial<Draft>) => setD((x) => ({ ...x, ...p }));
+  const problem = draftProblem(d);
+  /** {{n}} where the cursor is. */
+  const addVar = () => {
+    const el = area.current;
+    const tag = `{{${slots + 1}}}`;
+    const at = el?.selectionStart ?? d.body.length;
+    set({ body: d.body.slice(0, at) + tag + d.body.slice(el?.selectionEnd ?? at) });
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(at + tag.length, at + tag.length);
+    });
+  };
+  const preview = d.body.replace(/\{\{(\d+)\}\}/g, (m, n) => d.examples[Number(n) - 1]?.trim() || m);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const name = await rpc<string>("staff_wa_template_save", {
+        p_body: d.body.trim(),
+        p_category: d.category,
+        p_examples: Array.from({ length: slots }, (_, i) => d.examples[i]?.trim() ?? ""),
+        p_button: d.button,
+        p_moment: d.replaces ? null : d.moment || null,
+        p_replaces: d.replaces,
+      });
+      toast(`اتبعت لميتا باسم ${name}. ردها بيظهر هنا لوحده خلال دقايق لساعات.`);
+      onSaved();
+    } catch (e) {
+      toast.error(waError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose} title={d.replaces ? "تعديل القالب وإرساله تاني" : "قالب جديد"}>
+      <div className="grid gap-3" data-testid="wa-template-composer">
+        {d.replaces && <p className="text-xs leading-relaxed text-fog">النسخة الجديدة هتاخد مكان «{d.replaces}» في كل الرسايل الأوتوماتيك اللي كان فيها، أول ما ميتا توافق عليها.</p>}
+        <Field label="نص الرسالة" hint="حط {{1}} و{{2}}… مكان اللي بيتغير من شخص للتاني (الاسم، الفعالية، الميعاد). ميتا مش بتقبل متغير في أول الرسالة أو آخرها.">
+          <Textarea ref={area} rows={5} maxLength={1024} value={d.body} onChange={(e) => set({ body: e.target.value })} placeholder="أهلًا {{1}}، اتقبلت في {{2}} من BuildX HUE ✅ ميعادنا يوم {{3}}، مستنيينك." dir="auto" data-testid="wa-template-body" />
+        </Field>
+        <Button size="sm" variant="ghost" icon="plus" className="justify-self-start" onClick={addVar}>
+          حط متغير {`{{${slots + 1}}}`}
+        </Button>
+        {Array.from({ length: slots }, (_, i) => (
+          <Field key={i} label={`مثال لـ {{${i + 1}}}`} hint={i === 0 ? "ميتا بتراجع القالب بالأمثلة دي، وهي اللي بتوصلك لما تجرّبه." : undefined}>
+            <Input value={d.examples[i] ?? ""} onChange={(e) => set({ examples: Array.from({ length: Math.max(slots, d.examples.length) }, (_, j) => (j === i ? e.target.value : (d.examples[j] ?? ""))) })} data-testid="wa-template-example" />
+          </Field>
+        ))}
+        <Field label="نوعه" hint="خدمي = تأكيد، تذكير، QR (بيتوافق عليه أسرع وأرخص). تسويقي = إعلان أو عرض.">
+          <Select value={d.category} onChange={(e) => set({ category: e.target.value as Draft["category"] })}>
+            <option value="UTILITY">خدمي</option>
+            <option value="MARKETING">تسويقي</option>
+          </Select>
+        </Field>
+        <Field label="زرار تحت الرسالة">
+          <Select value={d.button} onChange={(e) => set({ button: e.target.value as Draft["button"] })}>
+            <option value="none">من غير زرار</option>
+            <option value="pass">«الـ QR بتاعي»: بيفتح QR الحضور بتاع كل واحد</option>
+            <option value="ticket">«تذكرتي»: بيفتح تذكرة الفعالية بتاعة كل واحد</option>
+          </Select>
+        </Field>
+        {!d.replaces && (
+          <Field label="يتبعت لوحده في" hint="اختياري. أول ما ميتا توافق، الرسالة دي هتطلع بالقالب ده، والقالب القديم يفضل احتياطي.">
+            <Select value={d.moment} onChange={(e) => set({ moment: e.target.value })}>
+              <option value="">— مش مربوط بلحظة (للإرسال اليدوي) —</option>
+              {(rules.data ?? []).map((r) => (
+                <option key={r.key} value={r.key}>
+                  {r.label_ar}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        {d.body.trim() && (
+          <div className="grid gap-1 rounded-xl bg-white/[0.03] px-3 py-2">
+            <p className="text-[11px] text-fog">هتوصل كده:</p>
+            <p className="whitespace-pre-wrap text-xs text-mist" dir="auto">
+              {preview}
+            </p>
+            {d.button !== "none" && <p className="text-xs text-cyan">🔗 {d.button === "pass" ? "الـ QR بتاعي" : "تذكرتي"}</p>}
+          </div>
+        )}
+        {problem && d.body.trim() && <p className="text-xs text-warn">{problem}</p>}
+        <Button variant="primary" loading={busy} disabled={!!problem} onClick={() => void save()} data-testid="wa-template-save">
+          ابعته لميتا
+        </Button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -595,6 +763,11 @@ function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; hando
   const [params, setParams] = useState<string[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const vars = varsOf(people);
+  const hint = varsHint(people);
+  // The end of a link button's address, per person: their QR or ticket when the list carries it.
+  const [button, setButton] = useState<string | null>(null);
+  const buttonValue = button ?? (vars.includes("pass") ? "{pass}" : vars.includes("ticket") ? "{ticket}" : "");
 
   const template = st.templates.find((t) => `${t.name}|${t.language}` === tpl);
   const slots = template?.body ? Math.max(0, ...[...template.body.matchAll(/\{\{(\d+)\}\}/g)].map((m) => Number(m[1]))) : 0;
@@ -605,14 +778,14 @@ function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; hando
     setBusy(true);
     try {
       const r = await rpc<{ queued: number; skipped: number }>("staff_whatsapp_send", {
-        p_people: people,
+        p_people: mode === "template" && template?.button ? people.map((p) => ({ ...p, button: buttonValue })) : people,
         p_text: mode === "text" ? text : null,
         p_template: mode === "template" ? template?.name ?? null : null,
         p_lang: mode === "template" ? template?.language ?? "ar" : "ar",
         p_params: mode === "template" ? params : [],
         p_context: context,
       });
-      toast(`اتبعت لـ ${r.queued}${r.skipped ? ` · ${r.skipped} رقم مش صح أو متكرر` : ""}`);
+      toast(`اتبعت لـ ${r.queued}${r.skipped ? ` · ${r.skipped} اتخطّوا (رقم مش صح أو متكرر، أو ناقصهم اللينك أو الكود)` : ""}`);
       onSent();
     } catch (e) {
       toast.error(waError(e));
@@ -621,7 +794,8 @@ function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; hando
     }
   };
 
-  const ready = people.length > 0 && people.length <= 300 && (mode === "text" ? text.trim().length > 0 : !!template && params.every((p) => p.trim()));
+  const ready =
+    people.length > 0 && people.length <= 300 && (mode === "text" ? text.trim().length > 0 : !!template && params.every((p) => p.trim()) && (!template.button || !!buttonValue.trim()));
   return (
     <Card className="grid gap-3" data-testid="wa-send">
       <p className="text-sm font-semibold text-chalk">إرسال رسالة</p>
@@ -648,10 +822,15 @@ function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; hando
             </Field>
             {template?.body && <p className="whitespace-pre-wrap rounded-lg bg-white/[0.03] px-3 py-2 text-xs text-mist" dir="auto">{template.body}</p>}
             {params.map((p, i) => (
-              <Field key={i} label={`{{${i + 1}}}`} hint={i === 0 ? "{name} = اسم كل واحد" : undefined}>
+              <Field key={i} label={`{{${i + 1}}}`} hint={i === 0 ? ["{name} = اسم كل واحد", hint].filter(Boolean).join("، ") : undefined}>
                 <Input value={p} onChange={(e) => setParams((x) => x.map((v, j) => (j === i ? e.target.value : v)))} />
               </Field>
             ))}
+            {template?.button && (
+              <Field label={`زرار «${template.button}»`} hint={vars.length ? "آخر اللينك اللي الزرار بيفتحه لكل واحد. {pass} = الـ QR بتاعه، {ticket} = تذكرته." : "القالب ده فيه زرار بيفتح لينك خاص بكل واحد. ابعته من قايمة فيها الـ QR (ردود فورم أو حاجزين فعالية)."}>
+                <Input value={buttonValue} onChange={(e) => setButton(e.target.value)} dir="ltr" data-testid="wa-send-button" />
+              </Field>
+            )}
           </>
         ) : (
           <p className="text-xs text-fog">مفيش قوالب متوافق عليها. اعمل قالب من WhatsApp Manager وبعد ما يتوافق عليه اضغط «تغيير الربط» واحفظ عشان يتحمّل، أو ابعت رسالة حرة.</p>
@@ -659,7 +838,7 @@ function SendCard({ st, me, handoff, onSent }: { st: Status; me: StaffRow; hando
       ) : (
         <>
         <Snippets text={text} onPick={setText} />
-        <Field label="الرسالة" hint="بتوصل بس للي بعتلك رسالة على الرقم ده في آخر 24 ساعة (قاعدة ميتا). لغيرهم استخدم قالب. {name} = اسم كل واحد.">
+        <Field label="الرسالة" hint={`بتوصل بس للي بعتلك رسالة على الرقم ده في آخر 24 ساعة (قاعدة ميتا). لغيرهم استخدم قالب. {name} = اسم كل واحد${hint ? `، ${hint}` : ""}.`}>
           <Textarea rows={4} maxLength={4096} value={text} onChange={(e) => setText(e.target.value)} placeholder="أهلًا {name}، …" />
         </Field>
         </>
@@ -736,7 +915,7 @@ function Snippets({ text, onPick }: { text: string; onPick: (t: string) => void 
 
 const GREETINGS = ["أهلًا", "إزيك", "أهلًا بيك", "مساء الخير", "هاي", "إزيك عامل إيه"];
 const PACES = { safe: [12, 25], safer: [25, 50] } as const;
-type Item = { phone: string; name: string; state: "wait" | "sent" | "skipped" };
+type Item = { phone: string; name: string; state: "wait" | "sent" | "skipped"; vars?: WaVars };
 type Run = { items: Item[]; at: number; text: string; context: string | null };
 const RUN_KEY = "bx-wa-web";
 
@@ -749,9 +928,9 @@ const waDigits = (phone: string) => {
   d = d.replace(/\D/g, "");
   return d.length >= 8 && d.length <= 15 ? d : null;
 };
-/** {name} = first name, {hi} = a different greeting each time (identical messages look like spam). */
-const fill = (text: string, name: string) =>
-  text.replaceAll("{name}", name.trim().split(/\s+/)[0] || "").replaceAll("{hi}", GREETINGS[Math.floor(Math.random() * GREETINGS.length)]!).replace(/[ \t]{2,}/g, " ");
+/** {name} = first name, {hi} = a different greeting each time (identical messages look like spam), {link} {code}… = theirs. */
+const fill = (text: string, name: string, vars?: WaVars) =>
+  fillVars(text, vars).replaceAll("{name}", name.trim().split(/\s+/)[0] || "").replaceAll("{hi}", GREETINGS[Math.floor(Math.random() * GREETINGS.length)]!).replace(/[ \t]{2,}/g, " ");
 const cairoHour = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Cairo" }).format(new Date()));
 
 /**
@@ -795,7 +974,7 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
   const next = (r: Run) => r.items.findIndex((i) => i.state === "wait");
   const open = (r: Run, i: number) => {
     const it = r.items[i]!;
-    const msg = fill(r.text, it.name);
+    const msg = fill(r.text, it.name, it.vars);
     const url = phone ? `https://wa.me/${waDigits(it.phone)}?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?phone=${waDigits(it.phone)}&text=${encodeURIComponent(msg)}`;
     // One WhatsApp Web tab, reused for everyone (on a phone, the WhatsApp app).
     if (!phone && win.current && !win.current.closed) win.current.location.href = url;
@@ -808,10 +987,10 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
   const start = async () => {
     const seen = new Set<string>();
     const items: Item[] = people
-      .map((p) => ({ phone: waDigits(p.phone) ?? "", name: p.name, state: "wait" as const }))
-      .filter((p) => p.phone && !seen.has(p.phone) && (seen.add(p.phone), true))
+      .map((p) => ({ phone: waDigits(p.phone) ?? "", name: p.name, state: "wait" as const, ...(p.vars ? { vars: p.vars } : {}) }))
+      .filter((p) => p.phone && !missingVar(text, p.vars) && !seen.has(p.phone) && (seen.add(p.phone), true))
       .sort(() => Math.random() - 0.5);
-    if (!items.length) return toast("مفيش أرقام صح", "error");
+    if (!items.length) return toast(people.some((p) => missingVar(text, p.vars)) ? "الرسالة فيها {link} أو {code} والناس دول مش معاهم" : "مفيش أرقام صح", "error");
     const h = cairoHour();
     if ((h >= 22 || h < 9) && !(await confirmDialog({ title: "الوقت متأخر", body: "الرسايل بالليل بتجيب بلوكات وريبورتات أكتر، وده اللي بيحظر الرقم. الأحسن تبعت بكرة الصبح.", ok: "ابعت برضه" }))) return;
     const r = { items, at: Date.now(), text, context };
@@ -824,7 +1003,7 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
     const it = run.items[current]!;
     setBusy(true);
     try {
-      if (state === "sent") await rpc("staff_whatsapp_web_sent", { p_phone: it.phone, p_name: it.name, p_body: fill(run.text, it.name), p_context: run.context });
+      if (state === "sent") await rpc("staff_whatsapp_web_sent", { p_phone: it.phone, p_name: it.name, p_body: fill(run.text, it.name, it.vars), p_context: run.context });
       const r = { ...run, items: run.items.map((x, j) => (j === current ? { ...x, state } : x)) };
       setRun(r);
       const n = next(r);
@@ -900,7 +1079,7 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
       </p>
       {ui}
       <Snippets text={text} onPick={setText} />
-      <Field label="الرسالة" hint="{name} = اسم كل واحد، {hi} = تحية بتتغير من رسالة للتانية (الرسايل المتطابقة بالظبط شكلها سبام).">
+      <Field label="الرسالة" hint={`{name} = اسم كل واحد، {hi} = تحية بتتغير من رسالة للتانية (الرسايل المتطابقة بالظبط شكلها سبام)${varsHint(people) ? `، ${varsHint(people)}` : ""}.`}>
         <Textarea rows={5} maxLength={4096} value={text} onChange={(e) => setText(e.target.value)} />
       </Field>
       <Field label="السرعة" hint="وقت عشوائي بين كل رسالة والتانية، والترتيب بيتلخبط، عشان الإرسال يبان طبيعي.">
