@@ -1,3 +1,6 @@
+/** Arabic/Persian digits typed on an Arabic keyboard (٠١٢… ۰۱۲…) → 0-9. */
+export const asciiDigits = (v: string) => v.replace(/[٠-٩۰-۹]/g, (ch) => String(("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(ch)) % 10));
+
 export function formatDate(iso: string | null | undefined, locale = "en", opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }) {
   if (!iso) return "";
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);

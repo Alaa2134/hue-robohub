@@ -539,6 +539,38 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
   expect(errors).toEqual([]);
 });
 
+test("«تابع طلبك» takes the code without «F-» and a number in Arabic digits, and says when a join code was typed", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls = await mockSupabase(page, {
+    rpc: {
+      form_status: (b) =>
+        String(b.p_ref).startsWith("BX")
+          ? { ok: false, error: "join_code" }
+          : String(b.p_ref).endsWith("1A2B3C4D") && b.p_phone === "01012345678"
+            ? { ok: true, status: "new", title_ar: "كورس ROS" }
+            : { ok: false, error: "not_found" },
+    },
+  });
+  await page.goto("/ar/form/#status");
+  const code = page.getByLabel("كود الطلب");
+  const phone = page.getByLabel("رقم الموبايل اللي قدّمت بيه");
+  await expect(page.getByText("كود الطلب بيبدأ بـ F-")).toBeVisible();
+  // A join code on the form page says where to look.
+  await code.fill("BX-1A2B3C");
+  await phone.fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.getByText("ده كود طلب انضمام")).toBeVisible();
+  // The code without «F-» and the number in Arabic digits.
+  await code.fill("1a2b3c4d");
+  await expect(code).toHaveValue("1A2B3C4D");
+  await phone.fill("٠١٠١٢٣٤٥٦٧٨");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.getByText("طلبك وصل وبيتراجع")).toBeVisible();
+  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "1A2B3C4D", p_phone: "01012345678" });
+  expect(errors).toEqual([]);
+});
+
 test("accepted with a next step on another site: open it, then «I've registered»", async ({ page }) => {
   let done = false;
   const calls = await mockSupabase(page, {

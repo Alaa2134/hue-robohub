@@ -11,6 +11,7 @@ import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { cn } from "@/lib/cn";
 import { MediaError, mediaErrorText, prepareMedia, type MediaKind } from "@/lib/client-media";
+import { asciiDigits } from "@/lib/format";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 type Locale = "ar" | "en";
@@ -95,7 +96,9 @@ const C = {
     stPhone: "رقم الموبايل اللي قدّمت بيه",
     stCheck: "اعرف حالتي",
     stChecking: "بندوّر…",
-    stNotFound: "مش لاقيين طلب بالكود والرقم دول. راجعهم وجرّب تاني.",
+    stNotFound: "مش لاقيين طلب بالكود والرقم دول. الكود هو اللي ظهرلك بعد ما بعت الفورم وبيبدأ بـ F- (زي F-1A2B3C4D)، والرقم لازم يكون نفس اللي كتبته في الفورم.",
+    stJoinCode: "ده كود طلب انضمام (BX-…). تابعه من صفحة «تابع طلب الانضمام».",
+    stRefHint: "كود الطلب بيبدأ بـ F- وظهرلك بعد ما بعت الفورم، وبيوصلك كمان في رسالة الواتساب.",
     st: { new: "طلبك وصل وبيتراجع ⏳", waiting: "إنت على قايمة الانتظار ⏳ هنبلّغك لو مكان فضي.", accepted: "اتقبلت 🎉", rejected: "للأسف المرة دي مقدرناش نقبل طلبك. شكراً لاهتمامك 🙏" },
     stOpen: "افتح موقع التسجيل",
     stDone: "سجّلت في موقع المعرض",
@@ -188,7 +191,9 @@ const C = {
     stPhone: "The mobile number you applied with",
     stCheck: "Check",
     stChecking: "Checking…",
-    stNotFound: "No application matches that code and number. Check them and try again.",
+    stNotFound: "No application matches that code and number. The code was shown after you sent the form and starts with F- (like F-1A2B3C4D); the number must be the one you wrote in the form.",
+    stJoinCode: "That's a join-application code (BX-…). Check it on the «Track your join application» page.",
+    stRefHint: "The code starts with F- and was shown after you sent the form; it also comes in the WhatsApp message.",
     st: { new: "Received and under review ⏳", waiting: "You're on the waiting list ⏳ We'll tell you if a place opens up.", accepted: "Accepted 🎉", rejected: "Sorry, we couldn't accept your application this time. Thank you for your interest 🙏" },
     stOpen: "Open the registration site",
     stDone: "I've registered on the expo site",
@@ -222,7 +227,7 @@ function useElapsed() {
   return () => (shown.current ? Date.now() - shown.current : 0);
 }
 const PHONE = /^\+?[0-9]{7,16}$/;
-const cleanPhone = (s: string) => s.replace(/[^0-9+]/g, "");
+const cleanPhone = (s: string) => asciiDigits(s).replace(/[^0-9+]/g, "");
 const fmtWhen = (iso: string, l: Locale) => new Date(iso).toLocaleString(l === "ar" ? "ar-EG" : "en-GB", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 function Row({ id, label, optional, error, hint, children, className }: { id: string; label: string; optional?: string; error?: string; hint?: ReactNode; children: ReactNode; className?: string }) {
@@ -796,7 +801,9 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setBusy(true);
     setFormError("");
     try {
-      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])), __t: elapsed() };
+      // Numbers typed in Arabic digits go as 0-9, the way the server reads them.
+      const phones = new Set(fields.filter((x) => x.type === "phone").map((x) => x.id));
+      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? (phones.has(k) ? asciiDigits(v.trim()) : v.trim()) : v])), __t: elapsed() };
       const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) {
         setRef(out.ref ?? "");
@@ -1201,9 +1208,9 @@ export function FormStatus({ locale }: { locale: string }) {
     setBusy(true);
     setErr("");
     try {
-      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: phone.trim() });
+      const r = await rpc<StatusOut>("form_status", { p_ref: ref.trim(), p_phone: asciiDigits(phone.trim()) });
       if (r.ok) setOut(r);
-      else setErr(r.error === "rate_limited" ? t.errors.rate_limited : t.stNotFound);
+      else setErr(r.error === "rate_limited" ? t.errors.rate_limited : r.error === "join_code" ? t.stJoinCode : t.stNotFound);
     } catch {
       setErr(t.errors.network);
     } finally {
@@ -1212,7 +1219,7 @@ export function FormStatus({ locale }: { locale: string }) {
   };
   const markDone = async () => {
     try {
-      const r = await rpc<{ ok: boolean }>("form_external_done", { p_ref: ref.trim(), p_phone: phone.trim() });
+      const r = await rpc<{ ok: boolean }>("form_external_done", { p_ref: ref.trim(), p_phone: asciiDigits(phone.trim()) });
       if (r.ok) setMarked(true);
     } catch {
       setErr(t.errors.network);
@@ -1222,7 +1229,7 @@ export function FormStatus({ locale }: { locale: string }) {
     <div className="frame grid gap-5 p-5 sm:p-8">
       <form onSubmit={check} noValidate className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <Row id="st-ref" label={t.stRef}>
-          <input id="st-ref" className={inputCls} dir="ltr" value={ref} maxLength={20} onChange={(e) => setRef(e.target.value.toUpperCase())} placeholder="F-XXXXXXXX" autoComplete="off" />
+          <input id="st-ref" className={inputCls} dir="ltr" value={ref} maxLength={20} onChange={(e) => setRef(asciiDigits(e.target.value).toUpperCase())} placeholder="F-XXXXXXXX" autoComplete="off" />
         </Row>
         <Row id="st-phone" label={t.stPhone}>
           <input id="st-phone" className={inputCls} dir="ltr" type="tel" inputMode="tel" value={phone} maxLength={20} onChange={(e) => setPhone(e.target.value)} placeholder="01xxxxxxxxx" autoComplete="tel" />
@@ -1231,6 +1238,7 @@ export function FormStatus({ locale }: { locale: string }) {
           {busy ? t.stChecking : t.stCheck}
         </button>
       </form>
+      {!out && <p className="-mt-2 text-sm text-fog">{t.stRefHint}</p>}
       {err && (
         <p role="alert" className="text-sm text-danger">
           {err}

@@ -396,8 +396,7 @@ export function codeKey(v: string): string {
 
 export const digitsOnly = (v: string) => codeKey(v).replace(/\D/g, "");
 
-/** Arabic/Persian digits typed on an Arabic keyboard → ASCII digits. */
-export const asciiDigits = (v: string) => v.replace(/[٠-٩۰-۹]/g, (ch) => String(EASTERN_DIGITS.indexOf(ch) % 10));
+export { asciiDigits } from "@/lib/format";
 
 export function tempPassword(length = 12) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";

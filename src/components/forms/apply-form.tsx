@@ -6,6 +6,7 @@ import { BUILTIN_KEYS, consentText, extraHelp, extraLabel, optionText, parseAppl
 import { GOVERNORATES, digitsOnly, readNationalId } from "@/content/family";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
+import { asciiDigits } from "@/lib/format";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 import { WaitlistForm } from "./site-forms";
 
@@ -171,7 +172,7 @@ const T = {
 const PHONE_RE = /^\+?[0-9]{8,15}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const URL_RE = /^https?:\/\/\S+\.\S+/;
-const cleanPhone = (v: string) => v.replace(/[^0-9+]/g, "");
+const cleanPhone = (v: string) => asciiDigits(v).replace(/[^0-9+]/g, "");
 
 type Fields = Record<BuiltinKey, Resolved>;
 type Errors = Record<string, string | undefined>;
