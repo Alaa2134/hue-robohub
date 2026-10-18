@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { canSee, errorText, fmt, must, rpc, sb, type StaffRow } from "./core";
 import { takeEmailHandoff, type EmailHandoff, type EmailPerson } from "./email-handoff";
+import { useFormPick } from "./form-pick";
 import {
   Badge,
   Button,
@@ -421,11 +422,13 @@ function ConnectCard({ st, onDone }: { st: Status; onDone: () => void }) {
   );
 }
 
-type Source = "handoff" | "typed" | "applications" | "family";
+type Source = "handoff" | "typed" | "applications" | "family" | "form";
 
 function useRecipients(me: StaffRow, handoff: EmailHandoff | null) {
   const apps = canSee(me, "applications");
+  const forms = canSee(me, "forms") || canSee(me, "expo");
   const [source, setSource] = useState<Source>(handoff ? "handoff" : "typed");
+  const pick = useFormPick(source === "form", !canSee(me, "forms"));
   const [typed, setTyped] = useState("");
   const [appStatus, setAppStatus] = useState("accepted");
   const applicants = useAsync(
@@ -455,9 +458,10 @@ function useRecipients(me: StaffRow, handoff: EmailHandoff | null) {
   const people: EmailPerson[] = useMemo(() => {
     if (source === "handoff") return handoff?.people ?? [];
     if (source === "typed") return parseEmails(typed);
+    if (source === "form") return pick.people.filter((p) => p.email).map((p) => ({ email: p.email!, name: p.name }));
     const rows = source === "applications" ? applicants.data : family.data;
     return (rows ?? []).map((r) => ({ email: r.email, name: r.full_name }));
-  }, [source, typed, applicants.data, family.data, handoff]);
+  }, [source, typed, applicants.data, family.data, handoff, pick.people]);
   const context =
     source === "handoff"
       ? (handoff?.context ?? null)
@@ -465,7 +469,9 @@ function useRecipients(me: StaffRow, handoff: EmailHandoff | null) {
         ? `applications:${appStatus}`
         : source === "family"
           ? "family"
-          : null;
+          : source === "form"
+            ? pick.context
+            : null;
   const ui = (
     <>
       <Field label="لمين؟">
@@ -478,8 +484,10 @@ function useRecipients(me: StaffRow, handoff: EmailHandoff | null) {
           <option value="typed">إيميلات أكتبها</option>
           {apps && <option value="applications">المتقدمين للانضمام</option>}
           {apps && <option value="family">أسرة BuildX (اللي كتبوا إيميل)</option>}
+          {forms && <option value="form">ناس من فورم (اللي كتبوا إيميل)</option>}
         </Select>
       </Field>
+      {source === "form" && pick.ui}
       {source === "typed" && (
         <Field label="الإيميلات" hint="كل سطر: الاسم والإيميل، أو الإيميل بس.">
           <Textarea

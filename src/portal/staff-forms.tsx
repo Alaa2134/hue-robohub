@@ -14,7 +14,7 @@ import { can, isFull, fmt, must, removeObjects, safeName, sb, today, uid, upload
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
-import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, type Attendance } from "./form-attendance";
+import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, statusLink, type Attendance } from "./form-attendance";
 import { SendQrButton } from "./wa-qr-send";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
@@ -163,9 +163,6 @@ function liveState(x: Form, count: number) {
 }
 
 const formLink = (slug: string) => (slug === "robotex-2026" ? `${SITE}/ar/robotex/` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}`);
-/** Where an applicant checks their status (and, once accepted, finds the next step). */
-const statusLink = (slug: string, ref: string) =>
-  slug === "robotex-2026" ? `${SITE}/ar/robotex/?ref=${encodeURIComponent(ref)}#status` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}&ref=${encodeURIComponent(ref)}#status`;
 
 export function FormsScreen() {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("forms").select("*, form_responses(count)").order("created_at", { ascending: false }).then(must)) as (Form & { form_responses: { count: number }[] })[], []);
