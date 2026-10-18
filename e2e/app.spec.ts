@@ -4731,6 +4731,46 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
   expect(errors).toEqual([]);
 });
 
+test("WhatsApp says why messages fail: templates Meta won't give, and the last refused message with what to do", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_status$/, (route) =>
+    route.fulfill({
+      json: {
+        connected: true,
+        status: "ok",
+        phone_number_id: "123456789012345",
+        business_id: "1214964801478471",
+        display_phone: "+20 10 0000 0000",
+        verified_name: "BuildX HUE",
+        quality: "GREEN",
+        error: null,
+        checked_at: null,
+        templates: [{ name: "bx_join_received", language: "ar", body: "أهلًا {{1}}" }],
+        templates_error: "(#100) Tried accessing nonexisting field (message_templates)",
+        has_token: true,
+        sent_today: 0,
+        failed_today: 3,
+        last_failed: { error: "(#132001) Template name does not exist in the translation", template: "bx_join_received", at: at(30), count: 7 },
+        can_send: true,
+        can_connect: true,
+      },
+    }),
+  );
+  await page.goto("/app/#/staff/whatsapp");
+  await page.getByRole("tab", { name: "ربط رسمي (API)" }).click();
+  const tpl = page.getByTestId("wa-templates-error");
+  await expect(tpl).toContainText("القوالب مش بتتقري من ميتا");
+  await expect(tpl).toContainText("مش رقم البيزنس");
+  const last = page.getByTestId("wa-last-failed");
+  await expect(last).toContainText("7 رسالة فشلت في آخر 24 ساعة");
+  await expect(last).toContainText("bx_join_received");
+  await expect(last).toContainText("Assign assets");
+  await expect(last).toContainText("#132001");
+  expect(errors).toEqual([]);
+});
+
 test("the owner connects email (the Resend key is sent once, never shown), sends to typed emails, and edits an automatic email", async ({
   page,
 }) => {

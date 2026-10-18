@@ -22,9 +22,13 @@ type Status = {
   error: string | null;
   checked_at: string | null;
   templates: Template[];
+  /** Meta refused the template list (wrong account ID, or the system user lacks the WhatsApp account). */
+  templates_error?: string | null;
   has_token: boolean;
   sent_today: number;
   failed_today: number;
+  /** The latest message Meta refused in the last day, and how many it refused. */
+  last_failed?: { error: string | null; template: string | null; at: string; count: number } | null;
   can_send: boolean;
   can_connect: boolean;
 };
@@ -41,6 +45,23 @@ const WA_ERRORS: Record<string, string> = {
   invalid_message: "اكتب الرسالة أو اختار قالب، واختار الناس.",
 };
 const waError = (e: unknown) => WA_ERRORS[(e as { message?: string })?.message ?? ""] ?? errorText(e);
+
+const ASSIGN = "من business.facebook.com ← Settings ← System users ← اختار اليوزر بتاع التوكن ← Assign assets ← WhatsApp accounts ← اختار الحساب اللي فيه الرقم ← Full control.";
+/** What Meta's refusal means and what to do, for the ones we've met. */
+const metaReason = (error: string, template: string | null) =>
+  /#132001/.test(error)
+    ? `القالب «${template ?? ""}» مش موجود بالعربي في حساب الواتساب اللي فيه الرقم ده، أو الـ System User مش متدّي له الحساب ده. اتأكد إن القالب معمول ومتوافق عليه في نفس حساب الرقم، و${ASSIGN}`
+    : /Authentication Error|#190\b/.test(error)
+      ? "التوكن مش شغال أو اتلغى. اعمل توكن دائم جديد للـ System User وحطه في «تغيير الربط»."
+      : /^\(#(10|200)\)/.test(error)
+        ? `الـ System User مش متدّي له حساب الواتساب ده. ${ASSIGN}`
+        : /#131042/.test(error)
+          ? "مفيش وسيلة دفع على حساب الواتساب. ضيفها من WhatsApp Manager ← Payment settings."
+          : /#131026/.test(error)
+            ? "الرقم ده مش عليه واتساب أو مش قادر يستقبل رسايل."
+            : /#131058/.test(error)
+              ? "قالب hello_world بيشتغل من أرقام التجربة بس. استخدم قالب من قوالبك."
+              : null;
 
 /** "Ahmed, 01012345678" / "01012345678" lines → people. */
 function parsePeople(text: string): Person[] {
@@ -122,6 +143,24 @@ function StatusCard({ st }: { st: Status }) {
         <Badge tone={tone}>{label}</Badge>
       </div>
       {st.status === "failed" && st.error && <p className="rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger" dir="auto">{st.error}</p>}
+      {st.connected && st.templates_error && (
+        <div className="grid gap-1 rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn" data-testid="wa-templates-error">
+          <p className="font-semibold">القوالب مش بتتقري من ميتا</p>
+          <p className="leading-relaxed text-mist">
+            اتأكد إن خانة «WhatsApp Business Account ID» فيها رقم حساب الواتساب نفسه (من API Setup تحت الـ Phone number ID)، مش رقم البيزنس، وإن الـ System User متدّي له الحساب ده.
+          </p>
+          <p className="font-mono text-[11px] text-fog" dir="ltr">{st.templates_error}</p>
+        </div>
+      )}
+      {st.connected && st.last_failed?.error && (
+        <div className="grid gap-1 rounded-lg bg-danger/10 px-3 py-2 text-xs text-danger" data-testid="wa-last-failed">
+          <p className="font-semibold">
+            {st.last_failed.count} رسالة فشلت في آخر 24 ساعة{st.last_failed.template ? ` · آخرها قالب ${st.last_failed.template}` : ""} · {fmt.dateTime(st.last_failed.at)}
+          </p>
+          {metaReason(st.last_failed.error, st.last_failed.template) && <p className="leading-relaxed text-mist">{metaReason(st.last_failed.error, st.last_failed.template)}</p>}
+          <p className="font-mono text-[11px] text-fog" dir="ltr">{st.last_failed.error}</p>
+        </div>
+      )}
       {st.connected && (
         <div className="grid grid-cols-2 gap-2">
           <Stat label="اتبعت النهارده" value={st.sent_today} tone="ok" />
@@ -184,13 +223,13 @@ function ConnectCard({ st, onDone }: { st: Status; onDone: () => void }) {
           انسخ <b className="text-mist">Phone number ID</b> و<b className="text-mist">WhatsApp Business Account ID</b>.
         </li>
         <li>
-          اعمل <b className="text-mist">System User</b> في إعدادات البيزنس واديله صلاحية <span dir="ltr">whatsapp_business_messaging</span>، واعمله توكن دائم وانسخه هنا.
+          اعمل <b className="text-mist">System User</b> في إعدادات البيزنس، واديله حساب الواتساب اللي فيه الرقم (<span dir="ltr">Assign assets ← WhatsApp accounts ← Full control</span>)، واعمله توكن دائم بصلاحيات <span dir="ltr">whatsapp_business_messaging</span> و<span dir="ltr">whatsapp_business_management</span> وانسخه هنا.
         </li>
       </ol>
       <Field label="Phone number ID">
         <Input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value.replace(/\D/g, "") })} inputMode="numeric" dir="ltr" required />
       </Field>
-      <Field label="WhatsApp Business Account ID" hint="عشان نجيب القوالب المتوافق عليها. ممكن تسيبه فاضي.">
+      <Field label="WhatsApp Business Account ID" hint="رقم حساب الواتساب نفسه (من API Setup)، مش رقم البيزنس. منه بنجيب القوالب المتوافق عليها.">
         <Input value={f.biz} onChange={(e) => setF({ ...f, biz: e.target.value.replace(/\D/g, "") })} inputMode="numeric" dir="ltr" />
       </Field>
       <Field label="Access token" hint={st.has_token ? "سيبه فاضي لو مش عايز تغيّره. التوكن بيتحفظ متشفّر ومحدش يقدر يشوفه تاني ولا حتى إنت." : "بيتحفظ متشفّر في قاعدة البيانات، ومحدش يقدر يشوفه تاني ولا حتى إنت."}>
