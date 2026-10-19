@@ -5457,6 +5457,11 @@ test("WhatsApp Web: each chat opens with the message ready, with a wait between 
   await page.clock.runFor(26_000);
   await next.click();
   await expect(page.getByText("خلصت: 2 رسالة")).toBeVisible();
+  // Done: no «continue» left (it used to open nobody and break the screen), only a new message.
+  await expect(run.getByTestId("wa-web-done")).toContainText("خلصت: 2 اتبعت");
+  await expect(run.getByRole("button", { name: /كمّل من مكانك/ })).toHaveCount(0);
+  await run.getByRole("button", { name: "رسالة جديدة" }).click();
+  await expect(page.getByTestId("wa-web")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
