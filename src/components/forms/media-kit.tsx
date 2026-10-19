@@ -86,7 +86,7 @@ function Page({
           <div style={{ fontSize: 24, fontWeight: 800 }}>{t.title}</div>
           <div style={{ color: "#45526b", marginTop: 4 }}>buildxhue.com</div>
         </div>
-        <img src={`${BASE_PATH}/brand/logo-horizontal-black.svg`} alt="BuildX HUE" style={{ height: 34 }} />
+        <img src={`${BASE_PATH}/brand/logo-horizontal-black.png`} alt="BuildX HUE" style={{ height: 34 }} />
       </div>
       <p style={{ marginTop: 16, fontSize: 14, color: "#26324a" }}>{t.about}</p>
 

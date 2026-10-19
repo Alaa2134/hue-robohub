@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Share images: every page that would share the site's generic picture gets its own 1200×630 card
- * instead (its title in Arabic or English, a line of description, the BuildX mark), so a link sent
+ * instead (its title in Arabic or English, a line of description, the BuildX Robotics badge), so a link sent
  * on WhatsApp, Facebook or LinkedIn says what the page is. Pages with their own photo (an event,
  * a news post, a member) keep it.
  *
@@ -40,7 +40,7 @@ const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, 
 const font = (f) => `data:font/woff2;base64,${readFileSync(path.join(root, "src/fonts", f)).toString("base64")}`;
 
 function card({ title, description, ar, crumb }) {
-  const mark = readFileSync(path.join(root, "public/brand/mark-color.svg"), "utf8");
+  const mark = `<img src="data:image/png;base64,${readFileSync(path.join(root, "public/brand/logo-badge-160.png")).toString("base64")}" alt="">`;
   return `<!doctype html><html lang="${ar ? "ar" : "en"}" dir="${ar ? "rtl" : "ltr"}"><head><meta charset="utf-8"><style>
 @font-face{font-family:Kufi;src:url(${font("kufi-var.woff2")}) format("woff2");font-weight:100 900}
 @font-face{font-family:Saira;src:url(${font("saira-var.woff2")}) format("woff2");font-weight:100 900}
@@ -52,7 +52,7 @@ body{background:#050d24;color:#eef4ff;font-family:${ar ? "Kufi" : "Saira"},Inter
 .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(120,160,255,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(120,160,255,.08) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,black,transparent 85%)}
 .wrap{position:absolute;inset:0;padding:64px 72px;display:flex;flex-direction:column}
 .top{display:flex;align-items:center;gap:18px}
-.top svg{width:64px;height:64px}
+.top img{height:76px;width:auto}
 .brand{font-family:Saira,sans-serif;font-weight:800;font-size:34px;letter-spacing:.04em}
 .brand b{color:#3cc4ff}
 .crumb{margin-${ar ? "right" : "left"}:auto;font-family:Inter,sans-serif;font-size:22px;color:#8fa6cf;direction:ltr}

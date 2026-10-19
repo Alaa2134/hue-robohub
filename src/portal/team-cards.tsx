@@ -319,9 +319,9 @@ function Logo() {
   return (
     <>
       <img
-        src={`${BASE_PATH}/brand/logo-stacked-white.svg`}
+        src={`${BASE_PATH}/brand/logo-stacked-white.png`}
         alt="BuildX HUE"
-        style={at(66, 62, { width: 340, height: 151 })}
+        style={at(66, 62, { width: 340, height: 151, objectFit: "contain" })}
       />
       <div style={at(432, 76, { width: 2, height: 100, background: "rgba(160,180,255,0.4)" })} />
       <div style={at(456, 74, spaced(15, 5))}>

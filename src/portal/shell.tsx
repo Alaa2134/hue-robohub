@@ -78,7 +78,7 @@ export function BrandLine({ className }: { className?: string }) {
   }, []);
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <Mark className="h-7 w-auto" />
+      <Mark className="h-9 w-auto" />
       <span className="font-display text-[15px] font-semibold tracking-wide text-chalk" dir="ltr">
         BuildX <span className="text-cyan">{name}</span>
       </span>

@@ -1,27 +1,20 @@
-import { MARK_PATHS, WORDMARK } from "./logo-paths";
+import { BADGE, WORDMARK } from "./logo-paths";
 import { cn } from "@/lib/cn";
+import { BASE_PATH } from "@/lib/deploy";
 
-/** BuildX X mark (flat). `tone` = color (white + blue axis) | white | black | chrome. */
-export function Mark({ className, tone = "color", title = "BuildX HUE", style }: { className?: string; tone?: "color" | "white" | "black" | "chrome"; title?: string; style?: React.CSSProperties }) {
-  const id = "mk-chrome";
-  const fill = tone === "black" ? "#05070A" : tone === "chrome" ? `url(#${id})` : "#F2F5F8";
-  const axis = tone === "color" || tone === "chrome" ? "#2B6DFF" : fill;
+/** The BuildX Robotics badge. `large` loads the 512 px file (for marks bigger than about 80 px). */
+export function Mark({ className, title = "BuildX Robotics", style, large = false }: { className?: string; title?: string; style?: React.CSSProperties; large?: boolean }) {
   return (
-    <svg viewBox={`0 0 ${MARK_PATHS.width} 100`} className={cn("shrink-0", className)} style={style} role="img" aria-label={title}>
-      {tone === "chrome" && (
-        <defs>
-          <linearGradient id={id} x1="0" y1="0" x2="0.25" y2="1">
-            <stop offset="0" stopColor="#ffffff" />
-            <stop offset="0.42" stopColor="#c9d6e8" />
-            <stop offset="0.52" stopColor="#7d8ea8" />
-            <stop offset="0.66" stopColor="#e5edf8" />
-            <stop offset="1" stopColor="#a9b8cc" />
-          </linearGradient>
-        </defs>
-      )}
-      <path fillRule="evenodd" fill={fill} d={MARK_PATHS.body} />
-      <path fill={axis} d={MARK_PATHS.axis} />
-    </svg>
+    <img
+      src={`${BASE_PATH}/brand/logo-badge-${large ? 512 : 160}.png`}
+      width={BADGE.width}
+      height={BADGE.height}
+      alt={title}
+      decoding="async"
+      draggable={false}
+      className={cn("shrink-0 select-none", className)}
+      style={style}
+    />
   );
 }
 
@@ -72,7 +65,7 @@ export function Wordmark({ className, tone = "color" }: { className?: string; to
 
 /** Header lockup: mark + wordmark + slogan. `size` scales the whole unit. */
 export function Lockup({ className, compact = false, size = "md" }: { className?: string; compact?: boolean; size?: "sm" | "md" | "lg" }) {
-  const mark = size === "lg" ? "h-11" : size === "sm" ? "h-7" : "h-8";
+  const mark = size === "lg" ? "h-14" : size === "sm" ? "h-8" : "h-10";
   const word = size === "lg" ? "h-[1.2rem]" : size === "sm" ? "h-[0.8rem]" : "h-[0.92rem]";
   return (
     <span className={cn("flex items-center gap-3", className)} dir="ltr">

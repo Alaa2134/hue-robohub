@@ -4,12 +4,11 @@ import { Icon, Icons, type IconName } from "@/components/brand/icons";
 import { Mark } from "@/components/brand/logo";
 import { IdCard, ShirtFlats } from "@/components/brand-page/applications";
 import { Swatch } from "@/components/brand-page/swatch";
-import { Picture } from "@/components/media/picture";
 import { Reveal } from "@/components/motion/reveal";
 import { Band } from "@/components/pages/section";
 import { PageHero } from "@/components/site/page-hero";
 import { SectionHead } from "@/components/ui/section-head";
-import { art } from "@/lib/media-library";
+import { BASE_PATH } from "@/lib/deploy";
 import { resolvePage, type Params } from "@/lib/page";
 import { pageMeta, SITE_URL } from "@/lib/seo";
 
@@ -17,7 +16,7 @@ export const revalidate = 86400;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t, p } = await resolvePage(params);
-  return pageMeta({ locale, path: "/brand", title: t.nav.brand, description: p.brand.heroBody, image: art("logo3d_wide", "hero")?.og });
+  return pageMeta({ locale, path: "/brand", title: t.nav.brand, description: p.brand.heroBody });
 }
 
 const FILES: { file: string; label: string; dark?: boolean }[] = [
@@ -28,12 +27,9 @@ const FILES: { file: string; label: string; dark?: boolean }[] = [
   { file: "logo-stacked-color.svg", label: "Stacked · colour" },
   { file: "logo-stacked-white.svg", label: "Stacked · white" },
   { file: "logo-stacked-black.svg", label: "Stacked · black", dark: false },
-  { file: "mark-color.svg", label: "Mark · colour" },
-  { file: "mark-white.svg", label: "Mark · white" },
-  { file: "mark-black.svg", label: "Mark · black", dark: false },
-  { file: "mark-silver.svg", label: "Mark · metallic" },
+  { file: "logo-badge.png", label: "Badge · PNG" },
+  { file: "mark-color.svg", label: "Badge · SVG" },
   { file: "wordmark-color.svg", label: "Wordmark · colour" },
-  { file: "logo-badge.png", label: "Robotics badge · PNG" },
   { file: "badge.svg", label: "App badge" },
   { file: "icon-512.png", label: "App icon · 512" },
   { file: "favicon.svg", label: "Favicon · SVG" },
@@ -46,7 +42,7 @@ const CORE = [
   ["Panel", "#0F2049", "Cards"],
   ["Mist", "#BFCCE4", "Body text"],
   ["Chalk", "#F3F7FD", "Headlines"],
-  ["Volt", "#2F7BFF", "Primary · the X"],
+  ["Volt", "#2F7BFF", "Primary · the X in BuildX"],
   ["Sky", "#3CC4FF", "Highlights · HUE"],
   ["Gold", "#E8B45C", "Achievements"],
 ] as const;
@@ -62,21 +58,19 @@ const TEAMS = [
 export default async function Brand({ params }: Params) {
   const { locale, t, p, href } = await resolvePage(params);
   const qr = await QRCode.toString(`${SITE_URL}${locale === "ar" ? "/ar" : ""}/join`, { type: "svg", margin: 0, errorCorrectionLevel: "M", width: 120, color: { dark: "#081634", light: "#ffffff" } });
-  const hero3d = art("logo3d_wide", "hero");
-  const avatar = art("logo3d_square");
 
   return (
     <>
-      <PageHero eyebrow={t.nav.brand} title="BuildX HUE" body={p.brand.heroBody} image={hero3d} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.brand }]} size="md" />
+      <PageHero eyebrow={t.nav.brand} title="BuildX HUE" body={p.brand.heroBody} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.brand }]} size="md" />
 
       <Band>
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>
-            <SectionHead index="01" eyebrow={p.brand.markTitle} title="R + H" body={p.brand.markBody} size="md" className="!block" />
+            <SectionHead index="01" eyebrow={p.brand.markTitle} title="BuildX Robotics" body={p.brand.markBody} size="md" className="!block" />
             <div className="mt-10 flex items-end gap-8" dir="ltr">
-              {[64, 32, 24, 16].map((s) => (
+              {[96, 64, 40, 24].map((s) => (
                 <div key={s} className="flex flex-col items-center gap-2">
-                  <Mark className="w-auto" style={{ height: s } as React.CSSProperties} />
+                  <Mark large={s > 80} className="w-auto" style={{ height: s } as React.CSSProperties} />
                   <span className="font-mono text-[0.62rem] text-fog">{s}px</span>
                 </div>
               ))}
@@ -85,16 +79,11 @@ export default async function Brand({ params }: Params) {
           <Reveal>
             <div className="frame relative flex aspect-square items-center justify-center overflow-hidden !rounded-[24px]" dir="ltr">
               <div aria-hidden className="grid-lines absolute inset-0 opacity-50" />
-              <svg viewBox="-30 -30 178 160" className="relative w-[70%]" aria-hidden>
-                <rect x="-24" y="-24" width="166" height="148" fill="none" stroke="rgb(56 220 255 / .35)" strokeDasharray="3 3" />
-                <path fillRule="evenodd" fill="#F2F5F8" d="M0 16L16 0L46 0L56 10L56 49L46 59L38 59L58 100L38 100L20 62L18 62L18 100L0 100ZM18 18L38 18L38 41L18 41ZM64 0L82 0L82 100L64 100ZM100 0L118 0L118 84L102 100L100 100Z" />
-                <path fill="#2B6DFF" d="M82 41L100 41L100 59L82 59Z" />
-                <path d="M0 -12 L118 -12" stroke="rgb(56 220 255 / .6)" strokeWidth=".6" />
-                <text x="59" y="-16" textAnchor="middle" fill="#38dcff" fontSize="5" fontFamily="monospace">118</text>
-                <path d="M128 0 L128 100" stroke="rgb(56 220 255 / .6)" strokeWidth=".6" />
-                <text x="134" y="52" fill="#38dcff" fontSize="5" fontFamily="monospace">100</text>
-                <text x="-22" y="-16" fill="#38dcff" fontSize="4.5" fontFamily="monospace">x = 18</text>
-              </svg>
+              {/* Clear space: a quarter of the badge's height on every side. */}
+              <div className="relative w-[62%] border border-dashed border-cyan/35 p-[12%]">
+                <Mark large className="h-auto w-full" />
+                <span className="absolute -top-5 start-0 font-mono text-[0.6rem] text-cyan">¼ h</span>
+              </div>
               <p className="absolute bottom-4 start-5 font-mono text-[0.62rem] uppercase tracking-[0.2em] text-fog">{p.brand.clearSpace}</p>
             </div>
           </Reveal>
@@ -203,14 +192,14 @@ export default async function Brand({ params }: Params) {
           <div className="frame flex flex-col items-center gap-4 p-6">
             <p className="t-eyebrow self-start text-fog">{p.brand.avatar}</p>
             <div className="relative size-40 overflow-hidden rounded-full border border-[var(--line-2)]">
-              {avatar ? <Picture image={avatar} sizes="10rem" className="absolute inset-0 h-full w-full" /> : <div className="flex h-full items-center justify-center bg-void"><Mark className="h-16 w-auto" /></div>}
+              <div className="flex h-full items-center justify-center bg-[#081634]">
+                <Mark large className="h-28 w-auto" />
+              </div>
             </div>
           </div>
-          {hero3d && (
-            <div className="frame relative min-h-56 overflow-hidden">
-              <Picture image={hero3d} sizes="(min-width:768px) 60vw, 100vw" className="absolute inset-0 h-full w-full" />
-            </div>
-          )}
+          <div className="frame flex min-h-56 items-center justify-center bg-[#e9eef5] p-8">
+            <img src={`${BASE_PATH}/brand/logo-horizontal-black.svg`} alt="BuildX HUE" loading="lazy" className="max-h-28 w-auto max-w-full" />
+          </div>
         </div>
       </Band>
     </>

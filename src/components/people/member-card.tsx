@@ -64,7 +64,7 @@ export function MemberCard({ m, href, locale = "en", serial, priority }: { m: Me
             <span className={cn("rounded-sm bg-gradient-to-br p-px", t.ring)}>
               <span className={cn("block rounded-[1px] bg-void/80 px-2 py-1 font-mono text-[0.55rem] font-semibold tracking-[0.22em] backdrop-blur", t.text)}>{t.label}</span>
             </span>
-            <Mark tone="white" className="h-4 w-auto opacity-60" />
+            <Mark className="h-5 w-auto opacity-80" />
           </div>
           {m.team && <span aria-hidden className="absolute inset-y-0 start-0 w-[3px]" style={{ background: m.team.accent }} />}
         </div>

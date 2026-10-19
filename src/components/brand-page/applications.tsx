@@ -1,4 +1,5 @@
 import { Mark, Wordmark } from "@/components/brand/logo";
+import { BASE_PATH } from "@/lib/deploy";
 
 /** Member ID card (front/back). The QR SVG is generated server-side from the real join URL. */
 export function IdCard({ qrSvg, role = "MEMBER" }: { qrSvg: string; role?: string }) {
@@ -9,7 +10,7 @@ export function IdCard({ qrSvg, role = "MEMBER" }: { qrSvg: string; role?: strin
         <div aria-hidden className="absolute -end-10 -top-10 size-40 rounded-full bg-volt/25 blur-3xl" />
         <div className="relative flex h-full flex-col items-center px-5 pb-5 pt-6">
           <div className="flex w-full items-center justify-between">
-            <Mark className="h-6 w-auto" />
+            <Mark className="h-9 w-auto" />
             <span className="font-mono text-[0.5rem] tracking-[0.25em] text-fog">ID · 2026</span>
           </div>
           <div className="mt-6 flex size-24 items-center justify-center rounded-full border-2 border-volt/60 bg-panel">
@@ -61,18 +62,12 @@ export function ShirtFlats() {
             <path d="M62 232 L178 232" stroke="#2b6dff" strokeWidth="3" />
             <path d="M18 52 L42 86 M222 52 L198 86" stroke="#2b6dff" strokeWidth="2" />
             {side === "front" ? (
-              <g transform="translate(132 62) scale(0.26)">
-                <path fillRule="evenodd" fill="#F2F5F8" d="M0 16L16 0L46 0L56 10L56 49L46 59L38 59L58 100L38 100L20 62L18 62L18 100L0 100ZM18 18L38 18L38 41L18 41ZM64 0L82 0L82 100L64 100ZM100 0L118 0L118 84L102 100L100 100Z" />
-                <path fill="#2B6DFF" d="M82 41L100 41L100 59L82 59Z" />
-              </g>
+              <image href={`${BASE_PATH}/brand/logo-badge-160.png`} x="132" y="56" width="34" height="32" />
             ) : (
               <g>
-                <g transform="translate(85 70) scale(0.6)">
-                  <path fillRule="evenodd" fill="#F2F5F8" d="M0 16L16 0L46 0L56 10L56 49L46 59L38 59L58 100L38 100L20 62L18 62L18 100L0 100ZM18 18L38 18L38 41L18 41ZM64 0L82 0L82 100L64 100ZM100 0L118 0L118 84L102 100L100 100Z" />
-                  <path fill="#2B6DFF" d="M82 41L100 41L100 59L82 59Z" />
-                </g>
+                <image href={`${BASE_PATH}/brand/logo-badge-512.png`} x="84" y="52" width="72" height="69" />
                 <text x="120" y="150" textAnchor="middle" fill="#F2F5F8" fontFamily="var(--font-saira)" fontWeight="800" fontSize="15" letterSpacing="1">
-                  HUE ROBO<tspan fill="#2B6DFF">HUB</tspan>
+                  BUILD<tspan fill="#2B6DFF">X</tspan> HUE
                 </text>
                 <text x="120" y="166" textAnchor="middle" fill="#9fb0c9" fontFamily="var(--font-jbmono)" fontSize="6.5" letterSpacing="3">
                   BUILD • INNOVATE • COMPETE
