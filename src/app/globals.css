@@ -1078,3 +1078,12 @@ html[data-intro="play"] .hero-lock-label {
     animation: none;
   }
 }
+
+/* BuildX Lab: "reduce motion" chosen in its settings (the system setting applies on its own). */
+.bx-reduce-motion *,
+.bx-reduce-motion *::before,
+.bx-reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}

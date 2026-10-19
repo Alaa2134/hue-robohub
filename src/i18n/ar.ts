@@ -35,6 +35,7 @@ const ar: Dictionary = {
     news: "الأخبار",
     resources: "المصادر",
     directory: "مواقع هتفيدك",
+    lab: "معمل BuildX",
     join: "انضم لنا",
     contact: "تواصل معنا",
     commandCenter: "مركز القيادة",

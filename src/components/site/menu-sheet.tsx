@@ -171,13 +171,20 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-1">
                   {g.items.map((n) => (
                     <li key={n.href}>
-                      <Link
-                        href={href(n.href)}
-                        className={cn("flex min-h-10 items-center gap-2.5 text-[0.95rem] transition-colors", isActive(path, n.href) ? "text-chalk" : "text-mist hover:text-chalk")}
-                      >
-                        {n.icon && <Icon name={n.icon} size={16} className="text-fog" />}
-                        {t[n.key]}
-                      </Link>
+                      {n.external ? (
+                        <a href={n.href} className="flex min-h-10 items-center gap-2.5 text-[0.95rem] text-mist transition-colors hover:text-chalk">
+                          {n.icon && <Icon name={n.icon} size={16} className="text-cyan" />}
+                          {t[n.key]}
+                        </a>
+                      ) : (
+                        <Link
+                          href={href(n.href)}
+                          className={cn("flex min-h-10 items-center gap-2.5 text-[0.95rem] transition-colors", isActive(path, n.href) ? "text-chalk" : "text-mist hover:text-chalk")}
+                        >
+                          {n.icon && <Icon name={n.icon} size={16} className="text-fog" />}
+                          {t[n.key]}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

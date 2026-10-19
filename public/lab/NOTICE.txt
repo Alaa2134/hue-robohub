@@ -1,0 +1,25 @@
+BuildX Lab — third-party software
+=================================
+
+The Arduino compiler in BuildX Lab runs in your browser. It is built from:
+
+* GCC (cc1plus) for AVR — GNU General Public License v3 or later
+  Source: https://gcc.gnu.org/  (AVR target)
+* GNU Binutils (avr-as, avr-ld, avr-objcopy) — GNU General Public License v3 or later
+  Source: https://www.gnu.org/software/binutils/
+  Both compiled to WebAssembly by @horang-corp/avr-gcc-wasm:
+  https://github.com/horang-corp/avr-gcc-wasm  (build scripts and notices)
+  https://www.npmjs.com/package/@horang-corp/avr-gcc-wasm
+* avr-libc — modified BSD license — https://github.com/avrdudes/avr-libc
+* Arduino AVR core (LGPL 2.1) and the Servo, Wire, SPI and Firmata libraries —
+  https://github.com/arduino/ArduinoCore-avr
+* Adafruit GFX, SSD1306, BusIO, Unified Sensor, BMP085, DHT (BSD / MIT) — https://github.com/adafruit
+* VL53L0X (Pololu, MIT) — https://github.com/pololu/vl53l0x-arduino
+
+The files are served unmodified, except that the Arduino core and library objects are packed into
+one archive (libarduino.a) and unused per-chip headers are left out.
+
+The simulator uses avr8js (MIT, https://github.com/wokwi/avr8js). The code editor is CodeMirror
+(MIT, https://codemirror.net).
+
+Your sketches are compiled on your own device; they are not sent to a server to compile.

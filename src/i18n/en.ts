@@ -33,6 +33,7 @@ const en = {
     news: "News",
     resources: "Resources",
     directory: "Useful websites",
+    lab: "BuildX Lab",
     join: "Join us",
     contact: "Contact",
     commandCenter: "Command Center",
