@@ -954,7 +954,8 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
 
   const next = (r: Run) => r.items.findIndex((i) => i.state === "wait");
   const open = (r: Run, i: number) => {
-    const it = r.items[i]!;
+    const it = r.items[i];
+    if (!it) return "";
     const msg = fill(r.text, it.name, it.vars);
     const url = phone ? `https://wa.me/${waDigits(it.phone)}?text=${encodeURIComponent(msg)}` : `https://web.whatsapp.com/send?phone=${waDigits(it.phone)}&text=${encodeURIComponent(msg)}`;
     // One WhatsApp Web tab, reused for everyone (on a phone, the WhatsApp app).
@@ -1032,10 +1033,14 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
               المحادثة ماتفتحتش؟ افتحها تاني
             </button>
           </>
-        ) : (
+        ) : left ? (
           <Button variant="primary" onClick={() => open(run, next(run))}>
             كمّل من مكانك ({left} فاضل)
           </Button>
+        ) : (
+          <p className="text-sm text-mist" data-testid="wa-web-done">
+            {run.items.length > sent ? `خلصت: ${sent} اتبعت · ${run.items.length - sent} اتخطّوا.` : `خلصت: ${sent} اتبعت.`}
+          </p>
         )}
         <Button
           size="sm"

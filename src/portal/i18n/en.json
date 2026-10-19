@@ -2265,6 +2265,8 @@
  "خلص": "Done",
  "خلصت": "Done",
  "خلصت · {0} مشترك": "Ended · Players: {0}",
+ "خلصت: {0} اتبعت · {1} اتخطّوا.": "Done: {0} sent · {1} skipped.",
+ "خلصت: {0} اتبعت.": "Done: {0} sent.",
  "خلصت: {0} رسالة": "Done: {0} messages",
  "خلفية الفورم": "Form background",
  "خليك عارف كل جديد": "Stay in the loop",
