@@ -19,6 +19,8 @@ export type Model = {
   /** Height of the part's top surface when other parts plug into it (breadboards, boards). */
   hostTop?: number;
   update?: (r: Reading, live: Live, dt: number) => void;
+  /** Named points (part-local mm) where the 2D view draws live overlays (LED glow, display text). */
+  anchors?: Record<string, [number, number, number]>;
   /** Meshes that respond to a click while the simulation runs. */
   hits?: { mesh: THREE.Object3D; action: "press" | "toggle" }[];
   dispose?: () => void;
@@ -246,6 +248,7 @@ function uno(): Model {
     group: g,
     pinTop: top + 8.5,
     hostTop: top + 8.5,
+    anchors: { L: [P(132), top + 0.6, P(38)], TX: [P(132), top + 0.6, P(50)], ON: [P(242), top + 0.6, P(90)] },
     update(r) {
       ledON.emissiveIntensity = r ? 2.2 : 0;
       ledL.emissiveIntensity = r ? 3 * Math.min(1, (r.vD13 ?? 0) / 5) : 0;
@@ -273,6 +276,7 @@ function nano(): Model {
     group: g,
     pinTop: 0,
     hostTop: top,
+    anchors: { L: [P(28), top + 0.6, P(32)] },
     update(r) {
       l.emissiveIntensity = r ? 3 * Math.min(1, (r.vD13 ?? 0) / 5) : 0;
     },
@@ -392,6 +396,7 @@ function led(p: PartInstance): Model {
   return {
     group: g,
     pinTop: 0,
+    anchors: { glow: [cx, lift + 5, 0] },
     update(r) {
       const on = Math.min(1, (r?.i ?? 0) / 0.015);
       lens.emissiveIntensity = on * 14;
@@ -417,6 +422,7 @@ function rgbLed(p: PartInstance): Model {
   return {
     group: g,
     pinTop: 0,
+    anchors: { glow: [cx, lift + 5, 0] },
     update(r) {
       const k = (x?: number) => Math.min(1, (x ?? 0) / 0.015);
       const col = new THREE.Color(k(r?.iR), k(r?.iG), k(r?.iB));
@@ -505,7 +511,7 @@ function capacitor(p: PartInstance): Model {
     disc.castShadow = true;
     g.add(disc);
   }
-  return { group: g, pinTop: 0 };
+  return { group: g, pinTop: 0, anchors: { label: [cx, 14, 0] } };
 }
 
 function diode(): Model {
@@ -568,7 +574,7 @@ function buzzer(): Model {
   ring.rotation.x = Math.PI / 2;
   ring.position.set(cx, 8.5, 0);
   g.add(ring);
-  return { group: g, pinTop: 0 };
+  return { group: g, pinTop: 0, anchors: { top: [cx, 9, 0] } };
 }
 
 function servo(): Model {
@@ -590,6 +596,7 @@ function servo(): Model {
   return {
     group: g,
     pinTop: 2.6,
+    anchors: { label: [P(10) + 2, 30, bodyZ] },
     update(r) {
       const a = r && r.angle >= 0 ? r.angle : 90;
       horn.rotation.y = ((a - 90) * Math.PI) / 180;
@@ -622,6 +629,7 @@ function motor(): Model {
   return {
     group: g,
     pinTop: 0,
+    anchors: { label: [cx, 22, -16] },
     update(r, _l, dt) {
       angle += (r?.speed ?? 0) * dt * 40;
       fan.rotation.y = angle;
@@ -644,7 +652,7 @@ function battery9v(): Model {
     c.fillText("9V", 128, 90);
   });
   const label = new THREE.Mesh(new THREE.PlaneGeometry(24, 12), new THREE.MeshStandardMaterial({ map: t.texture, roughness: 0.4 }));
-  label.rotation.set(-Math.PI / 2, 0, Math.PI);
+  label.rotation.x = -Math.PI / 2;
   label.position.set(P(10), 18.1, -38);
   g.add(label);
   return { group: g, pinTop: 0, dispose: () => t.texture.dispose() };
@@ -700,6 +708,7 @@ function supply(p: PartInstance): Model {
   return {
     group: g,
     pinTop: 0,
+    anchors: { screen: [P(25) - 8, 20, -9.9] },
     update(r) {
       d.draw([`${Number(propsOf(p).v).toFixed(1)} V`, r ? `${(Math.abs(r.i ?? 0) * 1000).toFixed(0)} mA` : "DC"]);
     },
@@ -731,7 +740,7 @@ function ldr(): Model {
   disc.position.set(cx, 6.6, 0);
   disc.castShadow = true;
   g.add(disc);
-  return { group: g, pinTop: 0, dispose: () => t.texture.dispose() };
+  return { group: g, pinTop: 0, anchors: { label: [cx, 11, 0] }, dispose: () => t.texture.dispose() };
 }
 
 function thermistor(): Model {
@@ -742,7 +751,7 @@ function thermistor(): Model {
   bead.scale.set(1, 1.25, 0.8);
   bead.position.set(cx, 6.2, 0);
   g.add(bead);
-  return { group: g, pinTop: 0 };
+  return { group: g, pinTop: 0, anchors: { label: [cx, 10, 0] } };
 }
 
 function sonar(): Model {
@@ -764,7 +773,7 @@ function sonar(): Model {
   xtal.rotation.x = -Math.PI / 2;
   xtal.position.set(cx, 23, -2);
   g.add(xtal);
-  return { group: g, pinTop: 4.5 };
+  return { group: g, pinTop: 4.5, anchors: { label: [cx, 28, -2] } };
 }
 
 function meter(kind: "V" | "A"): Model {
@@ -774,7 +783,7 @@ function meter(kind: "V" | "A"): Model {
   g.add(roundedBox(36, 15, 66, 4, std("#2a2a2a", 0.5), P(15), 0, -45));
   const d = display(256, 128, "#c5d4b5", "#1d2a12");
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(28, 14), new THREE.MeshStandardMaterial({ map: d.texture, roughness: 0.4 }));
-  screen.rotation.set(-Math.PI / 2, 0, Math.PI);
+  screen.rotation.x = -Math.PI / 2;
   screen.position.set(P(15), 15.2, -65);
   g.add(screen);
   const dial = cyl(9, 2, std("#3a3a3a", 0.4), P(15), 15, -42);
@@ -782,6 +791,7 @@ function meter(kind: "V" | "A"): Model {
   return {
     group: g,
     pinTop: 0,
+    anchors: { screen: [P(15), 15.2, -65] },
     update(r) {
       const v = kind === "V" ? r?.v : r?.i;
       d.draw([v === undefined ? "----" : kind === "V" ? v.toFixed(2) : (v * 1000).toFixed(1), kind === "V" ? "V DC" : "mA DC"]);

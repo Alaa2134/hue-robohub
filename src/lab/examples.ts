@@ -399,7 +399,7 @@ function make(): Example[] {
     const q = part("npn", hole("f10"), { beta: 150 });
     const rb = part("resistor", hole("h7"), { r: 1000 });
     const motor = part("dc-motor", [420, -150], { rated: 9 });
-    const bat = part("battery-9v", [420, 60]);
+    const bat = part("battery-9v", [420, 0], {}, 90);
     list.push({
       slug: "transistor-motor",
       title: L("Transistor motor driver", "تشغيل موتور بترانزستور"),
@@ -414,7 +414,7 @@ function make(): Example[] {
           jump("j10", "bn10", "#2b2b2b"),
           w(["bb", "j12"], [motor.id, "-"], "#3e63dd", [[130, -85], [440, -85]]),
           w([bat.id, "+"], [motor.id, "+"], "#e5484d"),
-          w([bat.id, "-"], ["bb", "bn30"], "#2b2b2b", [[440, 80], [340, 80], [340, -70]]),
+          w([bat.id, "-"], ["bb", "bn30"], "#2b2b2b", [[340, 20], [340, -70]]),
         ],
         CODE.motor,
       ),

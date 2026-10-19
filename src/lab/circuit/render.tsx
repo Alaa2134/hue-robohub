@@ -4,7 +4,7 @@
  * simulation runs, `r` carries the part's averaged readings (LED current, servo angle, meter value…)
  * and the drawing follows them; with no reading the part is drawn at rest.
  */
-import { memo, type ReactNode } from "react";
+import { memo, useEffect, useState, type ReactNode } from "react";
 import type { PartInstance } from "./model";
 import { BB_ROWS, LED_COLORS, PART_BY_TYPE, bbCols, propsOf, worldBox, worldPins } from "./parts";
 
@@ -677,4 +677,151 @@ function ThumbInner({ doc, className }: Parameters<typeof CircuitThumb>[0]) {
       })}
     </svg>
   );
+}
+
+/* ─── Realistic pictures (rendered from the 3D models) ─────────────────── */
+
+type SpriteMod = typeof import("./view3d/sprites");
+let spriteMod: SpriteMod | null = null;
+let spriteLoad: Promise<void> | null = null;
+const spriteSubs = new Set<() => void>();
+function loadSprites() {
+  spriteLoad ??= import("./view3d/sprites").then((m) => {
+    spriteMod = m;
+    m.onSprites(() => spriteSubs.forEach((s) => s()));
+    spriteSubs.forEach((s) => s());
+  });
+  return spriteLoad;
+}
+
+/** Re-render when realistic pictures become available. */
+export function useSpriteTick() {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const fn = () => setTick((t) => t + 1);
+    spriteSubs.add(fn);
+    void loadSprites();
+    return () => void spriteSubs.delete(fn);
+  }, []);
+}
+
+const ACTION: Record<string, string> = { pushbutton: "press", "slide-switch": "toggle", potentiometer: "knob" };
+
+/**
+ * A part on the canvas, positioned at its origin (the caller translates): the realistic picture with
+ * live overlays when it's ready, else the drawing. Pictures are already rotated; drawings rotate here.
+ */
+export function PartVisual({ p, r, live = {}, realistic }: { p: PartInstance; r?: Reading; live?: Record<string, unknown>; realistic: boolean }) {
+  const sprite = realistic && spriteMod ? spriteMod.getSprite(p, live, r) : null;
+  if (!sprite)
+    return (
+      <g transform={`rotate(${p.rot})`}>
+        <PartArt p={p} r={r} live={live} />
+      </g>
+    );
+  const a = sprite.anchors;
+  const action = ACTION[p.type];
+  return (
+    <g data-action={action} style={action ? { cursor: "pointer" } : undefined}>
+      <image href={sprite.url} x={sprite.x} y={sprite.y} width={sprite.w} height={sprite.h} preserveAspectRatio="none" />
+      <SpriteOverlay p={p} r={r} live={live} a={a} />
+    </g>
+  );
+}
+
+function Glow({ at, color, k, size = 1 }: { at?: [number, number]; color: string; k: number; size?: number }) {
+  if (!at || k <= 0.02) return null;
+  return (
+    <g pointerEvents="none">
+      <circle cx={at[0]} cy={at[1]} r={(10 + 12 * k) * size} fill={color} opacity={0.22 + 0.4 * k} style={{ filter: "blur(4px)" }} />
+      <circle cx={at[0]} cy={at[1]} r={(4 + 3 * k) * size} fill="#ffffff" opacity={0.35 + 0.55 * k} style={{ filter: "blur(1.5px)" }} />
+    </g>
+  );
+}
+
+function Tag({ at, children, color = "#7fe3ff" }: { at?: [number, number]; children: ReactNode; color?: string }) {
+  if (!at) return null;
+  return (
+    <g pointerEvents="none">
+      <text x={at[0]} y={at[1]} fontSize={6} fontFamily={FONT} textAnchor="middle" fill="#050e26" stroke="#050e26" strokeWidth={2.4} strokeLinejoin="round" style={{ userSelect: "none" }}>
+        {children}
+      </text>
+      <text x={at[0]} y={at[1]} fontSize={6} fontFamily={FONT} textAnchor="middle" fill={color} style={{ userSelect: "none" }}>
+        {children}
+      </text>
+    </g>
+  );
+}
+
+function Screen({ at, lines, bg, fg, w = 26, h = 13 }: { at?: [number, number]; lines: string[]; bg: string; fg: string; w?: number; h?: number }) {
+  if (!at) return null;
+  return (
+    <g pointerEvents="none">
+      <rect x={at[0] - w / 2} y={at[1] - h / 2} width={w} height={h} rx={1.5} fill={bg} />
+      <text x={at[0]} y={at[1] + (lines[1] ? 0.5 : 2.5)} fontSize={lines[1] ? 6 : 7} fontFamily={FONT} textAnchor="middle" fill={fg} fontWeight={700}>
+        {lines[0]}
+      </text>
+      {lines[1] && (
+        <text x={at[0]} y={at[1] + 5} fontSize={3.4} fontFamily={FONT} textAnchor="middle" fill={fg}>
+          {lines[1]}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function SpriteOverlay({ p, r, live, a }: { p: PartInstance; r?: Reading; live: Record<string, unknown>; a: Record<string, [number, number]> }) {
+  const pr = propsOf(p);
+  switch (p.type) {
+    case "led": {
+      const c = LED_COLORS[String(pr.color)] ?? LED_COLORS.red;
+      return <Glow at={a.glow} color={c.glow} k={clamp01((r?.i ?? 0) / 0.015)} />;
+    }
+    case "rgb-led": {
+      const k = (x?: number) => clamp01((x ?? 0) / 0.015);
+      const m = Math.max(k(r?.iR), k(r?.iG), k(r?.iB));
+      return <Glow at={a.glow} color={`rgb(${Math.round(255 * k(r?.iR))},${Math.round(255 * k(r?.iG))},${Math.round(255 * k(r?.iB))})`} k={m} />;
+    }
+    case "arduino-uno":
+    case "arduino-nano":
+      return (
+        <>
+          <Glow at={a.L} color="#ffa21a" k={clamp01((r?.vD13 ?? 0) / 5)} size={0.45} />
+          <Glow at={a.TX} color="#ffd23a" k={r?.tx ? 1 : 0} size={0.4} />
+          <Glow at={a.ON} color="#3cff6a" k={r ? 0.8 : 0} size={0.4} />
+        </>
+      );
+    case "buzzer": {
+      const sounding = pr.active ? (r?.v ?? 0) > 2.5 : (r?.freq ?? 0) > 0;
+      if (!sounding || !a.top) return null;
+      return (
+        <g pointerEvents="none">
+          <circle cx={a.top[0]} cy={a.top[1]} r={18} fill="none" stroke="#3cc4ff" strokeWidth={1.2} opacity={0.7} />
+          <circle cx={a.top[0]} cy={a.top[1]} r={26} fill="none" stroke="#3cc4ff" strokeWidth={0.8} opacity={0.4} />
+          {r?.freq ? <Tag at={[a.top[0], a.top[1] - 30]}>{`${Math.round(r.freq)} Hz`}</Tag> : null}
+        </g>
+      );
+    }
+    case "servo":
+      return r && r.angle >= 0 ? <Tag at={a.label}>{`${Math.round(r.angle)}°`}</Tag> : null;
+    case "dc-motor":
+      return r ? <Tag at={a.label}>{`${Math.round(Math.abs(r.speed ?? 0) * 100)}%`}</Tag> : null;
+    case "voltmeter":
+    case "ammeter": {
+      const v = p.type === "voltmeter" ? r?.v : r?.i;
+      return <Screen at={a.screen} bg="#c5d4b5" fg="#1d2a12" lines={[v === undefined ? "----" : p.type === "voltmeter" ? v.toFixed(2) : (v * 1000).toFixed(1), p.type === "voltmeter" ? "V DC" : "mA DC"]} w={28} h={11} />;
+    }
+    case "power-supply":
+      return <Screen at={a.screen} bg="#0b1a10" fg="#5cff7a" lines={[`${Number(pr.v).toFixed(1)} V`, r ? `${(Math.abs(r.i ?? 0) * 1000).toFixed(0)} mA` : "DC"]} w={34} h={17} />;
+    case "capacitor":
+      return r ? <Tag at={a.label}>{eng(r.v ?? 0, "V", 2)}</Tag> : null;
+    case "ldr":
+      return <Tag at={a.label} color="#ffe54a">{`${Math.round(Number(live.lux ?? pr.lux ?? 300))} lx`}</Tag>;
+    case "thermistor":
+      return <Tag at={a.label} color="#ff9a3c">{`${Number(live.temp ?? pr.temp ?? 25).toFixed(0)}°C`}</Tag>;
+    case "hc-sr04":
+      return <Tag at={a.label}>{`${Math.round(Number(live.cm ?? pr.cm ?? 50))} cm`}</Tag>;
+    default:
+      return null;
+  }
 }

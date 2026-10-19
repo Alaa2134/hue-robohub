@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GRID, WIRE_COLORS, type CircuitDoc, type PartInstance } from "./model";
 import { DocStore, pinIndex, snap, useDoc } from "./doc-store";
 import { PART_BY_TYPE, worldBox } from "./parts";
-import { PartArt, type Reading } from "./render";
+import { PartArt, PartVisual, useSpriteTick, type Reading } from "./render";
 
 export type View = { x: number; y: number; zoom: number };
 type Pin = { part: string; pin: string; x: number; y: number };
@@ -43,6 +43,7 @@ export function Canvas({
   wireColor,
   readOnly,
   boardPinVolts,
+  realistic = true,
 }: {
   store: DocStore;
   view: View;
@@ -56,8 +57,10 @@ export function Canvas({
   wireColor: string;
   readOnly: boolean;
   boardPinVolts?: (part: string, pin: string) => number | undefined;
+  realistic?: boolean;
 }) {
   const { doc, sel } = useDoc(store);
+  useSpriteTick();
   const svg = useRef<SVGSVGElement>(null);
   const [mode, setMode] = useState<Mode>({ k: "idle" });
   const modeRef = useRef(mode);
@@ -363,8 +366,8 @@ export function Canvas({
         {parts.map((p) => {
           const sup = PART_BY_TYPE.get(p.type)?.support;
           return (
-            <g key={p.id} data-part={p.id} transform={`translate(${p.x} ${p.y}) rotate(${p.rot})`} style={{ cursor: locked ? "default" : "move" }} data-testid={`part-${p.type}`}>
-              <PartArt p={p} r={readings[p.id]} live={live[p.id]} />
+            <g key={p.id} data-part={p.id} transform={`translate(${p.x} ${p.y})`} style={{ cursor: locked ? "default" : "move" }} data-testid={`part-${p.type}`}>
+              <PartVisual p={p} r={readings[p.id]} live={live[p.id]} realistic={realistic} />
               {sup === "visual" && <text y={-6} fontSize={6} fill="#ffb547">VISUAL ONLY</text>}
             </g>
           );
