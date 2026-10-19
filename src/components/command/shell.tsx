@@ -160,7 +160,7 @@ export function CommandShell({ user, nav, actions, unread, children }: { user: S
       <aside className={cn("fixed inset-y-0 start-0 z-40 hidden flex-col border-e border-[var(--line)] bg-void/80 backdrop-blur-xl transition-[width] duration-500 ease-[var(--ease-out-expo)] lg:flex", collapsed ? "w-[4.5rem]" : "w-[16.5rem]")}>
         <div className={cn("flex h-16 shrink-0 items-center gap-3 border-b border-[var(--line)] px-5", collapsed && "justify-center px-0")}>
           <Link href="/command" aria-label="Command Center overview" className="flex items-center gap-3">
-            <Mark className="h-7 w-auto" />
+            <Mark className="h-9 w-auto" />
             {!collapsed && (
               <span className="flex flex-col gap-1">
                 <Wordmark className="h-[0.7rem] w-auto" />
@@ -201,7 +201,7 @@ export function CommandShell({ user, nav, actions, unread, children }: { user: S
         <button type="button" tabIndex={-1} aria-label="Close menu" onClick={() => setDrawer(false)} className={cn("absolute inset-0 bg-void/70 backdrop-blur-sm transition-opacity", drawer ? "opacity-100" : "opacity-0")} />
         <div className={cn("absolute inset-y-0 start-0 flex w-[82vw] max-w-xs flex-col bg-void transition-transform duration-500 ease-[var(--ease-out-expo)]", drawer ? "translate-x-0" : "-translate-x-full rtl:translate-x-full")} style={{ paddingTop: "env(safe-area-inset-top)" }}>
           <div className="flex h-16 items-center gap-3 border-b border-[var(--line)] px-5">
-            <Mark className="h-7 w-auto" />
+            <Mark className="h-9 w-auto" />
             <span className="font-mono text-[0.55rem] uppercase tracking-[0.3em] text-cyan">Mission Control</span>
           </div>
           <div className="flex-1 overflow-y-auto px-3 py-5">

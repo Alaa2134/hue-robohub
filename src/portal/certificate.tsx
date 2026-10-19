@@ -255,7 +255,7 @@ function ClassicSheet({ c }: { c: Certificate }) {
             boxShadow: "inset 0.4em 0 0 rgb(232 199 122 / 0.9), inset 0.9em 0 0 rgb(8 22 52 / 1), inset 1.05em 0 0 rgb(232 199 122 / 0.45)",
           }}
         >
-          <img src={`${BASE_PATH}/brand/logo-stacked-white.svg`} alt="BuildX HUE" style={{ width: "13em", height: "auto" }} />
+          <img src={`${BASE_PATH}/brand/logo-stacked-white.png`} alt="BuildX HUE" style={{ width: "13em", height: "auto" }} />
 
           {/* Seal */}
           <div
@@ -273,7 +273,7 @@ function ClassicSheet({ c }: { c: Certificate }) {
               className="flex size-full flex-col items-center justify-center"
               style={{ borderRadius: "50%", border: `0.18em dashed rgb(8 22 52 / 0.55)`, gap: "0.4em" }}
             >
-              <img src={`${BASE_PATH}/brand/mark-black.svg`} alt="" style={{ width: "5.2em", height: "auto", opacity: 0.9 }} />
+              <img src={`${BASE_PATH}/brand/logo-badge-512.png`} alt="" style={{ width: "5.6em", height: "auto" }} />
               <span style={{ fontFamily: EN, fontWeight: 800, fontSize: "1.25em", letterSpacing: "0.18em", color: NAVY }}>BUILDX HUE</span>
               <span style={{ fontFamily: EN, fontWeight: 600, fontSize: "0.95em", letterSpacing: "0.3em", color: "rgb(8 22 52 / 0.75)" }}>{year}</span>
             </div>
@@ -297,7 +297,7 @@ function ClassicSheet({ c }: { c: Certificate }) {
         <div className="absolute inset-y-0 left-0" style={{ right: "27em" }}>
           {/* Watermark and frame */}
           <img
-            src={`${BASE_PATH}/brand/mark-black.svg`}
+            src={`${BASE_PATH}/brand/logo-badge-512.png`}
             alt=""
             className="pointer-events-none absolute"
             style={{ width: "44em", left: "50%", top: "52%", transform: "translate(-50%, -50%)", opacity: 0.022 }}

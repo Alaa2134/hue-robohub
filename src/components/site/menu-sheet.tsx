@@ -215,7 +215,7 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
         </div>
 
         <div aria-hidden className="pointer-events-none absolute -bottom-10 end-6 hidden opacity-[0.04] lg:block">
-          <Mark tone="white" className="h-[22rem] w-auto" />
+          <Mark large className="h-[22rem] w-auto" />
         </div>
       </div>
     </div>

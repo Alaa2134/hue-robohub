@@ -60,7 +60,7 @@ export default async function MemberProfile({ params }: P) {
               {m.team && <span aria-hidden className="absolute inset-y-0 start-0 w-1" style={{ background: m.team.accent }} />}
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-5">
                 <span className="font-mono text-[0.65rem] tracking-[0.2em] text-mist">BUILDX HUE · MEMBER</span>
-                <Mark tone="white" className="h-6 w-auto opacity-80" />
+                <Mark className="h-7 w-auto" />
               </div>
             </div>
           </div>

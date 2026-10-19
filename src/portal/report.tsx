@@ -53,7 +53,7 @@ function Page({ r }: { r: Report }) {
           <div style={{ fontSize: 22, fontWeight: 800 }}>تقرير الطالب الشهري</div>
           <div style={{ color: "#45526b", marginTop: 4 }}>{monthName(r.from)}</div>
         </div>
-        <img src={`${BASE_PATH}/brand/logo-horizontal-black.svg`} alt="BuildX HUE" style={{ height: 34 }} />
+        <img src={`${BASE_PATH}/brand/logo-horizontal-black.png`} alt="BuildX HUE" style={{ height: 34 }} />
       </div>
 
       <div style={{ display: "flex", gap: 24, marginTop: 18, alignItems: "baseline" }}>

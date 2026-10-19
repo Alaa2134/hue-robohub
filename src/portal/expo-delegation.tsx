@@ -159,7 +159,7 @@ function PdfPage({ form, list, from, page, pages, last }: { form: DelegationForm
             {[g.event, g.dates].filter(Boolean).join(" · ") || form.title_ar}
           </div>
         </div>
-        <img src={`${BASE_PATH}/brand/logo-horizontal-black.svg`} alt="BuildX HUE" style={{ height: page === 1 ? 40 : 30 }} />
+        <img src={`${BASE_PATH}/brand/logo-horizontal-black.png`} alt="BuildX HUE" style={{ height: page === 1 ? 40 : 30 }} />
       </div>
 
       {page === 1 && (

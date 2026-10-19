@@ -104,7 +104,7 @@ function Poster({ a }: { a: Art }) {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <img src={`${BASE_PATH}/brand/logo-horizontal-white.svg`} alt="BuildX HUE" style={{ height: 40 }} />
+          <img src={`${BASE_PATH}/brand/logo-horizontal-white.png`} alt="BuildX HUE" style={{ height: 40 }} />
           <Chip size={15}>{a.year}</Chip>
         </div>
         <div
@@ -221,7 +221,7 @@ function Post({ a }: { a: Art }) {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <img src={`${BASE_PATH}/brand/logo-horizontal-white.svg`} alt="" style={{ height: 52 }} />
+        <img src={`${BASE_PATH}/brand/logo-horizontal-white.png`} alt="" style={{ height: 52 }} />
         <Chip size={24}>{a.year}</Chip>
       </div>
       <div style={{ marginTop: 70, fontSize: 40, fontWeight: 600, opacity: 0.85 }}>التسجيل مفتوح 🎉</div>
@@ -267,7 +267,7 @@ function Story({ a }: { a: Art }) {
         textAlign: "center",
       }}
     >
-      <img src={`${BASE_PATH}/brand/logo-horizontal-white.svg`} alt="" style={{ height: 64 }} />
+      <img src={`${BASE_PATH}/brand/logo-horizontal-white.png`} alt="" style={{ height: 64 }} />
       <div style={{ marginTop: 26 }}>
         <Chip size={28}>{a.year}</Chip>
       </div>

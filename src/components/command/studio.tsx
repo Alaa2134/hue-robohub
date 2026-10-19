@@ -214,7 +214,7 @@ export function Studio({ art, presets, joinUrl }: { art: StudioArt[]; presets: S
       const fams = [fam("--font-saira"), fam("--font-inter"), fam("--font-jbmono"), fam("--font-kufi"), fam("--font-plex-arabic")];
       await Promise.all(fams.map((f) => document.fonts.load(`700 40px ${f}`).catch(() => null)));
       const src = upload ?? s.art;
-      const [bg, logo] = await Promise.all([src ? load(src).catch(() => null) : null, load("/brand/logo-horizontal-white.svg").catch(() => null)]);
+      const [bg, logo] = await Promise.all([src ? load(src).catch(() => null) : null, load("/brand/logo-horizontal-white.png").catch(() => null)]);
       if (!cancel && canvas.current) await render(canvas.current, s, bg, logo);
     })();
     return () => {
