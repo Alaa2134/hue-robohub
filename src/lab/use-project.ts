@@ -38,6 +38,8 @@ export function useProject<T>(id: string, share: string | null, opts: { getData:
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<"not_found" | "network" | null>(null);
   const [state, setState] = useState<SaveState>("saved");
+  /** When the last save in this session succeeded (null: not saved since opening). */
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [recovered, setRecovered] = useState<Draft | null>(null);
   const [conflict, setConflict] = useState<{ by: string | null; at: string } | null>(null);
   const revision = useRef(0);
@@ -100,6 +102,7 @@ export function useProject<T>(id: string, share: string | null, opts: { getData:
           dropDraft(id);
           setRecovered(null);
           setState("saved");
+          setSavedAt(new Date());
           return true;
         }
         if (r.error === "conflict") {
@@ -164,5 +167,5 @@ export function useProject<T>(id: string, share: string | null, opts: { getData:
     [project, id],
   );
 
-  return { project, setProject, error, state, save, recovered, discardRecovered, conflict, resolveReload, resolveCopy, rename, canEdit, reload: load, revision };
+  return { project, setProject, error, state, savedAt, save, recovered, discardRecovered, conflict, resolveReload, resolveCopy, rename, canEdit, reload: load, revision };
 }

@@ -6,7 +6,9 @@ import { Badge, Button, Icon, IconButton, Input, Select, cn } from "../ui";
 import type { Diagnostic } from "../compiler/sketch";
 import { diagHelp, diagText, partLabels, type SimDiagnostic } from "../sim/diagnostics";
 import type { Frame } from "../sim/engine";
+import type { SerialLine } from "../sim/use-sim";
 import { DocStore, useDoc } from "./doc-store";
+import { buildNetlist } from "./netlist";
 import { WIRE_COLORS, type CircuitDoc } from "./model";
 import { CATEGORIES, PARTS, PART_BY_TYPE, PIN_COLORS, pinRole, propsOf, type PartDef, type PropDef } from "./parts";
 import { PartArt, eng } from "./render";
@@ -258,6 +260,7 @@ export function Inspector({ store, readings, running, live, onLive, readOnly }: 
   const { t, l } = useLang();
   const { doc, sel } = useDoc(store);
   const labels = useMemo(() => partLabels(doc, l), [doc, l]);
+  const netlist = useMemo(() => buildNetlist(doc), [doc]);
   if (sel.parts.length + sel.wires.length === 0) return <p className="p-4 text-sm leading-relaxed text-fog">{t("noSelection")}</p>;
   if (sel.parts.length + sel.wires.length > 1)
     return (
@@ -350,6 +353,33 @@ export function Inspector({ store, readings, running, live, onLive, readOnly }: 
           </dl>
         </div>
       )}
+      {def.category !== "breadboards" && (
+        <details className="rounded-xl bg-abyss p-3 ring-1 ring-rim" data-testid="connections">
+          <summary className="cursor-pointer text-[11px] font-semibold tracking-wide text-cyan uppercase">{l({ en: "Connections", ar: "التوصيلات" })}</summary>
+          <ul className="mt-2 grid gap-1.5 text-xs" dir="ltr">
+            {def.pins(pr).map((pin) => {
+              const net = netlist.netOf.get(`${p.id}:${pin.name}`);
+              // Everything electrically joined to this pin, except breadboard holes and this part's own pin.
+              const others = (net === undefined ? [] : netlist.nets[net])
+                .map((k) => k.split(":") as [string, string])
+                .filter(([pp, pn]) => !(pp === p.id && pn === pin.name) && PART_BY_TYPE.get(doc.parts.find((x) => x.id === pp)?.type ?? "")?.category !== "breadboards");
+              return (
+                <li key={pin.name} className="flex gap-2">
+                  <span className="w-10 shrink-0 font-mono font-semibold" style={{ color: PIN_COLORS[pinRole(p, pin.name).kind] }}>
+                    {pin.label ?? pin.name}
+                  </span>
+                  <span className={cn("min-w-0", others.length ? "text-mist" : "text-warn")}>
+                    {others.length
+                      ? [...others.reduce((m, [pp, pn]) => m.set(pp, [...(m.get(pp) ?? []), pn]), new Map<string, string[]>())].map(([pp, pins]) => `${labels.get(pp) ?? pp} ${pins.join("/")}`).join(", ")
+                      : l({ en: "not connected", ar: "مش متوصّل" })}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="mt-2 font-mono text-[10px] text-fog">id {p.id}</p>
+        </details>
+      )}
       {!readOnly && !running && (
         <div className="flex flex-wrap gap-2">
           <Button size="sm" icon="rotate" onClick={() => store.rotate([p.id])}>
@@ -369,24 +399,66 @@ export function Inspector({ store, readings, running, live, onLive, readOnly }: 
 
 /* ─── Serial monitor ───────────────────────────────────────────────────── */
 
-export function SerialMonitor({ text, onSend, onClear, enabled }: { text: string; onSend: (s: string) => void; onClear: () => void; enabled: boolean }) {
-  const { t } = useLang();
+export function SerialMonitor({ text, lines, onSend, onClear, enabled, code }: { text: string; lines?: SerialLine[]; onSend: (s: string) => void; onClear: () => void; enabled: boolean; code?: string }) {
+  const { t, l } = useLang();
   const [line, setLine] = useState("");
   const [ending, setEnding] = useState("\n");
   const [auto, setAuto] = useState(true);
+  const [stamps, setStamps] = useState(false);
+  const [sent, setSent] = useState<string[]>([]);
+  const [hist, setHist] = useState(-1);
+  const [copied, setCopied] = useState(false);
   const box = useRef<HTMLPreElement>(null);
   useEffect(() => {
     if (auto && box.current) box.current.scrollTop = box.current.scrollHeight;
-  }, [text, auto]);
+  }, [text, auto, stamps]);
+  // The baud rate the sketch asks for (the simulated USART runs at whatever the program sets).
+  const baud = code?.match(/Serial\.begin\s*\(\s*(\d+)/)?.[1];
   const send = () => {
     if (!enabled) return;
     onSend(line + ending);
+    if (line) setSent((h) => [...h.filter((x) => x !== line), line].slice(-30));
+    setHist(-1);
     setLine("");
   };
+  const shown = stamps && lines ? lines.map((x) => `[${x.t.toFixed(3)} s] ${x.text}`).join("") : text;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(shown);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked: nothing was copied, so say nothing.
+    }
+  };
+  const exportTxt = () => {
+    const url = URL.createObjectURL(new Blob([shown], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "serial-monitor.txt";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const lineCount = lines?.length ?? 0;
   return (
     <div className="flex h-full min-h-0 flex-col" dir="ltr">
+      <div className="flex items-center gap-2 border-b border-[var(--line)] px-2 py-1 text-[11px] text-fog">
+        <span className="font-mono">{baud ? `${baud} baud` : l({ en: "no Serial.begin()", ar: "مفيش Serial.begin()" })}</span>
+        <span className="font-mono">· {lineCount} {l({ en: "lines", ar: "سطر" })}</span>
+        <span className="flex-1" />
+        <label className="flex items-center gap-1">
+          <input type="checkbox" checked={stamps} onChange={(e) => setStamps(e.target.checked)} data-testid="serial-stamps" />
+          {l({ en: "Timestamps (sim time)", ar: "التوقيت (زمن المحاكاة)" })}
+        </label>
+        <button type="button" className="rounded px-1.5 py-0.5 hover:bg-panel hover:text-frost disabled:opacity-40" onClick={copy} disabled={!shown}>
+          {copied ? l({ en: "Copied", ar: "اتنسخ" }) : t("cmCopy")}
+        </button>
+        <button type="button" className="rounded px-1.5 py-0.5 hover:bg-panel hover:text-frost disabled:opacity-40" onClick={exportTxt} disabled={!shown}>
+          .txt
+        </button>
+      </div>
       <pre ref={box} data-testid="serial-output" className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-all bg-[#040b1d] p-3 font-mono text-[12.5px] leading-relaxed text-[#bdf5d0]">
-        {text || <span className="text-fog/60">{t("serialEmpty")}</span>}
+        {shown || <span className="text-fog/60">{t("serialEmpty")}</span>}
       </pre>
       <form
         className="flex items-center gap-2 border-t border-[var(--line)] p-2"
@@ -395,10 +467,32 @@ export function SerialMonitor({ text, onSend, onClear, enabled }: { text: string
           send();
         }}
       >
-        <Input value={line} onChange={(e) => setLine(e.target.value)} placeholder="Serial input" disabled={!enabled} className="h-8 font-mono" aria-label="Serial input" />
+        <Input
+          value={line}
+          onChange={(e) => setLine(e.target.value)}
+          onKeyDown={(e) => {
+            // Up / down: the lines sent before.
+            if (e.key === "ArrowUp" && sent.length) {
+              e.preventDefault();
+              const i = hist < 0 ? sent.length - 1 : Math.max(0, hist - 1);
+              setHist(i);
+              setLine(sent[i]);
+            } else if (e.key === "ArrowDown" && hist >= 0) {
+              e.preventDefault();
+              const i = hist + 1;
+              setHist(i < sent.length ? i : -1);
+              setLine(i < sent.length ? sent[i] : "");
+            }
+          }}
+          placeholder="Serial input"
+          disabled={!enabled}
+          className="h-8 font-mono"
+          aria-label="Serial input"
+        />
         <Select value={ending} onChange={(e) => setEnding(e.target.value)} className="h-8 w-28" aria-label="Line ending">
           <option value={"\n"}>\n</option>
           <option value={"\r\n"}>\r\n</option>
+          <option value={"\r"}>\r</option>
           <option value="">none</option>
         </Select>
         <Button size="sm" type="submit" disabled={!enabled}>

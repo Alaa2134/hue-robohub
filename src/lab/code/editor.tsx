@@ -17,7 +17,7 @@ import type { Diagnostic } from "../compiler/sketch";
 
 const theme = EditorView.theme(
   {
-    "&": { height: "100%", fontSize: "13px", backgroundColor: "#060f27", color: "#dfe8f7" },
+    "&": { height: "100%", fontSize: "var(--code-font, 13px)", backgroundColor: "#060f27", color: "#dfe8f7" },
     ".cm-scroller": { fontFamily: "var(--font-jbmono), ui-monospace, SFMono-Regular, Menlo, monospace", lineHeight: "1.55" },
     ".cm-gutters": { backgroundColor: "#060f27", color: "#4d6290", border: "none" },
     ".cm-activeLine": { backgroundColor: "rgba(47,123,255,.08)" },

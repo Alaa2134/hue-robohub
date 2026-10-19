@@ -22,6 +22,7 @@ import { Canvas, DEFAULT_WIRE, fitView, type CanvasActions, type View } from "./
 import { DocStore, isClipboard, snap, useDoc, type Clipboard } from "./doc-store";
 import { GRID, validDoc, emptyDoc, type CircuitDoc } from "./model";
 import { Diagnostics, Inspector, Library, PartSheet, SerialMonitor } from "./panels";
+import { Oscilloscope, PinMonitor } from "./instruments";
 import { PART_BY_TYPE } from "./parts";
 import { CircuitThumb } from "./render";
 
@@ -29,7 +30,7 @@ import { CircuitThumb } from "./render";
 const Circuit3D = lazy(() => import("./view3d/scene"));
 
 type Side = "code" | "inspector";
-type Bottom = "serial" | "diagnostics";
+type Bottom = "serial" | "diagnostics" | "pins" | "scope";
 type MobileTab = "circuit" | "code" | "serial" | "parts";
 
 const filesKey = (d: CircuitDoc) => JSON.stringify([d.main, d.files]);
@@ -52,7 +53,24 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   const [build, setBuild] = useState<(BuildResult & { key: string }) | null>(null);
   const [compiling, setCompiling] = useState(false);
   const [toolchainBytes, setToolchainBytes] = useState<number | null>(null);
-  const [dialog, setDialog] = useState<null | "share" | "versions" | "export" | "newfile">(null);
+  const [dialog, setDialog] = useState<null | "share" | "versions" | "export" | "newfile" | "rename">(null);
+  const [fontSize, setFontSize] = useState(() => {
+    try {
+      return Math.min(22, Math.max(10, Number(localStorage.getItem("bx-lab-code-font")) || 13));
+    } catch {
+      return 13;
+    }
+  });
+  const zoomCode = (d: number) =>
+    setFontSize((f) => {
+      const n = Math.min(22, Math.max(10, f + d));
+      try {
+        localStorage.setItem("bx-lab-code-font", String(n));
+      } catch {
+        // Private mode: the size just isn't remembered.
+      }
+      return n;
+    });
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const [view3d, setView3d] = useState(false);
   const [sheet, setSheet] = useState<{ type: string; mode: "pinout" | "docs" } | null>(null);
@@ -133,7 +151,8 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
     store.select({ parts: [], wires: [] });
     setPlacing(null);
     sim.start(store.current, hex);
-    setBottom("serial");
+    // Leave an open instrument where it is; otherwise show the serial output.
+    setBottom((b) => (b === "diagnostics" ? "serial" : b));
   }, [hasBoard, stale, doCompile, build, sim, store]);
 
   const save = useCallback(async () => {
@@ -303,7 +322,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   const p = proj.project;
 
   const statusText =
-    proj.state === "saving" ? t("saving") : proj.state === "dirty" ? t("unsaved") : proj.state === "readonly" ? t("readOnly") : proj.state === "conflict" ? t("conflict") : proj.state === "error" ? t("error") : p.local ? t("savedLocal") : t("saved");
+    proj.state === "saving" ? t("saving") : proj.state === "dirty" ? t("unsaved") : proj.state === "readonly" ? t("readOnly") : proj.state === "conflict" ? t("conflict") : proj.state === "error" ? t("error") : `${p.local ? t("savedLocal") : t("saved")}${proj.savedAt ? ` · ${proj.savedAt.toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}`;
 
   const readings = sim.frame?.parts ?? {};
   const boardId = doc.parts.find((x) => x.type === "arduino-uno" || x.type === "arduino-nano")?.id;
@@ -390,8 +409,18 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           </div>
         )}
         {sim.frame && (
-          <div className="pointer-events-auto rounded-xl bg-deep/90 px-3 py-1.5 font-mono text-xs ring-1 ring-rim backdrop-blur" data-testid="sim-clock">
-            {t("simTimeLabel")} {sim.frame.t.toFixed(2)} s · {t("speed")} {Math.round(Math.min(sim.frame.speed, 9.99) * 100)}%
+          <div className="pointer-events-auto flex items-center gap-2 rounded-xl bg-deep/90 px-3 py-1.5 font-mono text-xs ring-1 ring-rim backdrop-blur" data-testid="sim-clock">
+            <span title="ATmega328P · 16 MHz">
+              {t("simTimeLabel")} {sim.frame.t.toFixed(2)} s · {t("speed")} {Math.round(Math.min(sim.frame.speed, 9.99) * 100)}%
+            </span>
+            <select aria-label={l({ en: "Simulation speed", ar: "سرعة المحاكاة" })} className="rounded bg-abyss px-1 py-0.5 ring-1 ring-rim" value={sim.speed} onChange={(e) => sim.setSpeed(Number(e.target.value))} data-testid="sim-speed">
+              {[0.1, 0.25, 0.5, 1, 2, 4].map((x) => (
+                <option key={x} value={x}>
+                  ×{x}
+                </option>
+              ))}
+            </select>
+            {simDiag.some((d) => d.level === "error") && <span className="text-danger">● {simDiag.filter((d) => d.level === "error").length}</span>}
           </div>
         )}
       </div>
@@ -409,6 +438,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           </button>
         ))}
         {!readOnly && <IconButton icon="plus" label={t("newFile")} onClick={() => setDialog("newfile")} className="size-7" />}
+        {!readOnly && fileObj.name !== doc.main && <IconButton icon="file" label={l({ en: "Rename file", ar: "تغيير اسم الملف" })} className="size-7" onClick={() => setDialog("rename")} />}
         {!readOnly && fileObj.name !== doc.main && (
           <IconButton
             icon="trash"
@@ -421,6 +451,12 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           />
         )}
         <span className="flex-1" />
+        <button type="button" className="rounded px-1.5 font-mono text-xs text-fog hover:text-frost disabled:opacity-40" onClick={() => zoomCode(-1)} disabled={fontSize <= 10} aria-label={l({ en: "Smaller code", ar: "تصغير الكود" })}>
+          A−
+        </button>
+        <button type="button" className="rounded px-1.5 font-mono text-sm text-fog hover:text-frost disabled:opacity-40" onClick={() => zoomCode(1)} disabled={fontSize >= 22} aria-label={l({ en: "Larger code", ar: "تكبير الكود" })}>
+          A+
+        </button>
         {!readOnly && (
           <Select
             aria-label={t("examplesCode")}
@@ -443,7 +479,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           </Select>
         )}
       </div>
-      <div ref={codeBox} className="min-h-0 flex-1">
+      <div ref={codeBox} className="min-h-0 flex-1" style={{ ["--code-font" as string]: `${fontSize}px` }}>
         <CodeEditor value={fileObj.text} fileName={fileObj.name} onChange={setCode} diagnostics={build && !stale ? build.diagnostics : build?.diagnostics ?? []} readOnly={readOnly} />
       </div>
       <div className="flex items-center gap-2 border-t border-[var(--line)] px-3 py-1.5 text-xs text-fog" dir="ltr">
@@ -469,9 +505,9 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   );
 
   const bottomPanel = (
-    <div className={cn("flex min-h-0 flex-col border-t border-[var(--line)] bg-deep", bottomOpen ? "h-56" : "h-9")}>
+    <div className={cn("flex min-h-0 flex-col border-t border-[var(--line)] bg-deep", !bottomOpen ? "h-9" : bottom === "scope" || bottom === "pins" ? "h-80" : "h-56")}>
       <div className="flex items-center gap-1 px-2 py-1">
-        {(["serial", "diagnostics"] as const).map((k) => (
+        {(["serial", "diagnostics", "pins", "scope"] as const).filter((k) => layout === "circuit" || k === "serial" || k === "diagnostics").map((k) => (
           <button
             key={k}
             type="button"
@@ -480,9 +516,10 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
               setBottomOpen(true);
             }}
             className={cn("flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs", bottom === k && bottomOpen ? "bg-panel-2 text-frost" : "text-fog hover:text-frost")}
+            data-testid={`bottom-${k}`}
           >
-            <Icon name={k === "serial" ? "terminal" : "alert"} size={14} />
-            {t(k === "serial" ? "serial" : "diagnostics")}
+            <Icon name={k === "serial" ? "terminal" : k === "diagnostics" ? "alert" : k === "pins" ? "pins" : "scope"} size={14} />
+            {k === "serial" ? t("serial") : k === "diagnostics" ? t("diagnostics") : k === "pins" ? l({ en: "Pins", ar: "البنات" }) : l({ en: "Oscilloscope", ar: "أوسيلوسكوب" })}
             {k === "diagnostics" && (build?.diagnostics.some((d) => d.severity === "error") || simDiag.some((d) => d.level !== "info")) && <span className="size-1.5 rounded-full bg-warn" />}
           </button>
         ))}
@@ -492,7 +529,11 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
       {bottomOpen && (
         <div className="min-h-0 flex-1">
           {bottom === "serial" ? (
-            <SerialMonitor text={sim.serial} onSend={sim.sendSerial} onClear={sim.clearSerial} enabled={sim.status === "running"} />
+            <SerialMonitor text={sim.serial} lines={sim.serialLines} onSend={sim.sendSerial} onClear={sim.clearSerial} enabled={sim.status === "running"} code={doc.files.map((f) => f.text).join("\n")} />
+          ) : bottom === "pins" ? (
+            <PinMonitor frame={sim.frame} board={boardId} />
+          ) : bottom === "scope" ? (
+            <Oscilloscope trace={sim.trace} lost={sim.traceLost} frame={sim.frame} setTracing={sim.setTracing} running={running} />
           ) : (
             <Diagnostics compile={build?.diagnostics ?? []} sim={simDiag} doc={doc} onGoto={gotoDiag} onSelect={selectFinding} sizes={build?.ok ? build.sizes : undefined} />
           )}
@@ -652,6 +693,20 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           }}
         />
       </Modal>
+      <Modal open={dialog === "rename"} onClose={() => setDialog(null)} title={l({ en: "Rename file", ar: "تغيير اسم الملف" })}>
+        {dialog === "rename" && (
+          <NewFile
+            initial={fileObj.name}
+            submit={l({ en: "Rename", ar: "تغيير الاسم" })}
+            existing={doc.files.map((f) => f.name).filter((n) => n !== fileObj.name)}
+            onCreate={(name) => {
+              store.setFiles(doc.files.map((f) => (f.name === fileObj.name ? { ...f, name } : f)), "files");
+              setFile(name);
+              setDialog(null);
+            }}
+          />
+        )}
+      </Modal>
       <Modal open={dialog === "export"} onClose={() => setDialog(null)} title={t("exportFile")}>
         <ExportPanel doc={doc} project={p} hex={build?.ok && !stale ? build.hex : undefined} thumb={thumb} onDone={() => setDialog(null)} />
       </Modal>
@@ -739,9 +794,9 @@ function ConflictDialog({ proj, layout }: { proj: ReturnType<typeof useProject<C
   );
 }
 
-function NewFile({ existing, onCreate }: { existing: string[]; onCreate: (name: string) => void }) {
+function NewFile({ existing, onCreate, initial = "helpers.h", submit }: { existing: string[]; onCreate: (name: string) => void; initial?: string; submit?: string }) {
   const { t } = useLang();
-  const [name, setName] = useState("helpers.h");
+  const [name, setName] = useState(initial);
   const ok = FILE_NAME.test(name) && !existing.includes(name);
   return (
     <form
@@ -756,7 +811,7 @@ function NewFile({ existing, onCreate }: { existing: string[]; onCreate: (name: 
         <Input value={name} dir="ltr" onChange={(e) => setName(e.target.value.trim())} autoFocus />
       </label>
       <Button type="submit" variant="primary" disabled={!ok}>
-        {t("newFile")}
+        {submit ?? t("newFile")}
       </Button>
     </form>
   );

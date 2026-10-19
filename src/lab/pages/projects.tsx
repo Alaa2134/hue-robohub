@@ -6,21 +6,27 @@ import { createAndOpen } from "../circuit/editor";
 import { emptyDoc, validDoc, type CircuitDoc } from "../circuit/model";
 import { fmtDate, useLang } from "../i18n";
 import { href, navigate } from "../router";
-import { Badge, Button, Empty, Icon, IconButton, Input, Select, Spinner, cn, toast, useDebounced } from "../ui";
+import { Badge, Button, Empty, Icon, IconButton, Input, Modal, Select, Spinner, cn, toast, useDebounced } from "../ui";
 import { Grid } from "./dashboard";
 
 const KIND_PATH: Record<Kind, string> = { circuit: "circuits", code: "code", blocks: "codeblocks", cad: "3d" };
 const KIND_ICON = { circuit: "circuit", code: "code", blocks: "blocks", cad: "cube" } as const;
 
 export function ProjectCard({ p, onChanged }: { p: CardT; onChanged?: () => void }) {
-  const { t, lang } = useLang();
+  const { t, l, lang } = useLang();
   const url = `${KIND_PATH[p.kind]}/${p.id}`;
-  const act = async (fn: () => Promise<unknown>) => {
+  const [askDelete, setAskDelete] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const act = async (fn: () => Promise<unknown>, done?: string) => {
+    setBusy(true);
     try {
       await fn();
+      if (done) toast(done);
       onChanged?.();
     } catch {
       toast(t("error"), "danger");
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -59,15 +65,11 @@ export function ProjectCard({ p, onChanged }: { p: CardT; onChanged?: () => void
                 <IconButton icon="star" label={t("favorites")} active={p.favorite} onClick={() => act(() => projects.favorite(p.id, !p.favorite))} />
                 <IconButton icon="copy" label={t("duplicate")} onClick={() => act(() => projects.clone(p.id))} />
                 {p.mine && (
-                  <IconButton
-                    icon="trash"
-                    label={t("del")}
-                    onClick={() => confirm(t("confirmDelete")) && act(() => projects.trash(p.id, true))}
-                  />
+                  <IconButton icon="trash" label={t("del")} onClick={() => setAskDelete(true)} disabled={busy} />
                 )}
               </>
             ) : (
-              <Button size="sm" icon="undo" onClick={() => act(() => projects.trash(p.id, false))}>
+              <Button size="sm" icon="undo" disabled={busy} onClick={() => act(() => projects.trash(p.id, false), l({ en: "Restored", ar: "اترجّع" }))}>
                 {t("restore")}
               </Button>
             )}
@@ -79,6 +81,30 @@ export function ProjectCard({ p, onChanged }: { p: CardT; onChanged?: () => void
           </div>
         )}
       </div>
+      <Modal open={askDelete} onClose={() => setAskDelete(false)} title={t("del")}>
+        <div className="grid gap-4">
+          <p className="text-sm text-mist">
+            {t("confirmDelete")} <span className="font-semibold text-frost">{p.title}</span>
+          </p>
+          <p className="text-xs text-fog">{l({ en: "You can restore it from the Trash tab.", ar: "تقدر ترجّعه من تبويب المحذوفات." })}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setAskDelete(false)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={busy}
+              data-testid="confirm-trash"
+              onClick={async () => {
+                await act(() => projects.trash(p.id, true), l({ en: "Moved to the trash", ar: "اتنقل للمحذوفات" }));
+                setAskDelete(false);
+              }}
+            >
+              {t("del")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </article>
   );
 }

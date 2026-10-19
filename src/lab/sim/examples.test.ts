@@ -2,7 +2,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { buildSketch, type Toolchain } from "../compiler/build";
 import { nodeToolchain } from "../compiler/node-toolchain";
 import { EXAMPLES, exampleBySlug } from "../examples";
-import { F_CPU, Simulation, type Frame } from "./engine";
+import { F_CPU, Simulation, TRACE_PINS, type Frame } from "./engine";
+import { measure } from "./scope";
+import { addTrace, newTrace } from "./use-sim";
 
 let tc: Toolchain;
 beforeAll(async () => {
@@ -146,5 +148,25 @@ describe("examples", () => {
     }
     const seen = new Set(s.frames.flatMap((f) => leds.filter((id) => (f.parts[id]?.i ?? 0) > 0.008)));
     expect(seen.size).toBe(3);
+  });
+
+  it("Oscilloscope traces: Blink's D13 is 1 Hz at 50 %, PWM on D9 is about 490 Hz", async () => {
+    const blink = await start("blink");
+    blink.sim.setTracing(true);
+    const tr = newTrace();
+    for (const f of blink.run(3.2)) if (f.trace) addTrace(tr, f.trace, f.t);
+    const d13 = measure(tr[TRACE_PINS.indexOf("D13")], 0.1, 3.2)!;
+    expect(d13.freq).toBeCloseTo(1, 2);
+    expect(d13.duty).toBeCloseTo(0.5, 2);
+    expect(d13.vmax).toBeGreaterThan(4.5);
+
+    const fade = await start("pwm-fade");
+    fade.sim.setTracing(true);
+    const tf = newTrace();
+    for (const f of fade.run(0.4, 0.01)) if (f.trace) addTrace(tf, f.trace, f.t);
+    const d9 = measure(tf[TRACE_PINS.indexOf("D9")], 0.3, 0.32)!;
+    expect(d9.freq! / 490.2).toBeCloseTo(1, 2);
+    expect(d9.duty).toBeGreaterThan(0);
+    expect(d9.duty).toBeLessThan(1);
   });
 });

@@ -138,7 +138,7 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("sim-clock")).toHaveCount(0);
 
     await page.getByTestId("save").click();
-    await expect(page.getByTestId("save-state")).toHaveText("Saved on this device");
+    await expect(page.getByTestId("save-state")).toHaveText(/^Saved on this device( · .+)?$/);
 
     // Reopen from its own URL (the static host serves it through the 404 page).
     await page.reload();
@@ -194,6 +194,26 @@ test.describe("BuildX Lab", () => {
     await expect(led).toHaveCount(1);
   });
 
+  test("oscilloscope measures the real PWM on D9", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(120_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/");
+    await page.getByTestId("example-pwm-fade").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("bottom-scope").click();
+    await page.getByTestId("scope-ch1").selectOption("D9");
+    await page.getByTestId("scope-timebase").selectOption("0.005");
+    await page.getByTestId("sim-start").click();
+    await expect(page.getByTestId("sim-clock")).toBeVisible({ timeout: 90_000 });
+    // Timer 1 PWM on an Uno is 16 MHz / 64 / 510 = 490.2 Hz (in simulated time, whatever the host speed);
+    // the fade nudges edges as the duty changes, so allow 1 %.
+    await expect(page.getByTestId("scope-measure")).toContainText(/D9: 4(8[5-9]|9[0-5])\.\d\d Hz/, { timeout: 30_000 });
+    await page.getByTestId("bottom-pins").click();
+    await expect(page.getByTestId("pin-monitor").locator('[data-pin="D9"]')).toContainText("OUTPUT");
+  });
+
   test("compile errors point at the line", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     test.setTimeout(120_000);
@@ -237,7 +257,7 @@ test.describe("BuildX Lab", () => {
     await page.keyboard.insertText("// edited\n");
     await expect(page.getByTestId("save-state")).toHaveText("Unsaved changes");
     await page.getByTestId("save").click();
-    await expect(page.getByTestId("save-state")).toHaveText("Saved");
+    await expect(page.getByTestId("save-state")).toHaveText(/^Saved( · .+)?$/);
     expect(saves[0]).toMatchObject({ p_id: project.id, p_base: 3, p_token: "a".repeat(64) });
     expect(JSON.stringify(saves[0].p_data)).toContain("// edited");
 

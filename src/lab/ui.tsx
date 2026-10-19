@@ -158,6 +158,8 @@ const P: Record<string, ReactNode> = {
   volume: <path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />,
   mute: <path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6" />,
   wire: <path d="M4 20c4-8 12-8 16-16M4 20h0M20 4h0" />,
+  scope: <path d="M3 5h18v14H3zM3 12h3l2-4 3 8 2-6 2 2h7" />,
+  pins: <path d="M7 3v4M12 3v4M17 3v4M7 17v4M12 17v4M17 17v4M4 7h16v10H4z" />,
 };
 export type IconName = keyof typeof P;
 const FLIP = new Set(["arrow", "back"]);

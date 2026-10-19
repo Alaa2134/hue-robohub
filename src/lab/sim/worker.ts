@@ -14,13 +14,18 @@ type In =
   | { type: "resume" }
   | { type: "stop" }
   | { type: "live"; part: string; key: string; value: number | boolean }
-  | { type: "serial"; text: string };
+  | { type: "serial"; text: string }
+  | { type: "speed"; value: number }
+  | { type: "trace"; on: boolean };
 
 let sim: Simulation | null = null;
 let running = false;
 let last = 0;
 let lastFrame = 0;
 let realSinceFrame = 0;
+/** Simulated seconds per real second asked for (the device may not keep up; "speed" reports what it did). */
+let rate = 1;
+let tracing = false;
 const channel = new MessageChannel();
 
 function tick() {
@@ -30,7 +35,7 @@ function tick() {
   last = now;
   realSinceFrame += real;
   const budgetEnd = now + 12;
-  let todo = Math.round(real * F_CPU);
+  let todo = Math.round(real * rate * F_CPU);
   try {
     while (todo > 0 && performance.now() < budgetEnd) {
       const step = Math.min(todo, 16000);
@@ -61,6 +66,7 @@ self.onmessage = (e: MessageEvent<In>) => {
         self.postMessage({ type: "crash", message: String((err as Error)?.message ?? err) });
         return;
       }
+      sim.setTracing(tracing);
       running = true;
       last = lastFrame = performance.now();
       realSinceFrame = 0;
@@ -86,6 +92,13 @@ self.onmessage = (e: MessageEvent<In>) => {
       break;
     case "serial":
       sim?.serialWrite(m.text);
+      break;
+    case "speed":
+      rate = Math.min(8, Math.max(0.01, m.value));
+      break;
+    case "trace":
+      tracing = m.on;
+      sim?.setTracing(m.on);
       break;
   }
 };

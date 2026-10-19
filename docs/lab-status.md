@@ -17,6 +17,7 @@ Keep this file updated with every Lab change.
 | Deep links on the static host | ✅ | 404 → `/lab/?r=…` → clean URL restored |
 | Student / staff / guest identity | ✅ | Student token, staff Supabase session, guest projects in localStorage |
 | Projects: create, open, rename, autosave, conflict detection | ✅ | Optimistic revisions; a newer save made elsewhere is never overwritten |
+| Save status with last-saved time; project cards with favourite, duplicate, trash (confirmed in-app) and restore | ✅ | |
 | Version history and restore | ✅ | Last 50 versions per project, kept server-side |
 | Server-side permissions | ✅ | RLS on with no policies; every access goes through `SECURITY DEFINER` RPCs that check the caller |
 | Dashboard achievements | ✅ | Computed from real activity only |
@@ -77,10 +78,13 @@ The floating-input check accepts any `INPUT_PULLUP` in the sketch; it doesn't wo
 | Circuit solver (DC MNA) | ✅ | Resistors, LEDs, diodes, BJTs, MOSFETs, sources |
 | Capacitor charging over time | ⛔ | DC solver: a capacitor is an open circuit |
 | Servo (pulse width → angle), HC-SR04 (echo timing), buzzer (frequency) | ✅ | |
-| Serial monitor (send, line endings, clear) | 🟡 | No timestamps, export or baud selection yet |
-| Simulation speed, CPU status and event panels | ⛔ | |
-| Oscilloscope / logic analyser | ⛔ | |
-| Live pin monitor D0–D13 / A0–A5 | 🟡 | Volts in the pin tooltip; no dedicated panel yet |
+| Serial monitor | ✅ | Sim-time stamps per line, copy, .txt export, history (↑/↓), line endings, autoscroll, baud read from `Serial.begin()`; the USART runs at whatever the program sets, so baud mismatches aren't modelled |
+| Simulation speed ×0.1–×4, measured speed, sim time, error count | ✅ | The device may not reach ×4; the measured speed is shown |
+| Step-by-step execution, breakpoints, CPU register view | ⛔ | |
+| Oscilloscope on board pins | ✅ | 4 channels; 0.1 ms–0.5 s/div; 0.5–2 V/div; rising/falling trigger with level; hold; time cursors with Δt and 1/Δt; frequency, duty, min/max/avg; CSV export. Voltages are recorded at the exact cycle they change (last 5 s kept) |
+| Probing any net (not only board pins) | ⛔ | |
+| Live pin monitor D0–D13 / A0–A5 | ✅ | Mode, instantaneous and averaged volts, PWM duty, current with warnings |
+| Inspector connections | ✅ | Every pin of the selected part and what it's joined to |
 | ESP32 / Raspberry Pi Pico | ⛔ | Not emulated, and never presented as AVR |
 
 ## Parts
@@ -100,10 +104,11 @@ The floating-input check accepts any `INPUT_PULLUP` in the sketch; it doesn't wo
 | Feature | Status | Notes |
 |---|---|---|
 | CodeMirror 6 with C++ highlighting and inline compile errors | ✅ | |
-| Multiple files (add) | 🟡 | Rename and delete are not built |
+| Multiple files: add, rename, delete | ✅ | The main `.ino` can't be renamed or deleted; `#include` lines aren't rewritten on rename |
+| Code font size (A−/A+), remembered per device | ✅ | |
 | Find / replace (Ctrl+F), go to line (Ctrl+Alt+G), selection matches | ✅ | |
 | Arduino autocompletion with snippets, auto-closing brackets | ✅ | Core API, constants and words already in the file |
-| Search across files, format, font size, light theme, board picker in the UI | ⛔ | |
+| Search across files, format, light theme, board picker in the UI | ⛔ | |
 
 ## Not started
 

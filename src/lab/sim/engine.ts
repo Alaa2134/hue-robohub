@@ -25,7 +25,18 @@ export type Frame = {
   parts: Record<string, PartReading>;
   serial: string;
   diagnostics: SimDiagnostic[];
+  /**
+   * Board pin voltages at the exact moment they changed since the last frame (when tracing is on):
+   * flat triples [t, channel, volts], channel = index in TRACE_PINS. `traceLost` counts changes
+   * dropped because a frame overflowed.
+   */
+  trace?: number[];
+  traceLost?: number;
 };
+
+/** The board pins the oscilloscope can probe, in channel order. */
+export const TRACE_PINS = Object.keys(AVR_PINS);
+const TRACE_MAX = 60_000;
 
 type Probe = { part: string; name: string; read: (s: Solution) => number };
 
@@ -76,6 +87,10 @@ export class Simulation {
   private devices: DeviceLogic[] = [];
   private inputLevel = new Map<string, boolean>();
   private dynamicDiag = new Map<string, SimDiagnostic>();
+  private tracing = false;
+  private trace: number[] = [];
+  private traceLost = 0;
+  private traceLast = new Float64Array(TRACE_PINS.length).fill(NaN);
 
   constructor(
     readonly doc: CircuitDoc,
@@ -375,8 +390,31 @@ export class Simulation {
     }
     this.sol = s;
     const t = this.now();
+    if (this.tracing) this.record(t);
     for (const d of this.devices) d.onSolve(s, t);
     this.feedInputs();
+  }
+
+  /** Turn recording of pin voltage changes on or off (it costs a little on every pin change). */
+  setTracing(on: boolean) {
+    this.tracing = on;
+    this.trace = [];
+    this.traceLost = 0;
+    this.traceLast.fill(NaN);
+    if (on) this.record(this.now());
+  }
+
+  private record(t: number) {
+    if (!this.board) return;
+    for (let ch = 0; ch < TRACE_PINS.length; ch++) {
+      const net = this.netlist.netOf.get(key(this.board.id, TRACE_PINS[ch]));
+      const node = net === undefined ? undefined : this.nodeOf.get(net);
+      const v = node === undefined ? 0 : this.sol.v[node];
+      if (Math.abs(v - this.traceLast[ch]) < 1e-3) continue;
+      this.traceLast[ch] = v;
+      if (this.trace.length >= TRACE_MAX * 3) this.traceLost++;
+      else this.trace.push(t, ch, v);
+    }
   }
 
   private feedInputs() {
@@ -454,7 +492,14 @@ export class Simulation {
     const speed = realSeconds > 0 ? span / realSeconds : 1;
     this.frameStart = t;
     const serial = this.serialOut.length ? String.fromCharCode(...this.serialOut.splice(0)) : "";
-    return { t, speed, parts, serial, diagnostics: [...this.diagnostics, ...this.dynamicDiag.values()] };
+    const out: Frame = { t, speed, parts, serial, diagnostics: [...this.diagnostics, ...this.dynamicDiag.values()] };
+    if (this.tracing) {
+      out.trace = this.trace;
+      out.traceLost = this.traceLost;
+      this.trace = [];
+      this.traceLost = 0;
+    }
+    return out;
   }
 
   /** Over-current and short-circuit warnings from the averaged readings. */
