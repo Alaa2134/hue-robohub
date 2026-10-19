@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { meStore, projects, type Card as CardT, type Kind, type ListFilter } from "../api";
 import { createAndOpen } from "../circuit/editor";
 import { emptyDoc, validDoc, type CircuitDoc } from "../circuit/model";
+import { emptyCad, validCad } from "../cad/model";
 import { fmtDate, useLang } from "../i18n";
 import { href, navigate } from "../router";
 import { Badge, Button, Empty, Icon, IconButton, Input, Modal, Select, Spinner, cn, toast, useDebounced } from "../ui";
@@ -130,12 +131,17 @@ export function ProjectList({ kind }: { kind?: Kind }) {
     };
   }, [kind, dq, tab, sort, tick, me]);
 
-  const title = kind === "circuit" ? t("navCircuits") : kind === "code" ? t("navCode") : t("navProjects");
-  const newKind: "circuit" | "code" = kind === "code" ? "code" : "circuit";
+  const title = kind === "circuit" ? t("navCircuits") : kind === "code" ? t("navCode") : kind === "cad" ? t("nav3d") : t("navProjects");
+  const newKind: "circuit" | "code" | "cad" = kind === "code" ? "code" : kind === "cad" ? "cad" : "circuit";
+  const startNew = () => navigate(newKind === "code" ? "code" : newKind === "cad" ? "3d/new" : "circuits/new", newKind === "code" ? { query: { new: "1" } } : {});
 
   const importFile = async (f: File) => {
     try {
       const j = JSON.parse(await f.text()) as { format?: string; kind?: string; title?: string; description?: string; tags?: string[]; data?: unknown };
+      if (j.format === "buildx-lab" && j.kind === "cad" && validCad(j.data)) {
+        const nid = await projects.create("cad", String(j.title ?? f.name).slice(0, 120), j.data);
+        return navigate(`3d/${nid}`);
+      }
       if (j.format !== "buildx-lab" || !validDoc(j.data)) throw new Error("format");
       await createAndOpen(j.kind === "code" ? "code" : "circuit", String(j.title ?? f.name).slice(0, 120), j.data as CircuitDoc, { description: String(j.description ?? "").slice(0, 4000), tags: Array.isArray(j.tags) ? j.tags.slice(0, 12).map(String) : [] });
     } catch {
@@ -151,7 +157,7 @@ export function ProjectList({ kind }: { kind?: Kind }) {
         <Button icon="upload" onClick={() => file.current?.click()}>
           {t("importFile")}
         </Button>
-        <Button variant="primary" icon="plus" onClick={() => navigate(newKind === "code" ? "code" : "circuits/new", newKind === "code" ? { query: { new: "1" } } : {})} data-testid="new-project">
+        <Button variant="primary" icon="plus" onClick={startNew} data-testid="new-project">
           {t("newProject")}
         </Button>
       </div>
@@ -184,7 +190,7 @@ export function ProjectList({ kind }: { kind?: Kind }) {
       ) : (
         <Empty title={t("emptyProjects")}>
           {tab === "all" && (
-            <Button variant="primary" icon="plus" onClick={() => navigate(newKind === "code" ? "code" : "circuits/new", newKind === "code" ? { query: { new: "1" } } : {})}>
+            <Button variant="primary" icon="plus" onClick={startNew}>
               {t("newProject")}
             </Button>
           )}
@@ -210,18 +216,15 @@ function NewCodeOnQuery() {
 }
 
 /** /lab/circuits/new: a blank circuit, opened straight away. */
-export function NewProject({ kind }: { kind: "circuit" }) {
-  const { t } = useLang();
+export function NewProject({ kind }: { kind: "circuit" | "cad" }) {
+  const { t, l } = useLang();
   const started = useRef(false);
   const [err, setErr] = useState(false);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const d = emptyDoc();
-    projects
-      .create(kind, t("untitled"), d)
-      .then((id) => navigate(`circuits/${id}`, { replace: true }))
-      .catch(() => setErr(true));
-  }, [kind, t]);
+    const created = kind === "cad" ? projects.create("cad", l({ en: "Untitled design", ar: "تصميم من غير اسم" }), emptyCad()) : projects.create(kind, t("untitled"), emptyDoc());
+    created.then((id) => navigate(`${kind === "cad" ? "3d" : "circuits"}/${id}`, { replace: true })).catch(() => setErr(true));
+  }, [kind, t, l]);
   return err ? <Empty title={t("error")} /> : <Spinner size={28} />;
 }

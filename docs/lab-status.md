@@ -110,10 +110,28 @@ The floating-input check accepts any `INPUT_PULLUP` in the sketch; it doesn't wo
 | Arduino autocompletion with snippets, auto-closing brackets | ✅ | Core API, constants and words already in the file |
 | Search across files, format, light theme, board picker in the UI | ⛔ | |
 
+## 3D Studio (`/lab/3d`)
+
+| Feature | Status | Notes |
+|---|---|---|
+| Solids: box (with rounded edges), cylinder, cone, sphere, torus, wedge, tube, extruded text | ✅ | Built by Manifold (WebAssembly); always closed, printable solids |
+| Holes, group/union, subtract, intersect, ungroup | ✅ | Real booleans (tested volumes) |
+| Move / rotate / scale gizmo with mm and angle snapping; numeric position, rotation, scale and size | ✅ | |
+| Mirror X/Y/Z, align (min / centre / max per axis), drop to bed, lay flat on a clicked face, centre on bed | ✅ | |
+| Views (iso, top, front, right, bottom), fit, click / shift-click selection, undo/redo, lock | ✅ | |
+| Printer presets and build volume check | ✅ | Neptune 3 Plus (320×320×400), Neptune 4 Pro, Ender-3 V2, Prusa MK4, Bambu A1; the outline turns red when parts fall outside |
+| Volume, size, triangle count; warnings for below-bed, floating and not-closed parts | ✅ | |
+| Export STL (binary, one merged solid), OBJ, GLB (with colours), project JSON | ✅ | Millimetres |
+| Import STL / OBJ | ✅ | Up to 60 000 triangles; open meshes are shown and flagged, but not cut or exported |
+| Saving, autosave, versions, conflict handling | ✅ | Same as circuits |
+| Arabic text | ⛔ | The bundled font is Latin only |
+| Fillet/chamfer on arbitrary edges, sketch-based modelling, measurement tool | ⛔ | |
+| Slicing / G-code | ⛔ | Not offered: export STL to a slicer |
+| Geometry in a worker | ⛔ | Runs on the main thread; fine for typical school parts |
+
 ## Not started
 
 These routes show an honest "coming" page:
-- 3D CAD studio
 - Blockly code blocks
 - Academy / tutorials
 - Challenges

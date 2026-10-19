@@ -1,6 +1,6 @@
 "use client";
 /** BuildX Lab: shell (navigation, sign-in, language) and the screens behind each /lab route. */
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { loadMe, meStore } from "./api";
 import { CircuitEditor } from "./circuit/editor";
 import { LangProvider, useLang, type TKey } from "./i18n";
@@ -12,6 +12,9 @@ import { Gallery } from "./pages/gallery";
 import { ComponentsPage } from "./pages/components";
 import { SettingsPage, ProfilePage } from "./pages/settings";
 import { Coming } from "./pages/coming";
+
+/** The 3D Studio (three.js + the geometry kernel) loads only when a design is opened. */
+const CadStudio = lazy(() => import("./cad/studio"));
 
 const NAV: { path: string; key: TKey; icon: IconName; group?: "build" | "learn" | "you" }[] = [
   { path: "", key: "navHome", icon: "home" },
@@ -107,6 +110,18 @@ function Routes() {
   const share = query.get("share");
   // Editors take the whole screen.
   if ((a === "circuits" || a === "code") && b && b !== "new") return <CircuitEditor key={b} id={b} share={share} layout={a === "code" ? "code" : "circuit"} />;
+  if (a === "3d" && b && b !== "new")
+    return (
+      <Suspense
+        fallback={
+          <div className="grid min-h-[100dvh] place-items-center">
+            <Spinner size={28} />
+          </div>
+        }
+      >
+        <CadStudio key={b} id={b} share={share} />
+      </Suspense>
+    );
   let page: ReactNode;
   switch (a ?? "") {
     case "":
@@ -134,6 +149,8 @@ function Routes() {
       page = <ProfilePage />;
       break;
     case "3d":
+      page = b === "new" ? <NewProject kind="cad" /> : <ProjectList kind="cad" />;
+      break;
     case "codeblocks":
     case "learn":
     case "challenges":

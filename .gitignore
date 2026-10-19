@@ -27,3 +27,4 @@ art/render/rh/__pycache__/
 /public/app/zxing_reader.wasm
 public/media/directory/
 /public/lab/toolchain/
+/public/lab/cad/

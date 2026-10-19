@@ -70,7 +70,7 @@ test.describe("BuildX Lab", () => {
     // No horizontal scrolling on any screen size.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     // An unfinished area says so instead of pretending.
-    await page.goto("/lab/3d/");
+    await page.goto("/lab/codeblocks/");
     await expect(page.getByText(/تحت الإنشاء|Being built/)).toBeVisible();
   });
 
@@ -212,6 +212,34 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("scope-measure")).toContainText(/D9: 4(8[5-9]|9[0-5])\.\d\d Hz/, { timeout: 30_000 });
     await page.getByTestId("bottom-pins").click();
     await expect(page.getByTestId("pin-monitor").locator('[data-pin="D9"]')).toContainText("OUTPUT");
+  });
+
+  test("3D Studio: a hole grouped with a box really cuts it, and the STL downloads", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(120_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/3d/new");
+    await expect(page.getByTestId("cad-studio")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("add-box")).toBeEnabled({ timeout: 60_000 });
+    await page.getByTestId("add-box").click();
+    await expect(page.getByTestId("cad-stats")).toContainText("8.00 cm³");
+    await page.getByTestId("add-hole-cylinder").click();
+    for (const [id, v] of [["param-dia", "10"], ["param-h", "30"], ["position-x", "0"], ["position-y", "0"]]) {
+      await page.getByTestId(id).fill(v);
+      await page.getByTestId(id).press("Enter");
+    }
+    await page.getByTestId("cad-palette").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Control+a");
+    await page.getByTestId("cad-group").click();
+    // 20 mm cube minus a 10 mm hole through it: 8 − π·5²·20 / 1000 = 6.43 cm³.
+    await expect(page.getByTestId("cad-stats")).toContainText("6.43 cm³");
+    await page.getByTestId("cad-export").click();
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("export-stl").click()]);
+    expect(dl.suggestedFilename()).toMatch(/\.stl$/);
+    // Saved on this device: reopening shows the same design.
+    await page.reload();
+    await expect(page.getByTestId("cad-stats")).toContainText("6.43 cm³", { timeout: 60_000 });
   });
 
   test("compile errors point at the line", async ({ page, isMobile }) => {

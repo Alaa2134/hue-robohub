@@ -4,6 +4,7 @@ export const LAB_STATIC_ROUTES = [
   "circuits",
   "circuits/new",
   "3d",
+  "3d/new",
   "code",
   "codeblocks",
   "projects",

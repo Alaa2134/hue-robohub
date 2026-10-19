@@ -23,3 +23,7 @@ The simulator uses avr8js (MIT, https://github.com/wokwi/avr8js). The code edito
 (MIT, https://codemirror.net).
 
 Your sketches are compiled on your own device; they are not sent to a server to compile.
+
+The 3D Studio's solid-geometry kernel is Manifold (manifold-3d), Apache License 2.0 —
+https://github.com/elalish/manifold — served unmodified as WebAssembly. Extruded text uses Saira
+Bold (SIL Open Font License 1.1, https://github.com/Omnibus-Type/Saira).

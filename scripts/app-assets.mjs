@@ -16,3 +16,5 @@ console.log("[app-assets] zxing_reader.wasm → public/app/");
 
 // BuildX Lab's in-browser Arduino compiler (public/lab/toolchain, also git-ignored).
 execFileSync(process.execPath, [path.join(root, "scripts/lab-toolchain.mjs")], { stdio: "inherit" });
+// The 3D Studio's geometry kernel (public/lab/cad, also git-ignored).
+execFileSync(process.execPath, [path.join(root, "scripts/lab-cad.mjs")], { stdio: "inherit" });
