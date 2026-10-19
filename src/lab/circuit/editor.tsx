@@ -18,10 +18,11 @@ import { checkCircuit } from "../sim/diagnostics";
 import { useSimulation } from "../sim/use-sim";
 import { useProject } from "../use-project";
 import { Badge, Button, Icon, IconButton, Input, Modal, Select, Spinner, cn, toast } from "../ui";
-import { Canvas, DEFAULT_WIRE, fitView, type View } from "./canvas";
-import { DocStore, useDoc } from "./doc-store";
-import { validDoc, emptyDoc, type CircuitDoc } from "./model";
-import { Diagnostics, Inspector, Library, SerialMonitor } from "./panels";
+import { Canvas, DEFAULT_WIRE, fitView, type CanvasActions, type View } from "./canvas";
+import { DocStore, isClipboard, snap, useDoc, type Clipboard } from "./doc-store";
+import { GRID, validDoc, emptyDoc, type CircuitDoc } from "./model";
+import { Diagnostics, Inspector, Library, PartSheet, SerialMonitor } from "./panels";
+import { PART_BY_TYPE } from "./parts";
 import { CircuitThumb } from "./render";
 
 /** The 3D view (three.js) loads only when it's opened. */
@@ -54,6 +55,12 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   const [dialog, setDialog] = useState<null | "share" | "versions" | "export" | "newfile">(null);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
   const [view3d, setView3d] = useState(false);
+  const [sheet, setSheet] = useState<{ type: string; mode: "pinout" | "docs" } | null>(null);
+  const [labelFor, setLabelFor] = useState<{ kind: "part" | "wire"; id: string; text: string } | null>(null);
+  const [confirmDel, setConfirmDel] = useState(0);
+  const [inspectSheet, setInspectSheet] = useState(false);
+  /** The last copy, used when the system clipboard can't be read (and to step repeated pastes). */
+  const clip = useRef<{ data: Clipboard; pastes: number } | null>(null);
 
   const sim = useSimulation((seconds) => labEvent("sim_run", id, { seconds: Math.round(seconds * 10) / 10 }));
   const running = sim.status !== "idle";
@@ -135,6 +142,48 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
     if (ok) toast(t("saved"));
   }, [proj, readOnly, t]);
 
+  /** Copy to the system clipboard as JSON (so it can go to another tab or project) and keep a local copy. */
+  const copySel = useCallback(() => {
+    const data = store.copy();
+    if (!data) return;
+    clip.current = { data, pastes: 0 };
+    navigator.clipboard?.writeText(JSON.stringify(data)).catch(() => {});
+  }, [store]);
+
+  /** Paste parts copied here or in another tab: at a canvas point, or stepped from the original. */
+  const pasteClip = useCallback(
+    async (at?: { x: number; y: number }) => {
+      let data = clip.current?.data;
+      try {
+        const text = await navigator.clipboard?.readText();
+        const parsed: unknown = text ? JSON.parse(text) : null;
+        if (isClipboard(parsed)) {
+          if (!clip.current || JSON.stringify(clip.current.data) !== text) clip.current = { data: parsed, pastes: 0 };
+          data = parsed;
+        }
+      } catch {
+        // No permission or not our data: use the local copy.
+      }
+      if (!data || !clip.current) return;
+      if (at) {
+        const x0 = Math.min(...data.parts.map((p) => p.x));
+        const y0 = Math.min(...data.parts.map((p) => p.y));
+        store.paste(data, snap(at.x - x0), snap(at.y - y0));
+      } else {
+        clip.current.pastes += 1;
+        store.paste(data, 2 * GRID * clip.current.pastes);
+      }
+    },
+    [store],
+  );
+
+  /** Deleting several parts at once asks first (one part or wire is a quick undo away). */
+  const askDelete = useCallback(() => {
+    const n = store.selection.parts.filter((id) => !store.current.parts.find((p) => p.id === id)?.locked).length;
+    if (n >= 3) setConfirmDel(n);
+    else store.deleteSelection();
+  }, [store]);
+
   // Keyboard shortcuts (not while typing in a field or the code editor, except Ctrl+S).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -161,10 +210,25 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
       } else if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         store.duplicate();
+      } else if (mod && e.key.toLowerCase() === "c") {
+        if (!store.selection.parts.length) return;
+        e.preventDefault();
+        copySel();
+      } else if (mod && e.key.toLowerCase() === "x") {
+        if (!store.selection.parts.length) return;
+        e.preventDefault();
+        copySel();
+        store.deleteSelection();
+      } else if (mod && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        void pasteClip();
+      } else if (mod && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        store.selectAll();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        store.deleteSelection();
-      } else if (e.key.toLowerCase() === "r" && !mod) store.rotate(store.selection.parts);
+        askDelete();
+      } else if (e.key.toLowerCase() === "r" && !mod) store.rotate(store.selection.parts, e.shiftKey);
       else if (e.key.startsWith("Arrow") && store.selection.parts.length) {
         e.preventDefault();
         const d = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[e.key] ?? [0, 0];
@@ -173,7 +237,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store, save, startSim, running, readOnly]);
+  }, [store, save, startSim, running, readOnly, copySel, pasteClip, askDelete]);
 
   const setCode = (text: string) => store.setFiles(store.current.files.map((f) => (f.name === fileObj.name ? { ...f, text } : f)), `code:${fileObj.name}`);
   const gotoDiag = (f: string, line: number) => {
@@ -183,6 +247,17 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
     setTimeout(() => gotoLine(codeBox.current, line), 50);
   };
 
+  /** A finding was clicked: select what it's about and bring it into view. */
+  const selectFinding = ({ part, wire }: { part?: string; wire?: string }) => {
+    store.select({ parts: part ? [part] : [], wires: wire ? [wire] : [] });
+    setView3d(false);
+    setMobile("circuit");
+    const r = stage.current?.getBoundingClientRect();
+    const p = part ? doc.parts.find((x) => x.id === part) : undefined;
+    const w = wire ? doc.wires.find((x) => x.id === wire) : undefined;
+    const at = p ? { x: p.x, y: p.y } : w?.pts[0] ? { x: w.pts[0][0], y: w.pts[0][1] } : null;
+    if (r && at) setView({ ...view, x: at.x - r.width / 2 / view.zoom, y: at.y - r.height / 2 / view.zoom });
+  };
   const fit = () => {
     const r = stage.current?.getBoundingClientRect();
     if (r) setView(fitView(doc, r.width, r.height));
@@ -234,6 +309,32 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   const boardId = doc.parts.find((x) => x.type === "arduino-uno" || x.type === "arduino-nano")?.id;
   const boardVolts = (part: string, pin: string) => (part === boardId && sim.frame ? readings[part]?.[`now_v${pin}`] : undefined);
 
+  const actions: CanvasActions = {
+    inspect: (pid) => {
+      store.select({ parts: [pid], wires: [] });
+      setSide("inspector");
+      // Phones have no side panel next to the canvas: show the inspector over it.
+      if (layout === "circuit" && window.matchMedia("(max-width: 1023px)").matches) setInspectSheet(true);
+    },
+    pinout: (type) => setSheet({ type, mode: "pinout" }),
+    docs: (type) => setSheet({ type, mode: "docs" }),
+    label: ({ kind, id: tid }) => {
+      const cur = kind === "part" ? doc.parts.find((x) => x.id === tid)?.label : doc.wires.find((w) => w.id === tid)?.label;
+      setLabelFor({ kind, id: tid, text: cur ?? "" });
+    },
+    copy: copySel,
+    paste: (at) => void pasteClip(at),
+    fit,
+    confirmDelete: askDelete,
+  };
+  const saveLabel = () => {
+    if (!labelFor) return;
+    const text = labelFor.text.trim().slice(0, 40) || undefined;
+    if (labelFor.kind === "part") store.setPart(labelFor.id, { label: text });
+    else store.setWire(labelFor.id, { label: text });
+    setLabelFor(null);
+  };
+
   const canvas = (
     <div ref={stage} className="relative min-h-0 flex-1 overflow-hidden" dir="ltr">
       {view3d && (
@@ -262,6 +363,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
         wireColor={wireColor}
         readOnly={readOnly}
         boardPinVolts={boardVolts}
+        actions={actions}
       />
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 p-2">
         <div className="pointer-events-auto flex gap-1 rounded-xl bg-deep/90 p-1 ring-1 ring-rim backdrop-blur">
@@ -392,7 +494,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           {bottom === "serial" ? (
             <SerialMonitor text={sim.serial} onSend={sim.sendSerial} onClear={sim.clearSerial} enabled={sim.status === "running"} />
           ) : (
-            <Diagnostics compile={build?.diagnostics ?? []} sim={simDiag} doc={doc} onGoto={gotoDiag} sizes={build?.ok ? build.sizes : undefined} />
+            <Diagnostics compile={build?.diagnostics ?? []} sim={simDiag} doc={doc} onGoto={gotoDiag} onSelect={selectFinding} sizes={build?.ok ? build.sizes : undefined} />
           )}
         </div>
       )}
@@ -429,7 +531,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           <IconButton icon="undo" label={t("undo")} disabled={!canUndo || running} onClick={() => store.undo()} />
           <IconButton icon="redo" label={t("redo")} disabled={!canRedo || running} onClick={() => store.redo()} />
           <IconButton icon="rotate" label={t("rotate")} disabled={!sel.parts.length || running} onClick={() => store.rotate(sel.parts)} />
-          <IconButton icon="trash" label={t("deleteSel")} disabled={!(sel.parts.length + sel.wires.length) || running} onClick={() => store.deleteSelection()} />
+          <IconButton icon="trash" label={t("deleteSel")} disabled={!(sel.parts.length + sel.wires.length) || running} onClick={askDelete} />
         </div>
       )}
       <div className="flex items-center gap-1">
@@ -555,6 +657,50 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
       </Modal>
       <Modal open={dialog === "share"} onClose={() => setDialog(null)} title={t("share")}>
         <SharePanel project={p} layout={layout} onChange={(patch) => proj.setProject({ ...p, ...patch })} />
+      </Modal>
+      <Modal open={!!sheet} onClose={() => setSheet(null)} title={sheet?.mode === "docs" ? t("cmDocs") : t("cmPinout")} wide>
+        {sheet && <PartSheet type={sheet.type} mode={sheet.mode} />}
+      </Modal>
+      <Modal open={inspectSheet} onClose={() => setInspectSheet(false)} title={t("inspector")}>
+        {inspectSheet && <Inspector store={store} readings={sim.frame?.parts} running={running} live={sim.live} onLive={sim.setLive} readOnly={readOnly} />}
+      </Modal>
+      <Modal open={!!labelFor} onClose={() => setLabelFor(null)} title={t("cmLabel")}>
+        <form
+          className="grid gap-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveLabel();
+          }}
+        >
+          <Input autoFocus maxLength={40} value={labelFor?.text ?? ""} onChange={(e) => setLabelFor((f) => f && { ...f, text: e.target.value })} placeholder={labelFor?.kind === "wire" ? "SDA, 5V…" : "status LED…"} data-testid="label-input" />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setLabelFor(null)}>
+              {t("cancel")}
+            </Button>
+            <Button type="submit">{t("save")}</Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal open={confirmDel > 0} onClose={() => setConfirmDel(0)} title={t("deleteSel")}>
+        <div className="grid gap-4">
+          <p className="text-sm text-mist">{l({ en: `Delete ${confirmDel} parts and the wires attached to them? You can undo this.`, ar: `هتمسح ${confirmDel} قطع والسلوك المتوصّلة بيها؟ تقدر ترجّعها بالتراجع.` })}</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setConfirmDel(0)}>
+              {t("cancel")}
+            </Button>
+            <Button
+              variant="danger"
+              autoFocus
+              data-testid="confirm-delete"
+              onClick={() => {
+                store.deleteSelection();
+                setConfirmDel(0);
+              }}
+            >
+              {t("del")}
+            </Button>
+          </div>
+        </div>
       </Modal>
       <Modal open={dialog === "versions"} onClose={() => setDialog(null)} title={t("versions")} wide>
         <VersionsPanel

@@ -503,3 +503,88 @@ export function worldBox(p: PartInstance) {
 }
 
 export const propsOf = (p: PartInstance) => ({ ...(PART_BY_TYPE.get(p.type)?.defaults ?? {}), ...p.props });
+
+/* ─── Pin roles (hover tooltips, pin colours, wiring checks) ───────────── */
+
+export type PinKind = "power" | "ground" | "digital" | "pwm" | "analog" | "i2c" | "uart" | "spi" | "passive" | "control" | "hole";
+export const PIN_COLORS: Record<PinKind, string> = {
+  power: "#ff5a5f",
+  ground: "#9aa4b2",
+  digital: "#3cc4ff",
+  pwm: "#b48cff",
+  analog: "#ffb547",
+  i2c: "#33d69f",
+  uart: "#f78fb3",
+  spi: "#f5d90a",
+  passive: "#cfd6df",
+  control: "#63a0ff",
+  hole: "#cfd6df",
+};
+
+const BOARD_ROLE: Record<string, { kind: PinKind; note: string }> = {
+  "5V": { kind: "power", note: "5 V supply (USB)" },
+  "3V3": { kind: "power", note: "3.3 V supply, 50 mA max" },
+  VIN: { kind: "power", note: "Input to the regulator (7–12 V); unpowered on USB" },
+  IOREF: { kind: "power", note: "I/O reference voltage (5 V)" },
+  AREF: { kind: "analog", note: "ADC reference input" },
+  RESET: { kind: "control", note: "Reset (active low)" },
+  RST1: { kind: "control", note: "Reset (active low)" },
+  RST2: { kind: "control", note: "Reset (active low)" },
+  D0: { kind: "uart", note: "Digital 0 · RX (Serial)" },
+  D1: { kind: "uart", note: "Digital 1 · TX (Serial)" },
+  D10: { kind: "spi", note: "Digital 10 · PWM · SPI SS" },
+  D11: { kind: "spi", note: "Digital 11 · PWM · SPI MOSI" },
+  D12: { kind: "spi", note: "Digital 12 · SPI MISO" },
+  D13: { kind: "spi", note: "Digital 13 · SPI SCK · on-board LED" },
+  A4: { kind: "i2c", note: "Analog 4 · I2C SDA" },
+  A5: { kind: "i2c", note: "Analog 5 · I2C SCL" },
+  SDA: { kind: "i2c", note: "I2C SDA (same as A4)" },
+  SCL: { kind: "i2c", note: "I2C SCL (same as A5)" },
+  A6: { kind: "analog", note: "Analog input only" },
+  A7: { kind: "analog", note: "Analog input only" },
+};
+
+/** What a pin is for: its kind (for colour) and a short description. */
+export function pinRole(p: PartInstance, pin: string): { kind: PinKind; note: string } {
+  const def = PART_BY_TYPE.get(p.type);
+  if (def?.category === "breadboards") return { kind: "hole", note: /^(tp|bp)/.test(pin) ? "+ rail" : /^(tn|bn)/.test(pin) ? "− rail" : `column ${pin.replace(/\D/g, "")}, row ${pin.replace(/\d/g, "")}` };
+  if (def?.mcu) {
+    if (BOARD_ROLE[pin]) return BOARD_ROLE[pin];
+    if (/^GND/.test(pin)) return { kind: "ground", note: "Ground" };
+    const m = AVR_PINS[pin];
+    if (m?.adc !== undefined) return { kind: "analog", note: `Analog input ${m.adc} · digital ${14 + m.adc}` };
+    if (m?.pwm) return { kind: "pwm", note: `Digital ${pin.slice(1)} · PWM (analogWrite)` };
+    if (m) return { kind: "digital", note: `Digital ${pin.slice(1)}` };
+  }
+  const named: Record<string, { kind: PinKind; note: string }> = {
+    "led:A": { kind: "passive", note: "Anode (+), the longer leg" },
+    "led:K": { kind: "passive", note: "Cathode (−), the flat side" },
+    "rgb-led:COM": { kind: "passive", note: "Common pin" },
+    "capacitor:+": { kind: "passive", note: "Positive lead" },
+    "capacitor:-": { kind: "passive", note: "Negative lead (stripe)" },
+    "diode:A": { kind: "passive", note: "Anode" },
+    "diode:K": { kind: "passive", note: "Cathode (band)" },
+    "potentiometer:W": { kind: "analog", note: "Wiper (middle)" },
+    "servo:GND": { kind: "ground", note: "Ground (brown)" },
+    "servo:V+": { kind: "power", note: "Power 4.8–6 V (red)" },
+    "servo:SIG": { kind: "pwm", note: "Signal pulses (orange)" },
+    "hc-sr04:VCC": { kind: "power", note: "5 V" },
+    "hc-sr04:GND": { kind: "ground", note: "Ground" },
+    "hc-sr04:TRIG": { kind: "digital", note: "Trigger input (10 µs pulse)" },
+    "hc-sr04:ECHO": { kind: "digital", note: "Echo output (58 µs per cm)" },
+    "npn:B": { kind: "control", note: "Base" },
+    "npn:C": { kind: "passive", note: "Collector" },
+    "npn:E": { kind: "passive", note: "Emitter" },
+    "pnp:B": { kind: "control", note: "Base" },
+    "pnp:C": { kind: "passive", note: "Collector" },
+    "pnp:E": { kind: "passive", note: "Emitter" },
+    "nmos:G": { kind: "control", note: "Gate" },
+    "nmos:D": { kind: "passive", note: "Drain" },
+    "nmos:S": { kind: "passive", note: "Source" },
+  };
+  const n = named[`${p.type}:${pin}`];
+  if (n) return n;
+  if (pin === "+" || pin === "V+" || pin === "VCC") return { kind: "power", note: "Positive" };
+  if (pin === "-" || pin === "GND" || pin === "COM") return { kind: "ground", note: "Negative" };
+  return { kind: "passive", note: `Pin ${pin}` };
+}

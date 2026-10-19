@@ -46,10 +46,25 @@ function bases(doc: CircuitDoc, models: Map<string, Model>) {
   return base;
 }
 
+/** True when WebGL runs on the CPU (SwiftShader, llvmpipe…), where every frame is expensive. */
+function softwareGL(renderer: THREE.WebGLRenderer) {
+  try {
+    const gl = renderer.getContext();
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    return /swiftshader|llvmpipe|softpipe|software|basic render/i.test(name);
+  } catch {
+    return false;
+  }
+}
+
 export default function Circuit3D({ doc, readings, live, running, onLive }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const state = useRef({ readings, live, running, onLive });
   state.current = { readings, live, running, onLive };
+  // Any new props (circuit, readings, switch states) mean the next frame must be drawn.
+  const dirty = useRef(true);
+  dirty.current = true;
   const sceneRef = useRef<{ rebuild: (d: CircuitDoc) => void } | null>(null);
   const [noGL, setNoGL] = useState(false);
 
@@ -62,7 +77,9 @@ export default function Circuit3D({ doc, readings, live, running, onLive }: Prop
       setNoGL(true);
       return;
     }
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    // Without a GPU (software rendering) every frame is expensive: draw at 1x, skip bloom, cheaper shadows.
+    const soft = softwareGL(renderer);
+    renderer.setPixelRatio(soft ? 1 : Math.min(2, window.devicePixelRatio));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -118,7 +135,7 @@ export default function Circuit3D({ doc, readings, live, running, onLive }: Prop
     scene.add(new THREE.HemisphereLight("#dfe9ff", "#20304a", 0.35));
     const sun = new THREE.DirectionalLight("#fff6ea", 1.6);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(soft ? 1024 : 2048, soft ? 1024 : 2048);
     sun.shadow.bias = -0.0004;
     sun.shadow.normalBias = 0.4;
     sun.shadow.radius = 4;
@@ -230,6 +247,7 @@ export default function Circuit3D({ doc, readings, live, running, onLive }: Prop
       bloom.resolution.set(w / 2, h / 2);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
+      dirty.current = true;
     };
     const ro = new ResizeObserver(resize);
     ro.observe(el);
@@ -264,16 +282,31 @@ export default function Circuit3D({ doc, readings, live, running, onLive }: Prop
     renderer.domElement.addEventListener("pointerdown", down);
     window.addEventListener("pointerup", up);
 
+    // Draw only when something changed (camera, circuit, size, a running simulation), and leave the
+    // main thread at least as much time as the last frame took, so a slow GPU never blocks the page.
     let raf = 0;
     let last = performance.now();
+    let busyUntil = 0;
+    let lite = soft;
+    let slowFrames = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
       const { readings: rd, live: lv, running: run } = state.current;
+      const moved = controls.update();
+      if (!moved && !run && !dirty.current) return;
+      if (now < busyUntil) return;
+      dirty.current = false;
       models.forEach((m, id) => m.update?.(run ? rd[id] : undefined, lv[id] ?? {}, dt));
-      controls.update();
-      composer.render();
+      const t0 = performance.now();
+      if (lite) renderer.render(scene, camera);
+      else composer.render();
+      const cost = performance.now() - t0;
+      busyUntil = performance.now() + cost;
+      // Consistently slow frames: drop the glow pass.
+      slowFrames = cost > 45 ? slowFrames + 1 : 0;
+      if (slowFrames > 10) lite = true;
     };
     raf = requestAnimationFrame(loop);
 

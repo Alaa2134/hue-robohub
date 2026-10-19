@@ -7,9 +7,23 @@ import type { SourceFile } from "../compiler/sketch";
 export const GRID = 10;
 
 export type Rot = 0 | 90 | 180 | 270;
-export type PartInstance = { id: string; type: string; x: number; y: number; rot: Rot; props: Record<string, string | number | boolean> };
+export type PartInstance = {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  rot: Rot;
+  props: Record<string, string | number | boolean>;
+  /** Can't be moved, rotated or deleted on the canvas until unlocked. */
+  locked?: boolean;
+  /** A note shown above the part (e.g. "status LED"). */
+  label?: string;
+};
 export type PinRef = { part: string; pin: string };
-export type Wire = { id: string; a: PinRef; b: PinRef; pts: [number, number][]; color: string };
+export type Wire = { id: string; a: PinRef; b: PinRef; pts: [number, number][]; color: string; label?: string };
+/** Canvas preferences saved with the project. */
+export type CanvasSettings = { grid: number; showGrid: boolean; snap: boolean; routing: "ortho" | "free"; background: "dots" | "lines" | "plain" };
+export const DEFAULT_SETTINGS: CanvasSettings = { grid: 10, showGrid: true, snap: true, routing: "ortho", background: "dots" };
 export type CircuitDoc = {
   v: 1;
   parts: PartInstance[];
@@ -19,6 +33,9 @@ export type CircuitDoc = {
   /** For block projects: the Blockly workspace the sketch is generated from. */
   blocks?: unknown;
   view?: { x: number; y: number; zoom: number };
+  settings?: Partial<CanvasSettings>;
+  /** The board the sketch is compiled for. */
+  board?: "uno" | "nano";
 };
 
 export const WIRE_COLORS = ["#e5484d", "#2b2b2b", "#3e63dd", "#30a46c", "#f5d90a", "#f76b15", "#ffffff", "#8e4ec6", "#0091ff", "#ad7f58"];

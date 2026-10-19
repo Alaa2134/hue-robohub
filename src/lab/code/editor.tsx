@@ -10,6 +10,8 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { cpp } from "@codemirror/lang-cpp";
 import { bracketMatching, indentOnInput, syntaxHighlighting, HighlightStyle, foldGutter } from "@codemirror/language";
 import { lintGutter, setDiagnostics, type Diagnostic as CmDiagnostic } from "@codemirror/lint";
+import { highlightSelectionMatches, search, searchKeymap } from "@codemirror/search";
+import { autocompletion, closeBrackets, closeBracketsKeymap, completeAnyWord, completionKeymap, snippetCompletion, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
 import type { Diagnostic } from "../compiler/sketch";
 
@@ -25,6 +27,14 @@ const theme = EditorView.theme(
     ".cm-tooltip": { backgroundColor: "#0b1b3f", border: "1px solid #1d3468", color: "#e6edf9" },
     ".cm-diagnostic-error": { borderLeft: "3px solid #ff4d5e" },
     ".cm-diagnostic-warning": { borderLeft: "3px solid #ffb547" },
+    ".cm-panels": { backgroundColor: "#0b1b3f", color: "#c9d6ee", borderColor: "#1d3468" },
+    ".cm-panels .cm-textfield": { backgroundColor: "#060f27", color: "#e6edf9", border: "1px solid #1d3468", borderRadius: "6px", padding: "3px 6px" },
+    ".cm-panels .cm-button": { backgroundImage: "none", backgroundColor: "#142a5c", color: "#e6edf9", border: "1px solid #1d3468", borderRadius: "6px" },
+    ".cm-searchMatch": { backgroundColor: "rgba(255,181,71,.25)", outline: "1px solid rgba(255,181,71,.5)" },
+    ".cm-searchMatch-selected": { backgroundColor: "rgba(255,181,71,.5)" },
+    ".cm-selectionMatch": { backgroundColor: "rgba(60,196,255,.15)" },
+    ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "#2f7bff", color: "#fff" },
+    ".cm-completionDetail": { color: "#8ea3c9" },
   },
   { dark: true },
 );
@@ -39,6 +49,50 @@ const highlight = HighlightStyle.define([
   { tag: t.macroName, color: "#7ef2b4" },
   { tag: t.operator, color: "#c4d3ef" },
 ]);
+
+/** The Arduino core API, with placeholders to tab through. */
+const ARDUINO: Completion[] = [
+  snippetCompletion("pinMode(${pin}, ${OUTPUT})", { label: "pinMode", type: "function", detail: "(pin, mode)" }),
+  snippetCompletion("digitalWrite(${pin}, ${HIGH})", { label: "digitalWrite", type: "function", detail: "(pin, value)" }),
+  snippetCompletion("digitalRead(${pin})", { label: "digitalRead", type: "function", detail: "(pin) → HIGH/LOW" }),
+  snippetCompletion("analogRead(${A0})", { label: "analogRead", type: "function", detail: "(pin) → 0–1023" }),
+  snippetCompletion("analogWrite(${pin}, ${value})", { label: "analogWrite", type: "function", detail: "(pin, 0–255) PWM" }),
+  snippetCompletion("delay(${ms})", { label: "delay", type: "function", detail: "(ms)" }),
+  snippetCompletion("delayMicroseconds(${us})", { label: "delayMicroseconds", type: "function", detail: "(µs)" }),
+  snippetCompletion("millis()", { label: "millis", type: "function", detail: "() → ms since start" }),
+  snippetCompletion("micros()", { label: "micros", type: "function", detail: "() → µs since start" }),
+  snippetCompletion("map(${value}, ${fromLow}, ${fromHigh}, ${toLow}, ${toHigh})", { label: "map", type: "function", detail: "(value, fromLow, fromHigh, toLow, toHigh)" }),
+  snippetCompletion("constrain(${x}, ${low}, ${high})", { label: "constrain", type: "function", detail: "(x, low, high)" }),
+  snippetCompletion("tone(${pin}, ${frequency})", { label: "tone", type: "function", detail: "(pin, Hz[, ms])" }),
+  snippetCompletion("noTone(${pin})", { label: "noTone", type: "function", detail: "(pin)" }),
+  snippetCompletion("pulseIn(${pin}, ${HIGH})", { label: "pulseIn", type: "function", detail: "(pin, level[, timeout]) → µs" }),
+  snippetCompletion("attachInterrupt(digitalPinToInterrupt(${2}), ${isr}, ${FALLING})", { label: "attachInterrupt", type: "function", detail: "(interrupt, isr, mode)" }),
+  snippetCompletion("random(${max})", { label: "random", type: "function", detail: "([min,] max)" }),
+  snippetCompletion("Serial.begin(${9600})", { label: "Serial.begin", type: "method", detail: "(baud)" }),
+  snippetCompletion("Serial.println(${value})", { label: "Serial.println", type: "method", detail: "(value)" }),
+  snippetCompletion("Serial.print(${value})", { label: "Serial.print", type: "method", detail: "(value)" }),
+  snippetCompletion("Serial.available()", { label: "Serial.available", type: "method", detail: "() → bytes waiting" }),
+  snippetCompletion("Serial.read()", { label: "Serial.read", type: "method", detail: "() → byte or -1" }),
+  snippetCompletion("Serial.readStringUntil('${\\n}')", { label: "Serial.readStringUntil", type: "method", detail: "(terminator)" }),
+  snippetCompletion("void setup() {\n\t${}\n}\n\nvoid loop() {\n\t\n}", { label: "setup / loop", type: "keyword", detail: "sketch skeleton" }),
+  snippetCompletion("for (int ${i} = 0; ${i} < ${n}; ${i}++) {\n\t${}\n}", { label: "for", type: "keyword", detail: "loop" }),
+  snippetCompletion("#include <Servo.h>", { label: "#include <Servo.h>", type: "keyword" }),
+  snippetCompletion("#include <Wire.h>", { label: "#include <Wire.h>", type: "keyword" }),
+  ...["HIGH", "LOW", "INPUT", "OUTPUT", "INPUT_PULLUP", "LED_BUILTIN", "A0", "A1", "A2", "A3", "A4", "A5", "RISING", "FALLING", "CHANGE"].map((label) => ({ label, type: "constant" })),
+];
+
+const ARDUINO_LABELS = new Set(ARDUINO.map((c) => c.label));
+/** Words already in the file, minus the ones the Arduino list offers with a snippet. */
+async function completeWords(ctx: CompletionContext) {
+  const r = await completeAnyWord(ctx);
+  return r && { ...r, options: r.options.filter((o) => !ARDUINO_LABELS.has(o.label)) };
+}
+
+function completeArduino(ctx: CompletionContext) {
+  const word = ctx.matchBefore(/[#\w.]+/);
+  if (!word || (word.from === word.to && !ctx.explicit)) return null;
+  return { from: word.from, options: ARDUINO, validFor: /^[#\w.]*$/ };
+}
 
 export function CodeEditor({ value, onChange, diagnostics, readOnly, fileName }: { value: string; onChange: (v: string) => void; diagnostics: Diagnostic[]; readOnly?: boolean; fileName: string }) {
   const host = useRef<HTMLDivElement>(null);
@@ -62,11 +116,15 @@ export function CodeEditor({ value, onChange, diagnostics, readOnly, fileName }:
           history(),
           indentOnInput(),
           bracketMatching(),
+          closeBrackets(),
+          highlightSelectionMatches(),
+          search({ top: true }),
+          autocompletion({ override: [completeArduino, completeWords] }),
           cpp(),
           syntaxHighlighting(highlight),
           theme,
           EditorState.tabSize.of(2),
-          keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
+          keymap.of([...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, indentWithTab, ...defaultKeymap, ...historyKeymap]),
           ro.current.of(EditorState.readOnly.of(!!readOnly)),
           EditorView.updateListener.of((u) => u.docChanged && change.current(u.state.doc.toString())),
           EditorView.contentAttributes.of({ "aria-label": "Code editor", spellcheck: "false", autocapitalize: "off" }),

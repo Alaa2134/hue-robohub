@@ -150,6 +150,8 @@ test.describe("BuildX Lab", () => {
 
   test("3D view: the circuit as real-sized models (or a clear note where WebGL is off)", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
+    // Loads three.js and compiles shaders; CI runners render WebGL on the CPU.
+    test.setTimeout(90_000);
     await mockSupabase(page);
     await page.goto("/lab/");
     await page.getByTestId("example-blink").click();
@@ -158,6 +160,38 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("circuit-3d").or(page.getByTestId("no-webgl"))).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("view-2d").click();
     await expect(page.getByTestId("circuit-3d")).toHaveCount(0);
+  });
+
+  test("workspace: right-click menu, pinout, copy and paste, delete asks first", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/");
+    await page.getByTestId("example-button-led").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+    const led = page.getByTestId("part-led");
+    await expect(led).toHaveCount(1);
+    await led.click({ button: "right" });
+    const menu = page.getByTestId("context-menu");
+    await expect(menu).toBeVisible();
+    await menu.getByRole("menuitem", { name: "View pinout" }).click();
+    await expect(page.getByTestId("part-sheet-pinout")).toContainText("Anode");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("part-sheet-pinout")).toHaveCount(0);
+
+    await led.click();
+    await page.keyboard.press("Control+c");
+    await page.keyboard.press("Control+v");
+    await expect(led).toHaveCount(2);
+    await page.keyboard.press("Control+z");
+    await expect(led).toHaveCount(1);
+
+    await page.getByTestId("circuit-canvas").click({ position: { x: 20, y: 300 } });
+    await page.keyboard.press("Control+a");
+    await page.keyboard.press("Delete");
+    await expect(page.getByTestId("confirm-delete")).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(led).toHaveCount(1);
   });
 
   test("compile errors point at the line", async ({ page, isMobile }) => {

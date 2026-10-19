@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLang } from "../i18n";
 import { Badge, Button, Icon, IconButton, Input, Select, cn } from "../ui";
 import type { Diagnostic } from "../compiler/sketch";
-import { diagText, partLabels, type SimDiagnostic } from "../sim/diagnostics";
+import { diagHelp, diagText, partLabels, type SimDiagnostic } from "../sim/diagnostics";
 import type { Frame } from "../sim/engine";
 import { DocStore, useDoc } from "./doc-store";
 import { WIRE_COLORS, type CircuitDoc } from "./model";
-import { CATEGORIES, PARTS, PART_BY_TYPE, propsOf, type PartDef, type PropDef } from "./parts";
+import { CATEGORIES, PARTS, PART_BY_TYPE, PIN_COLORS, pinRole, propsOf, type PartDef, type PropDef } from "./parts";
 import { PartArt, eng } from "./render";
 
 /* ─── Library ──────────────────────────────────────────────────────────── */
@@ -37,6 +37,94 @@ export function PartIcon({ def, shot, className = "size-10" }: { def: PartDef; s
 }
 
 export { useSnapshots };
+
+/* ─── Part sheet: pinout and documentation ─────────────────────────────── */
+
+/** Every pin of a part with what it's for, and what the model simulates. Read from the catalog, so it can't drift. */
+export function PartSheet({ type, mode }: { type: string; mode: "pinout" | "docs" }) {
+  const { t, l } = useLang();
+  const shots = useSnapshots();
+  const def = PART_BY_TYPE.get(type);
+  if (!def) return null;
+  const inst = { id: "sheet", type, x: 0, y: 0, rot: 0 as const, props: { ...def.defaults } };
+  const pins = def.pins(inst.props);
+  const holes = def.category === "breadboards";
+  const groups = def.internal?.(inst.props).filter((g) => g.length > 1) ?? [];
+  return (
+    <div className="grid gap-4" data-testid={`part-sheet-${mode}`}>
+      <div className="flex items-center gap-3">
+        <PartIcon def={def} shot={shots?.get(type)} className="size-16" />
+        <div>
+          <p className="font-semibold">{l(def.name)}</p>
+          <div className="mt-1">{def.support === "sim" ? <Badge tone="ok">{t("simulated")}</Badge> : <Badge tone="warn">{t("visualOnly")}</Badge>}</div>
+        </div>
+      </div>
+      {mode === "docs" ? (
+        <>
+          {def.note && <p className="text-sm leading-relaxed text-mist">{l(def.note)}</p>}
+          {def.support === "visual" && <p className="text-sm text-warn">{l({ en: "This part is drawn and can be wired, but the simulator doesn't model its behaviour yet.", ar: "القطعة دي بتترسم وتتوصّل، لكن المحاكي لسه مش بيحاكي شغلها." })}</p>}
+          {def.props.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold tracking-wide text-cyan uppercase">{l({ en: "Properties", ar: "الخصائص" })}</p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                {def.props.map((d) => (
+                  <div key={d.key} className="contents">
+                    <dt className="text-fog">{l(d.label)}</dt>
+                    <dd className="font-mono text-frost" dir="ltr">
+                      {String(def.defaults[d.key] ?? "—")}
+                      {d.type === "number" && d.unit ? ` ${d.unit}` : ""}
+                      {d.live && <span className="ms-2 text-xs text-cyan">{l({ en: "adjustable while running", ar: "يتغيّر وهو شغّال" })}</span>}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+          <p className="text-xs text-fog">
+            {pins.length} {l({ en: "pins", ar: "طرف" })}
+            {groups.length > 0 && ` · ${groups.length} ${l({ en: "internally connected groups", ar: "مجموعات متوصّلة من جوّه" })}`}
+          </p>
+        </>
+      ) : holes ? (
+        <div className="grid gap-2 text-sm text-mist">
+          <p>{l({ en: "Each numbered column of five holes (a–e and f–j) is one strip: anything plugged into the same strip is connected. The long rails along the edges carry + and −.", ar: "كل عمود مرقّم فيه خمس خروم (a–e و f–j) متوصّلين ببعض: أي حاجة في نفس الشريحة بتبقى متوصّلة. الخطوط الطويلة على الأطراف للموجب والسالب." })}</p>
+          <p className="text-xs text-fog">
+            {pins.length} {l({ en: "holes", ar: "خرم" })} · {groups.length} {l({ en: "connected strips and rails", ar: "شريحة وخط متوصّلين" })}
+          </p>
+        </div>
+      ) : (
+        <div className="max-h-[50vh] overflow-auto rounded-xl ring-1 ring-rim">
+          <table className="w-full text-sm" dir="ltr">
+            <thead className="sticky top-0 bg-panel text-xs text-fog">
+              <tr>
+                <th className="px-3 py-1.5 text-start">{l({ en: "Pin", ar: "الطرف" })}</th>
+                <th className="px-3 py-1.5 text-start">{l({ en: "Type", ar: "النوع" })}</th>
+                <th className="px-3 py-1.5 text-start">{l({ en: "Function", ar: "الوظيفة" })}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pins.map((pin) => {
+                const r = pinRole(inst, pin.name);
+                return (
+                  <tr key={pin.name} className="border-t border-rim">
+                    <td className="px-3 py-1 font-mono font-semibold">{pin.label ?? pin.name}</td>
+                    <td className="px-3 py-1">
+                      <span className="inline-flex items-center gap-1.5 text-xs">
+                        <span className="size-2.5 rounded-full" style={{ background: PIN_COLORS[r.kind] }} />
+                        {r.kind}
+                      </span>
+                    </td>
+                    <td className="px-3 py-1 text-mist">{r.note}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Library({ onPick, disabled }: { onPick: (type: string) => void; disabled: boolean }) {
   const { l, t } = useLang();
@@ -325,12 +413,33 @@ export function SerialMonitor({ text, onSend, onClear, enabled }: { text: string
 
 /* ─── Diagnostics ──────────────────────────────────────────────────────── */
 
-export function Diagnostics({ compile, sim, doc, onGoto, sizes }: { compile: Diagnostic[]; sim: SimDiagnostic[]; doc: CircuitDoc; onGoto: (file: string, line: number) => void; sizes?: { flash: number; ram: number; flashMax: number; ramMax: number } }) {
+export function Diagnostics({
+  compile,
+  sim,
+  doc,
+  onGoto,
+  onSelect,
+  sizes,
+}: {
+  compile: Diagnostic[];
+  sim: SimDiagnostic[];
+  doc: CircuitDoc;
+  onGoto: (file: string, line: number) => void;
+  /** Select (and show) the part or wire a finding is about. */
+  onSelect?: (target: { part?: string; wire?: string }) => void;
+  sizes?: { flash: number; ram: number; flashMax: number; ramMax: number };
+}) {
   const { t, l } = useLang();
   const labels = useMemo(() => partLabels(doc, l), [doc, l]);
-  const items = [
+  const order = { error: 0, warning: 1, info: 2 };
+  const items: { level: "error" | "warning" | "info"; text: string; where: string; why?: string; fix?: string; goto?: () => void }[] = [
     ...compile.filter((d) => d.severity !== "note").map((d) => ({ level: d.severity === "error" ? ("error" as const) : ("warning" as const), text: d.message, where: d.file ? `${d.file}${d.line ? `:${d.line}:${d.col}` : ""}` : "", goto: d.line ? () => onGoto(d.file, d.line) : undefined })),
-    ...sim.map((d) => ({ level: d.level, text: diagText(d, l, labels), where: "", goto: undefined })),
+    ...sim
+      .map((d) => {
+        const target = d.wire && doc.wires.some((w) => w.id === d.wire) ? { wire: d.wire } : d.part && doc.parts.some((p) => p.id === d.part) ? { part: d.part } : null;
+        return { level: d.level, text: diagText(d, l, labels), where: "", ...diagHelp(d, l), goto: target && onSelect ? () => onSelect(target) : undefined };
+      })
+      .sort((a, b) => order[a.level] - order[b.level]),
   ];
   return (
     <div className="h-full overflow-y-auto p-3" data-testid="diagnostics">
@@ -369,6 +478,13 @@ export function Diagnostics({ compile, sim, doc, onGoto, sizes }: { compile: Dia
                   {d.where && (
                     <span className="ms-2 font-mono text-xs text-fog" dir="ltr">
                       {d.where}
+                    </span>
+                  )}
+                  {d.why && <span className="mt-0.5 block text-xs text-fog">{d.why}</span>}
+                  {d.fix && (
+                    <span className="mt-0.5 block text-xs text-cyan">
+                      {l({ en: "Fix: ", ar: "الحل: " })}
+                      {d.fix}
                     </span>
                   )}
                 </span>
