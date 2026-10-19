@@ -148,6 +148,18 @@ test.describe("BuildX Lab", () => {
     await expect(page.locator(".cm-content")).toContainText("digitalWrite(13, HIGH);");
   });
 
+  test("3D view: the circuit as real-sized models (or a clear note where WebGL is off)", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    await mockSupabase(page);
+    await page.goto("/lab/");
+    await page.getByTestId("example-blink").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("view-3d").click();
+    await expect(page.getByTestId("circuit-3d").or(page.getByTestId("no-webgl"))).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("view-2d").click();
+    await expect(page.getByTestId("circuit-3d")).toHaveCount(0);
+  });
+
   test("compile errors point at the line", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     test.setTimeout(120_000);

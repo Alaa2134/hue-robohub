@@ -1,6 +1,7 @@
 "use client";
 /** Every part in the Lab, what the simulator models for it, and its pins. */
 import { useState } from "react";
+import { PartIcon, useSnapshots } from "../circuit/panels";
 import { CATEGORIES, PARTS, type PartDef } from "../circuit/parts";
 import { PartArt } from "../circuit/render";
 import { useLang } from "../i18n";
@@ -18,6 +19,7 @@ function Art({ def }: { def: PartDef }) {
 export function ComponentsPage() {
   const { t, l } = useLang();
   const [q, setQ] = useState("");
+  const shots = useSnapshots();
   const s = q.trim().toLowerCase();
   const list = s ? PARTS.filter((p) => `${p.name.en} ${p.name.ar} ${p.keywords ?? ""}`.toLowerCase().includes(s)) : PARTS;
   return (
@@ -35,8 +37,8 @@ export function ComponentsPage() {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((p) => (
                 <article key={p.type} className="rounded-2xl border border-[var(--line)] bg-deep/80 p-4">
-                  <div className="rounded-xl bg-[#0a1430] p-2">
-                    <Art def={p} />
+                  <div className="grid h-36 place-items-center rounded-xl bg-[radial-gradient(circle_at_50%_40%,#16306a,#0a1430)] p-2">
+                    {shots?.get(p.type) ? <PartIcon def={p} shot={shots.get(p.type)} className="h-32 w-32" /> : <Art def={p} />}
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <h3 className="font-semibold">{l(p.name)}</h3>

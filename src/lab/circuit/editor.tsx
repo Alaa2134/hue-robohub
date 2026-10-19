@@ -4,7 +4,7 @@
  * diagnostics, with real compilation (GCC in a worker) and simulation (AVR + circuit solver in a
  * worker). `layout="code"` is the Code Studio: the code takes the stage and the board sits beside it.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { labEvent, meStore, projects, type Project, type Visibility } from "../api";
 import { compile, onCompilerEvent } from "../compiler/client";
@@ -23,6 +23,9 @@ import { DocStore, useDoc } from "./doc-store";
 import { validDoc, emptyDoc, type CircuitDoc } from "./model";
 import { Diagnostics, Inspector, Library, SerialMonitor } from "./panels";
 import { CircuitThumb } from "./render";
+
+/** The 3D view (three.js) loads only when it's opened. */
+const Circuit3D = lazy(() => import("./view3d/scene"));
 
 type Side = "code" | "inspector";
 type Bottom = "serial" | "diagnostics";
@@ -50,6 +53,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
   const [toolchainBytes, setToolchainBytes] = useState<number | null>(null);
   const [dialog, setDialog] = useState<null | "share" | "versions" | "export" | "newfile">(null);
   const [titleDraft, setTitleDraft] = useState<string | null>(null);
+  const [view3d, setView3d] = useState(false);
 
   const sim = useSimulation((seconds) => labEvent("sim_run", id, { seconds: Math.round(seconds * 10) / 10 }));
   const running = sim.status !== "idle";
@@ -232,6 +236,19 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
 
   const canvas = (
     <div ref={stage} className="relative min-h-0 flex-1 overflow-hidden" dir="ltr">
+      {view3d && (
+        <div className="absolute inset-0 z-10">
+          <Suspense
+            fallback={
+              <div className="grid size-full place-items-center bg-[#0a1430]">
+                <Spinner size={28} />
+              </div>
+            }
+          >
+            <Circuit3D doc={doc} readings={readings} live={sim.live} running={running} onLive={sim.setLive} />
+          </Suspense>
+        </div>
+      )}
       <Canvas
         store={store}
         view={view}
@@ -246,13 +263,24 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
         readOnly={readOnly}
         boardPinVolts={boardVolts}
       />
-      <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 p-2">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 p-2">
         <div className="pointer-events-auto flex gap-1 rounded-xl bg-deep/90 p-1 ring-1 ring-rim backdrop-blur">
-          <IconButton icon="zoomIn" label={t("zoomIn")} onClick={() => zoom(1.25)} />
-          <IconButton icon="zoomOut" label={t("zoomOut")} onClick={() => zoom(0.8)} />
-          <IconButton icon="fit" label={t("fit")} onClick={fit} />
+          <div className="flex rounded-lg bg-abyss p-0.5 ring-1 ring-rim" role="radiogroup" aria-label="2D / 3D">
+            {([false, true] as const).map((v) => (
+              <button key={String(v)} type="button" role="radio" aria-checked={view3d === v} onClick={() => setView3d(v)} data-testid={v ? "view-3d" : "view-2d"} className={cn("rounded-md px-2.5 py-1 font-mono text-xs font-semibold", view3d === v ? "bg-volt text-white" : "text-mist hover:text-frost")}>
+                {v ? "3D" : "2D"}
+              </button>
+            ))}
+          </div>
+          {!view3d && (
+            <>
+              <IconButton icon="zoomIn" label={t("zoomIn")} onClick={() => zoom(1.25)} />
+              <IconButton icon="zoomOut" label={t("zoomOut")} onClick={() => zoom(0.8)} />
+              <IconButton icon="fit" label={t("fit")} onClick={fit} />
+            </>
+          )}
         </div>
-        {!readOnly && !running && (
+        {!readOnly && !running && !view3d && (
           <div className="pointer-events-auto flex items-center gap-1 rounded-xl bg-deep/90 p-1.5 ring-1 ring-rim backdrop-blur" role="radiogroup" aria-label={t("wireColor")}>
             {["#e5484d", "#2b2b2b", "#3e63dd", "#30a46c", "#f5d90a", "#f76b15", "#ffffff"].map((c) => (
               <button key={c} type="button" role="radio" aria-checked={wireColor === c} aria-label={c} onClick={() => setWireColor(c)} className={cn("size-5 rounded-full ring-2", wireColor === c ? "ring-cyan" : "ring-transparent")} style={{ background: c }} />

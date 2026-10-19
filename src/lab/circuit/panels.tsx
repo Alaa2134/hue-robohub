@@ -13,18 +13,35 @@ import { PartArt, eng } from "./render";
 
 /* ─── Library ──────────────────────────────────────────────────────────── */
 
-function PartIcon({ def }: { def: PartDef }) {
+/** 3D-rendered pictures of the parts, made once in the background (2D drawings until then). */
+function useSnapshots() {
+  const [shots, setShots] = useState<Map<string, string> | null>(null);
+  useEffect(() => {
+    let live = true;
+    import("./view3d/snapshots").then((m) => m.partSnapshots()).then((s) => live && setShots(s), () => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+  return shots;
+}
+
+export function PartIcon({ def, shot, className = "size-10" }: { def: PartDef; shot?: string; className?: string }) {
   const b = def.box;
+  if (shot) return <img src={shot} alt="" className={cn(className, "shrink-0 object-contain")} />;
   return (
-    <svg viewBox={`${b.x - 4} ${b.y - 4} ${b.w + 8} ${b.h + 8}`} className="size-10 shrink-0" aria-hidden>
+    <svg viewBox={`${b.x - 4} ${b.y - 4} ${b.w + 8} ${b.h + 8}`} className={cn(className, "shrink-0")} aria-hidden>
       <PartArt p={{ id: "icon", type: def.type, x: 0, y: 0, rot: 0, props: { ...def.defaults } }} />
     </svg>
   );
 }
 
+export { useSnapshots };
+
 export function Library({ onPick, disabled }: { onPick: (type: string) => void; disabled: boolean }) {
   const { l, t } = useLang();
   const [q, setQ] = useState("");
+  const shots = useSnapshots();
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     return s ? PARTS.filter((p) => `${p.name.en} ${p.name.ar} ${p.keywords ?? ""}`.toLowerCase().includes(s)) : PARTS;
@@ -56,7 +73,7 @@ export function Library({ onPick, disabled }: { onPick: (type: string) => void; 
                       data-testid={`lib-${p.type}`}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-start text-sm text-mist hover:bg-panel-2 hover:text-frost disabled:opacity-50"
                     >
-                      <PartIcon def={p} />
+                      <PartIcon def={p} shot={shots?.get(p.type)} className="size-12" />
                       <span className="min-w-0 flex-1 truncate">{l(p.name)}</span>
                       {p.support === "visual" && <Badge tone="warn">2D</Badge>}
                     </button>
