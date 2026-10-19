@@ -388,11 +388,17 @@ export function Canvas({
           return (
             <g key={w.id} data-wire={w.id} style={{ cursor: locked ? "default" : "pointer" }}>
               <path d={d} fill="none" stroke="transparent" strokeWidth={8} />
-              {selected && <path d={d} fill="none" stroke="#3cc4ff" strokeWidth={5.2} strokeLinejoin="round" strokeLinecap="round" opacity={0.55} />}
-              <path d={d} fill="none" stroke={w.color} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
-              <path d={d} fill="none" stroke="rgba(255,255,255,.25)" strokeWidth={0.8} strokeLinejoin="round" strokeLinecap="round" transform="translate(-0.5 -0.6)" pointerEvents="none" />
+              {/* A jumper wire: soft shadow on the bench, glossy insulation, metal pin at each end. */}
+              <path d={d} fill="none" stroke="rgba(0,0,0,.38)" strokeWidth={3.6} strokeLinejoin="round" strokeLinecap="round" transform="translate(1.6 2.2)" style={{ filter: "blur(1.2px)" }} pointerEvents="none" />
+              {selected && <path d={d} fill="none" stroke="#3cc4ff" strokeWidth={5.4} strokeLinejoin="round" strokeLinecap="round" opacity={0.55} />}
+              <path d={d} fill="none" stroke={w.color} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" />
+              <path d={d} fill="none" stroke="rgba(0,0,0,.28)" strokeWidth={1} strokeLinejoin="round" strokeLinecap="round" transform="translate(0.5 0.7)" pointerEvents="none" />
+              <path d={d} fill="none" stroke="rgba(255,255,255,.42)" strokeWidth={0.7} strokeLinejoin="round" strokeLinecap="round" transform="translate(-0.55 -0.65)" pointerEvents="none" />
               {[a, b].map((q, i) => (
-                <circle key={i} cx={q.x} cy={q.y} r={2.1} fill={w.color} stroke="rgba(0,0,0,.4)" strokeWidth={0.5} pointerEvents="none" />
+                <g key={i} pointerEvents="none">
+                  <circle cx={q.x} cy={q.y} r={2.3} fill="#1b1b1b" />
+                  <circle cx={q.x} cy={q.y} r={1.1} fill="#c9ced6" />
+                </g>
               ))}
               {selected &&
                 !locked &&

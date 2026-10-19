@@ -234,6 +234,25 @@ function uno(): Model {
   g.add(box(6, 3, 6, std("#cfcfcf", 0.4, 0.5), P(262), top, P(46)));
   g.add(cyl(1.8, 1, std("#3a3a3a", 0.6), P(262), top + 3, P(46)));
   g.add(box(5, 1.2, 4, M.blackGloss(), P(120), top, P(64))); // USB-serial chip
+  // ICSP headers (2×3 male pins) by the ATmega and by the USB chip.
+  const icsp = (x: number, z: number) => {
+    g.add(box(5.2, 2.5, 7.7, M.black(), x, top, z));
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) g.add(box(0.64, 6, 0.64, M.gold(), x - 1.27 + i * 2.54, top + 2.5, z - 2.54 + j * 2.54));
+  };
+  icsp(P(268), P(120));
+  icsp(P(92), P(30));
+  // ATmega16U2 (USB-serial, QFN), the 3.3 V regulator, SMD resistors and capacitors.
+  g.add(box(5, 0.9, 5, M.blackGloss(), P(100), top, P(56)));
+  g.add(box(3, 1.2, 1.7, M.black(), P(60), top, P(118)));
+  const smdParts: [number, number, string][] = [
+    [P(70), P(70), "#1a1a1a"], [P(80), P(70), "#1a1a1a"], [P(90), P(78), "#c8a46a"], [P(150), P(60), "#c8a46a"], [P(160), P(60), "#c8a46a"],
+    [P(232), P(70), "#1a1a1a"], [P(232), P(78), "#1a1a1a"], [P(116), P(100), "#c8a46a"], [P(122), P(100), "#c8a46a"], [P(250), P(150), "#1a1a1a"],
+    [P(175), P(110), "#c8a46a"], [P(185), P(110), "#c8a46a"], [P(140), P(170), "#1a1a1a"], [P(150), P(170), "#1a1a1a"],
+  ];
+  for (const [x, z, c] of smdParts) {
+    g.add(box(1.6, 0.5, 0.8, std(c, 0.45), x, top, z));
+    g.add(box(0.35, 0.55, 0.85, M.tin(), x - 0.7, top, z), box(0.35, 0.55, 0.85, M.tin(), x + 0.7, top, z));
+  }
   // Status LEDs (SMD): L on pin 13, TX, ON.
   const smd = (color: string, x: number, z: number) => {
     const m = new THREE.MeshStandardMaterial({ color: "#3a2a12", emissive: color, emissiveIntensity: 0, roughness: 0.3 });
