@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 type Stats = { accepted: number; capacity: number | null; days: Record<string, number> } | null;
 
@@ -15,7 +16,7 @@ export function DelegationCounter({ slug, going, left, full, closed }: { slug: s
       const c = JSON.parse(sessionStorage.getItem(key) ?? "null") as { at: number; s: Stats } | null;
       if (c && Date.now() - c.at < 60_000) return setS(c.s);
     } catch {}
-    fetch(`${SUPABASE_URL}/rest/v1/rpc/form_delegation`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: slug }), signal: AbortSignal.timeout(6000) })
+    fetch(`${SUPABASE_URL}/rest/v1/rpc/form_delegation`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: slug }), signal: timeoutSignal(6000) })
       .then((r) => (r.ok ? (r.json() as Promise<Stats>) : null))
       .then(
         (x) => {

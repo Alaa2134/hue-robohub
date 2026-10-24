@@ -19,6 +19,7 @@ import { cn } from "@/lib/cn";
 import { BASE_PATH } from "@/lib/deploy";
 import { cleanPage, imageOf, tx, type Block, type Btn, type HeroBlock, type SitePage } from "@/lib/site-pages";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 const L = {
   ar: {
@@ -414,7 +415,7 @@ export function LiveSitePage({ slug, locale, fallback, crumbs }: { slug?: string
     const fresh = cached && Date.now() - cached.at < 60_000;
     (fresh
       ? Promise.resolve(cached!.raw)
-      : fetch(`${SUPABASE_URL}/rest/v1/rpc/site_page`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: s }), signal: AbortSignal.timeout(6000) })
+      : fetch(`${SUPABASE_URL}/rest/v1/rpc/site_page`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify({ p_slug: s }), signal: timeoutSignal(6000) })
           .then((r) => (r.ok ? r.json() : null))
           .then((raw: unknown) => {
             try {

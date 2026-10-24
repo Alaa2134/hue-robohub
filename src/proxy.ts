@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { privateCsp, publicCsp } from "@/lib/security-headers";
 
 const PRIVATE_PREFIXES = ["/command", "/login", "/setup", "/forgot-password", "/reset-password", "/403", "/mfa"];
-const PASSTHROUGH = /^\/(api|app|media|uploads|_next|_vercel)(\/|$)|^\/(favicon\.ico|robots\.txt|sitemap\.xml|manifest\.webmanifest|sw\.js|brand\/|icons\/|images\/|og\/|opengraph-image|twitter-image)/;
+const PASSTHROUGH = /^\/(api|app|lab|media|uploads|_next|_vercel)(\/|$)|^\/(favicon\.ico|robots\.txt|sitemap\.xml|manifest\.webmanifest|sw\.js|brand\/|icons\/|images\/|og\/|opengraph-image|twitter-image)/;
 
 const dev = process.env.NODE_ENV !== "production";
 const mediaBase = process.env.PUBLIC_MEDIA_BASE_URL || undefined;

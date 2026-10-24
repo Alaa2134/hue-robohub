@@ -7,5 +7,7 @@ export const STATIC_SITE = process.env.NEXT_PUBLIC_STATIC_SITE === "1";
 export const COMMAND_URL = process.env.NEXT_PUBLIC_COMMAND_URL || (STATIC_SITE ? "" : "/command");
 /** BuildX App (students & trainers PWA). A plain link: it is a separate root layout. */
 export const APP_HREF = STATIC_SITE ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/app/` : "/app";
+/** BuildX Lab (circuits, Arduino code, simulation), a client-side app outside the locale tree. */
+export const LAB_HREF = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}/lab/`;
 /** Project-site prefix on GitHub Pages ("" on the custom domain). */
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH ?? "";

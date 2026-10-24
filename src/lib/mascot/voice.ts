@@ -11,6 +11,7 @@ import { greeting } from "@/config/mascotJourney";
 import { BASE_PATH } from "@/lib/deploy";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 import { spoken, voiceKey } from "./voice-text";
+import { timeoutSignal } from "@/lib/timeout";
 
 const DEVICE_KEY = "bx-guide-device-voice";
 let unlocked = false;
@@ -34,7 +35,7 @@ function loadHuman(): Promise<Map<string, string>> {
     const c = JSON.parse(sessionStorage.getItem(HUMAN_KEY) ?? "null") as { at: number; clips: Record<string, string> } | null;
     if (c && Date.now() - c.at < 600_000) return Promise.resolve(new Map(Object.entries(c.clips)));
   } catch {}
-  return fetch(`${SUPABASE_URL}/rest/v1/rpc/voice_clips_live`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(2500) })
+  return fetch(`${SUPABASE_URL}/rest/v1/rpc/voice_clips_live`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: timeoutSignal(2500) })
     .then((r) => (r.ok ? (r.json() as Promise<Record<string, string>>) : {}))
     .then((m) => {
       const found = Object.entries(m ?? {}).filter((e): e is [string, string] => /^[0-9a-f]{8}$/.test(e[0]) && typeof e[1] === "string");
@@ -96,6 +97,15 @@ export function setDeviceVoice(on: boolean) {
   try {
     localStorage.setItem(DEVICE_KEY, on ? "1" : "0");
   } catch {}
+}
+/** speechSynthesis.speak can throw: Brave on iOS wraps it and fails on an utterance with no voice. */
+function say(u: SpeechSynthesisUtterance): boolean {
+  try {
+    window.speechSynthesis.speak(u);
+    return true;
+  } catch {
+    return false;
+  }
 }
 const deviceCan = () => synthOk() && (choose(), !!device || listed === 0);
 /** The device lists its voices and none is Arabic (e.g. Chrome on Windows without Arabic installed). */
@@ -181,7 +191,8 @@ export function unlock() {
   if (synthOk() && deviceVoiceOn()) {
     const u = new SpeechSynthesisUtterance(" ");
     u.volume = 0;
-    window.speechSynthesis.speak(u);
+    if (device) u.voice = device;
+    say(u);
   }
 }
 
@@ -215,11 +226,12 @@ export async function speak(text: string): Promise<void> {
   u.pitch = 1;
   return new Promise<void>((done) => {
     const timer = setTimeout(done, 1500 + t.length * 110);
-    u.onend = u.onerror = () => {
+    const finish = () => {
       clearTimeout(timer);
       done();
     };
-    window.speechSynthesis.speak(u);
+    u.onend = u.onerror = finish;
+    if (!say(u)) finish();
   });
 }
 

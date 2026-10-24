@@ -85,9 +85,15 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
               <ul className="space-y-2.5">
                 {g.items.map((n) => (
                   <li key={n.href}>
-                    <Link href={href(n.href)} className="link-sweep text-[0.92rem] text-mist hover:text-chalk">
-                      {t.nav[n.key]}
-                    </Link>
+                    {n.external ? (
+                      <a href={n.href} className="link-sweep text-[0.92rem] text-mist hover:text-chalk">
+                        {t.nav[n.key]}
+                      </a>
+                    ) : (
+                      <Link href={href(n.href)} className="link-sweep text-[0.92rem] text-mist hover:text-chalk">
+                        {t.nav[n.key]}
+                      </Link>
+                    )}
                   </li>
                 ))}
               </ul>

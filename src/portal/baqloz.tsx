@@ -492,7 +492,10 @@ export function speak(text: string) {
   u.lang = "ar-EG";
   const v = s.getVoices().find((x) => x.lang === "ar-EG") ?? s.getVoices().find((x) => x.lang.startsWith("ar"));
   if (v) u.voice = v;
-  s.speak(u);
+  // Brave on iOS wraps speak() and can throw.
+  try {
+    s.speak(u);
+  } catch {}
 }
 
 function SpeakButton({ text }: { text: string }) {

@@ -1,8 +1,10 @@
 import type { Dictionary } from "@/i18n";
 import type { IconName } from "@/components/brand/icons";
+import { LAB_HREF } from "@/lib/deploy";
 
 export type NavKey = keyof Dictionary["nav"];
-export type NavItem = { key: NavKey; href: string; icon?: IconName };
+/** `external`: a separate app on this site (no language prefix, full page load). */
+export type NavItem = { key: NavKey; href: string; icon?: IconName; external?: boolean };
 
 /** Desktop header links. */
 export const PRIMARY_NAV: NavItem[] = [
@@ -20,6 +22,7 @@ export const MENU_GROUPS: { key: NavKey; items: NavItem[] }[] = [
   {
     key: "explore",
     items: [
+      { key: "lab", href: LAB_HREF, icon: "circuit", external: true },
       { key: "tracks", href: "/tracks", icon: "layers" },
       { key: "competitions", href: "/competitions", icon: "flag" },
       { key: "bootcamp", href: "/bootcamp", icon: "rocket" },

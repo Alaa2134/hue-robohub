@@ -2,7 +2,7 @@
 /** Student side: home, content library, quizzes (timed, autosaved, graded on the server) and attendance. */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
+import { BASE_PATH, SITE_ORIGIN, STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, isNative, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
 import { StudentBaqloz } from "./baqloz";
 import { StudentLoansCard } from "./inventory";
 import { MemberCardScreen, MemberCardTile } from "./member-card";
@@ -557,6 +557,14 @@ function Account({ session }: { session: StudentSession }) {
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-chalk">مشاريعي وفرق المسابقات</span>
           <span className="block text-xs text-fog">اعرض مشروعك على الموقع، وقدّم في فرق المسابقات</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
+      <a href={isNative() ? `${SITE_ORIGIN}/lab/` : `${BASE_PATH}/lab/`} className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+        <Icon name="circuit" size={20} className="shrink-0 text-cyan" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">معمل BuildX</span>
+          <span className="block text-xs text-fog">صمّم دواير واكتب كود أردوينو وشغّله محاكاة — بنفس حسابك</span>
         </span>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>

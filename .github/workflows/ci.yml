@@ -22,6 +22,10 @@ jobs:
       - run: npm run lint
       # Every Arabic text in the app has its English (src/portal/i18n/en.json).
       - run: node scripts/i18n-extract.mjs --check
+      # BuildX Lab: the compiler pack, then the compiler, circuit solver and simulator unit tests
+      # (every example project is built with GCC and run on the simulated ATmega328P).
+      - run: node scripts/lab-toolchain.mjs
+      - run: npx vitest run --project unit
       # Chromium first: the build draws the share images with it, then the smoke tests use it.
       - run: npx playwright install --with-deps chromium
       - name: Build

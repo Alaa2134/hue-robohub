@@ -6,6 +6,7 @@ import { DIR_CATEGORIES, fromRow, type DirRow, type DirSite, type Price } from "
 import { cn } from "@/lib/cn";
 import { BASE_PATH } from "@/lib/deploy";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 const L = {
   ar: { all: "الكل", search: "دوّر على موقع أو فكرة…", tip: "جرّب", open: "افتح الموقع", none: "مفيش مواقع بالكلام ده.", count: (n: number) => `${n} موقع`, price: { free: "مجاني", freemium: "فيه نسخة مجانية", student: "مجاني للطلبة" } as Record<Price, string> },
@@ -42,7 +43,7 @@ function useLiveSites(initial: DirSite[]) {
     } catch {}
     fetch(`${SUPABASE_URL}/rest/v1/directory_sites?select=slug,name,url,cat,price,idea_ar,tip_ar,idea_en,tip_en&published=eq.true&order=sort_order.asc,name.asc&limit=500`, {
       headers: { apikey: SUPABASE_KEY },
-      signal: AbortSignal.timeout(6000),
+      signal: timeoutSignal(6000),
     })
       .then((r) => (r.ok ? (r.json() as Promise<DirRow[]>) : null))
       .then((rows) => {
@@ -78,7 +79,7 @@ function Suggest({ lang }: { lang: "ar" | "en" }) {
         method: "POST",
         headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ p: { url, why: f.why, contact: f.name, locale: lang, website: f.website, elapsed: String(Date.now() - started.current) } }),
-        signal: AbortSignal.timeout(10_000),
+        signal: timeoutSignal(10_000),
       });
       const out = (await r.json()) as { ok: boolean; error?: string };
       if (out.ok) return setState("sent");

@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Icon } from "@/components/brand/icons";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 type State = "open" | "active" | "expiring" | "expired" | "stopped";
 type Result =
@@ -71,7 +72,7 @@ export function MemberVerify({ locale }: { locale: string }) {
         method: "POST",
         headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
         body: JSON.stringify({ p_code: value.trim() }),
-        signal: AbortSignal.timeout(10_000),
+        signal: timeoutSignal(10_000),
       });
       const out = (await r.json().catch(() => null)) as
         ({ ok: true } & Result) | { ok: false; error: string } | null;
