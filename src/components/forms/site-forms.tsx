@@ -78,6 +78,11 @@ const C = {
     opensAt: (d: string) => `هيفتح ${d}`,
     closesAt: (d: string) => `بيقفل ${d}`,
     formSent: "وصلنا ردك ✅ شكراً!",
+    payFee: (n: string) => `رسوم: ${n} جنيه`,
+    payHow: "إزاي تدفع",
+    payPaid: (n: string) => `الرسوم (${n} جنيه) اتدفعت ✓`,
+    payDue: (n: string) => `الرسوم (${n} جنيه) لسه متدفعتش`,
+    payRef: "اكتب كود الطلب في رسالة التحويل عشان نعرف إنها منك.",
     formDup: "إنت بعت الفورم ده قبل كده ✅",
     loading: "بنحمّل الفورم…",
     yes: "أيوه",
@@ -175,6 +180,11 @@ const C = {
     opensAt: (d: string) => `Opens ${d}`,
     closesAt: (d: string) => `Closes ${d}`,
     formSent: "Got your answers ✅ Thank you!",
+    payFee: (n: string) => `Fee: EGP ${n}`,
+    payHow: "How to pay",
+    payPaid: (n: string) => `Fee (EGP ${n}) paid ✓`,
+    payDue: (n: string) => `Fee (EGP ${n}) not paid yet`,
+    payRef: "Put your request code in the transfer message so we know it's you.",
     formDup: "You've already sent this form ✅",
     loading: "Loading the form…",
     yes: "Yes",
@@ -544,7 +554,31 @@ export type PublicForm = {
   closes_at?: string | null;
   background_path?: string | null;
   background_kind?: "image" | "video" | null;
+  /** The fee and how to pay, when the form asks for one. */
+  payment?: FormPayment | null;
 };
+type FormPayment = { amount: number | null; note_ar?: string | null; note_en?: string | null; paid?: boolean };
+const payNote = (p: FormPayment, l: Locale) => (l === "en" ? p.note_en || p.note_ar : p.note_ar) ?? "";
+const payAmount = (p: FormPayment, l: Locale) => Number(p.amount ?? 0).toLocaleString(l === "ar" ? "ar-EG" : "en-US");
+
+/** The fee box: how much and how to pay (on the form, after sending, and on the status page). */
+function FeeBox({ payment, locale, showRef }: { payment: FormPayment; locale: Locale; showRef?: boolean }) {
+  const t = C[locale];
+  const note = payNote(payment, locale);
+  const state = payment.paid === undefined ? null : payment.paid;
+  return (
+    <div data-testid="form-fee" className={cn("grid gap-1.5 rounded-2xl border p-4", state ? "border-ok/40 bg-ok/5" : "border-warn/40 bg-warn/5")}>
+      <p className={cn("font-semibold", state ? "text-ok" : "text-warn")}>{state === null ? t.payFee(payAmount(payment, locale)) : state ? t.payPaid(payAmount(payment, locale)) : t.payDue(payAmount(payment, locale))}</p>
+      {!state && note && (
+        <p className="whitespace-pre-line text-sm leading-relaxed text-mist">
+          <span className="font-semibold text-chalk">{t.payHow}: </span>
+          {note}
+        </p>
+      )}
+      {!state && showRef && <p className="text-xs text-fog">{t.payRef}</p>}
+    </div>
+  );
+}
 
 const titleOf = (f: PublicForm, l: Locale) => (l === "en" && f.title_en) || f.title_ar;
 const introOf = (f: PublicForm, l: Locale) => (l === "en" ? f.intro_en || f.intro_ar : f.intro_ar) ?? "";
@@ -705,6 +739,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       <h1 className="t-headline text-3xl text-chalk sm:text-4xl">{titleOf(form, l)}</h1>
       {introOf(form, l) && <p className="max-w-2xl whitespace-pre-line text-lg leading-relaxed text-mist">{introOf(form, l)}</p>}
       {form.open && form.closes_at && <p className="text-sm font-semibold text-warn">{t.closesAt(fmtWhen(form.closes_at, l))}</p>}
+      {form.payment && <FeeBox payment={form.payment} locale={l} />}
     </header>
   );
 
@@ -737,6 +772,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             <p className="max-w-lg text-sm text-mist">{t.refHint}</p>
           </div>
         )}
+        {form.payment && done !== "dup" && <FeeBox payment={form.payment} locale={l} showRef={!!ref} />}
         {pass && <AttendPass token={pass} locale={l} />}
         {ref && statusHref && (
           <a href={`${statusHref}${statusHref.includes("?") ? "&" : "?"}${fixed ? "" : `f=${encodeURIComponent(slug)}&`}ref=${encodeURIComponent(ref)}#status`} className="btn btn-sm">
@@ -974,7 +1010,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 type Pass = { no: string; ref: string; name: string | null; name_en: string | null; day: string | null; org: string | null; event: string | null; dates: string | null; venue: string | null; meet_ar: string | null };
 type RespStatus = "new" | "accepted" | "rejected" | "waiting";
 /** One code: the full answer. Only a number: that number's requests (form, status, when), nothing personal. */
-type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null };
+type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null; payment?: FormPayment | null };
 
 type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null }[] };
 const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
@@ -1269,6 +1305,7 @@ export function FormStatus({ locale }: { locale: string }) {
         <div role="status" className="grid gap-3 rounded-2xl border border-[var(--line-2)] p-5">
           <p className="text-sm text-fog">{(l === "en" && out.title_en) || out.title_ar}</p>
           <p className={cn("t-headline text-2xl", out.status === "accepted" ? "text-ok" : out.status === "rejected" ? "text-danger" : "text-chalk")}>{t.st[out.status]}</p>
+          {out.payment && <FeeBox payment={out.payment} locale={l} showRef />}
           {out.status === "accepted" && out.accepted_ar && <p className="max-w-2xl whitespace-pre-line leading-relaxed text-mist">{out.accepted_ar}</p>}
           {out.status === "accepted" && out.pass && <PassCard pass={out.pass} locale={l} registered={out.external_done} />}
           {out.attend_pass && <AttendPass token={out.attend_pass} locale={l} />}

@@ -46,8 +46,21 @@ type Form = {
   capacity: number | null;
   background_path: string | null;
   background_kind: "image" | "video" | null;
+  /** A fee for the form: the amount in EGP and how to pay, shown on the site. */
+  payment?: Payment | null;
   created_at: string;
 };
+type Payment = { on: boolean; amount: number | null; note_ar?: string | null; note_en?: string | null };
+type PaidMethod = "cash" | "vodafone_cash" | "instapay" | "bank" | "other";
+const METHODS: { k: PaidMethod; ar: string }[] = [
+  { k: "cash", ar: "كاش" },
+  { k: "vodafone_cash", ar: "فودافون كاش" },
+  { k: "instapay", ar: "إنستاباي" },
+  { k: "bank", ar: "تحويل بنكي" },
+  { k: "other", ar: "حاجة تانية" },
+];
+const methodAr = (k: string | null) => METHODS.find((m) => m.k === k)?.ar ?? "";
+const egp = (n: number | null | undefined) => `${(n ?? 0).toLocaleString("ar-EG")} ج`;
 type Response = {
   id: string;
   form_id: string;
@@ -65,6 +78,9 @@ type Response = {
   checked_in_at: string | null;
   messaged_at: string | null;
   pass: string | null;
+  paid_at: string | null;
+  paid_amount: number | null;
+  paid_method: PaidMethod | null;
   created_at: string;
 };
 
@@ -322,6 +338,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     if (next.title_ar.trim().length < 2) return toast("اكتب عنوان الفورم", "error");
     if (next.accepted_url && !/^https:\/\/\S+$/.test(next.accepted_url)) return toast("لينك ما بعد القبول لازم يبدأ بـ https://", "error");
     if (next.delegation?.register_url && !/^https:\/\/\S+$/.test(next.delegation.register_url)) return toast("لينك تسجيل الزوار لازم يبدأ بـ https://", "error");
+    if (next.payment?.on && !(Number(next.payment.amount) > 0)) return toast("اكتب مبلغ الدفع", "error");
     const attendIssue = attendanceProblem(next.attendance);
     if (attendIssue) return toast(attendIssue, "error");
     for (const fl of next.fields) {
@@ -438,6 +455,10 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
         </Card>
       </Section>
 
+      <Section title="الدفع">
+        <PaymentSettings value={x.payment ?? null} onChange={(payment) => edit({ payment })} />
+      </Section>
+
       <Section title="الحضور بالـ QR">
         <AttendanceSettings value={x.attendance ?? null} fields={fields} onChange={(a) => edit({ attendance: a })} />
       </Section>
@@ -551,6 +572,79 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   );
 }
 
+/** Paid / not yet, how much was collected and what's still owed. */
+function PaymentSummary({ form, responses }: { form: Form; responses: Response[] }) {
+  const live = responses.filter((r) => r.status !== "rejected");
+  const paid = live.filter((r) => r.paid_at);
+  const collected = paid.reduce((a, r) => a + Number(r.paid_amount ?? 0), 0);
+  const owed = (live.length - paid.length) * Number(form.payment?.amount ?? 0);
+  return (
+    <Card className="mt-3 grid grid-cols-3 gap-2 text-center" data-testid="payment-summary">
+      <div>
+        <p className="text-2xl font-bold text-ok">{paid.length}</p>
+        <p className="text-xs text-fog">دفعوا</p>
+      </div>
+      <div>
+        <p className="text-2xl font-bold text-warn">{live.length - paid.length}</p>
+        <p className="text-xs text-fog">لسه</p>
+      </div>
+      <div>
+        <p className="text-lg font-bold text-chalk">{egp(collected)}</p>
+        <p className="text-xs text-fog">اتجمع{owed > 0 ? ` · فاضل ${egp(owed)}` : ""}</p>
+      </div>
+    </Card>
+  );
+}
+
+/** One response: paid or not, by which method, and the amount (defaults to the form's fee). */
+function PaidControl({ r, amount, onMark, onAmount }: { r: Response; amount: number | null; onMark: (paid: boolean, method: PaidMethod) => void; onAmount: (n: number) => void }) {
+  return (
+    <Card className={`grid gap-3 ${r.paid_at ? "border-ok/40" : "border-warn/40"}`} data-testid="paid-control">
+      <Toggle checked={!!r.paid_at} onChange={(v) => onMark(v, r.paid_method ?? "cash")} label={r.paid_at ? `دفع ${egp(r.paid_amount ?? amount)}` : `لسه مدفعش (${egp(amount)})`} hint={r.paid_at ? `اتعلّم ${fmt.dateTime(r.paid_at)}${r.paid_method ? ` · ${methodAr(r.paid_method)}` : ""}` : "علّمه لما الفلوس توصل."} />
+      {r.paid_at && (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="طريقة الدفع">
+            <Select value={r.paid_method ?? "cash"} onChange={(e) => onMark(true, e.target.value as PaidMethod)}>
+              {METHODS.map((m) => (
+                <option key={m.k} value={m.k}>
+                  {m.ar}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="المبلغ اللي اتدفع">
+            <Input type="number" min={0} inputMode="numeric" defaultValue={r.paid_amount ?? amount ?? ""} onBlur={(e) => e.target.value && Number(e.target.value) !== Number(r.paid_amount) && onAmount(Math.max(0, Number(e.target.value)))} />
+          </Field>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/** Does the form ask for a fee, how much, and how to pay (shown on the form and the status page). */
+function PaymentSettings({ value, onChange }: { value: Payment | null; onChange: (p: Payment | null) => void }) {
+  const v = value ?? { on: false, amount: null };
+  const set = (p: Partial<Payment>) => onChange({ ...v, ...p });
+  return (
+    <Card className="grid gap-3">
+      <Toggle checked={v.on} onChange={(on) => set({ on })} label={v.on ? "الفورم ده بفلوس" : "الفورم ده مجاني"} hint="لما يبقى بفلوس، الموقع بيعرض المبلغ وطريقة الدفع، وتقدر تعلّم في الردود مين دفع ومين لسه." />
+      {v.on && (
+        <>
+          <Field label="المبلغ (جنيه)">
+            <Input type="number" min={1} inputMode="numeric" value={v.amount ?? ""} onChange={(e) => set({ amount: e.target.value ? Math.max(0, Number(e.target.value)) : null })} data-testid="payment-amount" />
+          </Field>
+          <Field label="إزاي يدفع" hint="مثلاً: فودافون كاش على 010… أو كاش مع المسؤول. بيظهر في الفورم وفي صفحة متابعة الطلب.">
+            <Textarea rows={2} maxLength={600} value={v.note_ar ?? ""} onChange={(e) => set({ note_ar: e.target.value || null })} />
+          </Field>
+          <Field label="How to pay (English)" hint="اختياري">
+            <Textarea dir="ltr" rows={2} maxLength={600} value={v.note_en ?? ""} onChange={(e) => set({ note_en: e.target.value || null })} />
+          </Field>
+        </>
+      )}
+    </Card>
+  );
+}
+
 /** An attached file: opened through a short-lived private link, only for whoever may read the responses. */
 function FileAnswer({ path }: { path: string }) {
   const [busy, setBusy] = useState(false);
@@ -586,23 +680,51 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
     return { form, responses };
   }, [id]);
   const [filter, setFilter] = useState<"all" | Response["status"]>("all");
+  const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [open, setOpen] = useState<Response | null>(null);
   const [pick, setPick] = useState<Set<string> | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [queue, setQueue] = useState(false);
-  const list = useMemo(() => (data?.responses ?? []).filter((r) => filter === "all" || r.status === filter), [data, filter]);
+  const list = useMemo(
+    () => (data?.responses ?? []).filter((r) => (filter === "all" || r.status === filter) && (payFilter === "all" || (payFilter === "paid") === !!r.paid_at)),
+    [data, filter, payFilter],
+  );
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
   const { form } = data;
   const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("، ") : (v ?? ""));
   const regUrl = form.delegation?.register_url || null;
   const external = !!form.accepted_url || !!regUrl;
+  const paying = !!form.payment?.on;
   const exportXlsx = (only?: Response["status"]) => {
     const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
     downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
-      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
-      ...rows.map((r, i) => [i + 1, r.ref, fmt.dateTime(r.created_at), RESP[r.status].ar, ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []), ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))), ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []), r.note]),
+      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...(paying ? ["الدفع", "المبلغ", "طريقة الدفع", "وقت الدفع"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
+      ...rows.map((r, i) => [
+        i + 1,
+        r.ref,
+        fmt.dateTime(r.created_at),
+        RESP[r.status].ar,
+        ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []),
+        ...(paying ? [r.paid_at ? "دفع ✓" : "لسه", r.paid_at ? Number(r.paid_amount ?? 0) : "", methodAr(r.paid_method), r.paid_at ? fmt.dateTime(r.paid_at) : ""] : []),
+        ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))),
+        ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []),
+        r.note,
+      ]),
     ], { sheet: only === "accepted" ? "المقبولين" : "الردود" });
+  };
+  /** Mark paid (with the form's amount and a method) or back to not paid. */
+  const markPaid = (r: Response, paid: boolean, method: PaidMethod | null = r.paid_method ?? "cash", quiet = false) =>
+    update(r, paid ? { paid_at: r.paid_at ?? new Date().toISOString(), paid_method: method, paid_amount: r.paid_amount ?? form.payment?.amount ?? null } : { paid_at: null, paid_method: null, paid_amount: null }, quiet);
+  const bulkPaid = async (paid: boolean) => {
+    if (!pick?.size) return;
+    const rows = data.responses.filter((r) => pick.has(r.id) && !!r.paid_at !== paid);
+    setBulkBusy(true);
+    let done = 0;
+    for (const r of rows) if (await markPaid(r, paid, "cash", true)) done++;
+    setBulkBusy(false);
+    setPick(null);
+    toast(paid ? `اتعلّم «دفع» على ${done}` : `اتشال الدفع من ${done}`);
   };
   const acceptMessage = (r: Response) =>
     form.delegation
@@ -707,6 +829,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           </Button>
         </Card>
       )}
+      {paying && <PaymentSummary form={form} responses={data.responses} />}
       <div className="mt-3 flex flex-wrap gap-2">
         <Chip active={filter === "all"} onClick={() => setFilter("all")} count={data.responses.length}>
           الكل
@@ -716,6 +839,16 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
             {RESP[s].ar}
           </Chip>
         ))}
+        {paying && (
+          <>
+            <Chip active={payFilter === "paid"} onClick={() => setPayFilter((v) => (v === "paid" ? "all" : "paid"))} count={data.responses.filter((r) => r.paid_at).length}>
+              دفعوا
+            </Chip>
+            <Chip active={payFilter === "unpaid"} onClick={() => setPayFilter((v) => (v === "unpaid" ? "all" : "unpaid"))} count={data.responses.filter((r) => !r.paid_at && r.status !== "rejected").length}>
+              لسه مدفعوش
+            </Chip>
+          </>
+        )}
         <Chip active={!!pick} onClick={() => setPick((p) => (p ? null : new Set()))}>
           {pick ? "إلغاء التحديد" : "تحديد أكتر من واحد"}
         </Chip>
@@ -739,6 +872,16 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               ارفض
             </Button>
           </div>
+          {paying && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" disabled={!pick.size || bulkBusy} onClick={() => void bulkPaid(true)} data-testid="bulk-paid">
+                علّمهم دفعوا
+              </Button>
+              <Button size="sm" variant="ghost" disabled={!pick.size || bulkBusy} onClick={() => void bulkPaid(false)}>
+                شيل الدفع
+              </Button>
+            </div>
+          )}
           {me && can(me, "whatsapp") && (
             <Button
               size="sm"
@@ -773,6 +916,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                     {first && r.answers[first.id] ? ` · ${show(r.answers[first.id])}` : ""}
                   </p>
                 </div>
+                {paying && r.status !== "rejected" && <Badge tone={r.paid_at ? "ok" : "warn"}>{r.paid_at ? "دفع" : "مدفعش"}</Badge>}
                 <Badge tone={RESP[r.status].tone}>{RESP[r.status].ar}</Badge>
               </div>
             </Row>
@@ -822,6 +966,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                 </Chip>
               ))}
             </div>
+            {paying && <PaidControl r={open} amount={form.payment?.amount ?? null} onMark={(paid, method) => markPaid(open, paid, method)} onAmount={(n) => update(open, { paid_amount: n })} />}
             {regUrl && open.status === "accepted" && <ExpoRegister url={regUrl} r={open} onMark={(v) => update(open, { external_done_at: v ? new Date().toISOString() : null })} />}
             {external && !regUrl && open.status === "accepted" && (
               <Toggle

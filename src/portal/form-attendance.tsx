@@ -104,9 +104,9 @@ export function attendanceProblem(a: Attendance | null | undefined): string | nu
   return null;
 }
 
-type Resp = { id: string; ref: string; name: string | null; phone: string | null; status: string; answers: Record<string, string | string[]>; pass: string | null };
+type Resp = { id: string; ref: string; name: string | null; phone: string | null; status: string; answers: Record<string, string | string[]>; pass: string | null; paid_at?: string | null };
 type Mark = { response_id: string; session: string; present: boolean; at: string; method: string };
-type FormRow = { id: string; title_ar: string; slug: string; fields: FormField[]; attendance: Attendance | null };
+type FormRow = { id: string; title_ar: string; slug: string; fields: FormField[]; attendance: Attendance | null; payment?: { on?: boolean; amount?: number | null } | null };
 type MarkOut = { ok: boolean; error?: string; already?: boolean; id?: string; name?: string | null; ref?: string; status?: string; at?: string; present?: boolean; answer?: string | string[]; form?: string };
 type Flash = { tone: "ok" | "warn" | "danger"; text: string; force?: { code: string; name: string } };
 
@@ -114,8 +114,8 @@ type Flash = { tone: "ok" | "warn" | "danger"; text: string; force?: { code: str
 export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses, marks] = await Promise.all([
-      sb().from("forms").select("id, title_ar, slug, fields, attendance").eq("id", id).single().then(must) as Promise<FormRow>,
-      sb().from("form_responses").select("id, ref, name, phone, status, answers, pass").eq("form_id", id).neq("status", "rejected").order("created_at").limit(5000).then(must) as Promise<Resp[]>,
+      sb().from("forms").select("id, title_ar, slug, fields, attendance, payment").eq("id", id).single().then(must) as Promise<FormRow>,
+      sb().from("form_responses").select("id, ref, name, phone, status, answers, pass, paid_at").eq("form_id", id).neq("status", "rejected").order("created_at").limit(5000).then(must) as Promise<Resp[]>,
       sb().from("form_attendance").select("response_id, session, present, at, method, form_responses!inner(form_id)").eq("form_responses.form_id", id).limit(50000).then(must) as Promise<Mark[]>,
     ]);
     return { form, responses, marks };
@@ -177,10 +177,12 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
       if (out.ok) {
         apply(out);
         if (args.response) return;
+        // A paid form: say at the door when this person hasn't paid yet.
+        const unpaid = data?.form.payment?.on && !data.responses.find((r) => r.id === out.id)?.paid_at ? ` · لسه مدفعش (${data.form.payment.amount ?? 0} ج)` : "";
         setFlash(
           out.already
-            ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}` }
-            : { tone: "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "new" ? "" : out.status === "accepted" ? "" : ` (${out.status})`}` },
+            ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}${unpaid}` }
+            : { tone: unpaid ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "new" ? "" : out.status === "accepted" ? "" : ` (${out.status})`}${unpaid}` },
         );
       } else if (out.error === "not_this_session" && args.code)
         setFlash({ tone: "warn", text: `${out.name ?? out.ref} مش من «${cur.name}» (اختار: ${txt(out.answer)})`, force: { code: args.code, name: out.name ?? out.ref ?? "" } });
