@@ -38,7 +38,9 @@ export type SiteItem = {
 export const thumbOf = (path: string) => path.replace(/\.w\.(webp|jpg)$/, ".t.$1");
 export const publicImageUrl = (bucket: string, path: string, size: "full" | "thumb" = "full") =>
   `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${(size === "thumb" ? thumbOf(path) : path).split("/").map(encodeURIComponent).join("/")}`;
-export const siteImageUrl = (path: string, size: "full" | "thumb" = "full") => publicImageUrl("site", path, size);
+/** A content picture: uploaded to the "site" bucket, or a file shipped with the site ("/media/…"). */
+export const siteImageUrl = (path: string, size: "full" | "thumb" = "full") =>
+  path.startsWith("/") ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}` : publicImageUrl("site", path, size);
 
 type Loc = "en" | "ar" | string;
 export const pickL = (en: string | null | undefined, ar: string | null | undefined, locale: Loc) => (locale === "ar" && ar ? ar : en) || ar || "";
