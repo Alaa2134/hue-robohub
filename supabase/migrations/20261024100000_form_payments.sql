@@ -116,3 +116,81 @@ begin
       'amount', f.payment -> 'amount', 'note_ar', nullif(f.payment ->> 'note_ar', ''), 'note_en', nullif(f.payment ->> 'note_en', ''),
       'paid', r.paid_at is not null) end);
 end $$;
+
+-- The team adds someone by hand (a walk-in, a phone call) or corrects someone's answers. Only staff who
+-- manage the form (forms, or expo for a delegation form) may; the answers are kept to the form's own
+-- questions and sizes, name/phone/email are read from them the same way as on the site, and an
+-- uploaded file stays as the person sent it. Every change goes through the audit log like any edit.
+create or replace function public.staff_form_response_save(p_form uuid, p_response uuid, p_answers jsonb, p_status text default null)
+returns jsonb language plpgsql security definer set search_path = '' as $$
+declare
+  f public.forms;
+  old public.form_responses;
+  fld jsonb;
+  v_id text;
+  v_type text;
+  v_val jsonb;
+  v_text text;
+  v_clean jsonb := '{}';
+  v_name text;
+  v_phone text;
+  v_email text;
+  v_row public.form_responses;
+begin
+  select * into f from public.forms where id = p_form;
+  if not found then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  if not (private.can('forms') or (private.can('expo') and f.delegation is not null)) then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+  if jsonb_typeof(p_answers) is distinct from 'object' then return jsonb_build_object('ok', false, 'error', 'invalid'); end if;
+  if p_status is not null and p_status not in ('new', 'accepted', 'rejected', 'waiting') then return jsonb_build_object('ok', false, 'error', 'invalid'); end if;
+  if p_response is not null then
+    select * into old from public.form_responses where id = p_response and form_id = p_form;
+    if not found then return jsonb_build_object('ok', false, 'error', 'not_found'); end if;
+  end if;
+
+  for fld in select * from jsonb_array_elements(f.fields) loop
+    v_id := fld ->> 'id';
+    v_type := coalesce(fld ->> 'type', 'text');
+    if v_type = 'file' then
+      if old.answers ? v_id then v_clean := v_clean || jsonb_build_object(v_id, old.answers -> v_id); end if;
+      continue;
+    end if;
+    v_val := p_answers -> v_id;
+    if v_type = 'multi' then
+      if jsonb_typeof(v_val) = 'array' then
+        select coalesce(jsonb_agg(left(x, 500)), '[]') into v_val from jsonb_array_elements_text(v_val) x where btrim(x) <> '';
+        if jsonb_array_length(v_val) > 0 then v_clean := v_clean || jsonb_build_object(v_id, v_val); end if;
+      end if;
+      continue;
+    end if;
+    v_text := nullif(btrim(v_val #>> '{}'), '');
+    if v_text is null then continue; end if;
+    v_text := left(v_text, case when v_type = 'textarea' then 4000 else 500 end);
+    if v_type = 'phone' then v_text := coalesce(private.clean_phone(v_text), v_text); end if;
+    if v_type = 'email' then v_text := lower(v_text); end if;
+    v_clean := v_clean || jsonb_build_object(v_id, v_text);
+    if v_type = 'name' and v_name is null then v_name := v_text; end if;
+    if v_type = 'phone' and v_phone is null then v_phone := v_text; end if;
+    if v_type = 'email' and v_email is null then v_email := v_text; end if;
+  end loop;
+  -- Answers to questions that were removed from the form since are kept as they were.
+  if p_response is not null then
+    v_clean := (select coalesce(jsonb_object_agg(k, v), '{}') from jsonb_each(old.answers) e(k, v)
+                 where not exists (select 1 from jsonb_array_elements(f.fields) x where x ->> 'id' = k)) || v_clean;
+  end if;
+
+  if p_response is null then
+    insert into public.form_responses (form_id, answers, name, phone, email, locale, status)
+    values (p_form, v_clean, v_name, v_phone, v_email, 'ar', coalesce(p_status, 'new'))
+    returning * into v_row;
+  else
+    update public.form_responses set answers = v_clean, name = v_name, phone = v_phone, email = v_email,
+           status = coalesce(p_status, status)
+     where id = p_response
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('ok', true, 'response', to_jsonb(v_row));
+end $$;
+revoke all on function public.staff_form_response_save(uuid, uuid, jsonb, text) from public, anon;
+grant execute on function public.staff_form_response_save(uuid, uuid, jsonb, text) to authenticated;

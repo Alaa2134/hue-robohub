@@ -4,13 +4,13 @@
  * surveys…), open and close it by hand or on a schedule, cap the answers, and read the responses
  * (status, notes, WhatsApp, Excel).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { coreTeams } from "@/content/core-content";
 import type { FieldType, FileAccept, FormField } from "@/components/forms/site-forms";
 import { MediaError, mediaErrorText, prepareMedia } from "@/lib/client-media";
 import { SUPABASE_URL } from "@/lib/supabase-public";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, fmt, must, removeObjects, safeName, sb, today, uid, uploadObject, type StaffRow } from "./core";
+import { can, isFull, fmt, must, removeObjects, rpc, safeName, sb, today, uid, uploadObject, type StaffRow } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
@@ -528,6 +528,20 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             </Card>
           ))}
           <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              icon="plus"
+              disabled={fields.length >= 40 || fields.some((q) => q.receipt)}
+              onClick={() =>
+                edit({
+                  payment: { on: true, amount: x.payment?.amount ?? null, note_ar: x.payment?.note_ar ?? null, note_en: x.payment?.note_en ?? null },
+                  fields: [...fields, { ...f("file", "صورة إيصال الدفع", "Payment receipt (photo)", true), accept: "image", receipt: true, help_ar: "حوّل المبلغ وارفع صورة الإيصال أو سكرين شوت التحويل." }],
+                })
+              }
+              data-testid="add-receipt"
+            >
+              خانة دفع (إيصال)
+            </Button>
             {(["name", "phone", "text", "textarea", "select", "multi", "checkbox", "member", "file"] as FieldType[]).map((k) => (
               <Button key={k} size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined)] })}>
                 {typeAr(k)}
@@ -645,29 +659,128 @@ function PaymentSettings({ value, onChange }: { value: Payment | null; onChange:
   );
 }
 
-/** An attached file: opened through a short-lived private link, only for whoever may read the responses. */
+/**
+ * An attached file, shown right in the response (photos as a picture, videos playable, PDFs as a link)
+ * through a short-lived private link, only for whoever may read the responses. Tapping a photo opens it
+ * full size; the link is ready before the tap, so phones don't block it as a pop-up.
+ */
 function FileAnswer({ path }: { path: string }) {
-  const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let live = true;
+    sb()
+      .storage.from("form-files")
+      .createSignedUrl(path, 3600)
+      .then(({ data, error }) => {
+        if (!live) return;
+        if (error || !data) setFailed(true);
+        else setUrl(data.signedUrl);
+      });
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  if (failed) return <p className="text-sm text-[#ff9aa5]">الملف مش متاح (ممكن يكون اتمسح أو ملكش صلاحية تشوفه).</p>;
+  if (!url) return <div className="h-40 w-full max-w-xs animate-pulse rounded-xl bg-white/5" aria-label="بيحمّل الملف" />;
+  if (["jpg", "jpeg", "png", "webp"].includes(ext))
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" className="block w-fit" data-testid="file-image">
+        <img src={url} alt="الصورة المرفقة" className="max-h-72 max-w-full rounded-xl border border-[var(--line-2)] object-contain" loading="lazy" />
+        <span className="mt-1 block text-xs text-cyan">اضغط عشان تفتحها بالحجم الكامل</span>
+      </a>
+    );
+  if (["mp4", "webm"].includes(ext)) return <video src={url} controls playsInline className="max-h-72 w-full max-w-sm rounded-xl border border-[var(--line-2)]" />;
   return (
-    <Button
-      size="sm"
-      icon="external"
-      loading={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          const { data, error } = await sb().storage.from("form-files").createSignedUrl(path, 300);
-          if (error || !data) throw error ?? new Error("no_link");
-          window.open(data.signedUrl, "_blank", "noopener");
-        } catch (e) {
-          toast.error(e);
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      فتح الملف المرفق
-    </Button>
+    <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[var(--line-2)] px-3 text-sm text-chalk">
+      <Icon name="external" size={16} />
+      فتح الملف (PDF)
+    </a>
+  );
+}
+
+/** Add someone by hand, or correct a response's answers (uploaded files stay as sent). */
+function ResponseEditor({ form, r, onClose, onSaved }: { form: Form; r: Response | null; onClose: () => void; onSaved: (r: Response, isNew: boolean) => void }) {
+  const [a, setA] = useState<Record<string, string | string[]>>(() => ({ ...(r?.answers ?? {}) }));
+  const [status, setStatus] = useState<Response["status"]>(r?.status ?? "accepted");
+  const [busy, setBusy] = useState(false);
+  const fields = form.fields.filter((fl) => fl.type !== "file");
+  const str = (id: string) => (typeof a[id] === "string" ? (a[id] as string) : "");
+  const save = async () => {
+    if (!fields.some((fl) => (fl.type === "name" || fl.type === "phone") && str(fl.id).trim())) return toast("اكتب الاسم أو رقم الموبايل على الأقل", "error");
+    setBusy(true);
+    try {
+      const out = await rpc<{ ok: boolean; error?: string; response?: Response }>("staff_form_response_save", { p_form: form.id, p_response: r?.id ?? null, p_answers: a, p_status: r ? null : status });
+      if (!out.ok || !out.response) throw new Error(out.error ?? "save_failed");
+      onSaved(out.response, !r);
+      toast(r ? "اتعدّلت البيانات" : `اتضاف (كود ${out.response.ref})`);
+      onClose();
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open onClose={onClose} title={r ? `تعديل بيانات ${r.name ?? r.ref}` : "إضافة حد بإيدك"}>
+      <div className="grid gap-3" data-testid="response-editor">
+        {!r && <p className="text-xs text-fog">للي سجّل بالتليفون أو جه من غير ما يملا الفورم. الملفات (صور وPDF) مش بتترفع من هنا.</p>}
+        {fields.map((fl) => (
+          <Field key={fl.id} label={fl.label_ar}>
+            {fl.type === "textarea" ? (
+              <Textarea rows={3} maxLength={4000} value={str(fl.id)} onChange={(e) => setA({ ...a, [fl.id]: e.target.value })} />
+            ) : fl.type === "select" ? (
+              <Select value={str(fl.id)} onChange={(e) => setA({ ...a, [fl.id]: e.target.value })}>
+                <option value="">—</option>
+                {(fl.options ?? []).map((o) => (
+                  <option key={o.ar} value={o.ar}>
+                    {o.ar}
+                  </option>
+                ))}
+              </Select>
+            ) : fl.type === "multi" ? (
+              <div className="flex flex-wrap gap-2">
+                {(fl.options ?? []).map((o) => {
+                  const list = Array.isArray(a[fl.id]) ? (a[fl.id] as string[]) : [];
+                  const on = list.includes(o.ar);
+                  return (
+                    <Chip key={o.ar} active={on} onClick={() => setA({ ...a, [fl.id]: on ? list.filter((x) => x !== o.ar) : [...list, o.ar] })}>
+                      {o.ar}
+                    </Chip>
+                  );
+                })}
+              </div>
+            ) : fl.type === "checkbox" ? (
+              <Toggle checked={!!str(fl.id)} onChange={(v) => setA({ ...a, [fl.id]: v ? "نعم" : "" })} label={str(fl.id) ? "نعم" : "لا"} />
+            ) : (
+              <Input
+                dir={["phone", "email", "url", "number", "member"].includes(fl.type) ? "ltr" : undefined}
+                type={fl.type === "date" ? "date" : fl.type === "email" ? "email" : "text"}
+                inputMode={fl.type === "phone" || fl.type === "number" ? "tel" : undefined}
+                maxLength={500}
+                value={str(fl.id)}
+                onChange={(e) => setA({ ...a, [fl.id]: e.target.value })}
+              />
+            )}
+          </Field>
+        ))}
+        {!r && (
+          <Field label="الحالة">
+            <Select value={status} onChange={(e) => setStatus(e.target.value as Response["status"])}>
+              {(Object.keys(RESP) as Response["status"][]).map((k) => (
+                <option key={k} value={k}>
+                  {RESP[k].ar}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
+        <Button variant="primary" loading={busy} onClick={() => void save()} data-testid="response-save">
+          {r ? "احفظ التعديل" : "أضف"}
+        </Button>
+      </div>
+    </Sheet>
   );
 }
 
@@ -685,6 +798,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [pick, setPick] = useState<Set<string> | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [queue, setQueue] = useState(false);
+  const [editing, setEditing] = useState<Response | "new" | null>(null);
   const list = useMemo(
     () => (data?.responses ?? []).filter((r) => (filter === "all" || r.status === filter) && (payFilter === "all" || (payFilter === "paid") === !!r.paid_at)),
     [data, filter, payFilter],
@@ -784,7 +898,17 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const first = form.fields.find((fl) => fl.type !== "name" && fl.type !== "phone" && fl.type !== "email" && fl.type !== "checkbox");
   return (
     <>
-      <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={<Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>Excel</Button>} />
+      <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={
+          <div className="flex gap-2">
+            <Button size="sm" icon="plus" onClick={() => setEditing("new")} data-testid="response-add">
+              إضافة
+            </Button>
+            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
+              Excel
+            </Button>
+          </div>
+        }
+      />
       {form.delegation && (
         <DelegationCard
           form={form}
@@ -923,6 +1047,20 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           ))}
         </List>
       )}
+      {editing && (
+        <ResponseEditor
+          form={form}
+          r={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={(saved, isNew) => {
+            set((d) => {
+              const cur = d ?? data;
+              return { ...cur, responses: isNew ? [saved, ...cur.responses] : cur.responses.map((x) => (x.id === saved.id ? saved : x)) };
+            });
+            setOpen((o) => (o?.id === saved.id ? saved : o));
+          }}
+        />
+      )}
       {open && (
         <Sheet open onClose={() => setOpen(null)} title={open.name || "رد"}>
           <div className="grid gap-4">
@@ -943,6 +1081,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                 </div>
               ))}
             </dl>
+            <Button size="sm" icon="edit" onClick={() => setEditing(open)} data-testid="response-edit">
+              تعديل البيانات
+            </Button>
             {whatsappLink(open.phone) &&
               (open.status === "accepted" ? (
                 <a href={whatsappLink(open.phone, acceptMessage(open))!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">

@@ -6519,3 +6519,122 @@ test("WhatsApp to people from any form: pick the form and who in it, each with t
   await expect.poll(() => asked.at(-1)).toContain("status=neq.rejected");
   expect(errors).toEqual([]);
 });
+
+test("form payments: who paid and who didn't, the receipt photo shown in place, and the team edits or adds someone", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "drone-course",
+    title_ar: "كورس الدرون",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: { on: true, amount: 150, note_ar: "فودافون كاش" },
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "r", type: "file", accept: "image", receipt: true, label_ar: "صورة إيصال الدفع", required: false },
+    ],
+  };
+  const resp = (id: string, name: string, paid: boolean, receipt?: string) => ({
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}000000`,
+    answers: { n: name, p: "+201012345678", ...(receipt ? { r: receipt } : {}) },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: paid ? at(30) : null,
+    paid_amount: paid ? 150 : null,
+    paid_method: paid ? "vodafone_cash" : null,
+    created_at: at(50),
+  });
+  const rows = [resp("r1", "منى عادل", true), resp("r2", "علي حسن", false, "f/f1/abc.jpg"), resp("r3", "سارة محمود", false)];
+  const patches: Record<string, unknown>[] = [];
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\//, (route) => route.fulfill({ json: { signedURL: "/object/sign/form-files/f/f1/abc.jpg?token=t" } }));
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\/.*token=t/, (route) => route.fulfill({ body: png, contentType: "image/png" }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      return route.fulfill({ json: { ...rows[1], ...body } });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_form_response_save/, (route) => {
+    const body = route.request().postDataJSON() as { p_response: string | null; p_answers: Record<string, string> };
+    calls.push({ fn: "staff_form_response_save", body });
+    const base = body.p_response ? rows.find((r) => r.id === body.p_response)! : resp("r9", "", false);
+    return route.fulfill({ json: { ok: true, response: { ...base, answers: body.p_answers, name: body.p_answers.n } } });
+  });
+
+  await page.goto("/app/#/staff/forms/f1/responses");
+  const sum = page.getByTestId("payment-summary");
+  await expect(sum).toContainText("1");
+  await expect(sum).toContainText("دفعوا");
+  await expect(sum).toContainText("فاضل");
+  await page.getByRole("button", { name: /لسه مدفعوش/ }).click();
+  await expect(page.getByText("منى عادل")).toHaveCount(0);
+  await expect(page.getByText("علي حسن")).toBeVisible();
+
+  // The receipt photo shows right in the response.
+  await page.getByText("علي حسن").click();
+  await expect(page.getByTestId("file-image").locator("img")).toBeVisible();
+  await expect.poll(() => page.getByTestId("file-image").locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+
+  // Mark it paid: cash, the form's amount.
+  await page.getByTestId("paid-control").getByRole("switch").click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0]).toMatchObject({ paid_method: "cash", paid_amount: 150 });
+  expect(String(patches[0].paid_at)).toMatch(/^\d{4}-/);
+
+  // Correct the name.
+  await page.getByTestId("response-edit").click();
+  await page.getByTestId("response-editor").getByLabel("الاسم بالكامل").fill("علي حسن محمد");
+  await page.getByTestId("response-save").click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(1);
+  expect(calls.find((c) => c.fn === "staff_form_response_save")!.body).toMatchObject({ p_form: "f1", p_response: "r2", p_answers: { n: "علي حسن محمد", r: "f/f1/abc.jpg" } });
+  await expect(page.getByTestId("response-editor")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toContainText("علي حسن محمد");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Add someone who registered by phone.
+  await page.getByTestId("response-add").click();
+  const ed = page.getByTestId("response-editor");
+  await ed.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+  await ed.getByLabel("رقم الموبايل").fill("01112223334");
+  await page.getByTestId("response-save").click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(2);
+  expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({ p_form: "f1", p_response: null, p_status: "accepted", p_answers: { n: "يوسف خالد", p: "01112223334" } });
+  expect(errors).toEqual([]);
+});

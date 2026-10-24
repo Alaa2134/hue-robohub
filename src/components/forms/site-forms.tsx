@@ -537,7 +537,7 @@ export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "numb
 /** The form someone without a community membership sends to ask the organiser for an interview. */
 export const INTERVIEW_FORM = "membership-interview";
 export type FileAccept = "image" | "pdf" | "video" | "any";
-export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[]; /** For a file question: what it takes. */ accept?: FileAccept };
+export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[]; /** For a file question: what it takes. */ accept?: FileAccept; /** A file question for the payment receipt: the fee box shows above it. */ receipt?: boolean };
 export type PublicForm = {
   slug: string;
   title_ar: string;
@@ -559,7 +559,7 @@ export type PublicForm = {
 };
 type FormPayment = { amount: number | null; note_ar?: string | null; note_en?: string | null; paid?: boolean };
 const payNote = (p: FormPayment, l: Locale) => (l === "en" ? p.note_en || p.note_ar : p.note_ar) ?? "";
-const payAmount = (p: FormPayment, l: Locale) => Number(p.amount ?? 0).toLocaleString(l === "ar" ? "ar-EG" : "en-US");
+const payAmount = (p: FormPayment) => Number(p.amount ?? 0).toLocaleString("en-US");
 
 /** The fee box: how much and how to pay (on the form, after sending, and on the status page). */
 function FeeBox({ payment, locale, showRef }: { payment: FormPayment; locale: Locale; showRef?: boolean }) {
@@ -568,7 +568,7 @@ function FeeBox({ payment, locale, showRef }: { payment: FormPayment; locale: Lo
   const state = payment.paid === undefined ? null : payment.paid;
   return (
     <div data-testid="form-fee" className={cn("grid gap-1.5 rounded-2xl border p-4", state ? "border-ok/40 bg-ok/5" : "border-warn/40 bg-warn/5")}>
-      <p className={cn("font-semibold", state ? "text-ok" : "text-warn")}>{state === null ? t.payFee(payAmount(payment, locale)) : state ? t.payPaid(payAmount(payment, locale)) : t.payDue(payAmount(payment, locale))}</p>
+      <p className={cn("font-semibold", state ? "text-ok" : "text-warn")}>{state === null ? t.payFee(payAmount(payment)) : state ? t.payPaid(payAmount(payment)) : t.payDue(payAmount(payment))}</p>
       {!state && note && (
         <p className="whitespace-pre-line text-sm leading-relaxed text-mist">
           <span className="font-semibold text-chalk">{t.payHow}: </span>
@@ -739,7 +739,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       <h1 className="t-headline text-3xl text-chalk sm:text-4xl">{titleOf(form, l)}</h1>
       {introOf(form, l) && <p className="max-w-2xl whitespace-pre-line text-lg leading-relaxed text-mist">{introOf(form, l)}</p>}
       {form.open && form.closes_at && <p className="text-sm font-semibold text-warn">{t.closesAt(fmtWhen(form.closes_at, l))}</p>}
-      {form.payment && <FeeBox payment={form.payment} locale={l} />}
+      {form.payment && !(form.fields ?? []).some((x) => x.receipt) && <FeeBox payment={form.payment} locale={l} />}
     </header>
   );
 
@@ -928,6 +928,11 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             const pct = Math.round((st?.progress ?? 0) * 100);
             return (
               <Row key={x.id} id={id} label={label} optional={opt} error={err} hint={helpOf(x, l) || t.fileHint}>
+                {x.receipt && form.payment && (
+                  <div className="mb-3">
+                    <FeeBox payment={form.payment} locale={l} />
+                  </div>
+                )}
                 <input
                   {...aria(id, err)}
                   type="file"
