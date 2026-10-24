@@ -18,6 +18,7 @@ import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, statusLin
 import { SendQrButton } from "./wa-qr-send";
 import { nameToEnglish } from "@/lib/translit";
 import { FormPdfSheet } from "./form-pdf";
+import { TripLetterSheet, type TripSet } from "./trip-letter";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -924,6 +925,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [queue, setQueue] = useState(false);
   const [editing, setEditing] = useState<Response | "new" | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [busOpen, setBusOpen] = useState(false);
   const list = useMemo(
     () => {
       const needle = q.trim().toLowerCase();
@@ -996,6 +998,15 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const groups = Object.entries(
     data.responses.flatMap((r) => r.tags ?? []).reduce<Record<string, number>>((m, g) => ((m[g] = (m[g] ?? 0) + 1), m), {}),
   ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  // The bus letter: who's going (accepted, everyone not refused, or a group), with a short third
+  // column for the gate list (faculty, year or university ID) when the form asks for one.
+  const tripExtra = form.fields.find((fl) => (fl.type === "text" || fl.type === "select" || fl.type === "member") && /(الكلية|الفرقة|السنة|الرقم الجامعي|كود)/.test(fl.label_ar));
+  const tripPerson = (r: Response) => ({ id: r.id, name: r.name ?? r.ref, phone: r.phone, extra: tripExtra ? show(r.answers[tripExtra.id]) : null });
+  const tripSets: TripSet[] = [
+    ...(data.responses.some((r) => r.status === "accepted") ? [["accepted", "المقبولين", data.responses.filter((r) => r.status === "accepted").map(tripPerson)] as TripSet] : []),
+    ["all", "الكل ماعدا المرفوضين", data.responses.filter((r) => r.status !== "rejected").map(tripPerson)],
+    ...groups.map(([g]) => [`g:${g}`, g, data.responses.filter((r) => (r.tags ?? []).includes(g) && r.status !== "rejected").map(tripPerson)] as TripSet),
+  ];
   /** Put people in a group (or take them out), a few requests at a time. */
   const setGroupFor = async (rs: Response[], g: string, on: boolean) => {
     const name = g.trim().slice(0, 40);
@@ -1077,12 +1088,15 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   return (
     <>
       <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Button size="sm" icon="plus" onClick={() => setEditing("new")} data-testid="response-add">
               إضافة
             </Button>
             <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setPdfOpen(true)} data-testid="form-pdf-open">
               PDF
+            </Button>
+            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setBusOpen(true)} data-testid="trip-letter-open" aria-label="خطاب طلب أتوبيس">
+              أتوبيس
             </Button>
             <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
               Excel
@@ -1266,6 +1280,20 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
             setGrouping(false);
             setPick(null);
           }}
+        />
+      )}
+      {busOpen && (
+        <TripLetterSheet
+          letterKey={`form:${form.id}`}
+          slug={form.slug}
+          defaults={{
+            event: form.title_en?.trim() || form.title_ar.trim(),
+            date: (form.event_at ? new Date(form.event_at) : null)?.toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }) ?? form.delegation?.visit_date ?? null,
+            venue: form.delegation?.venue ?? null,
+          }}
+          sets={tripSets}
+          extraLabel={tripExtra?.label_ar}
+          onClose={() => setBusOpen(false)}
         />
       )}
       {pdfOpen && (

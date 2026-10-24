@@ -6967,3 +6967,64 @@ test("responses: an English PDF for a conference, with every name in English and
   expect(text).not.toMatch(/[؀-ۿ]/);
   expect(errors).toEqual([]);
 });
+
+test("bus letter: from a form's people, the dean's letter with the count and buses, and the names list after it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_trip_letter = {
+    settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", sign2_name: "م/ مشرف", seats: 50 },
+    letter: { event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", venue: "جامعة مصر اليابانية للعلوم والتكنولوجيا (E-JUST)", city: "الإسكندرية" },
+  };
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1", slug: "summit", title_ar: "قمة", title_en: "MENA ROBOTICS SUMMIT 2026", intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null, open: true, opens_at: null, closes_at: null,
+    max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, delegation: null, attendance: null, capacity: null, payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "c", type: "text", label_ar: "الكلية", required: true },
+    ],
+  };
+  const rows = Array.from({ length: 53 }, (_, i) => ({
+    id: `r${i}`, form_id: "f1", ref: `F-${String(i).padStart(8, "0")}`, answers: { n: `طالب ${i + 1}`, p: `+2010${String(10000000 + i)}`, c: "الذكاء الاصطناعي" }, name: `طالب ${i + 1}`, phone: `+2010${String(10000000 + i)}`,
+    email: null, locale: "ar", status: i === 52 ? "rejected" : "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null,
+    paid_at: null, paid_amount: null, paid_method: null, tags: [], created_at: at(500 - i),
+  }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("trip-letter-open").click();
+  const sheet = page.getByTestId("trip-letter-sheet");
+  await expect(page.getByTestId("trip-letter-event")).toHaveValue("MENA ROBOTICS SUMMIT 2026");
+  await expect(page.getByTestId("trip-letter-date")).toHaveValue("2026-10-30");
+  // 52 accepted + 2 supervisors = 54 → two buses of 50.
+  await expect(page.getByTestId("trip-letter-count")).toContainText("52");
+  await expect(page.getByTestId("trip-letter-count")).toContainText("أتوبيسين");
+  await sheet.locator("button", { hasText: "الكل ماعدا المرفوضين" }).click();
+  // The sheet fits the screen (on a phone too), and the page doesn't scroll sideways.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+  const box = (await page.getByTestId("trip-letter-make").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.evaluate(() => {
+    const w = window as unknown as { letter: string[] };
+    w.letter = [];
+    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]').forEach((p) => w.letter.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+  });
+  const file = page.waitForEvent("download");
+  await page.getByTestId("trip-letter-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-bus-request-summit-.*\.pdf$/);
+  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  if (process.env.SAVE_LETTER) copyFileSync((await pdf.path())!, process.env.SAVE_LETTER);
+  const saved = calls.find((c) => c.fn === "staff_trip_letter_save")?.body as { p_key: string; p_letter: Record<string, unknown>; p_settings: Record<string, unknown> };
+  expect(saved.p_key).toBe("form:f1");
+  expect(saved.p_letter).toMatchObject({ event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", supervisors: 2 });
+  expect(saved.p_settings).toMatchObject({ to_name: "د. عميد الكلية", seats: 50 });
+  const text = (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
+  for (const s of ["طلب توفير أتوبيسات", "د. عميد الكلية", "MENA ROBOTICS SUMMIT 2026", "الجمعة", "30 أكتوبر 2026", "E-JUST", "الإسكندرية", "(52)", "(54)", "أتوبيسين", "كشف بأسماء الطلاب المشاركين", "طالب 52", "01010000051", "صفحة 2 من 3"]) expect(text).toContain(s);
+  expect(text).not.toContain("طالب 53");
+  delete RPC.staff_trip_letter;
+  expect(errors).toEqual([]);
+});
