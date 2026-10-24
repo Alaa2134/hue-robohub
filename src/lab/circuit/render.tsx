@@ -7,6 +7,7 @@
 import { memo, useEffect, useState, type ReactNode } from "react";
 import type { PartInstance } from "./model";
 import { BB_ROWS, LED_COLORS, PART_BY_TYPE, bbCols, propsOf, worldBox, worldPins } from "./parts";
+import { ModuleArt, ModuleOverlay } from "./render-modules";
 
 export type Reading = Record<string, number> | undefined;
 
@@ -642,8 +643,11 @@ export const PartArt = memo(function PartArt({ p, r, live = {} }: { p: PartInsta
       return <Meter r={r} kind="V" />;
     case "ammeter":
       return <Meter r={r} kind="A" />;
-    default:
+    default: {
+      const m = ModuleArt({ p, r, live });
+      if (m !== undefined) return m;
       return PART_BY_TYPE.has(p.type) ? null : <Unknown />;
+    }
   }
 });
 
@@ -822,6 +826,6 @@ function SpriteOverlay({ p, r, live, a }: { p: PartInstance; r?: Reading; live: 
     case "hc-sr04":
       return <Tag at={a.label}>{`${Math.round(Number(live.cm ?? pr.cm ?? 50))} cm`}</Tag>;
     default:
-      return null;
+      return <ModuleOverlay p={p} r={r} live={live} a={a} />;
   }
 }

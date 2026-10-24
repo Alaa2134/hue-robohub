@@ -234,12 +234,12 @@ test.describe("BuildX Lab", () => {
     await page.getByTestId("cad-group").click();
     // 20 mm cube minus a 10 mm hole through it: 8 − π·5²·20 / 1000 = 6.43 cm³.
     await expect(page.getByTestId("cad-stats")).toContainText("6.43 cm³");
+    // Reloading straight after an edit keeps it (the device copy is written as the page goes).
+    await page.reload();
+    await expect(page.getByTestId("cad-stats")).toContainText("6.43 cm³", { timeout: 60_000 });
     await page.getByTestId("cad-export").click();
     const [dl] = await Promise.all([page.waitForEvent("download"), page.getByTestId("export-stl").click()]);
     expect(dl.suggestedFilename()).toMatch(/\.stl$/);
-    // Saved on this device: reopening shows the same design.
-    await page.reload();
-    await expect(page.getByTestId("cad-stats")).toContainText("6.43 cm³", { timeout: 60_000 });
   });
 
   test("compile errors point at the line", async ({ page, isMobile }) => {

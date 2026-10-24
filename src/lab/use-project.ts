@@ -45,6 +45,8 @@ export function useProject<T>(id: string, share: string | null, opts: { getData:
   const revision = useRef(0);
   const loadedVersion = useRef(-1);
   const savingRef = useRef(false);
+  /** The device copy waiting to be written (edits from the last 0.7 s), if any. */
+  const pendingDraft = useRef<(() => void) | null>(null);
   const o = useRef(opts);
   o.current = opts;
   const canEdit = project ? project.role !== "viewer" : false;
@@ -86,9 +88,24 @@ export function useProject<T>(id: string, share: string | null, opts: { getData:
     if (opts.version === loadedVersion.current) return;
     loadedVersion.current = opts.version;
     setState((s) => (s === "conflict" ? s : "dirty"));
-    const t = setTimeout(() => writeDraft(id, { base: revision.current, data: o.current.getData(), title: project.title, at: Date.now() }), 700);
+    const write = () => {
+      pendingDraft.current = null;
+      writeDraft(id, { base: revision.current, data: o.current.getData(), title: project.title, at: Date.now() });
+    };
+    pendingDraft.current = write;
+    const t = setTimeout(write, 700);
     return () => clearTimeout(t);
   }, [opts.version, project, canEdit, id]);
+
+  // Leaving or reloading the page: write the copy now rather than lose the last edits.
+  useEffect(() => {
+    const flush = () => pendingDraft.current?.();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   const save = useCallback(
     async (snapshot?: string) => {

@@ -12,11 +12,14 @@ import { buildNetlist, key, type Netlist } from "../circuit/netlist";
 import { ADC_ONLY, AVR_PINS, LED_COLORS, PART_BY_TYPE, propsOf } from "../circuit/parts";
 import { checkCircuit, type SimDiagnostic } from "./diagnostics";
 import { Circuit, type Drive, type Elem, type Solution } from "./mna";
+import { DeviceLogic } from "./device";
+import { buildModule } from "./modules";
 
 export const F_CPU = 16_000_000;
 
 export type { SimDiagnostic };
-export type PartReading = Record<string, number>;
+export type { PartReading } from "./device";
+import type { PartReading } from "./device";
 export type Frame = {
   /** Simulated seconds since start. */
   t: number;
@@ -157,7 +160,7 @@ export class Simulation {
 
     for (const p of this.doc.parts) {
       const def = PART_BY_TYPE.get(p.type);
-      if (!def || def.support !== "sim") continue;
+      if (!def || def.support === "visual") continue;
       const pr = propsOf(p);
       const num = (k: string, d: number) => (Number.isFinite(Number(pr[k])) ? Number(pr[k]) : d);
       const volt = (a: number, b: number) => (s: Solution) => s.v[a] - s.v[b];
@@ -307,6 +310,18 @@ export class Simulation {
           probes.push({ part: p.id, name: "i", read: (s) => s.i[i] });
           break;
         }
+        default:
+          // Modules, displays, sensors and logic chips (src/lab/sim/modules.ts).
+          buildModule(p, {
+            n: (pin) => n(p, pin),
+            add: (tag, e) => add(p.id, tag, e),
+            probe: (name, read) => probes.push({ part: p.id, name, read }),
+            device: (d) => devices.push(d),
+            live: (k) => this.live(p.id, k),
+            initDrive: (pin, d) => {
+              if (!this.drives.has(`${p.id}:${pin}`)) this.drives.set(`${p.id}:${pin}`, d);
+            },
+          });
       }
     }
     this.circuit = new Circuit(this.nextNode, elems);
@@ -343,7 +358,15 @@ export class Simulation {
   /** Schedule a callback after `seconds` of simulated time. */
   after(seconds: number, fn: () => void) {
     if (this.cpu) this.cpu.addClockEvent(fn, Math.max(1, Math.round(seconds * F_CPU)));
+    else {
+      // No program running: keep our own time-ordered queue, run as the clock advances.
+      const at = this.clock + Math.max(1 / F_CPU, seconds);
+      let i = this.events.length;
+      while (i > 0 && this.events[i - 1].at > at) i--;
+      this.events.splice(i, 0, { at, fn });
+    }
   }
+  private events: { at: number; fn: () => void }[] = [];
 
   /** Integrate every probe up to time t with the solution that held until then. */
   private advance(t: number) {
@@ -450,7 +473,13 @@ export class Simulation {
   run(cycles: number) {
     const cpu = this.cpu;
     if (!cpu) {
-      this.clock += cycles / F_CPU;
+      const end = this.clock + cycles / F_CPU;
+      while (this.events.length && this.events[0].at <= end) {
+        const e = this.events.shift()!;
+        this.clock = Math.max(this.clock, e.at);
+        e.fn();
+      }
+      this.clock = end;
       return;
     }
     const end = cpu.cycles + cycles;
@@ -533,19 +562,6 @@ export class Simulation {
 
 /* ── Devices with behaviour over time ─────────────────────────────────── */
 
-abstract class DeviceLogic {
-  protected sim!: Simulation;
-  constructor(readonly part: string) {}
-  attach(sim: Simulation) {
-    this.sim = sim;
-  }
-  /** Keep timing state across a circuit rebuild. */
-  adopt(next: DeviceLogic): DeviceLogic {
-    return next;
-  }
-  abstract onSolve(s: Solution, t: number): void;
-  abstract reading(span: number): PartReading;
-}
 
 /** Passive buzzer: counts rising edges of the voltage across it → frequency. */
 class EdgeCounter extends DeviceLogic {

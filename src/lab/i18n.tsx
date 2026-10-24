@@ -166,6 +166,7 @@ const D = {
   noSelection: ["Select a part or wire to see its settings. Drag parts from the library; drag from a pin to draw a wire.", "اختار قطعة أو سلك عشان تشوف إعداداته. اسحب القطع من المكتبة، واسحب من أي طرف عشان ترسم سلك."],
   simulated: ["Simulated", "بتتشغّل محاكاة"],
   visualOnly: ["Visual only — simulation not supported", "شكل بس — مش بتتشغّل محاكاة"],
+  partial: ["Partially simulated", "محاكاة جزئية"],
   live: ["Live reading", "قراءة مباشرة"],
   send: ["Send", "ابعت"],
   clear: ["Clear", "امسح"],

@@ -7,6 +7,7 @@
 import * as THREE from "three";
 import type { PartInstance } from "../model";
 import { BB_ROWS, LED_COLORS, bbCols, breadboardPins, propsOf } from "../parts";
+import { moduleModel } from "./models-modules";
 
 /** Canvas units → millimetres (10 units = 0.1 inch = 2.54 mm). */
 export const U = 0.254;
@@ -34,7 +35,7 @@ function mat(key: string, make: () => THREE.Material) {
   if (!m) cache.set(key, (m = make()));
   return m;
 }
-const std = (color: string, roughness = 0.55, metalness = 0) => mat(`s${color}${roughness}${metalness}`, () => new THREE.MeshStandardMaterial({ color, roughness, metalness }));
+export const std = (color: string, roughness = 0.55, metalness = 0) => mat(`s${color}${roughness}${metalness}`, () => new THREE.MeshStandardMaterial({ color, roughness, metalness }));
 export const M = {
   tin: () => std("#cfd5dc", 0.28, 1),
   gold: () => std("#d8b04a", 0.25, 1),
@@ -47,13 +48,13 @@ export const M = {
 
 /* ─── Geometry helpers ─────────────────────────────────────────────────── */
 
-const box = (w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z = 0) => {
+export const box = (w: number, h: number, d: number, m: THREE.Material, x = 0, y = 0, z = 0) => {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
   mesh.position.set(x, y + h / 2, z);
   mesh.castShadow = mesh.receiveShadow = true;
   return mesh;
 };
-const roundedBox = (w: number, h: number, d: number, r: number, m: THREE.Material, x = 0, y = 0, z = 0) => {
+export const roundedBox = (w: number, h: number, d: number, r: number, m: THREE.Material, x = 0, y = 0, z = 0) => {
   const s = new THREE.Shape();
   const hw = w / 2;
   const hd = d / 2;
@@ -73,24 +74,24 @@ const roundedBox = (w: number, h: number, d: number, r: number, m: THREE.Materia
   mesh.castShadow = mesh.receiveShadow = true;
   return mesh;
 };
-const cyl = (r: number, h: number, m: THREE.Material, x = 0, y = 0, z = 0, seg = 24) => {
+export const cyl = (r: number, h: number, m: THREE.Material, x = 0, y = 0, z = 0, seg = 24) => {
   const mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, seg), m);
   mesh.position.set(x, y + h / 2, z);
   mesh.castShadow = mesh.receiveShadow = true;
   return mesh;
 };
 /** A wire leg through the given points (a bent component lead). */
-function lead(points: [number, number, number][], r = 0.26, m = M.tin()) {
+export function lead(points: [number, number, number][], r = 0.26, m = M.tin()) {
   const curve = new THREE.CurvePath<THREE.Vector3>();
   for (let i = 0; i < points.length - 1; i++) curve.add(new THREE.LineCurve3(new THREE.Vector3(...points[i]), new THREE.Vector3(...points[i + 1])));
   const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve as unknown as THREE.Curve<THREE.Vector3>, Math.max(2, points.length * 4), r, 8, false), m);
   mesh.castShadow = true;
   return mesh;
 }
-const P = (u: number) => u * U;
+export const P = (u: number) => u * U;
 
 /** Text and markings drawn on a canvas, used as a texture (silkscreen, labels, displays). */
-function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
+export function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
@@ -103,14 +104,14 @@ function canvasTexture(w: number, h: number, draw: (c: CanvasRenderingContext2D)
 }
 
 /** Female header strip (black, square holes) with `n` sockets along +X from x0. */
-function femaleHeader(n: number, x0: number, z: number, y: number) {
+export function femaleHeader(n: number, x0: number, z: number, y: number) {
   const g = new THREE.Group();
   g.add(box(n * 2.54, 8.5, 2.54, M.black(), x0 + ((n - 1) * 2.54) / 2, y, z));
   for (let i = 0; i < n; i++) g.add(box(1.0, 0.05, 1.0, std("#050505", 0.9), x0 + i * 2.54, y + 8.5, z));
   return g;
 }
 /** Male pin strip pointing down (Nano, HC-SR04). */
-function malePins(n: number, x0: number, z: number, top: number, len: number) {
+export function malePins(n: number, x0: number, z: number, top: number, len: number) {
   const g = new THREE.Group();
   g.add(box(n * 2.54, 2.5, 2.4, M.black(), x0 + ((n - 1) * 2.54) / 2, top - 2.5, z));
   for (let i = 0; i < n; i++) g.add(box(0.64, len, 0.64, M.gold(), x0 + i * 2.54, top - len, z));
@@ -874,6 +875,6 @@ export function buildModel(p: PartInstance): Model | null {
     case "ammeter":
       return meter("A");
     default:
-      return null;
+      return moduleModel(p);
   }
 }

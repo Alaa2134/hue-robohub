@@ -634,7 +634,7 @@ export function Canvas({
           ) : hoverDef && hoverPart ? (
             <div dir="auto">
               <p className="font-semibold text-frost">{partById.get(hoverPart)?.label || l(hoverDef.name)}</p>
-              <p className="text-fog">{hoverDef.support === "sim" ? t("simulated") : t("visualOnly")}</p>
+              <p className="text-fog">{hoverDef.support === "sim" ? t("simulated") : hoverDef.support === "partial" ? t("partial") : t("visualOnly")}</p>
             </div>
           ) : null}
         </div>

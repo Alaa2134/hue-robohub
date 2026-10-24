@@ -4,16 +4,20 @@
  * simulator models it. Drawing lives in render.tsx; electrical behaviour in ../sim/devices.ts.
  */
 import type { PartInstance, Rot } from "./model";
+import { MODULE_PARTS, modulePinRole } from "./parts-modules";
 
 export type L = { en: string; ar: string };
-/** sim: modelled electrically/behaviourally. visual: placed and wired, not simulated (marked in the UI). */
-export type Support = "sim" | "visual";
+/**
+ * sim: modelled electrically/behaviourally. partial: simulated, but part of its behaviour is set by
+ * hand or approximated (stated in its note). visual: placed and wired, not simulated (marked in the UI).
+ */
+export type Support = "sim" | "partial" | "visual";
 export type PinDef = { name: string; x: number; y: number; label?: string };
 export type PropDef =
   | { key: string; label: L; type: "number"; unit?: string; min?: number; max?: number; step?: number; presets?: number[]; live?: boolean }
   | { key: string; label: L; type: "select"; options: { value: string; label: L }[]; live?: boolean }
   | { key: string; label: L; type: "bool"; live?: boolean };
-export type Category = "boards" | "breadboards" | "basic" | "input" | "output" | "semis" | "sensors" | "motors" | "power" | "instruments";
+export type Category = "boards" | "breadboards" | "basic" | "input" | "output" | "displays" | "semis" | "logic" | "sensors" | "motors" | "power" | "instruments";
 
 export type PartDef = {
   type: string;
@@ -38,7 +42,9 @@ export const CATEGORIES: { key: Category; label: L }[] = [
   { key: "basic", label: { en: "Basic", ar: "أساسيات" } },
   { key: "input", label: { en: "Input", ar: "إدخال" } },
   { key: "output", label: { en: "Output", ar: "إخراج" } },
+  { key: "displays", label: { en: "Displays", ar: "شاشات" } },
   { key: "semis", label: { en: "Semiconductors", ar: "أشباه موصلات" } },
+  { key: "logic", label: { en: "Logic chips", ar: "شرائح منطقية" } },
   { key: "sensors", label: { en: "Sensors", ar: "حساسات" } },
   { key: "motors", label: { en: "Motors", ar: "موتورات" } },
   { key: "power", label: { en: "Power", ar: "باور" } },
@@ -467,6 +473,7 @@ export const PARTS: PartDef[] = [
   },
 ];
 
+PARTS.push(...MODULE_PARTS);
 export const PART_BY_TYPE = new Map(PARTS.map((p) => [p.type, p]));
 
 export function rotate(x: number, y: number, rot: Rot): [number, number] {
@@ -582,7 +589,7 @@ export function pinRole(p: PartInstance, pin: string): { kind: PinKind; note: st
     "nmos:D": { kind: "passive", note: "Drain" },
     "nmos:S": { kind: "passive", note: "Source" },
   };
-  const n = named[`${p.type}:${pin}`];
+  const n = named[`${p.type}:${pin}`] ?? modulePinRole(p.type, pin);
   if (n) return n;
   if (pin === "+" || pin === "V+" || pin === "VCC") return { kind: "power", note: "Positive" };
   if (pin === "-" || pin === "GND" || pin === "COM") return { kind: "ground", note: "Negative" };

@@ -40,6 +40,12 @@ export function PartIcon({ def, shot, className = "size-10" }: { def: PartDef; s
 
 export { useSnapshots };
 
+/** Fully simulated / partially simulated (some behaviour set by hand or approximated) / visual only. */
+export function SupportBadge({ support }: { support: PartDef["support"] }) {
+  const { t } = useLang();
+  return support === "sim" ? <Badge tone="ok">{t("simulated")}</Badge> : support === "partial" ? <Badge tone="volt">{t("partial")}</Badge> : <Badge tone="warn">{t("visualOnly")}</Badge>;
+}
+
 /* ─── Part sheet: pinout and documentation ─────────────────────────────── */
 
 /** Every pin of a part with what it's for, and what the model simulates. Read from the catalog, so it can't drift. */
@@ -58,7 +64,7 @@ export function PartSheet({ type, mode }: { type: string; mode: "pinout" | "docs
         <PartIcon def={def} shot={shots?.get(type)} className="size-16" />
         <div>
           <p className="font-semibold">{l(def.name)}</p>
-          <div className="mt-1">{def.support === "sim" ? <Badge tone="ok">{t("simulated")}</Badge> : <Badge tone="warn">{t("visualOnly")}</Badge>}</div>
+          <div className="mt-1"><SupportBadge support={def.support} /></div>
         </div>
       </div>
       {mode === "docs" ? (
@@ -318,7 +324,7 @@ export function Inspector({ store, readings, running, live, onLive, readOnly }: 
     <div className="grid gap-4 p-4" data-testid="inspector">
       <div>
         <p className="font-semibold">{labels.get(p.id)}</p>
-        <div className="mt-1.5">{def.support === "sim" ? <Badge tone="ok">{t("simulated")}</Badge> : <Badge tone="warn">{t("visualOnly")}</Badge>}</div>
+        <div className="mt-1.5"><SupportBadge support={def.support} /></div>
         {def.note && <p className="mt-2 text-xs leading-relaxed text-fog">{l(def.note)}</p>}
       </div>
       {def.props.map((d) => (

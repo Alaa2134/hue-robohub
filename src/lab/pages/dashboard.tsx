@@ -67,7 +67,7 @@ export function Dashboard() {
     }
   };
 
-  const simCount = PARTS.filter((p) => p.support === "sim").length;
+  const simCount = PARTS.filter((p) => p.support !== "visual").length;
   const stats: [string, string][] = data
     ? [
         [t("circuitsN"), fmtNum(data.projects?.circuit ?? 0)],

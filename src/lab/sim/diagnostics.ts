@@ -36,7 +36,7 @@ export function checkCircuit(doc: CircuitDoc, netlist: Netlist = buildNetlist(do
   for (const k of netlist.unconnected) {
     const [part, pin] = k.split(":");
     const def = PART_BY_TYPE.get(parts.get(part)?.type ?? "");
-    if (def && !def.mcu && def.support === "sim") out.push({ level: "warning", code: "pin_unconnected", part, pin });
+    if (def && !def.mcu && def.support !== "visual") out.push({ level: "warning", code: "pin_unconnected", part, pin });
   }
 
   // What each net touches.

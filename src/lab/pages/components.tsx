@@ -1,7 +1,7 @@
 "use client";
 /** Every part in the Lab, what the simulator models for it, and its pins. */
 import { useState } from "react";
-import { PartIcon, useSnapshots } from "../circuit/panels";
+import { PartIcon, SupportBadge, useSnapshots } from "../circuit/panels";
 import { CATEGORIES, PARTS, type PartDef } from "../circuit/parts";
 import { PartArt } from "../circuit/render";
 import { useLang } from "../i18n";
@@ -42,7 +42,7 @@ export function ComponentsPage() {
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <h3 className="font-semibold">{l(p.name)}</h3>
-                    {p.support === "sim" ? <Badge tone="ok">{t("simulated")}</Badge> : <Badge tone="warn">{t("visualOnly")}</Badge>}
+                    <SupportBadge support={p.support} />
                   </div>
                   {p.note && <p className="mt-2 text-xs leading-relaxed text-fog">{l(p.note)}</p>}
                   {p.category !== "breadboards" && (

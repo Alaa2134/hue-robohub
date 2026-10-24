@@ -89,6 +89,8 @@ The floating-input check accepts any `INPUT_PULLUP` in the sketch; it doesn't wo
 
 ## Parts
 
+Every part is labelled in the library as **Simulated**, **Partially simulated** (part of its behaviour is set by hand or approximated, stated in its note) or **Visual only**.
+
 **Simulated:**
 - Uno, Nano, breadboards
 - resistor, LED, RGB LED, push button, slide switch, potentiometer, capacitor (DC)
@@ -96,8 +98,18 @@ The floating-input check accepts any `INPUT_PULLUP` in the sketch; it doesn't wo
 - buzzer, servo, DC motor
 - 9 V and AA batteries, bench supply
 - LDR, thermistor, HC-SR04, voltmeter, ammeter
+- 7-segment display (common cathode/anode)
+- relay module: 10 ms pull-in, 5 ms release
+- joystick (KY-023)
+- DHT11 and DHT22, speaking the real single-wire protocol (tested with the Adafruit DHT library)
+- 74HC08 / 32 / 00 / 86 / 04 logic chips (they also work without an Arduino)
 
-**Missing:** LCD 16×2 / 20×4 / I²C, OLED, DHT, PIR, IR, line sensor, soil sensor, MPU6050, joystick, encoder, 7-segment, LED matrix, NeoPixel, relay, stepper, motor drivers, logic gates.
+**Partially simulated:**
+- PIR (HC-SR501): motion and hold time are real; warm-up and field of view are not.
+- IR obstacle (FC-51): obstacle present or not, set by hand.
+- TCRT5000 line sensor and soil moisture: linear approximations of typical modules.
+
+**Missing:** LCD 16×2 / 20×4 / I²C, OLED, MPU6050, rotary encoder, LED matrix, NeoPixel, stepper and motor drivers. I²C devices need the TWI bus simulated first. LiquidCrystal and LiquidCrystal_I2C aren't in the compiler yet.
 
 ## Code editor
 
