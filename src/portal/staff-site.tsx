@@ -4,7 +4,7 @@
  * Anyone with "content" writes drafts; owners, admins and whoever has "publish" publish (enforced in
  * the database too).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
 import { can, errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
@@ -44,9 +44,11 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("site_content").select("*").order("created_at", { ascending: false }).limit(2000).then(must)) as SiteItem[], []);
   const [editing, setEditing] = useState<SiteItem | "new" | null>(null);
   // ?k=photo&album=robotex opens the photo upload straight into that album (e.g. from an expo visit).
-  const [bulk, setBulk] = useState(!!query.get("album") && query.get("k") === "photo");
+  const [bulk, setBulk] = useState<string | null>(query.get("album") && query.get("k") === "photo" ? query.get("album") : null);
   const k = kindOf(kind);
   const list = (data ?? []).filter((i) => i.kind === kind);
+  // Albums already used, newest first, to pick from when uploading.
+  const albums = [...new Set((data ?? []).filter((i) => i.kind === "photo").flatMap((i) => i.tags))];
   // Drafts the rest of the team wrote, waiting for someone who can publish.
   const waiting = isAdmin(me) ? (data ?? []).filter((i) => !i.published && i.created_by !== me.user_id && KINDS.some((x) => x.key === i.kind)) : [];
 
@@ -56,7 +58,7 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
         title="محتوى الموقع"
         sub={isAdmin(me) ? "انت تقدر تنشر على الموقع" : "اكتب مسودة — اللي عندهم صلاحية النشر بينشروها"}
         actions={
-          <Button size="sm" variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk(true) : setEditing("new"))}>
+          <Button size="sm" variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>
             {kind === "photo" ? "صور" : k.one}
           </Button>
         }
@@ -99,12 +101,12 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !list.length ? (
-        <Empty icon="layers" title={`مفيش ${k.label} لسه`} body="أي حاجة تضيفها هنا وتتنشر، هتظهر على الموقع على طول." action={<Button variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk(true) : setEditing("new"))}>إضافة</Button>} />
+        <Empty icon="layers" title={`مفيش ${k.label} لسه`} body="أي حاجة تضيفها هنا وتتنشر، هتظهر على الموقع على طول." action={<Button variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>إضافة</Button>} />
       ) : kind === "photo" ? (
         <div className="mt-4 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
           {list.map((i) => (
             <button key={i.id} type="button" onClick={() => setEditing(i)} className="relative aspect-square overflow-hidden rounded-xl border border-[var(--line)] bg-deep">
-              {i.image_path && <img src={siteImageUrl(i.image_path)} alt="" loading="lazy" className="h-full w-full object-cover" />}
+              {i.image_path && <img src={siteImageUrl(i.image_path, "thumb")} alt="" loading="lazy" className="h-full w-full object-cover" />}
               {!i.published && <span className="absolute inset-x-0 bottom-0 bg-warn/85 py-0.5 text-center text-[11px] font-semibold text-void">مسودة</span>}
             </button>
           ))}
@@ -115,7 +117,7 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
             <Row key={i.id} onClick={() => setEditing(i)}>
               <div className="flex items-center gap-3">
                 <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[var(--line)] bg-deep">
-                  {i.image_path ? <img src={siteImageUrl(i.image_path)} alt="" className="h-full w-full object-cover" /> : <Icon name="layers" size={20} className="text-fog" />}
+                  {i.image_path ? <img src={siteImageUrl(i.image_path, "thumb")} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Icon name="layers" size={20} className="text-fog" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-chalk">{i.title_ar || i.title || "—"}</p>
@@ -131,13 +133,25 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
           ))}
         </List>
       )}
-      {editing && <ItemSheet me={me} kind={kind} item={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={reload} />}
-      {bulk && <BulkPhotos me={me} album={query.get("album") ?? ""} onClose={() => setBulk(false)} onDone={reload} />}
+      {editing && (
+        <ItemSheet
+          me={me}
+          kind={kind}
+          item={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={reload}
+          onPhotos={(album) => {
+            setEditing(null);
+            setBulk(album);
+          }}
+        />
+      )}
+      {bulk !== null && <BulkPhotos me={me} album={bulk} albums={albums} onClose={() => setBulk(null)} onDone={reload} />}
     </>
   );
 }
 
-function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: ContentKind; item: SiteItem | null; onClose: () => void; onSaved: () => void }) {
+function ItemSheet({ me, kind, item, onClose, onSaved, onPhotos }: { me: StaffRow; kind: ContentKind; item: SiteItem | null; onClose: () => void; onSaved: () => void; onPhotos: (album: string) => void }) {
   const k = kindOf(kind);
   const admin = isAdmin(me);
   const locked = !!item?.published && !admin;
@@ -363,6 +377,11 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
             حفظ
           </Button>
         )}
+        {item && (kind === "event" || kind === "post") && (
+          <Button icon="image" block onClick={() => onPhotos(item.title_ar || item.title)} data-testid="item-photos">
+            {kind === "event" ? "ارفع صور الفعالية" : "ارفع صور للخبر"}
+          </Button>
+        )}
         {item && (admin || (!item.published && item.created_by === me.user_id)) && (
           <Button variant="danger" icon="trash" block onClick={del}>
             حذف
@@ -373,66 +392,151 @@ function ItemSheet({ me, kind, item, onClose, onSaved }: { me: StaffRow; kind: C
   );
 }
 
-/** Gallery: pick many photos from the phone and upload them in one go. */
-function BulkPhotos({ me, album: first = "", onClose, onDone }: { me: StaffRow; album?: string; onClose: () => void; onDone: () => void }) {
+/** Upload this many photos at once: faster on a good connection, still gentle on a phone. */
+const PARALLEL = 3;
+
+type Pick = { id: string; file: File; url: string; state: "wait" | "up" | "ok" | "fail" };
+
+/**
+ * Gallery: pick (or drop) many photos and upload them in one go. Each one is compressed on the
+ * device, three upload side by side, and the rows are written to the database in a single request
+ * at the end. Failed photos stay in the list to retry; the rest are done.
+ */
+function BulkPhotos({ me, album: first = "", albums = [], onClose, onDone }: { me: StaffRow; album?: string; albums?: string[]; onClose: () => void; onDone: () => void }) {
   const admin = isAdmin(me);
-  const [files, setFiles] = useState<File[]>([]);
+  const [picks, setPicks] = useState<Pick[]>([]);
   const [album, setAlbum] = useState(first);
   const [publish, setPublish] = useState(admin);
-  const [done, setDone] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [over, setOver] = useState(false);
+  const done = picks.filter((p) => p.state === "ok").length;
+  const left = picks.filter((p) => p.state !== "ok");
+
+  useEffect(() => () => picks.forEach((p) => URL.revokeObjectURL(p.url)), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const add = (list: FileList | File[] | null) => {
+    const files = Array.from(list ?? []).filter((f) => f.type.startsWith("image/"));
+    setPicks((prev) => [...prev, ...files.map((file) => ({ id: uid(), file, url: URL.createObjectURL(file), state: "wait" as const }))].slice(0, 80));
+  };
+  const drop = (id: string) =>
+    setPicks((prev) => {
+      const p = prev.find((x) => x.id === id);
+      if (p) URL.revokeObjectURL(p.url);
+      return prev.filter((x) => x.id !== id);
+    });
+  const mark = (id: string, state: Pick["state"]) => setPicks((prev) => prev.map((x) => (x.id === id ? { ...x, state } : x)));
 
   const run = async () => {
     setBusy(true);
-    setDone(0);
     const tags = album
       .split(/[,،]/)
       .map((s) => s.trim())
-      .filter(Boolean);
-    let failed = 0;
-    for (const file of files) {
-      try {
-        const path = await uploadSiteImage(me, file);
-        const taken = file.lastModified ? new Date(file.lastModified).toISOString() : null;
-        await sb()
-          .from("site_content")
-          .insert({ kind: "photo", title: "", image_path: path, tags, starts_at: taken, ...(admin ? { published: publish } : {}) })
-          .then(must);
-      } catch {
-        failed++;
+      .filter(Boolean)
+      .slice(0, 12);
+    const queue = [...left];
+    const rows: { id: string; row: Record<string, unknown> }[] = [];
+    const worker = async () => {
+      for (let p = queue.shift(); p; p = queue.shift()) {
+        mark(p.id, "up");
+        try {
+          const path = await uploadSiteImage(me, p.file);
+          const taken = p.file.lastModified ? new Date(p.file.lastModified).toISOString() : null;
+          rows.push({ id: p.id, row: { kind: "photo", title: "", image_path: path, tags, starts_at: taken, ...(admin ? { published: publish } : {}) } });
+        } catch {
+          mark(p.id, "fail");
+        }
       }
-      setDone((n) => n + 1);
+    };
+    await Promise.all(Array.from({ length: PARALLEL }, worker));
+    let saved = 0;
+    if (rows.length) {
+      try {
+        // One request for the whole batch, in the order they were picked.
+        const order = new Map(left.map((p, i) => [p.id, i]));
+        rows.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
+        await sb().from("site_content").insert(rows.map((r) => r.row)).then(must);
+        rows.forEach((r) => mark(r.id, "ok"));
+        saved = rows.length;
+      } catch (e) {
+        removeObjects(rows.map((r) => r.row.image_path as string), "site").catch(() => undefined);
+        rows.forEach((r) => mark(r.id, "fail"));
+        toast.error(e);
+      }
     }
     setBusy(false);
-    toast(failed ? `اترفع ${files.length - failed} — و${failed} فشلوا` : `اترفع ${files.length} صورة`, failed ? "error" : "ok");
-    onDone();
-    onClose();
+    const failed = left.length - saved;
+    if (saved) onDone();
+    if (failed) toast(`اترفع ${saved} — و${failed} فشلوا، دوس «رفع» تاني يجرّبهم`, "error");
+    else {
+      toast(`اترفع ${saved} صورة${admin && publish ? " واتنشروا" : ""}`, "ok");
+      onClose();
+    }
   };
 
   return (
-    <Sheet open onClose={() => !busy && onClose()} title="رفع صور للجاليري">
+    <Sheet open onClose={() => !busy && onClose()} title="رفع صور للجاليري" wide>
       <div className="grid gap-4">
-        <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed border-[var(--line-2)] bg-deep p-8 text-center">
+        <label
+          className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border border-dashed p-6 text-center transition-colors ${over ? "border-cyan bg-cyan/10" : "border-[var(--line-2)] bg-deep"}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            if (!busy) add(e.dataTransfer.files);
+          }}
+        >
           <Icon name="upload" size={30} className="text-cyan" />
-          <span className="font-semibold text-chalk">{files.length ? `${files.length} صورة متختارة` : "اختار صور من الموبايل"}</span>
+          <span className="font-semibold text-chalk">{picks.length ? `${picks.length} صورة — اختار كمان` : "اختار صور من الموبايل أو اسحبها هنا"}</span>
+          <span className="text-xs text-fog">بتتصغّر على الجهاز قبل الرفع (WebP)، لحد 80 صورة في المرة</span>
           <input
             type="file"
             accept="image/*"
             multiple
             className="sr-only"
             disabled={busy}
+            data-testid="bulk-photos-input"
             onChange={(e) => {
-              setFiles(Array.from(e.target.files ?? []).slice(0, 60));
+              add(e.target.files);
               e.target.value = "";
             }}
           />
         </label>
-        <Field label="الألبوم" hint="مثلاً: يوم التعريف 2026">
+        {picks.length > 0 && (
+          <ul className="grid grid-cols-4 gap-1.5 sm:grid-cols-6" data-testid="bulk-photos-list">
+            {picks.map((p) => (
+              <li key={p.id} className="relative aspect-square overflow-hidden rounded-xl border border-[var(--line)] bg-deep">
+                <img src={p.url} alt="" className={`h-full w-full object-cover ${p.state === "ok" ? "opacity-40" : ""}`} />
+                {p.state === "up" && <span className="absolute inset-0 flex items-center justify-center bg-void/60 text-xs text-chalk">جارٍ الرفع…</span>}
+                {p.state === "ok" && <Icon name="check" size={22} className="absolute inset-0 m-auto text-ok" />}
+                {p.state === "fail" && <span className="absolute inset-x-0 bottom-0 bg-danger/85 py-0.5 text-center text-[11px] font-semibold text-white">فشل</span>}
+                {!busy && p.state !== "ok" && (
+                  <button type="button" aria-label="شيل الصورة" onClick={() => drop(p.id)} className="absolute end-1 top-1 flex size-6 items-center justify-center rounded-full bg-void/80 text-chalk">
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Field label="الألبوم" hint="اسم الفعالية مثلاً — الصور بتظهر تحت صفحتها على الموقع">
           <Input value={album} onChange={(e) => setAlbum(e.target.value)} />
         </Field>
+        {albums.length > 0 && (
+          <div className="-mt-2 flex flex-wrap gap-1.5">
+            {albums.slice(0, 12).map((a) => (
+              <Chip key={a} active={album === a} onClick={() => setAlbum(a)}>
+                {a}
+              </Chip>
+            ))}
+          </div>
+        )}
         {admin && <Toggle checked={publish} onChange={setPublish} label="انشرهم على طول" />}
-        <Button variant="primary" size="lg" block loading={busy} disabled={!files.length} onClick={run}>
-          {busy ? `${done} / ${files.length}` : "رفع"}
+        <Button variant="primary" size="lg" block loading={busy} disabled={!left.length} onClick={run}>
+          {busy ? `${done} / ${picks.length}` : left.length < picks.length ? `رفع الباقي (${left.length})` : `رفع ${left.length || ""}`.trim()}
         </Button>
       </div>
     </Sheet>

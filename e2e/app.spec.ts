@@ -6841,3 +6841,53 @@ test("responses: who else a person is (other forms, member), groups set after th
   expect(readFileSync((await (await file).path())!).subarray(0, 5).toString()).toBe("%PDF-");
   expect(errors).toEqual([]);
 });
+
+test("gallery upload: from an event, pick photos, drop one, and save them in one request under the event's album", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const base = { slug: null, title: "", summary: null, summary_ar: null, body: null, body_ar: null, result: null, result_ar: null, image_path: null, url: null, ends_at: null, location: null, location_ar: null, track: null, pinned: false, sort_order: 100, publish_at: null, created_by: "u1" };
+  const rows = [
+    { ...base, id: "e1", kind: "event", slug: "embedded-01", title: "Embedded Systems Workshop 01", title_ar: "ورشة Embedded Systems 01", starts_at: at(60 * 24 * 5), tags: [], published: true, created_at: at(60) },
+    { ...base, id: "p1", kind: "photo", starts_at: null, tags: ["يوم التعريف"], published: true, created_at: at(120) },
+  ];
+  const uploads: string[] = [];
+  const posts: unknown[] = [];
+  await page.route(/\/storage\/v1\/object\/site\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/site");
+  await page.getByText("ورشة Embedded Systems 01").click();
+  await page.getByTestId("item-photos").click();
+  await expect(page.getByLabel("الألبوم")).toHaveValue("ورشة Embedded Systems 01");
+  // Albums already used are a tap away.
+  await expect(page.locator("button", { hasText: "يوم التعريف" })).toBeVisible();
+  const png = readFileSync("public/brand/icon-512.png");
+  await page.getByTestId("bulk-photos-input").setInputFiles([
+    { name: "a.png", mimeType: "image/png", buffer: png },
+    { name: "b.png", mimeType: "image/png", buffer: png },
+    { name: "c.png", mimeType: "image/png", buffer: png },
+  ]);
+  const list = page.getByTestId("bulk-photos-list").locator("li");
+  await expect(list).toHaveCount(3);
+  await page.getByRole("button", { name: "شيل الصورة" }).first().click();
+  await expect(list).toHaveCount(2);
+  await page.getByRole("button", { name: "رفع 2", exact: true }).click();
+  await expect(page.getByText("اترفع 2 صورة واتنشروا")).toBeVisible();
+  // Two compressed photos (main + thumbnail each), and one database request for both rows.
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
+  expect(posts).toHaveLength(1);
+  expect(posts[0]).toEqual([
+    expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems 01"], published: true }),
+    expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems 01"], published: true }),
+  ]);
+  expect(errors).toEqual([]);
+});

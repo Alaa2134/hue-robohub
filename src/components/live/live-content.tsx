@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
 import { bodyOf, fetchContent, fetchItem, fetchUpcoming, fmtDate, locationOf, resultOf, safeLink, siteImageUrl, summaryOf, titleOf, type ContentKind, type SiteItem } from "@/lib/site-content";
 
 const T = {
-  en: { upcoming: "Upcoming events", past: "Past events", noUpcoming: "No upcoming events are announced yet — follow the plan below.", register: "Register", details: "Details", read: "Read more", open: "Open", back: "Back", empty: "Nothing published here yet — check back soon.", missing: "We couldn't find this page.", error: "We couldn't load this right now. Check your connection and try again.", latest: "Latest from BuildX HUE", news: "News", photos: "photos", close: "Close", prev: "Previous", next: "Next", highlights: "Highlights", all: "Every achievement", stats: ["Achievements & projects", "Highlights", "Fields"] },
-  ar: { upcoming: "الفعاليات الجاية", past: "فعاليات فاتت", noUpcoming: "لسه مفيش فعاليات معلنة — تابع الخطة اللي تحت.", register: "سجّل", details: "التفاصيل", read: "اقرا أكتر", open: "افتح", back: "رجوع", empty: "لسه مفيش حاجة منشورة هنا — ارجع قريب.", missing: "مش لاقيين الصفحة دي.", error: "مقدرناش نحمّل المحتوى. اتأكد من النت وجرّب تاني.", latest: "الجديد في BuildX HUE", news: "الأخبار", photos: "صورة", close: "إغلاق", prev: "السابق", next: "التالي", highlights: "أبرز إنجازاتنا", all: "كل الإنجازات", stats: ["إنجاز ومشروع", "إنجاز مميّز", "مجال"] },
+  en: { upcoming: "Upcoming events", past: "Past events", noUpcoming: "No upcoming events are announced yet — follow the plan below.", register: "Register", details: "Details", read: "Read more", open: "Open", back: "Back", empty: "Nothing published here yet — check back soon.", missing: "We couldn't find this page.", error: "We couldn't load this right now. Check your connection and try again.", latest: "Latest from BuildX HUE", news: "News", photos: "photos", close: "Close", prev: "Previous", next: "Next", album: "Photos", highlights: "Highlights", all: "Every achievement", stats: ["Achievements & projects", "Highlights", "Fields"] },
+  ar: { upcoming: "الفعاليات الجاية", past: "فعاليات فاتت", noUpcoming: "لسه مفيش فعاليات معلنة — تابع الخطة اللي تحت.", register: "سجّل", details: "التفاصيل", read: "اقرا أكتر", open: "افتح", back: "رجوع", empty: "لسه مفيش حاجة منشورة هنا — ارجع قريب.", missing: "مش لاقيين الصفحة دي.", error: "مقدرناش نحمّل المحتوى. اتأكد من النت وجرّب تاني.", latest: "الجديد في BuildX HUE", news: "الأخبار", photos: "صورة", close: "إغلاق", prev: "السابق", next: "التالي", album: "صور من الفعالية", highlights: "أبرز إنجازاتنا", all: "كل الإنجازات", stats: ["إنجاز ومشروع", "إنجاز مميّز", "مجال"] },
 };
 const tr = (l: string) => T[l === "ar" ? "ar" : "en"];
 
@@ -67,7 +67,7 @@ function EventCard({ e, locale, past, href }: { e: SiteItem; locale: string; pas
         </p>
         <h3 className="t-title text-xl text-chalk">{titleOf(e, locale)}</h3>
         {summaryOf(e, locale) && <p className="text-[0.97rem] leading-relaxed text-mist">{summaryOf(e, locale)}</p>}
-        {bodyOf(e, locale) && <p className="whitespace-pre-line text-sm leading-relaxed text-fog">{bodyOf(e, locale)}</p>}
+        {bodyOf(e, locale) && !past && <p className="whitespace-pre-line text-sm leading-relaxed text-fog">{bodyOf(e, locale)}</p>}
         {((link && !past) || (href && e.slug)) && (
           <div className="mt-2 flex flex-wrap gap-2">
             {link && !past && (
@@ -238,19 +238,38 @@ export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { k
           <Icon name="arrowUpRight" size={14} />
         </a>
       )}
+      {kind !== "project" && (
+        <section className="mt-4 flex flex-col gap-5" data-testid="item-album">
+          <LiveGallery locale={locale} tag={[i.slug, i.title, i.title_ar].filter((x): x is string => !!x)} heading={t.album} />
+        </section>
+      )}
     </article>
   );
 }
 
 /* ─── Gallery ──────────────────────────────────────────────────────────── */
 
-export function LiveGallery({ locale, initial, tag, empty }: { locale: string; initial?: SiteItem[]; /** Only this album (e.g. one event's photos). */ tag?: string; empty?: string }) {
+export function LiveGallery({
+  locale,
+  initial,
+  tag,
+  empty,
+  heading,
+}: {
+  locale: string;
+  initial?: SiteItem[];
+  /** Only this album, or any of these names (e.g. one event's photos). */
+  tag?: string | string[];
+  empty?: string;
+  /** With a heading the gallery shows nothing at all when the album is empty (under an event or a post). */
+  heading?: string;
+}) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("photo", 500), [], initial?.length ? initial : undefined);
   const [picked, setAlbum] = useState("");
-  const album = tag ?? picked;
+  const names = (Array.isArray(tag) ? tag : tag ? [tag] : [picked]).filter(Boolean);
   const [open, setOpen] = useState<number | null>(null);
-  const photos = (s.data ?? []).filter((p) => p.image_path && (!album || p.tags.includes(album)));
+  const photos = (s.data ?? []).filter((p) => p.image_path && (!names.length || p.tags.some((g) => names.includes(g))));
   useEffect(() => {
     if (open === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -261,13 +280,22 @@ export function LiveGallery({ locale, initial, tag, empty }: { locale: string; i
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, photos.length]);
+  if (heading !== undefined && !photos.length) return null;
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton n={6} />;
   if (!s.data.length || (tag && !photos.length)) return <Note>{empty ?? t.empty}</Note>;
   const albums = tag ? [] : [...new Set(s.data.flatMap((p) => p.tags))];
+  const album = picked;
   const cur = open !== null ? photos[open] : null;
   return (
     <>
+      {heading && (
+        <h2 className="t-headline flex items-center gap-2 text-2xl text-chalk">
+          <Icon name="image" size={22} className="text-cyan" />
+          {heading}
+          <span className="text-base font-normal text-fog">({photos.length})</span>
+        </h2>
+      )}
       {albums.length > 1 && (
         <div className="mb-6 flex flex-wrap gap-2">
           {["", ...albums].map((a) => (

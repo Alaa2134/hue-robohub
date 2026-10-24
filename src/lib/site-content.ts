@@ -1,4 +1,5 @@
 /** Website content the team publishes from the app (events, news, projects, gallery, achievements). */
+import { publicGet } from "./public-cache";
 import { SUPABASE_KEY, SUPABASE_URL } from "./supabase-public";
 
 export type ContentKind = "event" | "post" | "project" | "photo" | "achievement" | "faq" | "testimonial" | "partner" | "story";
@@ -38,9 +39,9 @@ export type SiteItem = {
 export const thumbOf = (path: string) => path.replace(/\.w\.(webp|jpg)$/, ".t.$1");
 export const publicImageUrl = (bucket: string, path: string, size: "full" | "thumb" = "full") =>
   `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${(size === "thumb" ? thumbOf(path) : path).split("/").map(encodeURIComponent).join("/")}`;
-/** A content picture: uploaded to the "site" bucket, or a file shipped with the site ("/media/…"). */
+/** A content picture: uploaded to the "site" bucket, or a file shipped with the site ("/media/…", same `.w.`/`.t.` naming). */
 export const siteImageUrl = (path: string, size: "full" | "thumb" = "full") =>
-  path.startsWith("/") ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${path}` : publicImageUrl("site", path, size);
+  path.startsWith("/") ? `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${size === "thumb" ? thumbOf(path) : path}` : publicImageUrl("site", path, size);
 
 type Loc = "en" | "ar" | string;
 export const pickL = (en: string | null | undefined, ar: string | null | undefined, locale: Loc) => (locale === "ar" && ar ? ar : en) || ar || "";
@@ -69,21 +70,22 @@ async function rest<T>(q: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Published items of one kind, newest/soonest first. */
+/** Published items of one kind, newest/soonest first (kept in the tab for a few minutes). */
 export function fetchContent(kind: ContentKind, limit = 200): Promise<SiteItem[]> {
-  return rest<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.${kind}&order=${ORDER[kind]}&limit=${limit}`);
+  return publicGet<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.${kind}&order=${ORDER[kind]}&limit=${limit}`);
 }
 
 export async function fetchItem(kind: ContentKind, slug: string): Promise<SiteItem | null> {
   if (!/^[a-z0-9-]{2,60}$/.test(slug)) return null;
-  const [row] = await rest<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.${kind}&slug=eq.${slug}&limit=1`);
+  const [row] = await publicGet<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.${kind}&slug=eq.${slug}&limit=1`);
   return row ?? null;
 }
 
 /** Upcoming events (still running or later), soonest first. */
 export async function fetchUpcoming(limit = 6): Promise<SiteItem[]> {
-  const since = new Date(Date.now() - 6 * 3600_000).toISOString();
-  return rest<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.event&starts_at=gte.${encodeURIComponent(since)}&order=starts_at.asc&limit=${limit}`);
+  // Rounded to 10 minutes so pages opened close together share one cached read.
+  const since = new Date(Math.floor((Date.now() - 6 * 3600_000) / 600_000) * 600_000).toISOString();
+  return publicGet<SiteItem[]>(`site_content?select=*&published=eq.true&kind=eq.event&starts_at=gte.${encodeURIComponent(since)}&order=starts_at.asc&limit=${limit}`);
 }
 
 export function fmtDate(iso: string | null | undefined, locale: Loc, withTime = false) {
