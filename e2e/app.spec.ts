@@ -6602,7 +6602,7 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await expect(sum).toContainText("1");
   await expect(sum).toContainText("دفعوا");
   await expect(sum).toContainText("فاضل");
-  await page.getByRole("button", { name: /لسه مدفعوش/ }).click();
+  await page.getByRole("button", { name: /^لسه مدفعوش/ }).click();
   await expect(page.getByText("منى عادل")).toHaveCount(0);
   await expect(page.getByText("علي حسن")).toBeVisible();
 
@@ -6636,6 +6636,23 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await page.getByTestId("response-save").click();
   await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(2);
   expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({ p_form: "f1", p_response: null, p_status: "accepted", p_answers: { n: "يوسف خالد", p: "01112223334" } });
+
+  // One WhatsApp reminder to everyone who hasn't paid yet: the fee, how to pay and their code.
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === "bx-wa-handoff") (window as unknown as { handoff: string }).handoff = v;
+      return set.call(this, k, v);
+    };
+  });
+  await page.reload();
+  await expect(page.getByTestId("remind-unpaid")).toContainText("(2)");
+  await page.getByTestId("remind-unpaid").click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp/);
+  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { name: string }[]; context: string; text: string };
+  expect(handoff.people.map((p) => p.name).sort()).toEqual(["سارة محمود", "علي حسن"].sort());
+  expect(handoff.context).toBe("form:f1:unpaid");
+  for (const s of ["كورس الدرون", "150", "فودافون كاش", "{code}", "{link}"]) expect(handoff.text).toContain(s);
   expect(errors).toEqual([]);
 });
 
@@ -7025,6 +7042,126 @@ test("bus letter: from a form's people, the dean's letter with the count and bus
   const text = (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
   for (const s of ["طلب توفير أتوبيسات", "د. عميد الكلية", "MENA ROBOTICS SUMMIT 2026", "الجمعة", "30 أكتوبر 2026", "E-JUST", "الإسكندرية", "(52)", "(54)", "أتوبيسين", "كشف بأسماء الطلاب المشاركين", "طالب 52", "01010000051", "صفحة 2 من 3"]) expect(text).toContain(s);
   expect(text).not.toContain("طالب 53");
+  delete RPC.staff_trip_letter;
+  expect(errors).toEqual([]);
+});
+
+test("event file: split into buses with a list per bus, the lecture excuse letter, the report, the accounts and certificates for who came", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_trip_letter = { settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", seats: 10 }, letter: { supervisors: 6 } };
+  await signInAsOwner(page, calls);
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === "bx-wa-handoff") (window as unknown as { handoff: string }).handoff = v;
+      return set.call(this, k, v);
+    };
+  });
+  const form = {
+    id: "f1", slug: "drone-day", title_ar: "يوم الدرون", title_en: "Drone Day", intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null, open: true, opens_at: null, closes_at: null,
+    max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, delegation: null, attendance: null, capacity: null,
+    event_at: "2026-11-05T08:00:00Z", payment: { on: true, amount: 100 },
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    ],
+  };
+  // Five accepted (four paid), and one refused who was on a bus before.
+  const rows = Array.from({ length: 6 }, (_, i) => ({
+    id: `r${i}`, form_id: "f1", ref: `F-0000000${i}`, answers: { n: `طالب ${i + 1}`, p: `+20101000000${i}` }, name: `طالب ${i + 1}`, phone: `+20101000000${i}`,
+    email: null, locale: "ar", status: i === 5 ? "rejected" : "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null,
+    paid_at: i < 4 ? at(10) : null, paid_amount: i < 4 ? 100 : null, paid_method: i < 4 ? "cash" : null, tags: i === 5 ? ["أتوبيس 1"] : [], created_at: at(500 - i),
+  }));
+  const certPosts: { recipient_name: string; title: string; kind: string }[][] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  // The first two were scanned at the door.
+  await page.route(/\/rest\/v1\/form_attendance/, (route) => route.fulfill({ json: [{ response_id: "r0" }, { response_id: "r1" }] }));
+  // The first one already has this event's certificate.
+  await page.route(/\/rest\/v1\/certificates/, (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON() as { recipient_name: string; title: string; kind: string }[];
+      certPosts.push(body);
+      return route.fulfill({ json: body.map((c, i) => ({ code: `BXC-0000000${i + 1}`, recipient_name: c.recipient_name })) });
+    }
+    return route.fulfill({ json: [{ code: "BXC-AAAAAAAA", recipient_name: "طالب 1" }] });
+  });
+  const pages = async () => {
+    await page.evaluate(() => {
+      const w = window as unknown as { letter: string[] };
+      w.letter = [];
+      new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]').forEach((p) => w.letter.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+    });
+    return async () => (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
+  };
+
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("trip-letter-open").click();
+  const sheet = page.getByTestId("trip-letter-sheet");
+  await expect(page.getByTestId("trip-letter-event")).toHaveValue("Drone Day");
+  await expect(page.getByTestId("trip-letter-date")).toHaveValue("2026-11-05");
+
+  // Buses: 5 + 6 supervisors on 10-seat buses → 2 buses, split evenly in the order they registered.
+  await sheet.locator("button", { hasText: "المقبولين" }).click();
+  await expect(page.getByTestId("trip-letter-count")).toContainText("5");
+  await expect(page.getByTestId("trip-bus-counts")).toContainText("لسه متقسموش");
+  await page.getByTestId("trip-split").click();
+  await expect(page.getByTestId("trip-bus-counts")).toContainText("أتوبيس 1: 3 · أتوبيس 2: 2");
+  expect(calls.find((c) => c.fn === "staff_form_set_buses")?.body).toEqual({ p_form: "f1", p_buses: { r0: 1, r1: 1, r2: 1, r3: 2, r4: 2, r5: 0 } });
+  let text = await pages();
+  let file = page.waitForEvent("download");
+  await page.getByTestId("trip-letter-make").click();
+  expect((await file).suggestedFilename()).toMatch(/^buildx-bus-request-drone-day-.*\.pdf$/);
+  for (const s of ["طلب توفير أتوبيسات", "أتوبيس 1", "أتوبيس 2", "طالب 5"]) expect(await text()).toContain(s);
+  expect(await text()).not.toContain("طالب 6");
+
+  // The lecture excuse letter: only who was really there.
+  await sheet.locator("button", { hasText: "اعتذار محاضرات" }).click();
+  await expect(page.getByTestId("trip-excuse-count")).toContainText("2");
+  text = await pages();
+  file = page.waitForEvent("download");
+  await page.getByTestId("trip-excuse-make").click();
+  const excuse = await file;
+  expect(excuse.suggestedFilename()).toMatch(/^buildx-lecture-excuse-drone-day-.*\.pdf$/);
+  if (process.env.SAVE_TRIP) copyFileSync((await excuse.path())!, `${process.env.SAVE_TRIP}/excuse.pdf`);
+  for (const s of ["طلب احتساب غياب بعذر", "Drone Day", "طالب 1", "طالب 2"]) expect(await text()).toContain(s);
+  expect(await text()).not.toContain("طالب 3");
+
+  // The report: what happened and the numbers.
+  await sheet.locator("button", { hasText: "تقرير" }).click();
+  await page.getByTestId("trip-report-summary").fill("ورشة عملية على تجميع وطيران الدرون.");
+  text = await pages();
+  file = page.waitForEvent("download");
+  await page.getByTestId("trip-report-make").click();
+  const report = await file;
+  expect(report.suggestedFilename()).toMatch(/^buildx-event-report-drone-day-.*\.pdf$/);
+  if (process.env.SAVE_TRIP) copyFileSync((await report.path())!, `${process.env.SAVE_TRIP}/report.pdf`);
+  for (const s of ["ورشة عملية على تجميع وطيران الدرون.", "Drone Day"]) expect(await text()).toContain(s);
+
+  // The accounts: fees collected (4 × 100) minus what was spent.
+  await sheet.locator("button", { hasText: "حسابات" }).click();
+  await expect(page.getByTestId("trip-money-balance")).toContainText("400 جنيه");
+  await page.getByTestId("trip-add-expenses").click();
+  await sheet.getByLabel("البند", { exact: true }).last().fill("أتوبيس");
+  await sheet.getByLabel("المبلغ", { exact: true }).last().fill("250");
+  await expect(page.getByTestId("trip-money-balance")).toContainText("150 جنيه");
+  file = page.waitForEvent("download");
+  await page.getByTestId("trip-money-xlsx").click();
+  expect((await file).suggestedFilename()).toMatch(/^buildx-accounts-drone-day-.*\.xlsx$/);
+
+  // Certificates for the two who came: only the one without one is issued, both get their link.
+  await sheet.locator("button", { hasText: "شهادات" }).click();
+  await expect(page.getByTestId("trip-certs-count")).toContainText("2");
+  await page.getByTestId("trip-certs-issue").click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp/);
+  expect(certPosts).toHaveLength(1);
+  expect(certPosts[0]).toMatchObject([{ recipient_name: "طالب 2", title: "Drone Day", kind: "participation" }]);
+  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { name: string; vars: { code: string; link: string } }[]; context: string };
+  expect(handoff.context).toBe("form:f1:certs");
+  expect(handoff.people.map((p) => [p.name, p.vars.code])).toEqual([["طالب 1", "BXC-AAAAAAAA"], ["طالب 2", "BXC-00000001"]]);
+  expect(handoff.people[1].vars.link).toContain("BXC-00000001");
   delete RPC.staff_trip_letter;
   expect(errors).toEqual([]);
 });

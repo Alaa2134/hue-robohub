@@ -104,7 +104,14 @@ export function attendanceProblem(a: Attendance | null | undefined): string | nu
   return null;
 }
 
-type Resp = { id: string; ref: string; name: string | null; phone: string | null; status: string; answers: Record<string, string | string[]>; pass: string | null; paid_at?: string | null };
+type Resp = { id: string; ref: string; name: string | null; phone: string | null; status: string; answers: Record<string, string | string[]>; pass: string | null; paid_at?: string | null; tags?: string[] };
+/** The bus a person is on («أتوبيس 2»), from the split in the bus letter. */
+const busOf = (r: Resp | undefined) => r?.tags?.find((t) => /^أتوبيس \d+$/.test(t)) ?? null;
+/** The two boarding checks a trip needs: getting on to go, and getting on to come back. */
+export const BUS_SESSIONS: AttendSession[] = [
+  { id: "bus_go", name: "ركوب الأتوبيس — الذهاب" },
+  { id: "bus_back", name: "ركوب الأتوبيس — العودة" },
+];
 type Mark = { response_id: string; session: string; present: boolean; at: string; method: string };
 type FormRow = { id: string; title_ar: string; slug: string; fields: FormField[]; attendance: Attendance | null; payment?: { on?: boolean; amount?: number | null } | null };
 type MarkOut = { ok: boolean; error?: string; already?: boolean; id?: string; name?: string | null; ref?: string; status?: string; at?: string; present?: boolean; answer?: string | string[]; form?: string };
@@ -115,7 +122,7 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses, marks] = await Promise.all([
       sb().from("forms").select("id, title_ar, slug, fields, attendance, payment").eq("id", id).single().then(must) as Promise<FormRow>,
-      sb().from("form_responses").select("id, ref, name, phone, status, answers, pass, paid_at").eq("form_id", id).neq("status", "rejected").order("created_at").limit(5000).then(must) as Promise<Resp[]>,
+      sb().from("form_responses").select("id, ref, name, phone, status, answers, pass, paid_at, tags").eq("form_id", id).neq("status", "rejected").order("created_at").limit(5000).then(must) as Promise<Resp[]>,
       sb().from("form_attendance").select("response_id, session, present, at, method, form_responses!inner(form_id)").eq("form_responses.form_id", id).limit(50000).then(must) as Promise<Mark[]>,
     ]);
     return { form, responses, marks };
@@ -128,6 +135,8 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const [code, setCode] = useState("");
   const [show, setShow] = useState<"all" | "in" | "out">("all");
   const [q, setQ] = useState("");
+  const [bus, setBus] = useState("");
+  const [adding, setAdding] = useState(false);
   const last = useRef<{ raw: string; at: number }>({ raw: "", at: 0 });
 
   // Start on the session nearest to now.
@@ -143,7 +152,8 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const byField = data?.form.fields.find((fl) => fl.id === attendance?.by);
   const marks = useMemo(() => new Map((data?.marks ?? []).map((m) => [`${m.response_id}:${m.session}`, m])), [data]);
   const here = (r: Resp, s: AttendSession) => !!marks.get(`${r.id}:${s.id}`)?.present;
-  const expected = useMemo(() => (data?.responses ?? []).filter((r) => sessionFor(attendance, cur, r.answers)), [data, attendance, cur]);
+  const buses = useMemo(() => [...new Set((data?.responses ?? []).map(busOf).filter((b): b is string => !!b))].sort(), [data]);
+  const expected = useMemo(() => (data?.responses ?? []).filter((r) => sessionFor(attendance, cur, r.answers) && (!bus || busOf(r) === bus)), [data, attendance, cur, bus]);
   const inside = expected.filter((r) => here(r, cur));
   const shown = expected.filter((r) => {
     if (show === "in" && !here(r, cur)) return false;
@@ -154,11 +164,35 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
 
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
+  /** Turn the QR on (if it isn't) and add the going and return boarding checks. */
+  const addBusSessions = async () => {
+    setAdding(true);
+    try {
+      const list = attendance?.sessions?.length ? attendance.sessions : [{ id: "main", name: "الحضور" }];
+      await sb().from("forms").update({ attendance: { ...(attendance ?? {}), on: true, sessions: [...list, ...BUS_SESSIONS] } }).eq("id", id).then(must);
+      reload();
+    } catch (e) {
+      setFlash({ tone: "danger", text: errorText(e) });
+    } finally {
+      setAdding(false);
+    }
+  };
   if (!attendance?.on)
     return (
       <>
         <TopBar title="الحضور بالـ QR" sub={data.form.title_ar} back={`/staff/forms/${id}/responses`} />
-        <Empty icon="qr" title="الحضور مش متفعّل في الفورم ده" body="فعّله من صفحة الفورم في «الحضور بالـ QR»." />
+        <Empty
+          icon="qr"
+          title="الحضور مش متفعّل في الفورم ده"
+          body="فعّله من صفحة الفورم في «الحضور بالـ QR»، أو لو رحلة بأتوبيس شغّله من هنا مع مسح الذهاب والعودة (كل واحد بياخد QR على صفحة طلبه)."
+          action={
+            me && can(me, "forms") ? (
+              <Button variant="primary" icon="qr" loading={adding} onClick={() => void addBusSessions()} data-testid="add-bus-sessions">
+                شغّل الـ QR مع مسح الأتوبيس
+              </Button>
+            ) : undefined
+          }
+        />
       </>
     );
 
@@ -178,11 +212,16 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
         apply(out);
         if (args.response) return;
         // A paid form: say at the door when this person hasn't paid yet.
-        const unpaid = data?.form.payment?.on && !data.responses.find((r) => r.id === out.id)?.paid_at ? ` · لسه مدفعش (${data.form.payment.amount ?? 0} ج)` : "";
+        const who = data?.responses.find((r) => r.id === out.id);
+        const unpaid = data?.form.payment?.on && !who?.paid_at ? ` · لسه مدفعش (${data.form.payment.amount ?? 0} ج)` : "";
+        // On a trip: which bus they're on, and a warning when it isn't this one.
+        const mine = busOf(who);
+        const busNote = mine ? ` · ${mine}` : "";
+        const wrongBus = !!bus && mine !== bus ? ` ⚠ ${mine ? `مكانه في ${mine}` : "مش على أتوبيس"}` : "";
         setFlash(
           out.already
-            ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}${unpaid}` }
-            : { tone: unpaid ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "new" ? "" : out.status === "accepted" ? "" : ` (${out.status})`}${unpaid}` },
+            ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}${busNote}${unpaid}${wrongBus}` }
+            : { tone: unpaid || wrongBus ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "new" ? "" : out.status === "accepted" ? "" : ` (${out.status})`}${busNote}${unpaid}${wrongBus}` },
         );
       } else if (out.error === "not_this_session" && args.code)
         setFlash({ tone: "warn", text: `${out.name ?? out.ref} مش من «${cur.name}» (اختار: ${txt(out.answer)})`, force: { code: args.code, name: out.name ?? out.ref ?? "" } });
@@ -258,10 +297,40 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
           })}
         </div>
       )}
+      {(buses.length > 0 || (me && can(me, "forms") && !sessions.some((s) => s.id === "bus_go"))) && (
+        <Card className="mt-3 grid gap-2" data-testid="attendance-buses">
+          {buses.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <Chip active={!bus} onClick={() => setBus("")}>
+                كل الأتوبيسات
+              </Chip>
+              {buses.map((b) => (
+                <Chip key={b} active={bus === b} onClick={() => setBus(b)} count={data.responses.filter((r) => busOf(r) === b && here(r, cur)).length}>
+                  {b}
+                </Chip>
+              ))}
+            </div>
+          )}
+          {me && can(me, "forms") && !sessions.some((s) => s.id === "bus_go") && (
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="flex-1 text-xs text-fog">رحلة بأتوبيس؟ زوّد مسح «الذهاب» و«العودة» عشان تعرف مين طلع قبل ما تتحركوا، ومحدش يتنسي في الرجوع.</p>
+              <Button
+                size="sm"
+                icon="plus"
+                loading={adding}
+                data-testid="add-bus-sessions"
+                onClick={() => void addBusSessions()}
+              >
+                مسح الذهاب والعودة
+              </Button>
+            </div>
+          )}
+        </Card>
+      )}
       <div className="mt-3 grid grid-cols-3 gap-2" data-testid="attendance-stats">
         <Stat label="حضروا" value={inside.length} tone="ok" />
         <Stat label="غايبين" value={expected.length - inside.length} tone={expected.length - inside.length ? "danger" : undefined} />
-        <Stat label="المتوقعين" value={expected.length} sub={cur.only ? `لـ «${cur.only}»` : undefined} />
+        <Stat label="المتوقعين" value={expected.length} sub={bus || (cur.only ? `لـ «${cur.only}»` : undefined)} />
       </div>
 
       <Card className="mt-4 grid gap-3">

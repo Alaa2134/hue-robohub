@@ -19,6 +19,10 @@ import { SendQrButton } from "./wa-qr-send";
 import { nameToEnglish } from "@/lib/translit";
 import { FormPdfSheet } from "./form-pdf";
 import { TripLetterSheet, type TripSet } from "./trip-letter";
+
+/** The bus a person is on, from their groups («أتوبيس 2» → 2), or 0. */
+const BUS = /^أتوبيس (\d+)$/;
+const busOf = (r: { tags?: string[] }) => Number((r.tags ?? []).map((t) => BUS.exec(t)?.[1]).find(Boolean) ?? 0);
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -708,7 +712,7 @@ function GroupSheet({ count, groups, busy, onClose, onApply }: { count: number; 
 }
 
 /** Paid / not yet, how much was collected and what's still owed. */
-function PaymentSummary({ form, responses }: { form: Form; responses: Response[] }) {
+function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: Response[]; /** WhatsApp to everyone not paid yet. */ onRemind?: () => void }) {
   const live = responses.filter((r) => r.status !== "rejected");
   const paid = live.filter((r) => r.paid_at);
   const collected = paid.reduce((a, r) => a + Number(r.paid_amount ?? 0), 0);
@@ -727,6 +731,14 @@ function PaymentSummary({ form, responses }: { form: Form; responses: Response[]
         <p className="text-lg font-bold text-chalk">{egp(collected)}</p>
         <p className="text-xs text-fog">اتجمع{owed > 0 ? ` · فاضل ${egp(owed)}` : ""}</p>
       </div>
+      {onRemind && live.length > paid.length && (
+        <div className="col-span-3 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--line)] pt-2">
+          <Button size="sm" icon="chat" onClick={onRemind} data-testid="remind-unpaid">
+            فكّر اللي لسه مدفعوش ({live.length - paid.length})
+          </Button>
+          <span className="text-xs text-fog">وبيتبعتلهم تذكير لوحده كل يومين لحد ما يدفعوا (للي بيسجّلوا من دلوقتي)</span>
+        </div>
+      )}
     </Card>
   );
 }
@@ -926,6 +938,18 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [editing, setEditing] = useState<Response | "new" | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [busOpen, setBusOpen] = useState(false);
+  // Who was really there (their QR scanned at any check), for the event's papers.
+  const attendedIds = useAsync(
+    async () =>
+      busOpen
+        ? new Set(
+            ((await sb().from("form_attendance").select("response_id, form_responses!inner(form_id)").eq("form_responses.form_id", id).eq("present", true).limit(50000).then(must)) as { response_id: string }[]).map(
+              (m) => m.response_id,
+            ),
+          )
+        : null,
+    [busOpen, id],
+  );
   const list = useMemo(
     () => {
       const needle = q.trim().toLowerCase();
@@ -1002,7 +1026,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   // column for the gate list (faculty, year or university ID) when the form asks for one.
   const tripExtra = form.fields.find((fl) => (fl.type === "text" || fl.type === "select" || fl.type === "member") && /(الكلية|الفرقة|السنة|الرقم الجامعي|كود)/.test(fl.label_ar));
   const tripPerson = (r: Response) => ({ id: r.id, name: r.name ?? r.ref, phone: r.phone, extra: tripExtra ? show(r.answers[tripExtra.id]) : null });
+  const thereIds = attendedIds.data;
   const tripSets: TripSet[] = [
+    ...(thereIds?.size ? [["attended", "اللي حضروا فعلًا", data.responses.filter((r) => thereIds.has(r.id)).map(tripPerson)] as TripSet] : []),
     ...(data.responses.some((r) => r.status === "accepted") ? [["accepted", "المقبولين", data.responses.filter((r) => r.status === "accepted").map(tripPerson)] as TripSet] : []),
     ["all", "الكل ماعدا المرفوضين", data.responses.filter((r) => r.status !== "rejected").map(tripPerson)],
     ...groups.map(([g]) => [`g:${g}`, g, data.responses.filter((r) => (r.tags ?? []).includes(g) && r.status !== "rejected").map(tripPerson)] as TripSet),
@@ -1095,8 +1121,8 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
             <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setPdfOpen(true)} data-testid="form-pdf-open">
               PDF
             </Button>
-            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setBusOpen(true)} data-testid="trip-letter-open" aria-label="خطاب طلب أتوبيس">
-              أتوبيس
+            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setBusOpen(true)} data-testid="trip-letter-open" aria-label="ملف الفعالية: أتوبيس، اعتذار، تقرير، حسابات، شهادات">
+              ملف الفعالية
             </Button>
             <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
               Excel
@@ -1148,7 +1174,28 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           </Button>
         </Card>
       )}
-      {paying && <PaymentSummary form={form} responses={data.responses} />}
+      {paying && (
+        <PaymentSummary
+          form={form}
+          responses={data.responses}
+          onRemind={
+            me && can(me, "whatsapp")
+              ? () => {
+                  const unpaid = data.responses.filter((r) => r.status !== "rejected" && !r.paid_at);
+                  const how = form.payment?.note_ar?.trim();
+                  sendOnWhatsApp(
+                    unpaid.map((r) => ({ ...r, vars: waVars(r) })),
+                    {
+                      label: `اللي لسه مدفعوش في «${form.title_ar}» (${unpaid.length})`,
+                      context: `form:${id}:unpaid`,
+                      text: `أهلًا، تذكير برسوم «${form.title_ar}» من BuildX HUE: ${Number(form.payment?.amount ?? 0)} جنيه لسه مستنية الدفع.${how ? `\nطريقة الدفع: ${how}` : ""}\nاكتب كود طلبك {code} في رسالة التحويل، وتابع طلبك من هنا: {link}\nولو دفعت خلاص تجاهل الرسالة دي.`,
+                    },
+                  );
+                }
+              : undefined
+          }
+        />
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         <Chip active={filter === "all"} onClick={() => setFilter("all")} count={data.responses.length}>
           الكل
@@ -1284,6 +1331,13 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       )}
       {busOpen && (
         <TripLetterSheet
+          me={me}
+          stats={{
+            registered: data.responses.filter((r) => r.status !== "rejected").length,
+            accepted: data.responses.some((r) => r.status === "accepted") ? count("accepted") : undefined,
+            attended: thereIds?.size || undefined,
+            ...(paying ? { paid: data.responses.filter((r) => r.paid_at).length, collected: data.responses.reduce((a, r) => a + (r.paid_at ? Number(r.paid_amount ?? 0) : 0), 0) } : {}),
+          }}
           letterKey={`form:${form.id}`}
           slug={form.slug}
           defaults={{
@@ -1293,6 +1347,18 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           }}
           sets={tripSets}
           extraLabel={tripExtra?.label_ar}
+          buses={{
+            current: Object.fromEntries(data.responses.map((r) => [r.id, busOf(r)])),
+            split: async (assign) => {
+              // Whoever isn't in the chosen list comes off the buses (e.g. refused since).
+              const all = { ...Object.fromEntries(data.responses.filter((r) => busOf(r) && !(r.id in assign)).map((r) => [r.id, 0])), ...assign };
+              await rpc("staff_form_set_buses", { p_form: form.id, p_buses: all });
+              set((d) => {
+                const cur = d ?? data;
+                return { ...cur, responses: cur.responses.map((r) => (r.id in all ? { ...r, tags: [...(r.tags ?? []).filter((t) => !BUS.test(t)), ...(all[r.id] ? [`أتوبيس ${all[r.id]}`] : [])] } : r)) };
+              });
+            },
+          }}
           onClose={() => setBusOpen(false)}
         />
       )}
