@@ -248,6 +248,31 @@ void loop() {
   analogWrite(3, 0);
   delay(1000);
 }`,
+  counter: `
+// 7-segment counter: counts 0 to 9 on a common-cathode digit, one segment per pin (a = 2 … g = 8).
+const int SEG[7] = {2, 3, 4, 5, 6, 7, 8};
+// Which segments (a b c d e f g) are on for each digit.
+const byte DIGITS[10] = {
+  0b1111110, 0b0110000, 0b1101101, 0b1111001, 0b0110011,
+  0b1011011, 0b1011111, 0b1110000, 0b1111111, 0b1111011,
+};
+
+void show(int d) {
+  for (int i = 0; i < 7; i++) {
+    digitalWrite(SEG[i], (DIGITS[d] >> (6 - i)) & 1);
+  }
+}
+
+void setup() {
+  for (int i = 0; i < 7; i++) pinMode(SEG[i], OUTPUT);
+}
+
+void loop() {
+  for (int d = 0; d < 10; d++) {
+    show(d);
+    delay(700);
+  }
+}`,
 };
 
 /* ─── Examples ─────────────────────────────────────────────────────────── */
@@ -420,6 +445,29 @@ function make(): Example[] {
       ),
     });
   }
+  {
+    // The digit straddles the centre gap: its top pins (g f COM1 a b) sit in row c, the bottom ones (e d COM2 c dp) in row g.
+    const seg = part("seg7", hole("c20"), { common: "cathode", color: "red" });
+    const r = (from: string) => part("resistor", hole(from), { r: 330 });
+    const res = [r("a16"), r("b17"), r("b23"), r("a24"), r("i16"), r("j17"), r("i23")];
+    const wires: [string, string, string, number][] = [
+      ["D2", "e27", "#e5484d", -26],
+      ["D3", "e28", "#f76b15", -30],
+      ["D4", "f27", "#f5d90a", -34],
+      ["D5", "f17", "#30a46c", -38],
+      ["D6", "f16", "#3e63dd", -42],
+      ["D7", "e17", "#8e4ec6", -46],
+      ["D8", "e16", "#e93d82", -50],
+    ];
+    list.push({
+      slug: "seven-segment-counter",
+      title: L("7-segment counter", "عداد 7 سيجمنت"),
+      description: L("Count 0 to 9 on a 7-segment digit: seven pins, each segment through its own 330 Ω resistor.", "عدّ من 0 لـ 9 على شاشة 7 سيجمنت: سبع بنات، وكل سيجمنت بمقاومة 330 أوم لوحده."),
+      tags: ["display", "digital", "arrays"],
+      level: 2,
+      doc: doc([uno(), bb(), seg, ...res], [gnd(), jump("h22", "bn22", "#2b2b2b"), ...wires.map(([pin, to, c, y]) => up(pin, to, c, y))], CODE.counter),
+    });
+  }
   return list;
 }
 
@@ -437,4 +485,5 @@ export const CODE_EXAMPLES: { key: keyof typeof CODE; title: L }[] = [
   { key: "servo", title: { en: "Servo", ar: "سيرفو" } },
   { key: "sonar", title: { en: "Ultrasonic", ar: "ألتراسونيك" } },
   { key: "melody", title: { en: "Melody", ar: "لحن" } },
+  { key: "counter", title: { en: "7-segment counter", ar: "عداد 7 سيجمنت" } },
 ];

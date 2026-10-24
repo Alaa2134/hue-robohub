@@ -169,4 +169,17 @@ describe("examples", () => {
     expect(d9.duty).toBeGreaterThan(0);
     expect(d9.duty).toBeLessThan(1);
   });
+
+  it("7-segment counter: shows 0, 1, 2 … as the sketch counts", async () => {
+    const { run, frames } = await start("seven-segment-counter");
+    const seg = partOf("seven-segment-counter", "seg7");
+    const lit = (f: Frame) => ["a", "b", "c", "d", "e", "f", "g"].filter((s) => f.parts[seg][`i_${s}`] > 0.003).join("");
+    run(2.4);
+    // 0.35 s into each 0.7 s step.
+    const at = (t: number) => lit(frames[Math.round(t / 0.05) - 1]);
+    expect(at(0.35)).toBe("abcdef");
+    expect(at(1.05)).toBe("bc");
+    expect(at(1.75)).toBe("abdeg");
+    expect(frames.at(-1)!.parts[seg].i_a).toBeLessThan(0.012);
+  });
 });
