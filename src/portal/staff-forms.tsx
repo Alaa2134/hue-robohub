@@ -16,6 +16,7 @@ import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
 import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, statusLink, type Attendance } from "./form-attendance";
 import { SendQrButton } from "./wa-qr-send";
+import { nameToEnglish } from "@/lib/translit";
 import { FormPdfSheet } from "./form-pdf";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
@@ -82,6 +83,8 @@ type Response = {
   paid_at: string | null;
   paid_amount: number | null;
   paid_method: PaidMethod | null;
+  /** The name in English the team checked (for English lists). */
+  name_en?: string | null;
   /** Groups the team put this person in after the form (a slot, a team, "on the bus"…). */
   tags?: string[];
   created_at: string;
@@ -941,10 +944,12 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const regUrl = form.delegation?.register_url || null;
   const external = !!form.accepted_url || !!regUrl;
   const paying = !!form.payment?.on;
+  // The name in English next to the answers: the checked spelling, or one spelled from the Arabic.
+  const hasName = form.fields.some((fl) => fl.type === "name");
   const exportXlsx = (only?: Response["status"]) => {
     const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
     downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
-      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...(paying ? ["الدفع", "المبلغ", "طريقة الدفع", "وقت الدفع"] : []), ...(groups.length ? ["المجموعات"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
+      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...(paying ? ["الدفع", "المبلغ", "طريقة الدفع", "وقت الدفع"] : []), ...(groups.length ? ["المجموعات"] : []), ...form.fields.map((fl) => fl.label_ar), ...(hasName ? ["الاسم بالإنجليزي"] : []), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
       ...rows.map((r, i) => [
         i + 1,
         r.ref,
@@ -954,6 +959,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
         ...(paying ? [r.paid_at ? "دفع ✓" : "لسه", r.paid_at ? Number(r.paid_amount ?? 0) : "", methodAr(r.paid_method), r.paid_at ? fmt.dateTime(r.paid_at) : ""] : []),
         ...(groups.length ? [(r.tags ?? []).join("، ")] : []),
         ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))),
+        ...(hasName ? [r.name_en || nameToEnglish(r.name).text] : []),
         ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []),
         r.note,
       ]),
@@ -1264,7 +1270,15 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       )}
       {pdfOpen && (
         <FormPdfSheet
+          formId={form.id}
           title={form.title_ar}
+          titleEn={form.title_en}
+          onNamesSaved={(names) =>
+            set((d) => {
+              const cur = d ?? data;
+              return { ...cur, responses: cur.responses.map((r) => (names[r.id] !== undefined ? { ...r, name_en: names[r.id] || null } : r)) };
+            })
+          }
           slug={form.slug}
           fields={form.fields}
           paying={paying}

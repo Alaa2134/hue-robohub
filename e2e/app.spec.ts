@@ -6891,3 +6891,79 @@ test("gallery upload: from an event, pick photos, drop one, and save them in one
   ]);
   expect(errors).toEqual([]);
 });
+
+test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: "AI Day 2026",
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة الدراسية", label_en: "Year", required: true, options: [{ ar: "أولى", en: "First year" }, { ar: "تانية", en: "Second year" }] },
+    ],
+  };
+  const base = { form_id: "f1", email: null, locale: "ar", status: "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null, paid_at: null, paid_amount: null, paid_method: null, tags: [] };
+  const rows = [
+    { ...base, id: "r0", ref: "F-00000000", name: "محمد عبد الرحمن", name_en: null, phone: "+201001234567", answers: { n: "محمد عبد الرحمن", p: "+201001234567", y: "أولى" }, created_at: at(300) },
+    { ...base, id: "r1", ref: "F-00000001", name: "حازم البرلسي", name_en: null, phone: "+201101234567", answers: { n: "حازم البرلسي", p: "+201101234567", y: "تانية" }, created_at: at(200) },
+    { ...base, id: "r2", ref: "F-00000002", name: "منى عادل", name_en: "Mona Adel", phone: "+201201234567", answers: { n: "منى عادل", p: "+201201234567", y: "أولى" }, created_at: at(100) },
+  ];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.locator("button", { hasText: "English" }).click();
+  await expect(page.getByTestId("form-pdf-title-en")).toHaveValue("AI Day 2026");
+  // The names: one from the dictionary, one spelled and marked for checking, one checked before.
+  const list = page.getByTestId("form-pdf-names");
+  await expect(list.locator("input")).toHaveCount(3);
+  await expect(list.locator("input").nth(0)).toHaveValue("Mohamed Abdelrahman");
+  await expect(list.locator("input").nth(1)).toHaveValue("Hazem El-Barlesy");
+  await expect(list.locator("input").nth(2)).toHaveValue("Mona Adel");
+  await expect(sheet).toContainText("1 اسم اتكتب حرف بحرف");
+  await list.locator("input").nth(1).fill("Hazem El-Borollosy");
+  await expect(sheet).toContainText("الأسامي جاهزة");
+  // Catch the pages while they're drawn, to read what goes into the file.
+  await page.evaluate(() => {
+    const w = window as unknown as { pdfText: string[] };
+    w.pdfText = [];
+    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="form-pdf-page"]').forEach((p) => w.pdfText.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+  });
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-ai-day-en-.*\.pdf$/);
+  if (process.env.SAVE_PDF_EN) copyFileSync((await pdf.path())!, process.env.SAVE_PDF_EN);
+  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  // Only the names that changed are saved, in one request.
+  expect(calls.filter((c) => c.fn === "staff_form_names_en")).toEqual([{ fn: "staff_form_names_en", body: { p_form: "f1", p_names: { r0: "Mohamed Abdelrahman", r1: "Hazem El-Borollosy" } } }]);
+  const text = (await page.evaluate(() => (window as unknown as { pdfText: string[] }).pdfText.join("\n"))) as string;
+  for (const s of ["AI Day 2026", "PARTICIPANTS", "Full name", "Mobile", "Year", "Mohamed Abdelrahman", "Hazem El-Borollosy", "Mona Adel", "+20 100 123 4567", "First year", "Page 1 of 1"]) expect(text).toContain(s);
+  expect(text).not.toMatch(/[؀-ۿ]/);
+  expect(errors).toEqual([]);
+});
