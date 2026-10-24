@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { copyFileSync, readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { voiceLines } from "../src/lib/mascot/voice-lines";
 
@@ -6636,5 +6636,95 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await page.getByTestId("response-save").click();
   await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(2);
   expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({ p_form: "f1", p_response: null, p_status: "accepted", p_answers: { n: "يوسف خالد", p: "01112223334" } });
+  expect(errors).toEqual([]);
+});
+
+test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة الدراسية", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }] },
+      { id: "w", type: "textarea", label_ar: "ليه عايز تحضر؟", required: false },
+    ],
+  };
+  const names = ["منى عادل", "علي حسن", "سارة محمود", "يوسف خالد", "مريم أحمد", "عمر طارق", "نور الدين", "هنا سمير", "كريم وائل", "ليلى مصطفى", "آدم شريف", "فرح ياسر", "زياد أشرف", "جنى عمرو", "مالك هاني", "رنا إبراهيم", "سيف محمد", "حبيبة علاء", "بلال ماجد", "تقى حسام", "أنس سامح", "دينا رامي", "حمزة عصام", "ملك وليد", "ياسين خالد"];
+  const rows = names.map((name, i) => ({
+    id: `r${i}`,
+    form_id: "f1",
+    ref: `F-${String(i).padStart(8, "0")}`,
+    answers: { n: name, p: `+2010${String(10000000 + i)}`, y: i % 2 ? "تانية" : "أولى", w: "عايز أتعلم أبني نماذج وأشارك في المسابقات" },
+    name,
+    phone: `+2010${String(10000000 + i)}`,
+    email: null,
+    locale: "ar",
+    status: i % 5 === 4 ? "new" : "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    created_at: at(500 - i),
+  }));
+  const deleted: string[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "DELETE") {
+      const ids = decodeURIComponent(new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^in\.\(|\)$/g, "").split(",");
+      deleted.push(...ids);
+      return route.fulfill({ json: ids.map((id) => ({ id })) });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+
+  await page.getByText("علي حسن").click();
+  await page.getByTestId("response-delete").click();
+  await page.locator('[role="dialog"] button', { hasText: "احذف" }).last().click();
+  await expect.poll(() => deleted).toEqual(["r1"]);
+  await expect(page.getByText("علي حسن")).toHaveCount(0);
+
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.getByRole("button", { name: "ليه عايز تحضر؟", exact: true }).click();
+  await sheet.locator("button", { hasText: "المقبولين" }).click();
+  await expect(sheet).toContainText("19 شخص · 4 خانة · 2 صفحة بالعرض");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-.*\.pdf$/);
+  const bytes = readFileSync((await pdf.path())!);
+  expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+  if (process.env.SAVE_PDF) copyFileSync((await pdf.path())!, process.env.SAVE_PDF);
   expect(errors).toEqual([]);
 });

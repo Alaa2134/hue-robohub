@@ -16,6 +16,7 @@ import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
 import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, statusLink, type Attendance } from "./form-attendance";
 import { SendQrButton } from "./wa-qr-send";
+import { FormPdfSheet } from "./form-pdf";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -799,6 +800,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [queue, setQueue] = useState(false);
   const [editing, setEditing] = useState<Response | "new" | null>(null);
+  const [pdfOpen, setPdfOpen] = useState(false);
   const list = useMemo(
     () => (data?.responses ?? []).filter((r) => (filter === "all" || r.status === filter) && (payFilter === "all" || (payFilter === "paid") === !!r.paid_at)),
     [data, filter, payFilter],
@@ -830,6 +832,30 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   /** Mark paid (with the form's amount and a method) or back to not paid. */
   const markPaid = (r: Response, paid: boolean, method: PaidMethod | null = r.paid_method ?? "cash", quiet = false) =>
     update(r, paid ? { paid_at: r.paid_at ?? new Date().toISOString(), paid_method: method, paid_amount: r.paid_amount ?? form.payment?.amount ?? null } : { paid_at: null, paid_method: null, paid_amount: null }, quiet);
+  /** Delete responses for good (admins only, like the database rule). Their uploaded files stay, so a
+   * response restored from the activity log keeps its photos. */
+  const remove = async (rs: Response[]) => {
+    if (!rs.length) return false;
+    const one = rs.length === 1;
+    if (!(await confirmDialog({ title: one ? `تحذف ${rs[0].name ?? rs[0].ref}؟` : `تحذف ${rs.length} متقدّم؟`, body: "الرد هيتشال من الفورم والقوايم والكشوفات. لو حصل غلط، الأدمن يقدر يرجّعه من «سجل النشاط».", ok: "احذف", danger: true }))) return false;
+    try {
+      // Ask for the deleted ids back: a delete the database refuses removes nothing without an error.
+      const del = ((await sb().from("form_responses").delete().in("id", rs.map((r) => r.id)).select("id").then(must)) ?? []) as { id: string }[];
+      if (!del.length) throw new Error("مالكش صلاحية تحذف ردود (للأدمن بس).");
+      const gone = new Set(del.map((r) => r.id));
+      set((d) => {
+        const cur = d ?? data;
+        return { ...cur, responses: cur.responses.filter((x) => !gone.has(x.id)) };
+      });
+      setOpen((o) => (o && gone.has(o.id) ? null : o));
+      setPick(null);
+      toast(one ? "اتحذف" : `اتحذف ${gone.size}`);
+      return true;
+    } catch (e) {
+      toast.error(e);
+      return false;
+    }
+  };
   const bulkPaid = async (paid: boolean) => {
     if (!pick?.size) return;
     const rows = data.responses.filter((r) => pick.has(r.id) && !!r.paid_at !== paid);
@@ -902,6 +928,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           <div className="flex gap-2">
             <Button size="sm" icon="plus" onClick={() => setEditing("new")} data-testid="response-add">
               إضافة
+            </Button>
+            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setPdfOpen(true)} data-testid="form-pdf-open">
+              PDF
             </Button>
             <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
               Excel
@@ -996,6 +1025,16 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               ارفض
             </Button>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button size="sm" icon="download" disabled={!pick.size} onClick={() => setPdfOpen(true)}>
+              PDF للمحددين
+            </Button>
+            {me && isFull(me) && (
+              <Button size="sm" variant="danger" icon="trash" disabled={!pick.size || bulkBusy} onClick={() => void remove(data.responses.filter((r) => pick.has(r.id)))} data-testid="bulk-delete">
+                احذف المحددين
+              </Button>
+            )}
+          </div>
           {paying && (
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" disabled={!pick.size || bulkBusy} onClick={() => void bulkPaid(true)} data-testid="bulk-paid">
@@ -1047,6 +1086,18 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           ))}
         </List>
       )}
+      {pdfOpen && (
+        <FormPdfSheet
+          title={form.title_ar}
+          slug={form.slug}
+          fields={form.fields}
+          paying={paying}
+          all={data.responses}
+          shown={list}
+          picked={pick ? data.responses.filter((r) => pick.has(r.id)) : []}
+          onClose={() => setPdfOpen(false)}
+        />
+      )}
       {editing && (
         <ResponseEditor
           form={form}
@@ -1081,9 +1132,16 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                 </div>
               ))}
             </dl>
-            <Button size="sm" icon="edit" onClick={() => setEditing(open)} data-testid="response-edit">
-              تعديل البيانات
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" icon="edit" onClick={() => setEditing(open)} data-testid="response-edit">
+                تعديل البيانات
+              </Button>
+              {me && isFull(me) && (
+                <Button size="sm" variant="danger" icon="trash" onClick={() => void remove([open])} data-testid="response-delete">
+                  حذف المتقدّم
+                </Button>
+              )}
+            </div>
             {whatsappLink(open.phone) &&
               (open.status === "accepted" ? (
                 <a href={whatsappLink(open.phone, acceptMessage(open))!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">
