@@ -6,7 +6,7 @@
  * PWM dims an LED by its real duty cycle. Nothing is estimated: if the model doesn't cover a part, the
  * part says so and contributes nothing.
  */
-import { AVRADC, AVRIOPort, AVRTimer, AVRUSART, CPU, PinState, adcConfig, avrInstruction, portBConfig, portCConfig, portDConfig, timer0Config, timer1Config, timer2Config, usart0Config } from "avr8js";
+import { AVRADC, AVRIOPort, AVRTimer, AVRTWI, AVRUSART, CPU, PinState, adcConfig, avrInstruction, portBConfig, portCConfig, portDConfig, timer0Config, timer1Config, timer2Config, twiConfig, usart0Config } from "avr8js";
 import type { CircuitDoc, PartInstance } from "../circuit/model";
 import { buildNetlist, key, type Netlist } from "../circuit/netlist";
 import { ADC_ONLY, AVR_PINS, LED_COLORS, PART_BY_TYPE, propsOf } from "../circuit/parts";
@@ -14,6 +14,8 @@ import { checkCircuit, type SimDiagnostic } from "./diagnostics";
 import { Circuit, type Drive, type Elem, type Solution } from "./mna";
 import { DeviceLogic } from "./device";
 import { buildModule } from "./modules";
+import { I2CBus, I2CDevice } from "./i2c";
+import { Ssd1306Logic } from "./ssd1306";
 
 export const F_CPU = 16_000_000;
 
@@ -35,6 +37,8 @@ export type Frame = {
    */
   trace?: number[];
   traceLost?: number;
+  /** Display pictures that changed since the last frame (part id → 128 × 64, page layout). */
+  screens?: Record<string, Uint8Array>;
 };
 
 /** The board pins the oscilloscope can probe, in channel order. */
@@ -74,6 +78,8 @@ export class Simulation {
   private usart: AVRUSART | null = null;
   private serialOut: number[] = [];
   private serialIn: number[] = [];
+  /** Solver nodes of the board's SDA (A4) and SCL (A5). */
+  private i2cPins = { sda: -1, scl: -1 };
 
   private nodeOf = new Map<number, number>(); // net → solver node
   private nextNode = 1;
@@ -114,6 +120,8 @@ export class Simulation {
       this.adc = new AVRADC(cpu, adcConfig);
       this.usart = new AVRUSART(cpu, usart0Config, F_CPU);
       this.usart.onByteTransmit = (b) => this.serialOut.push(b);
+      const twi = new AVRTWI(cpu, twiConfig, F_CPU);
+      twi.eventHandler = new I2CBus(twi, () => this.i2cDevices(), (s, fn) => this.after(s, fn));
       for (const port of Object.values(this.ports)) port.addListener(() => this.onPins());
     }
 
@@ -172,6 +180,7 @@ export class Simulation {
           const i5 = add(p.id, "5V", { t: "V", a: n(p, "5V"), b: g, v: 5, r: 0.05 });
           const i3 = add(p.id, "3V3", { t: "V", a: n(p, "3V3"), b: g, v: 3.3, r: 1 });
           probes.push({ part: p.id, name: "i5V", read: (s) => s.i[i5] }, { part: p.id, name: "i3V3", read: (s) => s.i[i3] });
+          this.i2cPins = { sda: n(p, "A4"), scl: n(p, "A5") };
           for (const pin of Object.keys(AVR_PINS)) {
             const idx = add(p.id, pin, { t: "X", a: n(p, pin), b: g, key: `${p.id}:${pin}` });
             probes.push({ part: p.id, name: `i${pin}`, read: (s) => s.i[idx] });
@@ -332,6 +341,12 @@ export class Simulation {
     const old = new Map(this.devices.map((d) => [d.part, d]));
     this.devices = devices.map((d) => old.get(d.part)?.adopt(d) ?? d);
     for (const d of this.devices) d.attach(this);
+  }
+
+  /** I2C devices on the board's SDA/SCL with power: the ones that answer their address. */
+  private i2cDevices(): I2CDevice[] {
+    const { sda, scl } = this.i2cPins;
+    return this.devices.filter((d): d is I2CDevice => d instanceof I2CDevice && d.sda > 0 && d.sda === sda && d.scl > 0 && d.scl === scl && d.powered);
   }
 
   /* ── Live interaction (button presses, knobs, sensor values) ──────── */
@@ -522,6 +537,10 @@ export class Simulation {
     this.frameStart = t;
     const serial = this.serialOut.length ? String.fromCharCode(...this.serialOut.splice(0)) : "";
     const out: Frame = { t, speed, parts, serial, diagnostics: [...this.diagnostics, ...this.dynamicDiag.values()] };
+    for (const d of this.devices) {
+      const pic = d instanceof Ssd1306Logic ? d.screen() : null;
+      if (pic) (out.screens ??= {})[d.part] = pic;
+    }
     if (this.tracing) {
       out.trace = this.trace;
       out.traceLost = this.traceLost;

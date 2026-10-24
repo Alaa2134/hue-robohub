@@ -8,6 +8,7 @@ import type { PartInstance } from "../circuit/model";
 import { propsOf } from "../circuit/parts";
 import { DeviceLogic, type PartReading } from "./device";
 import type { Drive, Elem, Solution } from "./mna";
+import { Ssd1306Logic } from "./ssd1306";
 
 export type ModuleCtx = {
   /** Solver node of one of this part's pins. */
@@ -135,6 +136,16 @@ export function buildModule(p: PartInstance, c: ModuleCtx) {
       c.add("DATA", { t: "X", a: c.n("DATA"), b: g, key: `${p.id}:DATA` });
       c.initDrive("DATA", null);
       c.device(new DhtLogic(p.id, p.type === "dht11" ? 11 : 22, volt(c.n("DATA"), g), volt(vcc, g), () => liveNum("temp", 24), () => liveNum("humidity", 45)));
+      break;
+    }
+    case "oled-ssd1306": {
+      const vcc = c.n("VCC");
+      const g = c.n("GND");
+      // A typical 5 mA draw (a screen of text), and the module's 4.7 kΩ pull-ups on SDA and SCL.
+      c.add("SUPPLY", { t: "R", a: vcc, b: g, r: 1000 });
+      c.add("PU_SDA", { t: "R", a: c.n("SDA"), b: vcc, r: 4700 });
+      c.add("PU_SCL", { t: "R", a: c.n("SCL"), b: vcc, r: 4700 });
+      c.device(new Ssd1306Logic(p.id, pr.address === "0x3D" ? 0x3d : 0x3c, c.n("SDA"), c.n("SCL"), volt(vcc, g)));
       break;
     }
     default: {

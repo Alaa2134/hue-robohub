@@ -103,13 +103,14 @@ Every part is labelled in the library as **Simulated**, **Partially simulated** 
 - joystick (KY-023)
 - DHT11 and DHT22, speaking the real single-wire protocol (tested with the Adafruit DHT library)
 - 74HC08 / 32 / 00 / 86 / 04 logic chips (they also work without an Arduino)
+- OLED 0.96" 128×64 (SSD1306) on I²C: the TWI bus is simulated (transfers take their real time at the program's SCL rate; a device answers only when wired to A4/A5 and powered), and the SSD1306 command set and display RAM follow the datasheet. Tested with Adafruit_SSD1306 and an I²C scanner. Hardware scrolling isn't animated; supply current is a typical 5 mA.
 
 **Partially simulated:**
 - PIR (HC-SR501): motion and hold time are real; warm-up and field of view are not.
 - IR obstacle (FC-51): obstacle present or not, set by hand.
 - TCRT5000 line sensor and soil moisture: linear approximations of typical modules.
 
-**Missing:** LCD 16×2 / 20×4 / I²C, OLED, MPU6050, rotary encoder, LED matrix, NeoPixel, stepper and motor drivers. I²C devices need the TWI bus simulated first. LiquidCrystal and LiquidCrystal_I2C aren't in the compiler yet.
+**Missing:** LCD 16×2 / 20×4 / I²C, MPU6050, rotary encoder, LED matrix, NeoPixel, stepper and motor drivers. The I²C bus is ready for more devices; LiquidCrystal and LiquidCrystal_I2C aren't in the compiler yet.
 
 ## Code editor
 

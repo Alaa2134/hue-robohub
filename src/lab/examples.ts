@@ -248,6 +248,33 @@ void loop() {
   analogWrite(3, 0);
   delay(1000);
 }`,
+  oled: `
+// OLED: text, a seconds counter and a progress bar on a 128x64 SSD1306 over I2C (SDA = A4, SCL = A5).
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+void setup() {
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+}
+
+void loop() {
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(2);
+  display.setCursor(4, 4);
+  display.print("BuildX");
+  display.setTextSize(1);
+  display.setCursor(4, 28);
+  display.print("Seconds: ");
+  display.print(millis() / 1000);
+  int w = (millis() / 20) % 121;
+  display.drawRect(4, 44, 120, 12, SSD1306_WHITE);
+  display.fillRect(4, 44, w, 12, SSD1306_WHITE);
+  display.display();
+}`,
   counter: `
 // 7-segment counter: counts 0 to 9 on a common-cathode digit, one segment per pin (a = 2 … g = 8).
 const int SEG[7] = {2, 3, 4, 5, 6, 7, 8};
@@ -468,6 +495,26 @@ function make(): Example[] {
       doc: doc([uno(), bb(), seg, ...res], [gnd(), jump("h22", "bn22", "#2b2b2b"), ...wires.map(([pin, to, c, y]) => up(pin, to, c, y))], CODE.counter),
     });
   }
+  {
+    const oled = part("oled-ssd1306", [380, 30]);
+    list.push({
+      slug: "oled-hello",
+      title: L("OLED display", "شاشة OLED"),
+      description: L("Text, a counter and a progress bar on a 128×64 SSD1306 over I2C, drawn by the real Adafruit library.", "نص وعدّاد وشريط تقدّم على شاشة SSD1306 ‏128×64 عن طريق I2C، بترسمهم مكتبة Adafruit الحقيقية."),
+      tags: ["display", "i2c", "library"],
+      level: 2,
+      doc: doc(
+        [uno(), oled],
+        [
+          w([oled.id, "GND"], ["uno", "GND1"], "#2b2b2b", [[380, -10], [130, -10]]),
+          w([oled.id, "SCL"], ["uno", "SCL"], "#f5d90a", [[400, -20], [100, -20]]),
+          w([oled.id, "SDA"], ["uno", "SDA"], "#3e63dd", [[410, -30], [110, -30]]),
+          w([oled.id, "VCC"], ["uno", "5V"], "#e5484d", [[390, -40], [310, -40], [310, 230], [130, 230]]),
+        ],
+        CODE.oled,
+      ),
+    });
+  }
   return list;
 }
 
@@ -485,5 +532,6 @@ export const CODE_EXAMPLES: { key: keyof typeof CODE; title: L }[] = [
   { key: "servo", title: { en: "Servo", ar: "سيرفو" } },
   { key: "sonar", title: { en: "Ultrasonic", ar: "ألتراسونيك" } },
   { key: "melody", title: { en: "Melody", ar: "لحن" } },
+  { key: "oled", title: { en: "OLED display", ar: "شاشة OLED" } },
   { key: "counter", title: { en: "7-segment counter", ar: "عداد 7 سيجمنت" } },
 ];

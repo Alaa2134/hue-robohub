@@ -58,6 +58,18 @@ describe("wiring checks", () => {
     expect(codes(pulled)).not.toContain("floating_input");
   });
 
+  it("an OLED's SDA/SCL on the wrong board pins is flagged; A4/A5 or the SDA/SCL header is fine", () => {
+    const b = uno();
+    const o = part("oled-ssd1306", 600);
+    const power = [wire([o, "GND"], [b, "GND1"]), wire([o, "VCC"], [b, "5V"])];
+    const bad = checkCircuit(doc([b, o], [...power, wire([o, "SDA"], [b, "D2"]), wire([o, "SCL"], [b, "A5"])]));
+    expect(bad.filter((x) => x.code === "i2c_wrong_pin")).toMatchObject([{ part: o.id, pin: "SDA", detail: { pins: "D2" } }]);
+    const l = (x: { en: string }) => x.en;
+    expect(diagText(bad.find((x) => x.code === "i2c_wrong_pin")!, l, partLabels(doc([b, o], []), l))).toMatch(/SDA goes to D2, not to the board's I2C pin A4/);
+    expect(codes(doc([b, o], [...power, wire([o, "SDA"], [b, "A4"]), wire([o, "SCL"], [b, "A5"])]))).not.toContain("i2c_wrong_pin");
+    expect(codes(doc([b, o], [...power, wire([o, "SDA"], [b, "SDA"]), wire([o, "SCL"], [b, "SCL"])]))).not.toContain("i2c_wrong_pin");
+  });
+
   it("every finding reads as a sentence, and the serious ones say how to fix them", () => {
     const b = uno();
     const led = part("led", 600);
