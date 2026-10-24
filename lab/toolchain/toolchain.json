@@ -1,0 +1,30 @@
+{
+ "version": "0.2.0",
+ "script": "c9dcb581",
+ "includes": [
+  "/arduino/core",
+  "/arduino/variant",
+  "/arduino/libraries/Wire/src",
+  "/arduino/libraries/SPI/src",
+  "/libraries/Servo/src",
+  "/libraries/DHT_sensor_library",
+  "/libraries/Adafruit_Unified_Sensor",
+  "/libraries/Adafruit_GFX_Library",
+  "/libraries/Adafruit_SSD1306",
+  "/libraries/Adafruit_BusIO",
+  "/libraries/Adafruit_BMP085_Library",
+  "/libraries/VL53L0X",
+  "/libraries/Firmata"
+ ],
+ "files": {
+  "sysroot": "sysroot.a4efeb189f.pack.gz",
+  "cc1plus.mjs": "cc1plus.b33f286338.mjs",
+  "cc1plus.wasm": "cc1plus.7d34810c0b.wasm.gz",
+  "avr-as.mjs": "avr-as.f87023c95b.mjs",
+  "avr-as.wasm": "avr-as.727db14497.wasm.gz",
+  "avr-ld.mjs": "avr-ld.f7e7434ee0.mjs",
+  "avr-ld.wasm": "avr-ld.8163314c4c.wasm.gz",
+  "avr-objcopy.mjs": "avr-objcopy.6bda2f075b.mjs",
+  "avr-objcopy.wasm": "avr-objcopy.56dc14aceb.wasm.gz"
+ }
+}
