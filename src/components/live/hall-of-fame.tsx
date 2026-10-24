@@ -2,7 +2,7 @@
 /** Home page: member of the month and the top students by points (only when the team turns it on). */
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/brand/icons";
-import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { publicGet } from "@/lib/public-cache";
 
 type Star = { name: string; group: string | null; reason_ar: string | null; reason_en: string | null; month: string | null; points: number | null };
 type Hof = { star: Star | null; board: { name: string; points: number; badges: number }[] };
@@ -18,12 +18,11 @@ export function HallOfFame({ locale }: { locale: string }) {
   const t = T[l];
   const [d, setD] = useState<Hof | null>(null);
   useEffect(() => {
-    fetch(`${SUPABASE_URL}/rest/v1/rpc/hall_of_fame`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((x: Hof | null) => x && setD(x))
+    publicGet<Hof | null>("hall_of_fame", { rpc: true })
+      .then((x) => x && !Array.isArray(x) && setD(x))
       .catch(() => undefined);
   }, []);
-  if (!d || (!d.star && !d.board.length)) return null;
+  if (!d || (!d.star && !d.board?.length)) return null;
   const month = d.star?.month ? new Date(`${d.star.month}-01T12:00:00`).toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { month: "long", year: "numeric" }) : "";
   return (
     <section id="hall-of-fame" aria-labelledby="hof-title" className="mx-auto max-w-[1680px] px-5 py-20 sm:px-8 lg:py-28">
@@ -49,11 +48,11 @@ export function HallOfFame({ locale }: { locale: string }) {
             )}
           </div>
         )}
-        {d.board.length > 0 && (
+        {d.board?.length > 0 && (
           <div className="frame p-5 sm:p-7">
             <p className="t-eyebrow mb-4 text-fog">{t.top}</p>
             <ol className="grid gap-1.5">
-              {d.board.map((b, i) => (
+              {d.board?.map((b, i) => (
                 <li key={`${b.name}-${i}`} className="flex items-center gap-3 rounded-xl px-3 py-2.5 odd:bg-white/[0.03]">
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-full font-mono text-sm font-bold" style={i < 3 ? { background: `${MEDAL[i]}26`, color: MEDAL[i] } : { color: "var(--color-fog)" }}>
                     {i + 1}

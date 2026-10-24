@@ -4,13 +4,14 @@ import { useMemo, useState } from "react";
 import type { SiteItem } from "@/lib/site-content";
 import { can, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
 import { Scanner } from "./scanner";
+import { TripLetterSheet } from "./trip-letter";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { SendQrButton } from "./wa-qr-send";
 import { whatsappLink } from "@/lib/contact";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Row, SearchBox, Sheet, Stat, Textarea, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 type Reg = { id: string; ticket: string; full_name: string; phone: string; email: string | null; faculty: string | null; status: "going" | "waitlist" | "cancelled"; checked_in_at: string | null; created_at: string };
-type Ev = Pick<SiteItem, "id" | "title" | "title_ar" | "starts_at" | "capacity" | "rsvp_open" | "published">;
+type Ev = Pick<SiteItem, "id" | "slug" | "title" | "title_ar" | "starts_at" | "capacity" | "rsvp_open" | "published" | "location" | "location_ar">;
 
 const STATUS: Record<Reg["status"], { ar: string; tone: "ok" | "warn" | "muted" }> = {
   going: { ar: "مؤكَّد", tone: "ok" },
@@ -20,7 +21,7 @@ const STATUS: Record<Reg["status"], { ar: string; tone: "ok" | "warn" | "muted" 
 
 export function EventsScreen() {
   const { data, error, loading, reload } = useAsync(async () => {
-    const events = (await sb().from("site_content").select("id,title,title_ar,starts_at,capacity,rsvp_open,published").eq("kind", "event").order("starts_at", { ascending: false, nullsFirst: false }).limit(200).then(must)) as Ev[];
+    const events = (await sb().from("site_content").select("id,slug,title,title_ar,starts_at,capacity,rsvp_open,published,location,location_ar").eq("kind", "event").order("starts_at", { ascending: false, nullsFirst: false }).limit(200).then(must)) as Ev[];
     const regs = (await sb().from("event_registrations").select("event_id,status,checked_in_at").limit(20000).then(must)) as { event_id: string; status: string; checked_in_at: string | null }[];
     const by = new Map<string, { going: number; waitlist: number; inside: number }>();
     for (const r of regs) {
@@ -79,7 +80,7 @@ export function EventsScreen() {
 type CheckResult = { ok: boolean; error?: string; name?: string; status?: string; already?: boolean; event?: string };
 
 export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
-  const ev = useAsync(async () => (await sb().from("site_content").select("id,title,title_ar,starts_at,capacity,rsvp_open,published").eq("id", id).single().then(must)) as Ev, [id]);
+  const ev = useAsync(async () => (await sb().from("site_content").select("id,slug,title,title_ar,starts_at,capacity,rsvp_open,published,location,location_ar").eq("id", id).single().then(must)) as Ev, [id]);
   const regs = useAsync(async () => (await sb().from("event_registrations").select("*").eq("event_id", id).order("created_at").limit(5000).then(must)) as Reg[], [id]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Reg["status"] | "inside" | "all">("all");
@@ -87,6 +88,7 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
   const [last, setLast] = useState<CheckResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
+  const [bus, setBus] = useState(false);
 
   const list = useMemo(() => regs.data ?? [], [regs.data]);
   const counts = useMemo(() => {
@@ -135,6 +137,7 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
     }
   };
 
+  const person = (r: Reg) => ({ id: r.id, name: r.full_name, phone: r.phone, extra: r.faculty });
   const exportCsv = () =>
     downloadCsv(`buildx-event-${today()}.csv`, [
       ["التذكرة", "الاسم", "الموبايل", "الإيميل", "الكلية", "الحالة", "دخل", "سجّل"],
@@ -165,9 +168,14 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
         sub={e.starts_at ? fmt.dateTime(e.starts_at) : undefined}
         back="/staff/events"
         actions={
-          <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
-            Excel
-          </Button>
+          <>
+            <Button size="sm" icon="download" onClick={() => setBus(true)} disabled={!list.length} data-testid="trip-letter-open" aria-label="خطاب طلب أتوبيس">
+              أتوبيس
+            </Button>
+            <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
+              Excel
+            </Button>
+          </>
         }
       />
       <div className="grid grid-cols-3 gap-2">
@@ -289,6 +297,20 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
         </>
       ) : (
         <Card className="mt-4 text-center text-sm text-mist">لسه محدش سجّل. لينك التسجيل هو صفحة الفعالية على الموقع.</Card>
+      )}
+      {bus && (
+        <TripLetterSheet
+          letterKey={`event:${e.id}`}
+          slug={e.slug || "event"}
+          defaults={{ event: e.title || e.title_ar || "", date: e.starts_at ? new Date(e.starts_at).toLocaleDateString("en-CA", { timeZone: "Africa/Cairo" }) : null, venue: e.location_ar || e.location }}
+          sets={[
+            ["going", "المؤكَّدين", list.filter((r) => r.status === "going").map(person)],
+            ["all", "المؤكَّدين + الانتظار", list.filter((r) => r.status !== "cancelled").map(person)],
+            ["inside", "اللي دخلوا", list.filter((r) => r.checked_in_at).map(person)],
+          ]}
+          extraLabel={list.some((r) => r.faculty) ? "الكلية" : undefined}
+          onClose={() => setBus(false)}
+        />
       )}
     </>
   );

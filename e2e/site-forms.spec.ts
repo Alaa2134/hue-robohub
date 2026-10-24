@@ -243,6 +243,47 @@ test("a form with QR attendance: after sending, a QR to save on the phone; its l
   await expect(page.locator("#status").getByTestId("attend-pass")).toBeVisible();
 });
 
+test("a paid form: the fee and how to pay sit above the receipt upload, and the status says whether it's paid", async ({ page }) => {
+  const PAID = {
+    slug: "drone-course",
+    title_ar: "كورس الدرون",
+    open: true,
+    payment: { amount: 150, note_ar: "فودافون كاش على 01000000000", note_en: null },
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "r", type: "file", accept: "image", receipt: true, label_ar: "صورة إيصال الدفع", required: false },
+    ],
+  };
+  let paid = false;
+  await mockSupabase(page, {
+    rpc: {
+      public_form: () => PAID,
+      submit_form: () => ({ ok: true, ref: "F-0A0B0C0D" }),
+      form_status: () => ({ ok: true, status: "new", title_ar: "كورس الدرون", payment: { ...PAID.payment, paid } }),
+    },
+  });
+  await page.goto("/ar/form/?f=drone-course");
+  const fee = page.getByTestId("form-fee");
+  await expect(fee).toHaveCount(1);
+  await expect(fee).toContainText("150");
+  await expect(fee).toContainText("فودافون كاش على 01000000000");
+  // The fee box is inside the receipt question, not repeated in the header.
+  await expect(page.locator("label", { hasText: "صورة إيصال الدفع" }).locator("..").getByTestId("form-fee")).toHaveCount(1);
+  await page.getByLabel("الاسم بالكامل").fill("منى عادل");
+  await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByTestId("form-fee")).toContainText("كود الطلب");
+
+  await page.goto("/ar/form/?ref=F-0A0B0C0D#status");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01112223334");
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.locator("#status").getByTestId("form-fee")).toContainText("لسه متدفعتش");
+  paid = true;
+  await page.getByRole("button", { name: "اعرف حالتي" }).click();
+  await expect(page.locator("#status").getByTestId("form-fee")).toContainText("اتدفعت ✓");
+});
+
 test("a closed form says so instead of taking answers", async ({ page }) => {
   await mockSupabase(page, {
     rpc: { public_form: () => ({ ...TRYOUT, open: false, opens_at: inHours(24) }) },

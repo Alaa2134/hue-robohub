@@ -8,10 +8,11 @@ import { BASE_PATH, isNative } from "./core";
 export type Tab = { href: string; label: string; icon: IconKey; match: (path: string[]) => boolean };
 
 /** Phone-first frame: scrolling content above a fixed bottom tab bar. */
-export function AppShell({ tabs, path, children }: { tabs: Tab[]; path: string[]; children: ReactNode }) {
+/** `wide` lets a screen full of rows (a form's responses) use a desktop's width. */
+export function AppShell({ tabs, path, children, wide }: { tabs: Tab[]; path: string[]; children: ReactNode; wide?: boolean }) {
   return (
     <div className="min-h-dvh bg-abyss bg-[radial-gradient(120%_60%_at_50%_-10%,rgb(43_109_255/0.14),transparent_60%)]">
-      <main className="mx-auto max-w-3xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-6">{children}</main>
+      <main className={cn("mx-auto px-4", wide ? "max-w-3xl lg:max-w-6xl" : "max-w-3xl", " pb-[calc(6.5rem+env(safe-area-inset-bottom))] sm:px-6")}>{children}</main>
       <nav aria-label="التنقل" className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[#081634]/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl print:hidden">
         <div className="mx-auto flex max-w-3xl">
           {tabs.map((t) => {

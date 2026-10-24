@@ -117,24 +117,46 @@ const snoozed = (r: Reminder) => (readMap(SNOOZE)[keyOf(r)] ?? 0) > Date.now();
 /* ─── The team's list ───────────────────────────────────────────────────── */
 
 let cache: { at: number; list: Reminder[] } | null = null;
+let pending: Promise<Reminder[]> | null = null;
+const FRESH = 60_000;
+const EVERY = 5 * 60_000;
 
-/** The team member's reminders (kept for a minute so moving between screens doesn't reload them). */
+/** One request at a time for every screen that shows the list. */
+function fetchReminders() {
+  pending ??= rpc<Reminder[]>("staff_reminders")
+    .then((r) => {
+      cache = { at: Date.now(), list: r ?? [] };
+      return cache.list;
+    })
+    .finally(() => {
+      pending = null;
+    });
+  return pending;
+}
+
+/**
+ * The team member's reminders. Kept for a minute so moving between screens doesn't reload them, and
+ * refreshed every 5 minutes only while the app is on screen (a phone in a pocket doesn't keep asking).
+ */
 export function useStaffReminders() {
   const [list, setList] = useState<Reminder[] | null>(cache?.list ?? null);
-  const load = useCallback(async (force = false) => {
-    if (!force && cache && Date.now() - cache.at < 60_000) return setList(cache.list);
+  const load = useCallback(async (force = false, maxAge = FRESH) => {
+    if (!force && cache && Date.now() - cache.at < maxAge) return setList(cache.list);
     try {
-      const r = (await rpc<Reminder[]>("staff_reminders")) ?? [];
-      cache = { at: Date.now(), list: r };
-      setList(r);
+      setList(await fetchReminders());
     } catch {
       setList((v) => v ?? []);
     }
   }, []);
   useEffect(() => {
     void load();
-    const t = setInterval(() => load(true), 5 * 60_000);
-    return () => clearInterval(t);
+    const tick = () => document.visibilityState === "visible" && void load(false, EVERY);
+    const t = setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [load]);
   return { list, refresh: load };
 }

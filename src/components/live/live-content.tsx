@@ -9,8 +9,8 @@ import { cn } from "@/lib/cn";
 import { bodyOf, fetchContent, fetchItem, fetchUpcoming, fmtDate, locationOf, resultOf, safeLink, siteImageUrl, summaryOf, titleOf, type ContentKind, type SiteItem } from "@/lib/site-content";
 
 const T = {
-  en: { upcoming: "Upcoming events", past: "Past events", noUpcoming: "No upcoming events are announced yet — follow the plan below.", register: "Register", details: "Details", read: "Read more", open: "Open", back: "Back", empty: "Nothing published here yet — check back soon.", missing: "We couldn't find this page.", error: "We couldn't load this right now. Check your connection and try again.", latest: "Latest from BuildX HUE", news: "News", photos: "photos", close: "Close", prev: "Previous", next: "Next" },
-  ar: { upcoming: "الفعاليات الجاية", past: "فعاليات فاتت", noUpcoming: "لسه مفيش فعاليات معلنة — تابع الخطة اللي تحت.", register: "سجّل", details: "التفاصيل", read: "اقرا أكتر", open: "افتح", back: "رجوع", empty: "لسه مفيش حاجة منشورة هنا — ارجع قريب.", missing: "مش لاقيين الصفحة دي.", error: "مقدرناش نحمّل المحتوى. اتأكد من النت وجرّب تاني.", latest: "الجديد في BuildX HUE", news: "الأخبار", photos: "صورة", close: "إغلاق", prev: "السابق", next: "التالي" },
+  en: { upcoming: "Upcoming events", past: "Past events", noUpcoming: "No upcoming events are announced yet — follow the plan below.", register: "Register", details: "Details", read: "Read more", open: "Open", back: "Back", empty: "Nothing published here yet — check back soon.", missing: "We couldn't find this page.", error: "We couldn't load this right now. Check your connection and try again.", latest: "Latest from BuildX HUE", news: "News", photos: "photos", close: "Close", prev: "Previous", next: "Next", album: "Photos", highlights: "Highlights", all: "Every achievement", stats: ["Achievements & projects", "Highlights", "Fields"] },
+  ar: { upcoming: "الفعاليات الجاية", past: "فعاليات فاتت", noUpcoming: "لسه مفيش فعاليات معلنة — تابع الخطة اللي تحت.", register: "سجّل", details: "التفاصيل", read: "اقرا أكتر", open: "افتح", back: "رجوع", empty: "لسه مفيش حاجة منشورة هنا — ارجع قريب.", missing: "مش لاقيين الصفحة دي.", error: "مقدرناش نحمّل المحتوى. اتأكد من النت وجرّب تاني.", latest: "الجديد في BuildX HUE", news: "الأخبار", photos: "صورة", close: "إغلاق", prev: "السابق", next: "التالي", album: "صور من الفعالية", highlights: "أبرز إنجازاتنا", all: "كل الإنجازات", stats: ["إنجاز ومشروع", "إنجاز مميّز", "مجال"] },
 };
 const tr = (l: string) => T[l === "ar" ? "ar" : "en"];
 
@@ -67,7 +67,7 @@ function EventCard({ e, locale, past, href }: { e: SiteItem; locale: string; pas
         </p>
         <h3 className="t-title text-xl text-chalk">{titleOf(e, locale)}</h3>
         {summaryOf(e, locale) && <p className="text-[0.97rem] leading-relaxed text-mist">{summaryOf(e, locale)}</p>}
-        {bodyOf(e, locale) && <p className="whitespace-pre-line text-sm leading-relaxed text-fog">{bodyOf(e, locale)}</p>}
+        {bodyOf(e, locale) && !past && <p className="whitespace-pre-line text-sm leading-relaxed text-fog">{bodyOf(e, locale)}</p>}
         {((link && !past) || (href && e.slug)) && (
           <div className="mt-2 flex flex-wrap gap-2">
             {link && !past && (
@@ -238,19 +238,38 @@ export function LiveDetail({ kind, locale, backHref, slug: fixed, initial }: { k
           <Icon name="arrowUpRight" size={14} />
         </a>
       )}
+      {kind !== "project" && (
+        <section className="mt-4 flex flex-col gap-5" data-testid="item-album">
+          <LiveGallery locale={locale} tag={[i.slug, i.title, i.title_ar].filter((x): x is string => !!x)} heading={t.album} />
+        </section>
+      )}
     </article>
   );
 }
 
 /* ─── Gallery ──────────────────────────────────────────────────────────── */
 
-export function LiveGallery({ locale, initial, tag, empty }: { locale: string; initial?: SiteItem[]; /** Only this album (e.g. one event's photos). */ tag?: string; empty?: string }) {
+export function LiveGallery({
+  locale,
+  initial,
+  tag,
+  empty,
+  heading,
+}: {
+  locale: string;
+  initial?: SiteItem[];
+  /** Only this album, or any of these names (e.g. one event's photos). */
+  tag?: string | string[];
+  empty?: string;
+  /** With a heading the gallery shows nothing at all when the album is empty (under an event or a post). */
+  heading?: string;
+}) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("photo", 500), [], initial?.length ? initial : undefined);
   const [picked, setAlbum] = useState("");
-  const album = tag ?? picked;
+  const names = (Array.isArray(tag) ? tag : tag ? [tag] : [picked]).filter(Boolean);
   const [open, setOpen] = useState<number | null>(null);
-  const photos = (s.data ?? []).filter((p) => p.image_path && (!album || p.tags.includes(album)));
+  const photos = (s.data ?? []).filter((p) => p.image_path && (!names.length || p.tags.some((g) => names.includes(g))));
   useEffect(() => {
     if (open === null) return;
     const onKey = (e: KeyboardEvent) => {
@@ -261,13 +280,22 @@ export function LiveGallery({ locale, initial, tag, empty }: { locale: string; i
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [open, photos.length]);
+  if (heading !== undefined && !photos.length) return null;
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton n={6} />;
   if (!s.data.length || (tag && !photos.length)) return <Note>{empty ?? t.empty}</Note>;
   const albums = tag ? [] : [...new Set(s.data.flatMap((p) => p.tags))];
+  const album = picked;
   const cur = open !== null ? photos[open] : null;
   return (
     <>
+      {heading && (
+        <h2 className="t-headline flex items-center gap-2 text-2xl text-chalk">
+          <Icon name="image" size={22} className="text-cyan" />
+          {heading}
+          <span className="text-base font-normal text-fog">({photos.length})</span>
+        </h2>
+      )}
       {albums.length > 1 && (
         <div className="mb-6 flex flex-wrap gap-2">
           {["", ...albums].map((a) => (
@@ -326,32 +354,119 @@ export function LiveAchievements({ locale, initial }: { locale: string; initial?
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton />;
   if (!s.data.length) return <Note>{t.empty}</Note>;
+  const featured = s.data.filter((a) => a.pinned);
+  const rest = s.data.filter((a) => !a.pinned);
+  const fields = new Set(s.data.map((a) => a.track).filter(Boolean)).size;
+  const stats: [number, string][] = [
+    [s.data.length, t.stats[0]],
+    [featured.length, t.stats[1]],
+    [fields, t.stats[2]],
+  ];
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {s.data.map((a) => {
-        const link = safeLink(a.url);
-        return (
-          <li key={a.id} className="flex flex-col overflow-hidden rounded-[20px] border border-gold/25 bg-panel/70">
-            {a.image_path && <Cover item={a} className="aspect-video" />}
-            <div className="flex flex-1 flex-col gap-2 p-5">
-              <span className="flex items-center gap-2 text-gold">
-                <Icon name="trophy" size={20} />
-                <span className="font-semibold">{resultOf(a, locale)}</span>
-              </span>
-              <h3 className="t-title text-xl text-chalk">{titleOf(a, locale)}</h3>
-              {a.starts_at && <p className="text-sm text-fog">{fmtDate(a.starts_at, locale)}</p>}
-              {summaryOf(a, locale) && <p className="text-[0.97rem] leading-relaxed text-mist">{summaryOf(a, locale)}</p>}
-              {link && (
-                <a href={link} target="_blank" rel="noopener noreferrer nofollow" className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-cyan hover:underline">
-                  {t.open}
-                  <Icon name="arrowUpRight" size={14} />
-                </a>
-              )}
+    <div className="grid gap-12">
+      <dl className="grid grid-cols-3 overflow-hidden rounded-[22px] border border-gold/25 bg-[radial-gradient(120%_140%_at_50%_0%,rgb(232_180_92/0.14),transparent_60%)]" data-testid="achievement-stats">
+        {stats.map(([n, label]) => (
+          <div key={label} className="flex flex-col items-center gap-1 border-[var(--line)] px-3 py-6 text-center [&:not(:last-child)]:border-e">
+            <dd className="t-display text-[clamp(2rem,6vw,3.4rem)] leading-none text-gold">{String(n).padStart(2, "0")}</dd>
+            <dt className="text-xs text-mist sm:text-sm">{label}</dt>
+          </div>
+        ))}
+      </dl>
+      {featured.length > 0 && (
+        <section aria-labelledby="ach-highlights">
+          <h2 id="ach-highlights" className="t-eyebrow mb-5 flex items-center gap-2 text-gold">
+            <Icon name="award" size={18} />
+            {t.highlights}
+          </h2>
+          <ul className="grid gap-6 lg:grid-cols-2">
+            {featured.map((a) => (
+              <FeaturedAchievement key={a.id} a={a} locale={locale} />
+            ))}
+          </ul>
+        </section>
+      )}
+      {rest.length > 0 && (
+        <section aria-labelledby="ach-all">
+          {featured.length > 0 && (
+            <h2 id="ach-all" className="t-eyebrow mb-5 text-fog">
+              {t.all}
+            </h2>
+          )}
+          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {rest.map((a) => {
+              const link = safeLink(a.url);
+              return (
+                <li key={a.id} className="group flex flex-col overflow-hidden rounded-[20px] border border-gold/20 bg-panel/70 transition duration-300 hover:-translate-y-0.5 hover:border-gold/50 hover:shadow-[0_18px_50px_-24px_rgb(232_180_92/0.45)]">
+                  {a.image_path && <Cover item={a} className="aspect-video" />}
+                  <div className="flex flex-1 flex-col gap-2 p-5">
+                    <span className="flex items-center gap-2 text-gold">
+                      <Icon name="trophy" size={20} />
+                      <span className="font-semibold">{resultOf(a, locale)}</span>
+                    </span>
+                    <h3 className="t-title text-xl text-chalk">{titleOf(a, locale)}</h3>
+                    {a.starts_at && <p className="text-sm text-fog">{fmtDate(a.starts_at, locale)}</p>}
+                    {summaryOf(a, locale) && <p className="text-[0.97rem] leading-relaxed text-mist">{summaryOf(a, locale)}</p>}
+                    {link && (
+                      <a href={link} target="_blank" rel="noopener noreferrer nofollow" className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-cyan hover:underline">
+                        {t.open}
+                        <Icon name="arrowUpRight" size={14} />
+                      </a>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** A pinned achievement: big, gold-framed, with its picture shown whole (posters and logos aren't cropped); one with a picture takes the full width. */
+function FeaturedAchievement({ a, locale }: { a: SiteItem; locale: string }) {
+  const t = tr(locale);
+  const link = safeLink(a.url);
+  const where = locationOf(a, locale);
+  return (
+    <li className={cn("relative overflow-hidden rounded-[28px] bg-gradient-to-br from-gold/70 via-gold/15 to-[#ff7a45]/50 p-px shadow-[0_30px_80px_-40px_rgb(232_180_92/0.6)]", a.image_path && "lg:col-span-2")} data-testid="featured-achievement">
+      <div className="flex h-full flex-col overflow-hidden rounded-[27px] bg-[radial-gradient(120%_120%_at_100%_0%,rgb(232_180_92/0.16),transparent_55%),linear-gradient(180deg,#0b1736,#070f26)] sm:flex-row">
+        {a.image_path && (
+          <div className="relative shrink-0 bg-black/30 sm:w-[44%] lg:w-[38%]">
+            <img src={siteImageUrl(a.image_path, "full")} alt={titleOf(a, locale)} loading="lazy" decoding="async" className="aspect-square h-full w-full object-contain" />
+          </div>
+        )}
+        <div className="flex flex-1 flex-col gap-3 p-6 sm:p-7 lg:justify-center lg:gap-4 lg:p-10">
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-3 py-1 text-sm font-semibold text-gold">
+            <Icon name="trophy" size={16} />
+            {resultOf(a, locale)}
+          </span>
+          <h3 className="t-headline text-[clamp(1.4rem,2.6vw,2.4rem)] leading-tight text-chalk">{titleOf(a, locale)}</h3>
+          {(a.starts_at || where) && (
+            <p className="flex flex-wrap gap-x-3 text-sm text-fog">
+              {a.starts_at && <span>{fmtDate(a.starts_at, locale)}</span>}
+              {where && <span>{where}</span>}
+            </p>
+          )}
+          {summaryOf(a, locale) && <p className="leading-relaxed text-mist">{summaryOf(a, locale)}</p>}
+          {a.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {a.tags.slice(0, 5).map((g) => (
+                <span key={g} className="rounded-full border border-[var(--line-2)] px-2.5 py-0.5 text-xs text-mist">
+                  {g}
+                </span>
+              ))}
             </div>
-          </li>
-        );
-      })}
-    </ul>
+          )}
+          {link && (
+            <a href={link} target="_blank" rel="noopener noreferrer nofollow" className="mt-auto inline-flex w-fit items-center gap-1.5 pt-1 text-sm font-semibold text-cyan hover:underline">
+              {t.open}
+              <Icon name="arrowUpRight" size={14} />
+            </a>
+          )}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -487,7 +602,8 @@ export function LivePartners({ locale, initial, title, variant = "strip", empty,
       <span className="t-headline text-lg text-chalk">{titleOf(p, locale)}</span>
     );
   const items = (
-    <ul className={cn("grid gap-px overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--line)]", variant === "grid" ? "grid-cols-2 md:grid-cols-4" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6")}>
+    // The strip grows its items to fill each row, so two or three partners don't leave an empty block.
+    <ul className={cn("gap-px overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--line)]", variant === "grid" ? "grid grid-cols-2 md:grid-cols-4" : "flex flex-wrap")}>
       {s.data.map((p) => {
         const link = safeLink(p.url);
         const inner = (
@@ -498,7 +614,7 @@ export function LivePartners({ locale, initial, title, variant = "strip", empty,
         );
         const cls = "flex h-full flex-col items-center justify-center bg-void p-6 text-center transition-colors hover:bg-panel/50";
         return (
-          <li key={p.id}>
+          <li key={p.id} className={variant === "strip" ? "flex-[1_1_calc(50%-1px)] sm:flex-[1_1_calc(33.333%-1px)] lg:flex-[1_1_calc(16.666%-1px)]" : undefined}>
             {link ? (
               <a href={link} target="_blank" rel="noopener noreferrer" className={cls}>
                 {inner}

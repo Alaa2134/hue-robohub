@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/brand/icons";
-import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { publicGet } from "@/lib/public-cache";
 
 type Links = { android?: string; ios?: string };
 const ok = (u: unknown): u is string => typeof u === "string" && /^https:\/\/\S+$/.test(u);
@@ -17,8 +17,7 @@ export function AppDownload({ locale, className }: { locale: string; className?:
   useEffect(() => {
     const ua = navigator.userAgent;
     setOs(/iphone|ipad|ipod/i.test(ua) ? "ios" : /android/i.test(ua) ? "android" : "desktop");
-    fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=value&key=eq.apps`, { headers: { apikey: SUPABASE_KEY, Accept: "application/json" } })
-      .then((r) => (r.ok ? (r.json() as Promise<{ value: Record<string, unknown> }[]>) : []))
+    publicGet<{ value: Record<string, unknown> }[]>("site_settings?select=value&key=eq.apps")
       .then((rows) => {
         const v = rows[0]?.value ?? {};
         setLinks({ android: ok(v.student_android) ? v.student_android : undefined, ios: ok(v.student_ios) ? v.student_ios : undefined });

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/brand/icons";
 import { announcementOf, type SiteSettings } from "@/lib/site-settings";
-import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { publicGet } from "@/lib/public-cache";
 
 type A = { text: string; url: string } | null;
 const KEY = "bx_announcement_closed";
@@ -16,9 +16,8 @@ export function Announcement({ initial, locale, localePrefix }: { initial: A; lo
 
   // Pick up a change made since the last build.
   useEffect(() => {
-    fetch(`${SUPABASE_URL}/rest/v1/site_settings?select=value&key=eq.site`, { headers: { apikey: SUPABASE_KEY } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((rows: { value: SiteSettings }[] | null) => rows && setA(announcementOf(rows[0]?.value, locale)))
+    publicGet<{ value: SiteSettings }[]>("site_settings?select=value&key=eq.site")
+      .then((rows) => setA(announcementOf(rows[0]?.value, locale)))
       .catch(() => {});
   }, [locale]);
 

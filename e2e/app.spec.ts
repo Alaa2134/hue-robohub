@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { copyFileSync, readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { voiceLines } from "../src/lib/mascot/voice-lines";
 
@@ -6517,5 +6517,514 @@ test("WhatsApp to people from any form: pick the form and who in it, each with t
   expect(asked.at(-1)).toContain("status=eq.accepted");
   await box.getByTestId("pick-form-who").selectOption("all");
   await expect.poll(() => asked.at(-1)).toContain("status=neq.rejected");
+  expect(errors).toEqual([]);
+});
+
+test("form payments: who paid and who didn't, the receipt photo shown in place, and the team edits or adds someone", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "drone-course",
+    title_ar: "كورس الدرون",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: { on: true, amount: 150, note_ar: "فودافون كاش" },
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "r", type: "file", accept: "image", receipt: true, label_ar: "صورة إيصال الدفع", required: false },
+    ],
+  };
+  const resp = (id: string, name: string, paid: boolean, receipt?: string) => ({
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}000000`,
+    answers: { n: name, p: "+201012345678", ...(receipt ? { r: receipt } : {}) },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: paid ? at(30) : null,
+    paid_amount: paid ? 150 : null,
+    paid_method: paid ? "vodafone_cash" : null,
+    created_at: at(50),
+  });
+  const rows = [resp("r1", "منى عادل", true), resp("r2", "علي حسن", false, "f/f1/abc.jpg"), resp("r3", "سارة محمود", false)];
+  const patches: Record<string, unknown>[] = [];
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\//, (route) => route.fulfill({ json: { signedURL: "/object/sign/form-files/f/f1/abc.jpg?token=t" } }));
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\/.*token=t/, (route) => route.fulfill({ body: png, contentType: "image/png" }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push(body);
+      return route.fulfill({ json: { ...rows[1], ...body } });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_form_response_save/, (route) => {
+    const body = route.request().postDataJSON() as { p_response: string | null; p_answers: Record<string, string> };
+    calls.push({ fn: "staff_form_response_save", body });
+    const base = body.p_response ? rows.find((r) => r.id === body.p_response)! : resp("r9", "", false);
+    return route.fulfill({ json: { ok: true, response: { ...base, answers: body.p_answers, name: body.p_answers.n } } });
+  });
+
+  await page.goto("/app/#/staff/forms/f1/responses");
+  const sum = page.getByTestId("payment-summary");
+  await expect(sum).toContainText("1");
+  await expect(sum).toContainText("دفعوا");
+  await expect(sum).toContainText("فاضل");
+  await page.getByRole("button", { name: /لسه مدفعوش/ }).click();
+  await expect(page.getByText("منى عادل")).toHaveCount(0);
+  await expect(page.getByText("علي حسن")).toBeVisible();
+
+  // The receipt photo shows right in the response.
+  await page.getByText("علي حسن").click();
+  await expect(page.getByTestId("file-image").locator("img")).toBeVisible();
+  await expect.poll(() => page.getByTestId("file-image").locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+
+  // Mark it paid: cash, the form's amount.
+  await page.getByTestId("paid-control").getByRole("switch").click();
+  await expect.poll(() => patches.length).toBe(1);
+  expect(patches[0]).toMatchObject({ paid_method: "cash", paid_amount: 150 });
+  expect(String(patches[0].paid_at)).toMatch(/^\d{4}-/);
+
+  // Correct the name.
+  await page.getByTestId("response-edit").click();
+  await page.getByTestId("response-editor").getByLabel("الاسم بالكامل").fill("علي حسن محمد");
+  await page.getByTestId("response-save").click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(1);
+  expect(calls.find((c) => c.fn === "staff_form_response_save")!.body).toMatchObject({ p_form: "f1", p_response: "r2", p_answers: { n: "علي حسن محمد", r: "f/f1/abc.jpg" } });
+  await expect(page.getByTestId("response-editor")).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toContainText("علي حسن محمد");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  // Add someone who registered by phone.
+  await page.getByTestId("response-add").click();
+  const ed = page.getByTestId("response-editor");
+  await ed.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+  await ed.getByLabel("رقم الموبايل").fill("01112223334");
+  await page.getByTestId("response-save").click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(2);
+  expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({ p_form: "f1", p_response: null, p_status: "accepted", p_answers: { n: "يوسف خالد", p: "01112223334" } });
+  expect(errors).toEqual([]);
+});
+
+test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة الدراسية", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }] },
+      { id: "w", type: "textarea", label_ar: "ليه عايز تحضر؟", required: false },
+    ],
+  };
+  const names = ["منى عادل", "علي حسن", "سارة محمود", "يوسف خالد", "مريم أحمد", "عمر طارق", "نور الدين", "هنا سمير", "كريم وائل", "ليلى مصطفى", "آدم شريف", "فرح ياسر", "زياد أشرف", "جنى عمرو", "مالك هاني", "رنا إبراهيم", "سيف محمد", "حبيبة علاء", "بلال ماجد", "تقى حسام", "أنس سامح", "دينا رامي", "حمزة عصام", "ملك وليد", "ياسين خالد"];
+  const rows = names.map((name, i) => ({
+    id: `r${i}`,
+    form_id: "f1",
+    ref: `F-${String(i).padStart(8, "0")}`,
+    answers: { n: name, p: `+2010${String(10000000 + i)}`, y: i % 2 ? "تانية" : "أولى", w: "عايز أتعلم أبني نماذج وأشارك في المسابقات" },
+    name,
+    phone: `+2010${String(10000000 + i)}`,
+    email: null,
+    locale: "ar",
+    status: i % 5 === 4 ? "new" : "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    created_at: at(500 - i),
+  }));
+  const deleted: string[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "DELETE") {
+      const ids = decodeURIComponent(new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^in\.\(|\)$/g, "").split(",");
+      deleted.push(...ids);
+      return route.fulfill({ json: ids.map((id) => ({ id })) });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/forms/f1/responses");
+
+  await page.getByText("علي حسن").click();
+  await page.getByTestId("response-delete").click();
+  await page.locator('[role="dialog"] button', { hasText: "احذف" }).last().click();
+  await expect.poll(() => deleted).toEqual(["r1"]);
+  await expect(page.getByText("علي حسن")).toHaveCount(0);
+
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.getByRole("button", { name: "ليه عايز تحضر؟", exact: true }).click();
+  await sheet.locator("button", { hasText: "المقبولين" }).click();
+  await expect(sheet).toContainText("19 شخص · 4 خانة · 2 صفحة بالعرض");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-.*\.pdf$/);
+  const bytes = readFileSync((await pdf.path())!);
+  expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
+  if (process.env.SAVE_PDF) copyFileSync((await pdf.path())!, process.env.SAVE_PDF);
+  expect(errors).toEqual([]);
+});
+
+test("responses: who else a person is (other forms, member), groups set after the form, search, and a group's own PDF", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    ],
+  };
+  const row = (id: string, name: string, tags: string[] = []) => ({
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}000000`,
+    answers: { n: name, p: "+201012345678" },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    tags,
+    created_at: at(50),
+  });
+  const rows = [row("r1", "منى عادل", ["ورشة السبت"]), row("r2", "علي حسن"), row("r3", "سارة محمود")];
+  const patches: { id: string; body: Record<string, unknown> }[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      const id = (new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^eq\./, "");
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push({ id, body });
+      return route.fulfill({ json: { ...rows.find((r) => r.id === id), ...body } });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_form_links/, (route) =>
+    route.fulfill({ json: { r2: { forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }], member: { code: "BX123", active: true } } } }),
+  );
+  await page.goto("/app/#/staff/forms/f1/responses");
+
+  // Ali is a member and applied to another form: shown on his row and inside.
+  await expect(page.getByText("مقدّم على 1 فورم تاني")).toBeVisible();
+  await expect(page.getByTestId("link-badges").getByText("عضو", { exact: true })).toBeVisible();
+  await page.getByText("علي حسن").click();
+  await expect(page.getByTestId("person-links")).toContainText("اختبارات فريق السومو");
+  await expect(page.getByTestId("person-links")).toContainText("BX123");
+  // Put him in the existing group from inside.
+  await page.getByTestId("group-editor").locator("button", { hasText: "+ ورشة السبت" }).click();
+  await expect.poll(() => patches.at(-1)).toEqual({ id: "r2", body: { tags: ["ورشة السبت"] } });
+  await page.keyboard.press("Escape");
+
+  // Tick Sara and put her in a new group.
+  await page.getByRole("button", { name: "تحديد أكتر من واحد" }).click();
+  await page.getByText("سارة محمود").click();
+  await page.getByTestId("bulk-group").click();
+  await page.getByTestId("group-sheet").getByRole("textbox").fill("الباص");
+  await page.getByTestId("group-apply").click();
+  await expect.poll(() => patches.at(-1)).toEqual({ id: "r3", body: { tags: ["الباص"] } });
+
+  // Filter by a group, then search.
+  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await expect(page.getByText("سارة محمود")).toHaveCount(0);
+  await expect(page.getByText("منى عادل")).toBeVisible();
+  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await page.getByTestId("responses-search").fill("سارة");
+  await expect(page.getByText("منى عادل")).toHaveCount(0);
+  await page.getByTestId("responses-search").fill("");
+
+  // A PDF of one group only, titled with it.
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.locator("button", { hasText: "ورشة السبت" }).last().click();
+  await expect(sheet.getByRole("textbox").first()).toHaveValue("يوم الذكاء الاصطناعي · ورشة السبت");
+  await expect(sheet).toContainText("2 شخص");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  expect(readFileSync((await (await file).path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  expect(errors).toEqual([]);
+});
+
+test("gallery upload: from an event, pick photos, drop one, and save them in one request under the event's album", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const base = { slug: null, title: "", summary: null, summary_ar: null, body: null, body_ar: null, result: null, result_ar: null, image_path: null, url: null, ends_at: null, location: null, location_ar: null, track: null, pinned: false, sort_order: 100, publish_at: null, created_by: "u1" };
+  const rows = [
+    { ...base, id: "e1", kind: "event", slug: "embedded-01", title: "Embedded Systems Workshop 01", title_ar: "ورشة Embedded Systems 01", starts_at: at(60 * 24 * 5), tags: [], published: true, created_at: at(60) },
+    { ...base, id: "p1", kind: "photo", starts_at: null, tags: ["يوم التعريف"], published: true, created_at: at(120) },
+  ];
+  const uploads: string[] = [];
+  const posts: unknown[] = [];
+  await page.route(/\/storage\/v1\/object\/site\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.goto("/app/#/staff/site");
+  await page.getByText("ورشة Embedded Systems 01").click();
+  await page.getByTestId("item-photos").click();
+  await expect(page.getByLabel("الألبوم")).toHaveValue("ورشة Embedded Systems 01");
+  // Albums already used are a tap away.
+  await expect(page.locator("button", { hasText: "يوم التعريف" })).toBeVisible();
+  const png = readFileSync("public/brand/icon-512.png");
+  await page.getByTestId("bulk-photos-input").setInputFiles([
+    { name: "a.png", mimeType: "image/png", buffer: png },
+    { name: "b.png", mimeType: "image/png", buffer: png },
+    { name: "c.png", mimeType: "image/png", buffer: png },
+  ]);
+  const list = page.getByTestId("bulk-photos-list").locator("li");
+  await expect(list).toHaveCount(3);
+  await page.getByRole("button", { name: "شيل الصورة" }).first().click();
+  await expect(list).toHaveCount(2);
+  await page.getByRole("button", { name: "رفع 2", exact: true }).click();
+  await expect(page.getByText("اترفع 2 صورة واتنشروا")).toBeVisible();
+  // Two compressed photos (main + thumbnail each), and one database request for both rows.
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
+  expect(posts).toHaveLength(1);
+  expect(posts[0]).toEqual([
+    expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems 01"], published: true }),
+    expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems 01"], published: true }),
+  ]);
+  expect(errors).toEqual([]);
+});
+
+test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: "AI Day 2026",
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة الدراسية", label_en: "Year", required: true, options: [{ ar: "أولى", en: "First year" }, { ar: "تانية", en: "Second year" }] },
+    ],
+  };
+  const base = { form_id: "f1", email: null, locale: "ar", status: "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null, paid_at: null, paid_amount: null, paid_method: null, tags: [] };
+  const rows = [
+    { ...base, id: "r0", ref: "F-00000000", name: "محمد عبد الرحمن", name_en: null, phone: "+201001234567", answers: { n: "محمد عبد الرحمن", p: "+201001234567", y: "أولى" }, created_at: at(300) },
+    { ...base, id: "r1", ref: "F-00000001", name: "حازم البرلسي", name_en: null, phone: "+201101234567", answers: { n: "حازم البرلسي", p: "+201101234567", y: "تانية" }, created_at: at(200) },
+    { ...base, id: "r2", ref: "F-00000002", name: "منى عادل", name_en: "Mona Adel", phone: "+201201234567", answers: { n: "منى عادل", p: "+201201234567", y: "أولى" }, created_at: at(100) },
+  ];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.locator("button", { hasText: "English" }).click();
+  await expect(page.getByTestId("form-pdf-title-en")).toHaveValue("AI Day 2026");
+  // The names: one from the dictionary, one spelled and marked for checking, one checked before.
+  const list = page.getByTestId("form-pdf-names");
+  await expect(list.locator("input")).toHaveCount(3);
+  await expect(list.locator("input").nth(0)).toHaveValue("Mohamed Abdelrahman");
+  await expect(list.locator("input").nth(1)).toHaveValue("Hazem El-Barlesy");
+  await expect(list.locator("input").nth(2)).toHaveValue("Mona Adel");
+  await expect(sheet).toContainText("1 اسم اتكتب حرف بحرف");
+  await list.locator("input").nth(1).fill("Hazem El-Borollosy");
+  await expect(sheet).toContainText("الأسامي جاهزة");
+  // Catch the pages while they're drawn, to read what goes into the file.
+  await page.evaluate(() => {
+    const w = window as unknown as { pdfText: string[] };
+    w.pdfText = [];
+    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="form-pdf-page"]').forEach((p) => w.pdfText.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+  });
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-ai-day-en-.*\.pdf$/);
+  if (process.env.SAVE_PDF_EN) copyFileSync((await pdf.path())!, process.env.SAVE_PDF_EN);
+  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  // Only the names that changed are saved, in one request.
+  expect(calls.filter((c) => c.fn === "staff_form_names_en")).toEqual([{ fn: "staff_form_names_en", body: { p_form: "f1", p_names: { r0: "Mohamed Abdelrahman", r1: "Hazem El-Borollosy" } } }]);
+  const text = (await page.evaluate(() => (window as unknown as { pdfText: string[] }).pdfText.join("\n"))) as string;
+  for (const s of ["AI Day 2026", "PARTICIPANTS", "Full name", "Mobile", "Year", "Mohamed Abdelrahman", "Hazem El-Borollosy", "Mona Adel", "+20 100 123 4567", "First year", "Page 1 of 1"]) expect(text).toContain(s);
+  expect(text).not.toMatch(/[؀-ۿ]/);
+  expect(errors).toEqual([]);
+});
+
+test("bus letter: from a form's people, the dean's letter with the count and buses, and the names list after it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_trip_letter = {
+    settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", sign2_name: "م/ مشرف", seats: 50 },
+    letter: { event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", venue: "جامعة مصر اليابانية للعلوم والتكنولوجيا (E-JUST)", city: "الإسكندرية" },
+  };
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1", slug: "summit", title_ar: "قمة", title_en: "MENA ROBOTICS SUMMIT 2026", intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null, open: true, opens_at: null, closes_at: null,
+    max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, delegation: null, attendance: null, capacity: null, payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "c", type: "text", label_ar: "الكلية", required: true },
+    ],
+  };
+  const rows = Array.from({ length: 53 }, (_, i) => ({
+    id: `r${i}`, form_id: "f1", ref: `F-${String(i).padStart(8, "0")}`, answers: { n: `طالب ${i + 1}`, p: `+2010${String(10000000 + i)}`, c: "الذكاء الاصطناعي" }, name: `طالب ${i + 1}`, phone: `+2010${String(10000000 + i)}`,
+    email: null, locale: "ar", status: i === 52 ? "rejected" : "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null,
+    paid_at: null, paid_amount: null, paid_method: null, tags: [], created_at: at(500 - i),
+  }));
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
+  await page.goto("/app/#/staff/forms/f1/responses");
+  await page.getByTestId("trip-letter-open").click();
+  const sheet = page.getByTestId("trip-letter-sheet");
+  await expect(page.getByTestId("trip-letter-event")).toHaveValue("MENA ROBOTICS SUMMIT 2026");
+  await expect(page.getByTestId("trip-letter-date")).toHaveValue("2026-10-30");
+  // 52 accepted + 2 supervisors = 54 → two buses of 50.
+  await expect(page.getByTestId("trip-letter-count")).toContainText("52");
+  await expect(page.getByTestId("trip-letter-count")).toContainText("أتوبيسين");
+  await sheet.locator("button", { hasText: "الكل ماعدا المرفوضين" }).click();
+  // The sheet fits the screen (on a phone too), and the page doesn't scroll sideways.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+  const box = (await page.getByTestId("trip-letter-make").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  await page.evaluate(() => {
+    const w = window as unknown as { letter: string[] };
+    w.letter = [];
+    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]').forEach((p) => w.letter.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+  });
+  const file = page.waitForEvent("download");
+  await page.getByTestId("trip-letter-make").click();
+  const pdf = await file;
+  expect(pdf.suggestedFilename()).toMatch(/^buildx-bus-request-summit-.*\.pdf$/);
+  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  if (process.env.SAVE_LETTER) copyFileSync((await pdf.path())!, process.env.SAVE_LETTER);
+  const saved = calls.find((c) => c.fn === "staff_trip_letter_save")?.body as { p_key: string; p_letter: Record<string, unknown>; p_settings: Record<string, unknown> };
+  expect(saved.p_key).toBe("form:f1");
+  expect(saved.p_letter).toMatchObject({ event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", supervisors: 2 });
+  expect(saved.p_settings).toMatchObject({ to_name: "د. عميد الكلية", seats: 50 });
+  const text = (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
+  for (const s of ["طلب توفير أتوبيسات", "د. عميد الكلية", "MENA ROBOTICS SUMMIT 2026", "الجمعة", "30 أكتوبر 2026", "E-JUST", "الإسكندرية", "(52)", "(54)", "أتوبيسين", "كشف بأسماء الطلاب المشاركين", "طالب 52", "01010000051", "صفحة 2 من 3"]) expect(text).toContain(s);
+  expect(text).not.toContain("طالب 53");
+  delete RPC.staff_trip_letter;
   expect(errors).toEqual([]);
 });

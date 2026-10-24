@@ -521,7 +521,8 @@ export function TopBar({ title, sub, back, actions }: { title: ReactNode; sub?: 
         <h1 className="truncate text-lg font-bold text-chalk">{title}</h1>
         {sub && <div className="truncate text-xs text-fog">{sub}</div>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+      {/* Actions wrap to a second line on a narrow phone instead of pushing the page sideways. */}
+      {actions && <div className="flex max-w-[75%] flex-wrap items-center justify-end gap-1 py-1">{actions}</div>}
     </header>
   );
 }
