@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CircuitDoc } from "../circuit/model";
 import { TRACE_PINS, type Frame } from "./engine";
+import { clearScreens, putScreens } from "./screens";
 
 export type SimStatus = "idle" | "running" | "paused";
 const SERIAL_MAX = 200_000;
@@ -71,6 +72,7 @@ export function useSimulation(onEnd?: (simSeconds: number) => void) {
       setLiveState({});
       trace.current = newTrace();
       traceLost.current = 0;
+      clearScreens();
       w.onmessage = (e: MessageEvent) => {
         const m = e.data;
         if (m.type === "frame") {
@@ -78,6 +80,7 @@ export function useSimulation(onEnd?: (simSeconds: number) => void) {
           simT.current = f.t;
           if (f.trace) addTrace(trace.current, f.trace, f.t);
           if (f.traceLost) traceLost.current += f.traceLost;
+          putScreens(f.screens);
           setFrame(f);
           if (f.serial) {
             setSerial((s) => (s + f.serial).slice(-SERIAL_MAX));
@@ -105,6 +108,7 @@ export function useSimulation(onEnd?: (simSeconds: number) => void) {
     kill();
     setStatus("idle");
     setFrame(null);
+    clearScreens();
   }, [kill]);
 
   const pause = useCallback(() => {

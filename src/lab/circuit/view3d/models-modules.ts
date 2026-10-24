@@ -195,6 +195,33 @@ function dht(type: "dht11" | "dht22"): Model {
   return { group: g, pinTop: 2, anchors: { label: [P(15), H + 6, 0] } };
 }
 
+/** 0.96" SSD1306 module: 27.3 × 27.8 mm board, header along the top edge, the glass below it. */
+function oled(): Model {
+  const g = new THREE.Group();
+  g.add(header([0, 10, 20, 30], 0));
+  const cx = P(15);
+  const top = P(-6);
+  const cz = top + 27.8 / 2;
+  g.add(pcb(27.3, 27.8, cx, cz, "#173d8f"));
+  for (const dx of [-11.6, 11.6]) for (const dz of [1.5, 24.9]) g.add(cyl(1.4, 1.62, std("#c9a74a", 0.35, 0.9), cx + dx, 2.49, top + dz, 20));
+  // Pin names printed on the board.
+  const labels = topTexture(14, 1.8, 4.1, cx, top + 4.1, 280, (c, W, H) => {
+      c.fillStyle = "#e8eef8";
+      c.font = `bold ${H * 0.8}px monospace`;
+      c.textAlign = "center";
+      c.textBaseline = "middle";
+      ["GND", "VCC", "SCL", "SDA"].forEach((t, i) => c.fillText(t, (W / 4) * (i + 0.5), H / 2));
+  });
+  g.add(labels.mesh);
+  // Glass (26.7 × 19.26 mm) with its black active area (21.74 × 10.86 mm); the picture is drawn live on top.
+  const glassZ = top + 5.1 + 19.26 / 2;
+  g.add(box(26.7, 1.3, 19.26, std("#07080a", 0.75), cx, 4.1, glassZ));
+  g.add(box(21.74, 0.05, 10.86, std("#020304", 0.95), cx, 5.4, top + 7.5 + 10.86 / 2));
+  const x0 = cx - 21.74 / 2;
+  const z0 = top + 7.5;
+  return { group: g, pinTop: 4.5, anchors: { screen: [x0, 5.46, z0], screenX: [x0 + 21.74, 5.46, z0], screenY: [x0, 5.46, z0 + 10.86] }, dispose: () => labels.texture.dispose() };
+}
+
 function dip14(p: PartInstance): Model {
   const g = new THREE.Group();
   const chip = GATES[p.type];
@@ -245,6 +272,8 @@ export function moduleModel(p: PartInstance, live: Record<string, unknown> = {})
     case "dht11":
     case "dht22":
       return dht(p.type);
+    case "oled-ssd1306":
+      return oled();
     default:
       return GATES[p.type] ? dip14(p) : null;
   }

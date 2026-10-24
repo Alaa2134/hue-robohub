@@ -3,10 +3,11 @@
  * Drawings of modules, displays, sensors and logic chips (pin 0 at 0,0; 10 units = 0.1 inch), and their
  * live overlays on the realistic pictures: lit segments, relay and sensor LEDs, sensor values.
  */
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { PartInstance } from "./model";
 import { propsOf } from "./parts";
 import { GATES, SEGMENTS } from "../sim/modules";
+import { useScreen } from "../sim/screens";
 
 type Reading = Record<string, number> | undefined;
 const FONT = "ui-monospace, SFMono-Regular, Menlo, monospace";
@@ -18,6 +19,32 @@ const Label = ({ x, y, children, size = 4, fill = "#e8eef8", anchor = "middle" }
   </text>
 );
 const pinLabels = (names: string[], y: number, x0 = 0, fill = "#9fb0c8") => names.map((s, i) => <Label key={s + i} x={x0 + i * 10} y={y} size={3.2} fill={fill}>{s}</Label>);
+
+/** A 128 × 64 display picture (page layout: bit y&7 of byte (y>>3)*128+x) as an image URL. */
+function pictureUrl(pic: Uint8Array): string | null {
+  if (typeof document === "undefined") return null;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 64;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  const img = ctx.createImageData(128, 64);
+  for (let y = 0; y < 64; y++)
+    for (let x = 0; x < 128; x++) {
+      if (!((pic[(y >> 3) * 128 + x] >> (y & 7)) & 1)) continue;
+      const i = (y * 128 + x) * 4;
+      img.data.set([222, 242, 255, 255], i);
+    }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+/** The live OLED picture, drawn into the 128 × 64 box at the origin (transform it into place). */
+export function OledPicture({ part, transform }: { part: string; transform?: string }) {
+  const pic = useScreen(part);
+  const url = useMemo(() => (pic ? pictureUrl(pic) : null), [pic]);
+  if (!url) return null;
+  return <image href={url} x={0} y={0} width={128} height={64} preserveAspectRatio="none" transform={transform} style={{ imageRendering: "pixelated", filter: "drop-shadow(0 0 0.6px #bfe6ff)" }} pointerEvents="none" />;
+}
 
 export const SEG_COLORS: Record<string, { on: string; off: string }> = {
   red: { on: "#ff2a2a", off: "#3a1616" },
@@ -180,6 +207,20 @@ export function ModuleArt({ p, r, live }: { p: PartInstance; r: Reading; live: R
         </g>
       );
     }
+    case "oled-ssd1306":
+      return (
+        <g>
+          {[0, 10, 20, 30].map((px) => (
+            <Lead key={px} x1={px} y1={0} x2={px} y2={-4} />
+          ))}
+          <rect x={-39} y={-6} width={108} height={110} rx={4} fill="#173d8f" stroke="#0f2a66" />
+          {[-33, 63].flatMap((x) => [0, 98].map((y) => <circle key={`${x}${y}`} cx={x} cy={y} r={3.4} fill="#0d1b3a" stroke="#c9a74a" strokeWidth={1} />))}
+          <rect x={-37.5} y={13} width={105} height={76} rx={1.5} fill="#08090c" stroke="#2a2d33" />
+          <rect x={-27.8} y={23.5} width={85.6} height={42.8} fill="#0c0f14" />
+          <OledPicture part={p.id} transform={`translate(-27.8 23.5) scale(${85.6 / 128} ${42.8 / 64})`} />
+          {pinLabels(["GND", "VCC", "SCL", "SDA"], 8, 0, "#e8eef8")}
+        </g>
+      );
     case "dht22":
     case "dht11": {
       const big = p.type === "dht22";
@@ -259,6 +300,12 @@ export function ModuleOverlay({ p, r, live, a }: { p: PartInstance; r: Reading; 
           {a.label && <text x={a.label[0]} y={a.label[1]} fontSize={6} fontFamily={FONT} textAnchor="middle" fill="#7fd0ff" stroke="#050e26" strokeWidth={0.4}>{`${Math.round(Number(live.moisture ?? pr.moisture ?? 30))} %`}</text>}
         </>
       );
+    case "oled-ssd1306": {
+      const [d, dx, dy] = [a.screen, a.screenX, a.screenY];
+      if (!d || !dx || !dy) return null;
+      const m = [(dx[0] - d[0]) / 128, (dx[1] - d[1]) / 128, (dy[0] - d[0]) / 64, (dy[1] - d[1]) / 64, d[0], d[1]].map((v) => +v.toFixed(4)).join(" ");
+      return <OledPicture part={p.id} transform={`matrix(${m})`} />;
+    }
     case "dht22":
     case "dht11":
       return a.label ? <text x={a.label[0]} y={a.label[1]} fontSize={5.5} fontFamily={FONT} textAnchor="middle" fill="#ffb86b" stroke="#050e26" strokeWidth={0.4}>{`${Number(live.temp ?? pr.temp ?? 24).toFixed(1)}°C ${Number(live.humidity ?? pr.humidity ?? 45).toFixed(0)}%`}</text> : null;

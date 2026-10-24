@@ -182,4 +182,23 @@ describe("examples", () => {
     expect(at(1.75)).toBe("abdeg");
     expect(frames.at(-1)!.parts[seg].i_a).toBeLessThan(0.012);
   });
+
+  it("OLED display: the library draws the title, the seconds and the bar", async () => {
+    const { run, frames } = await start("oled-hello");
+    const oled = partOf("oled-hello", "oled-ssd1306");
+    run(1.6);
+    const pic = Object.assign({}, ...frames.map((f) => f.screens ?? {}))[oled] as Uint8Array;
+    const px = (x: number, y: number) => ((pic[(y >> 3) * 128 + x] >> (y & 7)) & 1) === 1;
+    const lit = (x0: number, y0: number, x1: number, y1: number) => {
+      let n = 0;
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) n += px(x, y) ? 1 : 0;
+      return n;
+    };
+    // "BuildX" at size 2 (rows 4–19), the counter line (28–35), the bar's frame (44–55).
+    expect(lit(4, 4, 76, 20)).toBeGreaterThan(80);
+    expect(lit(4, 28, 100, 36)).toBeGreaterThan(40);
+    expect(px(4, 44) && px(123, 44) && px(4, 55) && px(123, 55)).toBe(true);
+    expect(lit(0, 20, 128, 27)).toBe(0);
+    expect(frames.at(-1)!.parts[oled].on).toBe(1);
+  });
 });

@@ -129,6 +129,17 @@ export function checkCircuit(doc: CircuitDoc, netlist: Netlist = buildNetlist(do
     }
   }
 
+  // I2C devices must use the board's SDA (A4) and SCL (A5): the TWI hardware only drives those.
+  if (board) {
+    const want: Record<string, string[]> = { SDA: ["A4", "SDA"], SCL: ["A5", "SCL"] };
+    for (const p of doc.parts.filter((x) => x.type === "oled-ssd1306")) {
+      for (const [line, ok] of Object.entries(want)) {
+        const on = pinsOf(net(p.id, line)).filter(([pp, x]) => pp === board.id && (AVR_PINS[x] !== undefined || x === "SDA" || x === "SCL"));
+        if (on.length && !on.some(([, x]) => ok.includes(x))) out.push({ level: "warning", code: "i2c_wrong_pin", part: p.id, pin: line, detail: { pins: on.map(([, x]) => x).join(", "), max: ok[0] } });
+      }
+    }
+  }
+
   // The same two pins wired twice.
   const pairs = new Map<string, string>();
   for (const w of doc.wires) {
@@ -217,6 +228,11 @@ const T: Record<string, Entry> = {
     msg: { en: "{part} leaves pin {pin} floating when released.", ar: "{part} بيسيب البن {pin} سايب لما يتساب." },
     why: { en: "An input connected to nothing reads random HIGHs and LOWs.", ar: "المدخل اللي مش متوصّل بحاجة بيقرأ HIGH وLOW عشوائي." },
     fix: { en: "Use pinMode(pin, INPUT_PULLUP), or add a 10 kΩ pull-down/pull-up resistor.", ar: "استخدم pinMode(pin, INPUT_PULLUP)، أو حط مقاومة 10 كيلو pull-down أو pull-up." },
+  },
+  i2c_wrong_pin: {
+    msg: { en: "{part}: {pin} goes to {pins}, not to the board's I2C pin {max}.", ar: "{part}: {pin} رايح على {pins}، مش على بن I2C بتاع البورد {max}." },
+    why: { en: "Wire (I2C) on an Uno or Nano only uses A4 (SDA) and A5 (SCL); on other pins the device never hears its address.", ar: "مكتبة Wire ‏(I2C) على Uno أو Nano بتستخدم A4 ‏(SDA) وA5 ‏(SCL) بس؛ على بنات تانية الجهاز عمره ما هيسمع عنوانه." },
+    fix: { en: "Move SDA to A4 and SCL to A5 (on an Uno, the SDA/SCL pins by AREF are the same two).", ar: "انقل SDA على A4 وSCL على A5 (في الـUno، بنات SDA/SCL اللي جنب AREF هما نفس الاتنين)." },
   },
   duplicate_wire: {
     msg: { en: "Two wires join the same two pins.", ar: "سلكين واصلين نفس البنّين." },
