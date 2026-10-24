@@ -21,6 +21,7 @@ export type PdfRow = {
   answers: Record<string, string | string[]>;
   paid_at?: string | null;
   paid_amount?: number | null;
+  tags?: string[];
 };
 type Col = { key: string; ar: string; en?: string; wide?: boolean; ltr?: boolean; get: (r: PdfRow) => string };
 
@@ -30,7 +31,7 @@ const localPhone = (p: string) => (/^\+20(1\d{9})$/.test(p) ? `0${p.slice(3)}` :
 const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("، ") : (v ?? ""));
 
 /** Every column the PDF can have, in form order. */
-function columnsOf(fields: FormField[], paying: boolean): Col[] {
+function columnsOf(fields: FormField[], paying: boolean, grouped: boolean): Col[] {
   const cols: Col[] = [
     { key: "_ref", ar: "كود الطلب", en: "Code", ltr: true, get: (r) => r.ref },
     ...fields
@@ -46,6 +47,7 @@ function columnsOf(fields: FormField[], paying: boolean): Col[] {
     { key: "_date", ar: "تاريخ التسجيل", en: "Registered", get: (r) => fmt.day(r.created_at) },
     { key: "_status", ar: "الحالة", en: "Status", get: (r) => STATUS[r.status] },
   ];
+  if (grouped) cols.push({ key: "_groups", ar: "المجموعة", en: "Group", get: (r) => (r.tags ?? []).join("، ") });
   if (paying) cols.push({ key: "_paid", ar: "الدفع", en: "Payment", get: (r) => (r.paid_at ? `دفع ${Number(r.paid_amount ?? 0)} ج` : "لم يدفع") });
   return cols;
 }
@@ -162,21 +164,23 @@ function Page({ title, sub, cols, rows, from, page, pages, landscape, faculty, s
 }
 
 /** The column picker and the PDF itself. `rows` are the people in the order to print. */
-export function FormPdfSheet({ title, slug, fields, paying, all, shown, picked, onClose }: {
+export function FormPdfSheet({ title, slug, fields, paying, groups = [], all, shown, picked, onClose }: {
   title: string;
   /** For the file name (Latin, safe everywhere). */
   slug: string;
   fields: FormField[];
   paying: boolean;
+  /** The form's groups: each can be printed on its own. */
+  groups?: string[];
   /** Everyone, the ones on screen now (current filters), and the ones ticked (if any). */
   all: PdfRow[];
   shown: PdfRow[];
   picked: PdfRow[];
   onClose: () => void;
 }) {
-  const cols = useMemo(() => columnsOf(fields, paying), [fields, paying]);
+  const cols = useMemo(() => columnsOf(fields, paying, groups.length > 0), [fields, paying, groups.length]);
   const [keys, setKeys] = useState<string[]>(() => defaultPick(fields, paying));
-  const [who, setWho] = useState<"accepted" | "shown" | "picked" | "all">(picked.length ? "picked" : all.some((r) => r.status === "accepted") ? "accepted" : "all");
+  const [who, setWho] = useState<string>(picked.length ? "picked" : all.some((r) => r.status === "accepted") ? "accepted" : "all");
   const [head, setHead] = useState(title);
   const [faculty, setFaculty] = useState(true);
   const [signature, setSignature] = useState(true);
@@ -185,7 +189,7 @@ export function FormPdfSheet({ title, slug, fields, paying, all, shown, picked, 
   const box = useRef<HTMLDivElement>(null);
 
   const chosen = cols.filter((c) => keys.includes(c.key));
-  const rows = (who === "accepted" ? all.filter((r) => r.status === "accepted") : who === "shown" ? shown : who === "picked" ? picked : all).slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const rows = (who === "accepted" ? all.filter((r) => r.status === "accepted") : who === "shown" ? shown : who === "picked" ? picked : who.startsWith("g:") ? all.filter((r) => (r.tags ?? []).includes(who.slice(2))) : all).slice().sort((a, b) => a.created_at.localeCompare(b.created_at));
   const landscape = chosen.length > 5 || chosen.some((c) => c.wide);
   const S = landscape ? LANDSCAPE : PORTRAIT;
   const pages = rows.length <= S.first ? 1 : 1 + Math.ceil((rows.length - S.first) / S.next);
@@ -210,11 +214,12 @@ export function FormPdfSheet({ title, slug, fields, paying, all, shown, picked, 
     }
   };
 
-  const WHO: [typeof who, string, number][] = [
+  const WHO: [string, string, number][] = [
     ["accepted", "المقبولين", all.filter((r) => r.status === "accepted").length],
     ["shown", "اللي ظاهرين دلوقتي", shown.length],
-    ...(picked.length ? [["picked", "المحددين", picked.length] as [typeof who, string, number]] : []),
+    ...(picked.length ? [["picked", "المحددين", picked.length] as [string, string, number]] : []),
     ["all", "الكل", all.length],
+    ...groups.map((g) => [`g:${g}`, g, all.filter((r) => (r.tags ?? []).includes(g)).length] as [string, string, number]),
   ];
   return (
     <Sheet open onClose={onClose} title="PDF بالخانات اللي تختارها">
@@ -234,7 +239,15 @@ export function FormPdfSheet({ title, slug, fields, paying, all, shown, picked, 
         <Field label="مين يطلع في الملف">
           <div className="flex flex-wrap gap-2">
             {WHO.map(([k, ar, n]) => (
-              <Chip key={k} active={who === k} onClick={() => setWho(k)} count={n}>
+              <Chip
+                key={k}
+                active={who === k}
+                onClick={() => {
+                  setWho(k);
+                  if (k.startsWith("g:")) setHead(`${title} · ${k.slice(2)}`);
+                }}
+                count={n}
+              >
                 {ar}
               </Chip>
             ))}

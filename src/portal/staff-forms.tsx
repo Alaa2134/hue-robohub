@@ -82,8 +82,12 @@ type Response = {
   paid_at: string | null;
   paid_amount: number | null;
   paid_method: PaidMethod | null;
+  /** Groups the team put this person in after the form (a slot, a team, "on the bus"…). */
+  tags?: string[];
   created_at: string;
 };
+/** Who else this person is: their other forms, membership, and join application. */
+type Links = Record<string, { forms?: { title: string; status: Response["status"]; at: string }[]; member?: { code: string; active: boolean }; application?: { status: string; at: string } }>;
 
 const TYPES: { k: FieldType; ar: string }[] = [
   { k: "name", ar: "الاسم" },
@@ -587,6 +591,118 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   );
 }
 
+/** Under a name in the list: their groups, and whether they're a member or applied elsewhere. */
+function LinkBadges({ r, links }: { r: Response; links?: Links[string] }) {
+  const tags = r.tags ?? [];
+  const others = links?.forms?.length ?? 0;
+  if (!tags.length && !others && !links?.member) return null;
+  return (
+    <div className="mt-1 flex flex-wrap gap-1" data-testid="link-badges">
+      {tags.slice(0, 3).map((t) => (
+        <span key={t} className="rounded-full bg-volt/20 px-2 py-0.5 text-[11px] text-chalk">
+          {t}
+        </span>
+      ))}
+      {tags.length > 3 && <span className="text-[11px] text-fog">+{tags.length - 3}</span>}
+      {links?.member && <span className={`rounded-full px-2 py-0.5 text-[11px] ${links.member.active ? "bg-ok/20 text-ok" : "bg-white/10 text-fog"}`}>{links.member.active ? "عضو" : "عضو سابق"}</span>}
+      {others > 0 && <span className="rounded-full bg-[#ff7a45]/20 px-2 py-0.5 text-[11px] text-[#ffb08a]">مقدّم على {others} فورم تاني</span>}
+    </div>
+  );
+}
+
+/** In a response: the person's other forms, membership and join application. */
+function PersonLinks({ info }: { info?: Links[string] }) {
+  if (!info) return null;
+  return (
+    <Card className="grid gap-2 border-[#ff7a45]/30" data-testid="person-links">
+      <p className="text-sm font-semibold text-chalk">نفس الشخص في حاجات تانية</p>
+      {info.member && (
+        <p className="text-sm text-mist">
+          {info.member.active ? "عضو في الكوميونيتي" : "كان عضو (العضوية خلصت)"} · كود <span dir="ltr" className="font-mono">{info.member.code}</span>
+        </p>
+      )}
+      {info.application && <p className="text-sm text-mist">قدّم على الانضمام · {fmt.day(info.application.at)}</p>}
+      {(info.forms ?? []).map((x, i) => (
+        <div key={i} className="flex items-center justify-between gap-2 text-sm">
+          <span className="min-w-0 truncate text-chalk">{x.title}</span>
+          <span className="flex shrink-0 items-center gap-2 text-xs text-fog">
+            {fmt.day(x.at)} <Badge tone={RESP[x.status]?.tone ?? "info"}>{RESP[x.status]?.ar ?? x.status}</Badge>
+          </span>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+/** A response's groups: tap one to take it off, or type a new one. */
+function GroupEditor({ r, groups, onChange }: { r: Response; groups: string[]; onChange: (tags: string[]) => void }) {
+  const [name, setName] = useState("");
+  const tags = r.tags ?? [];
+  const add = (g: string) => {
+    const t = g.trim().slice(0, 40);
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setName("");
+  };
+  return (
+    <Field label="المجموعات" hint="مثلاً: ورشة السبت، فريق 2، راكب الباص. بتفلتر بيها وتطلّع PDF لكل مجموعة.">
+      <div className="grid gap-2" data-testid="group-editor">
+        <div className="flex flex-wrap gap-2">
+          {tags.map((t) => (
+            <Chip key={t} active onClick={() => onChange(tags.filter((x) => x !== t))}>
+              {t} ✕
+            </Chip>
+          ))}
+          {groups
+            .filter((g) => !tags.includes(g))
+            .slice(0, 8)
+            .map((g) => (
+              <Chip key={g} onClick={() => add(g)}>
+                + {g}
+              </Chip>
+            ))}
+        </div>
+        <div className="flex gap-2">
+          <Input placeholder="مجموعة جديدة" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && add(name)} />
+          <Button size="sm" disabled={!name.trim()} onClick={() => add(name)}>
+            ضيف
+          </Button>
+        </div>
+      </div>
+    </Field>
+  );
+}
+
+/** Put the ticked people in a group, or take them out of one. */
+function GroupSheet({ count, groups, busy, onClose, onApply }: { count: number; groups: string[]; busy: boolean; onClose: () => void; onApply: (g: string, on: boolean) => Promise<void> }) {
+  const [name, setName] = useState("");
+  return (
+    <Sheet open onClose={onClose} title={`مجموعة للمحددين (${count})`}>
+      <div className="grid gap-3" data-testid="group-sheet">
+        <Field label="اسم المجموعة" hint="اختار واحدة موجودة أو اكتب اسم جديد.">
+          <Input value={name} maxLength={40} placeholder="مثلاً: ورشة السبت" onChange={(e) => setName(e.target.value)} />
+        </Field>
+        {groups.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {groups.map((g) => (
+              <Chip key={g} active={name === g} onClick={() => setName(g)}>
+                {g}
+              </Chip>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="primary" loading={busy} disabled={!name.trim()} onClick={() => void onApply(name, true)} data-testid="group-apply">
+            حطّهم فيها
+          </Button>
+          <Button disabled={!name.trim() || busy} onClick={() => void onApply(name, false)}>
+            شيلهم منها
+          </Button>
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 /** Paid / not yet, how much was collected and what's still owed. */
 function PaymentSummary({ form, responses }: { form: Form; responses: Response[] }) {
   const live = responses.filter((r) => r.status !== "rejected");
@@ -793,7 +909,11 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
     ]);
     return { form, responses };
   }, [id]);
+  const links = useAsync(async () => ((await rpc<Links>("staff_form_links", { p_form: id }).catch(() => ({}))) ?? {}) as Links, [id]);
   const [filter, setFilter] = useState<"all" | Response["status"]>("all");
+  const [group, setGroup] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [grouping, setGrouping] = useState(false);
   const [payFilter, setPayFilter] = useState<"all" | "paid" | "unpaid">("all");
   const [open, setOpen] = useState<Response | null>(null);
   const [pick, setPick] = useState<Set<string> | null>(null);
@@ -802,8 +922,17 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [editing, setEditing] = useState<Response | "new" | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const list = useMemo(
-    () => (data?.responses ?? []).filter((r) => (filter === "all" || r.status === filter) && (payFilter === "all" || (payFilter === "paid") === !!r.paid_at)),
-    [data, filter, payFilter],
+    () => {
+      const needle = q.trim().toLowerCase();
+      return (data?.responses ?? []).filter(
+        (r) =>
+          (filter === "all" || r.status === filter) &&
+          (payFilter === "all" || (payFilter === "paid") === !!r.paid_at) &&
+          (!group || (r.tags ?? []).includes(group)) &&
+          (!needle || [r.name, r.phone, r.email, r.ref, ...Object.values(r.answers).flat()].some((v) => typeof v === "string" && v.toLowerCase().includes(needle))),
+      );
+    },
+    [data, filter, payFilter, group, q],
   );
   if (loading && !data) return <Loading />;
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
@@ -815,7 +944,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const exportXlsx = (only?: Response["status"]) => {
     const rows = data.responses.filter((r) => !only || r.status === only).sort((a, b) => a.created_at.localeCompare(b.created_at));
     downloadXlsx(`buildx-${form.slug}${only ? `-${only}` : ""}-${today()}.xlsx`, [
-      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...(paying ? ["الدفع", "المبلغ", "طريقة الدفع", "وقت الدفع"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
+      ["#", "كود الطلب", "التاريخ", "الحالة", ...(form.delegation ? ["رقم الوفد"] : []), ...(paying ? ["الدفع", "المبلغ", "طريقة الدفع", "وقت الدفع"] : []), ...(groups.length ? ["المجموعات"] : []), ...form.fields.map((fl) => fl.label_ar), ...(external ? ["سجّل في اللينك"] : []), "ملاحظة"],
       ...rows.map((r, i) => [
         i + 1,
         r.ref,
@@ -823,6 +952,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
         RESP[r.status].ar,
         ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []),
         ...(paying ? [r.paid_at ? "دفع ✓" : "لسه", r.paid_at ? Number(r.paid_amount ?? 0) : "", methodAr(r.paid_method), r.paid_at ? fmt.dateTime(r.paid_at) : ""] : []),
+        ...(groups.length ? [(r.tags ?? []).join("، ")] : []),
         ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))),
         ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []),
         r.note,
@@ -855,6 +985,22 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       toast.error(e);
       return false;
     }
+  };
+  /** Every group used in this form, the biggest first. */
+  const groups = Object.entries(
+    data.responses.flatMap((r) => r.tags ?? []).reduce<Record<string, number>>((m, g) => ((m[g] = (m[g] ?? 0) + 1), m), {}),
+  ).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  /** Put people in a group (or take them out), a few requests at a time. */
+  const setGroupFor = async (rs: Response[], g: string, on: boolean) => {
+    const name = g.trim().slice(0, 40);
+    if (!name) return;
+    const todo = rs.filter((r) => (r.tags ?? []).includes(name) !== on);
+    setBulkBusy(true);
+    let done = 0;
+    for (let i = 0; i < todo.length; i += 8)
+      done += (await Promise.all(todo.slice(i, i + 8).map((r) => update(r, { tags: on ? [...(r.tags ?? []), name] : (r.tags ?? []).filter((t) => t !== name) }, true)))).filter(Boolean).length;
+    setBulkBusy(false);
+    toast(on ? `${done} في «${name}»` : `${done} اتشالوا من «${name}»`);
   };
   const bulkPaid = async (paid: boolean) => {
     if (!pick?.size) return;
@@ -1006,6 +1152,19 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           {pick ? "إلغاء التحديد" : "تحديد أكتر من واحد"}
         </Chip>
       </div>
+      <div className="mt-3 grid gap-2">
+        <Input type="search" placeholder="دوّر بالاسم أو الموبايل أو أي إجابة…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="responses-search" />
+        {groups.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" data-testid="group-chips">
+            <span className="text-xs text-fog">المجموعات:</span>
+            {groups.map(([g, n]) => (
+              <Chip key={g} active={group === g} onClick={() => setGroup((x) => (x === g ? null : g))} count={n}>
+                {g}
+              </Chip>
+            ))}
+          </div>
+        )}
+      </div>
       {pick && (
         <Card className="sticky top-2 z-20 mt-3 grid gap-2 border-cyan/40" data-testid="bulk-bar">
           <div className="flex items-center justify-between gap-2">
@@ -1025,6 +1184,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               ارفض
             </Button>
           </div>
+          <Button size="sm" icon="users" disabled={!pick.size || bulkBusy} onClick={() => setGrouping(true)} data-testid="bulk-group">
+            حطّهم في مجموعة…
+          </Button>
           <div className="grid grid-cols-2 gap-2">
             <Button size="sm" icon="download" disabled={!pick.size} onClick={() => setPdfOpen(true)}>
               PDF للمحددين
@@ -1065,9 +1227,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       {!list.length ? (
         <Empty icon="list" title="مفيش ردود هنا" body="أول ما حد يملا الفورم على الموقع، رده بيظهر هنا." />
       ) : (
-        <List className="mt-4">
+        <List className="mt-4 lg:grid lg:grid-cols-2 lg:gap-px lg:divide-y-0 lg:bg-[var(--line)]">
           {list.map((r) => (
-            <Row key={r.id} onClick={() => (pick ? togglePick(r) : setOpen(r))}>
+            <Row key={r.id} className="lg:bg-[#0b1838]" onClick={() => (pick ? togglePick(r) : setOpen(r))}>
               <div className="flex items-center gap-3">
                 {pick && <input type="checkbox" readOnly checked={pick.has(r.id)} className="size-4 shrink-0 accent-[#2f7bff]" aria-label={`تحديد ${r.name ?? r.ref}`} />}
                 <div className="min-w-0 flex-1">
@@ -1078,6 +1240,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                     {form.delegation && r.status === "accepted" && r.member_no ? ` · ${memberId(r.member_no)}` : ""}
                     {first && r.answers[first.id] ? ` · ${show(r.answers[first.id])}` : ""}
                   </p>
+                  <LinkBadges r={r} links={links.data?.[r.id]} />
                 </div>
                 {paying && r.status !== "rejected" && <Badge tone={r.paid_at ? "ok" : "warn"}>{r.paid_at ? "دفع" : "مدفعش"}</Badge>}
                 <Badge tone={RESP[r.status].tone}>{RESP[r.status].ar}</Badge>
@@ -1086,12 +1249,26 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           ))}
         </List>
       )}
+      {grouping && pick && (
+        <GroupSheet
+          count={pick.size}
+          groups={groups.map(([g]) => g)}
+          busy={bulkBusy}
+          onClose={() => setGrouping(false)}
+          onApply={async (g, on) => {
+            await setGroupFor(data.responses.filter((r) => pick.has(r.id)), g, on);
+            setGrouping(false);
+            setPick(null);
+          }}
+        />
+      )}
       {pdfOpen && (
         <FormPdfSheet
           title={form.title_ar}
           slug={form.slug}
           fields={form.fields}
           paying={paying}
+          groups={groups.map(([g]) => g)}
           all={data.responses}
           shown={list}
           picked={pick ? data.responses.filter((r) => pick.has(r.id)) : []}
@@ -1128,7 +1305,15 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
               {form.fields.map((fl) => (
                 <div key={fl.id}>
                   <dt className="text-xs text-fog">{fl.label_ar}</dt>
-                  <dd className="whitespace-pre-line text-chalk">{fl.type === "file" && open.answers[fl.id] ? <FileAnswer path={String(open.answers[fl.id])} /> : show(open.answers[fl.id]) || "—"}</dd>
+                  <dd className="whitespace-pre-line text-chalk">
+                    {fl.type === "file" && open.answers[fl.id] ? (
+                      <FileAnswer path={String(open.answers[fl.id])} />
+                    ) : ["phone", "email", "url", "number", "member"].includes(fl.type) ? (
+                      <span dir="ltr">{show(open.answers[fl.id]) || "—"}</span>
+                    ) : (
+                      show(open.answers[fl.id]) || "—"
+                    )}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -1152,6 +1337,8 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   كلّمه على واتساب
                 </a>
               ))}
+            <GroupEditor r={open} groups={groups.map(([g]) => g)} onChange={(tags) => void update(open, { tags })} />
+            <PersonLinks info={links.data?.[open.id]} />
             {form.attendance?.on && open.pass && <PassLinkRow pass={open.pass} phone={open.phone} name={open.name} title={form.title_ar} />}
             {open.status === "accepted" && (
               <Button size="sm" icon="copy" onClick={() => copyText(acceptMessage(open), "اتنسخت رسالة القبول")}>

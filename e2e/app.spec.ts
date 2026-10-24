@@ -6728,3 +6728,116 @@ test("responses: an admin deletes an applicant, and a PDF with the picked column
   if (process.env.SAVE_PDF) copyFileSync((await pdf.path())!, process.env.SAVE_PDF);
   expect(errors).toEqual([]);
 });
+
+test("responses: who else a person is (other forms, member), groups set after the form, search, and a group's own PDF", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const form = {
+    id: "f1",
+    slug: "ai-day",
+    title_ar: "يوم الذكاء الاصطناعي",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    ],
+  };
+  const row = (id: string, name: string, tags: string[] = []) => ({
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}000000`,
+    answers: { n: name, p: "+201012345678" },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    tags,
+    created_at: at(50),
+  });
+  const rows = [row("r1", "منى عادل", ["ورشة السبت"]), row("r2", "علي حسن"), row("r3", "سارة محمود")];
+  const patches: { id: string; body: Record<string, unknown> }[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    if (route.request().method() === "PATCH") {
+      const id = (new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^eq\./, "");
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      patches.push({ id, body });
+      return route.fulfill({ json: { ...rows.find((r) => r.id === id), ...body } });
+    }
+    return route.fulfill({ json: rows });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_form_links/, (route) =>
+    route.fulfill({ json: { r2: { forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }], member: { code: "BX123", active: true } } } }),
+  );
+  await page.goto("/app/#/staff/forms/f1/responses");
+
+  // Ali is a member and applied to another form: shown on his row and inside.
+  await expect(page.getByText("مقدّم على 1 فورم تاني")).toBeVisible();
+  await expect(page.getByTestId("link-badges").getByText("عضو", { exact: true })).toBeVisible();
+  await page.getByText("علي حسن").click();
+  await expect(page.getByTestId("person-links")).toContainText("اختبارات فريق السومو");
+  await expect(page.getByTestId("person-links")).toContainText("BX123");
+  // Put him in the existing group from inside.
+  await page.getByTestId("group-editor").locator("button", { hasText: "+ ورشة السبت" }).click();
+  await expect.poll(() => patches.at(-1)).toEqual({ id: "r2", body: { tags: ["ورشة السبت"] } });
+  await page.keyboard.press("Escape");
+
+  // Tick Sara and put her in a new group.
+  await page.getByRole("button", { name: "تحديد أكتر من واحد" }).click();
+  await page.getByText("سارة محمود").click();
+  await page.getByTestId("bulk-group").click();
+  await page.getByTestId("group-sheet").getByRole("textbox").fill("الباص");
+  await page.getByTestId("group-apply").click();
+  await expect.poll(() => patches.at(-1)).toEqual({ id: "r3", body: { tags: ["الباص"] } });
+
+  // Filter by a group, then search.
+  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await expect(page.getByText("سارة محمود")).toHaveCount(0);
+  await expect(page.getByText("منى عادل")).toBeVisible();
+  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await page.getByTestId("responses-search").fill("سارة");
+  await expect(page.getByText("منى عادل")).toHaveCount(0);
+  await page.getByTestId("responses-search").fill("");
+
+  // A PDF of one group only, titled with it.
+  await page.getByTestId("form-pdf-open").click();
+  const sheet = page.getByTestId("form-pdf-sheet");
+  await sheet.locator("button", { hasText: "ورشة السبت" }).last().click();
+  await expect(sheet.getByRole("textbox").first()).toHaveValue("يوم الذكاء الاصطناعي · ورشة السبت");
+  await expect(sheet).toContainText("2 شخص");
+  const file = page.waitForEvent("download");
+  await page.getByTestId("form-pdf-make").click();
+  expect(readFileSync((await (await file).path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  expect(errors).toEqual([]);
+});

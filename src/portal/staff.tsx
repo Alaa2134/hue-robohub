@@ -439,7 +439,7 @@ export function StaffApp({
   }
   const first = (me.full_name || me.email).split(/\s+/)[0];
   return (
-    <AppShell tabs={tabs} path={path}>
+    <AppShell tabs={tabs} path={path} wide={path[0] === "forms" && path[2] === "responses"}>
       {viewOnly ? <ViewOnly areas={areas}>{screen}</ViewOnly> : screen}
       {section && section !== "more" && <BaqlozBuddy first={first} path={path.join("/")} />}
     </AppShell>
