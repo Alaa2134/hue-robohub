@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 export type Impact = {
   members: number;
@@ -42,7 +43,7 @@ export function useImpact() {
       method: "POST",
       headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
       body: "{}",
-      signal: AbortSignal.timeout(8000),
+      signal: timeoutSignal(8000),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((x: (Impact & { ok?: boolean }) | null) => {

@@ -4,6 +4,7 @@
  * two minutes in this visit; nothing personal.
  */
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 export type LiveEvent = { slug: string | null; title: string; starts_at: string; ends_at: string | null; location: string | null; rsvp_open: boolean; capacity: number | null; going: number };
 export type Live = {
@@ -22,7 +23,7 @@ export function fetchLive(): Promise<Live | null> {
     const c = JSON.parse(sessionStorage.getItem(KEY) ?? "null") as { at: number; live: Live } | null;
     if (c && Date.now() - c.at < 120_000) return Promise.resolve(c.live);
   } catch {}
-  pending ??= fetch(`${SUPABASE_URL}/rest/v1/rpc/guide_live_context`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(4000) })
+  pending ??= fetch(`${SUPABASE_URL}/rest/v1/rpc/guide_live_context`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: timeoutSignal(4000) })
     .then((r) => (r.ok ? (r.json() as Promise<Live>) : null))
     .then((live) => {
       if (live)

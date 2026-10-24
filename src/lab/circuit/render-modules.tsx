@@ -231,12 +231,13 @@ export function ModuleOverlay({ p, r, live, a }: { p: PartInstance; r: Reading; 
       const c = SEG_COLORS[String(pr.color)] ?? SEG_COLORS.red;
       const lit = segLevels(r);
       const d = a.digit;
-      if (!d || !a.digitEnd) return null;
-      // The digit area spans digit → digitEnd on the picture.
-      const w = a.digitEnd[0] - d[0];
-      const h = a.digitEnd[1] - d[1];
+      const dx = a.digitX;
+      const dy = a.digitY;
+      if (!d || !dx || !dy) return null;
+      // The digit box is given by three projected corners, so map the 30 × 52 glyph box onto it.
+      const m = [(dx[0] - d[0]) / 30, (dx[1] - d[1]) / 30, (dy[0] - d[0]) / 52, (dy[1] - d[1]) / 52, d[0], d[1]].map((v) => +v.toFixed(4)).join(" ");
       return (
-        <g transform={`translate(${d[0]} ${d[1]}) scale(${w / 30} ${h / 52}) skewX(-8)`} pointerEvents="none">
+        <g transform={`matrix(${m}) skewX(-8)`} pointerEvents="none">
           {SEGMENTS.map((s) =>
             lit[s] > 0.02 ? <path key={s} d={SEG_SHAPES[s]} fill={c.on} opacity={0.4 + 0.6 * lit[s]} style={{ filter: `drop-shadow(0 0 ${1 + 2.5 * lit[s]}px ${c.on})` }} /> : null,
           )}

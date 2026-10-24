@@ -22,6 +22,7 @@ import {
 } from "@/content/family";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { timeoutSignal } from "@/lib/timeout";
 
 type Data = {
   full_name: string;
@@ -314,7 +315,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
   useEffect(() => {
     fetch(`${SUPABASE_URL}/rest/v1/site_settings?key=eq.family&select=value`, {
       headers: { apikey: SUPABASE_KEY },
-      signal: AbortSignal.timeout(8000),
+      signal: timeoutSignal(8000),
     })
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: { value: FamilySettings }[]) => {
@@ -377,7 +378,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
             website: honey.current?.value ?? "",
           },
         }),
-        signal: AbortSignal.timeout(15_000),
+        signal: timeoutSignal(15_000),
       });
       const out = (await r.json().catch(() => null)) as
         | { ok: true; ref: string; year: string; duplicate?: boolean; group?: string | null }
