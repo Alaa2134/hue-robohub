@@ -22,8 +22,29 @@ export type Settings = {
   header_ar2: string;
   header_en1: string;
   header_en2: string;
+  /** Who the lecture excuse letter goes to (usually the vice dean for students). */
+  ex_title?: string;
+  ex_name?: string;
+  ex_role?: string;
 };
-export type Letter = { event: string; date: string; venue: string; city: string; purpose: string; leave: string; back: string; supervisors: number };
+export type Letter = {
+  event: string;
+  date: string;
+  venue: string;
+  city: string;
+  purpose: string;
+  leave: string;
+  back: string;
+  supervisors: number;
+  /** Who's in charge on each bus (bus 1 first), for the per-bus lists. */
+  bus_sups?: { name: string; phone: string }[];
+  /** The event report: what happened, and which album its photos come from. */
+  summary?: string;
+  album?: string;
+  /** The event's money: what came in besides the fees (sponsors…), and what was spent. */
+  income?: { label: string; amount: number }[];
+  expenses?: { label: string; amount: number }[];
+};
 
 export const SETTINGS: Settings = {
   to_title: "السيد الأستاذ الدكتور/",
@@ -143,13 +164,35 @@ export function listChunks<T>(all: T[]): T[][] {
   return pages.length ? pages : [[]];
 }
 
-export function ListPage({ s, l, people, from, pageNo, pages, extraLabel, last }: { s: Settings; l: Letter; people: TripPerson[]; from: number; pageNo: number; pages: number; extraLabel?: string; last: boolean }) {
+export function ListPage({ s, l, people, from, pageNo, pages, extraLabel, last, bus }: {
+  s: Settings;
+  l: Letter;
+  people: TripPerson[];
+  from: number;
+  pageNo: number;
+  pages: number;
+  extraLabel?: string;
+  last: boolean;
+  /** One bus's list: its name, how many are on it, and who's in charge. */
+  bus?: { name: string; count: number; sup?: { name: string; phone: string } };
+}) {
   const th: React.CSSProperties = { border: "1px solid #111827", padding: "6px 8px", background: "#eef1f6", fontWeight: 700, fontSize: 14, textAlign: "center" };
   const td: React.CSSProperties = { border: "1px solid #111827", padding: "5px 8px", fontSize: 14, textAlign: "start", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 0 };
   return (
     <div dir="rtl" lang="ar" translate="no" data-testid="trip-letter-page" style={page}>
       <Letterhead s={s} />
-      <h2 style={{ textAlign: "center", fontSize: 22, fontWeight: 800, margin: "22px 0 4px" }}>كشف بأسماء الطلاب المشاركين</h2>
+      <h2 style={{ textAlign: "center", fontSize: 22, fontWeight: 800, margin: "22px 0 4px" }}>{bus ? `كشف ${bus.name} (${bus.count} طالب)` : "كشف بأسماء الطلاب المشاركين"}</h2>
+      {bus?.sup?.name && (
+        <p style={{ textAlign: "center", margin: "0 0 4px", fontSize: 15 }}>
+          المشرف: <b>{bus.sup.name}</b>
+          {bus.sup.phone && (
+            <>
+              {" "}
+              · <span dir="ltr">{bus.sup.phone}</span>
+            </>
+          )}
+        </p>
+      )}
       <p dir="ltr" style={{ textAlign: "center", margin: "0 0 12px", fontSize: 16, fontWeight: 700, fontFamily: "Arial, Helvetica, sans-serif" }}>
         {l.event}
         {l.date ? ` · ${l.date.split("-").reverse().join("/")}` : ""}
@@ -193,3 +236,117 @@ export function ListPage({ s, l, people, from, pageNo, pages, extraLabel, last }
   );
 }
 
+
+
+/** The lecture excuse letter: these students were at the event that day, please count it as excused. */
+export function ExcuseLetterPage({ s, l, count }: { s: Settings; l: Letter; count: number }) {
+  const p: React.CSSProperties = { fontSize: 19, lineHeight: 1.9, margin: 0 };
+  return (
+    <div dir="rtl" lang="ar" translate="no" data-testid="trip-letter-page" style={page}>
+      <Letterhead s={s} />
+      <h1 style={{ textAlign: "center", fontSize: 30, fontWeight: 800, margin: "34px 0 26px" }}>طلب احتساب غياب بعذر</h1>
+      <p style={{ ...p, fontWeight: 700 }}>
+        {s.ex_title || s.to_title} {s.ex_name || ""}
+      </p>
+      <p style={{ ...p, fontWeight: 700 }}>{s.ex_role || "وكيل الكلية لشؤون التعليم والطلاب"}</p>
+      <p style={{ ...p, textAlign: "center", margin: "14px 0" }}>تحية طيبة وبعد،،،</p>
+      <p style={{ ...p, textAlign: "justify" }}>
+        نحيط سيادتكم علمًا بأن الطلاب الموضحة أسماؤهم بالكشف المرفق، وعددهم (<b>{count}</b>) طالبًا وطالبة من أسرة{" "}
+        <b dir="ltr" style={{ whiteSpace: "nowrap", unicodeBidi: "isolate" }}>
+          BuildX HUE
+        </b>
+        ، قد شاركوا في فعاليات <b dir="ltr" style={{ unicodeBidi: "isolate" }}>{l.event}</b>
+        {l.date && (
+          <>
+            {" "}
+            يوم <b>{arDay(l.date)}</b> الموافق <b>{arDate(l.date)}</b>
+          </>
+        )}
+        {l.venue && <> ب{l.venue.replace(/^ب(?=[\u0621-\u064A])/, "")}</>}
+        {l.city && <> بمدينة {l.city.replace(/^مدينة\s*/, "")}</>}، وقد تم تسجيل حضورهم بالفعل.
+      </p>
+      <p style={{ ...p, textAlign: "justify", marginTop: 14 }}>
+        برجاء التكرم بالموافقة على احتساب غيابهم عن المحاضرات والسكاشن في هذا اليوم بعذر، وإخطار السادة أعضاء هيئة التدريس بذلك.
+      </p>
+      <p style={{ ...p, textAlign: "center", marginTop: 16 }}>وتفضلوا بقبول وافر التحية والتقدير،،،</p>
+      <Signatures s={s} />
+      <div style={{ marginTop: "auto", textAlign: "center", fontSize: 13, color: "#4b5563" }}>مرفق: كشف بأسماء الطلاب · تحريرًا في {arDate(new Date().toISOString().slice(0, 10))}</div>
+    </div>
+  );
+}
+
+export type ReportStats = { registered: number; accepted?: number; attended?: number; paid?: number; collected?: number };
+export type ReportFeedback = { avg: number; count: number; comments: string[] };
+export const egpAr = (n: number) => `${Math.round(n).toLocaleString("en-US")} جنيه`;
+
+/** After the event: what happened, the numbers, photos, what people said, and the money. */
+export function ReportPage({ s, l, stats, photos, feedback }: { s: Settings; l: Letter; stats: ReportStats; photos: string[]; feedback?: ReportFeedback | null }) {
+  const box: React.CSSProperties = { flex: 1, border: "1px solid #d5dbe5", borderRadius: 12, padding: "10px 8px", textAlign: "center", background: "#f6f8fc" };
+  const income = (stats.collected ?? 0) + (l.income ?? []).reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const spent = (l.expenses ?? []).reduce((a, x) => a + (Number(x.amount) || 0), 0);
+  const nums: [string, number | undefined][] = [
+    ["سجّلوا", stats.registered],
+    ["اتقبلوا", stats.accepted],
+    ["حضروا فعلًا", stats.attended],
+    ["دفعوا", stats.paid],
+  ];
+  return (
+    <div dir="rtl" lang="ar" translate="no" data-testid="trip-letter-page" style={page}>
+      <Letterhead s={s} />
+      <h1 style={{ textAlign: "center", fontSize: 28, fontWeight: 800, margin: "24px 0 4px" }}>تقرير فعالية</h1>
+      <p dir="ltr" style={{ textAlign: "center", margin: 0, fontSize: 20, fontWeight: 800, fontFamily: "Arial, Helvetica, sans-serif" }}>
+        {l.event}
+      </p>
+      <p style={{ textAlign: "center", margin: "4px 0 14px", fontSize: 15, color: "#374151" }}>
+        {l.date ? `${arDay(l.date)} ${arDate(l.date)}` : ""}
+        {l.venue ? ` · ${l.venue}` : ""}
+        {l.city ? ` · ${l.city}` : ""}
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        {nums
+          .filter(([, n]) => n !== undefined)
+          .map(([k, n]) => (
+            <div key={k} style={box}>
+              <div style={{ fontSize: 26, fontWeight: 800 }}>{n}</div>
+              <div style={{ fontSize: 13, color: "#4b5563" }}>{k}</div>
+            </div>
+          ))}
+        {feedback && feedback.count > 0 && (
+          <div style={box}>
+            <div style={{ fontSize: 26, fontWeight: 800 }}>{feedback.avg.toFixed(1)} / 5</div>
+            <div style={{ fontSize: 13, color: "#4b5563" }}>تقييم الحضور ({feedback.count})</div>
+          </div>
+        )}
+      </div>
+      {l.summary?.trim() && (
+        <>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: "16px 0 4px" }}>اللي حصل في الفعالية</h2>
+          <p style={{ fontSize: 15.5, lineHeight: 1.8, margin: 0, whiteSpace: "pre-line", textAlign: "justify" }}>{l.summary.trim()}</p>
+        </>
+      )}
+      {photos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${photos.length > 4 ? 3 : 2}, 1fr)`, gap: 6, marginTop: 14 }}>
+          {photos.map((src) => (
+            <img key={src} src={src} alt="" crossOrigin="anonymous" style={{ width: "100%", height: photos.length > 4 ? 150 : 190, objectFit: "cover", borderRadius: 8 }} />
+          ))}
+        </div>
+      )}
+      {feedback && feedback.comments.length > 0 && (
+        <>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: "14px 0 4px" }}>من كلام الحضور</h2>
+          {feedback.comments.slice(0, 3).map((c, i) => (
+            <p key={i} style={{ fontSize: 14.5, margin: "2px 0", color: "#374151" }}>
+              «{c.length > 180 ? `${c.slice(0, 180)}…` : c}»
+            </p>
+          ))}
+        </>
+      )}
+      {(income > 0 || spent > 0) && (
+        <p style={{ fontSize: 15, margin: "14px 0 0", padding: "8px 12px", background: "#f6f8fc", border: "1px solid #d5dbe5", borderRadius: 10 }}>
+          الحسابات: الدخل <b>{egpAr(income)}</b> · المصروفات <b>{egpAr(spent)}</b> · الفرق <b>{egpAr(income - spent)}</b>
+        </p>
+      )}
+      <Signatures s={s} />
+    </div>
+  );
+}

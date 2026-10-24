@@ -89,6 +89,12 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
   const [bus, setBus] = useState(false);
+  // What attendees said, for the event report.
+  const feedback = useAsync(async () => {
+    if (!bus) return null;
+    const rows = (await sb().from("event_feedback").select("rating, comment").eq("event_id", id).then(must)) as { rating: number; comment: string | null }[];
+    return rows.length ? { avg: rows.reduce((a, f) => a + f.rating, 0) / rows.length, count: rows.length, comments: rows.map((f) => f.comment?.trim() ?? "").filter((c) => c.length > 10) } : null;
+  }, [bus, id]);
 
   const list = useMemo(() => regs.data ?? [], [regs.data]);
   const counts = useMemo(() => {
@@ -169,8 +175,8 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
         back="/staff/events"
         actions={
           <>
-            <Button size="sm" icon="download" onClick={() => setBus(true)} disabled={!list.length} data-testid="trip-letter-open" aria-label="خطاب طلب أتوبيس">
-              أتوبيس
+            <Button size="sm" icon="download" onClick={() => setBus(true)} disabled={!list.length} data-testid="trip-letter-open" aria-label="ملف الفعالية: أتوبيس، اعتذار، تقرير، حسابات، شهادات">
+              ملف الفعالية
             </Button>
             <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
               Excel
@@ -306,8 +312,11 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
           sets={[
             ["going", "المؤكَّدين", list.filter((r) => r.status === "going").map(person)],
             ["all", "المؤكَّدين + الانتظار", list.filter((r) => r.status !== "cancelled").map(person)],
-            ["inside", "اللي دخلوا", list.filter((r) => r.checked_in_at).map(person)],
+            ...(list.some((r) => r.checked_in_at) ? [["attended", "اللي دخلوا", list.filter((r) => r.checked_in_at).map(person)] as [string, string, ReturnType<typeof person>[]]] : []),
           ]}
+          me={me}
+          stats={{ registered: list.filter((r) => r.status !== "cancelled").length, accepted: counts.going, attended: counts.inside || undefined }}
+          feedback={feedback.data}
           extraLabel={list.some((r) => r.faculty) ? "الكلية" : undefined}
           onClose={() => setBus(false)}
         />
