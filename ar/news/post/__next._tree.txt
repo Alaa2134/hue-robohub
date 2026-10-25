@@ -1,6 +1,6 @@
-:HL["/_next/static/chunks/32wqg7sanpmjv.css","style"]
+:HL["/_next/static/chunks/2bqtq_e-_12an.css","style"]
 :HL["/_next/static/chunks/3g-0s2tor5w1d.css","style"]
 :HL["/_next/static/media/inter_var-s.p.0gsaq8ukbf34m.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/saira_var-s.p.3w92cxw311nh2.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/brand/logo-badge-160.png","image"]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"locale","param":{"type":"d","key":"ar","siblings":["app","lab"]},"prefetchHints":4144,"slots":{"children":{"name":"news","param":null,"prefetchHints":4160,"slots":{"children":{"name":"post","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}}}},"staleTime":300,"buildId":"IE3-Yo9UsXBp_rr-K4C_U"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"locale","param":{"type":"d","key":"ar","siblings":["app","lab"]},"prefetchHints":4144,"slots":{"children":{"name":"news","param":null,"prefetchHints":4160,"slots":{"children":{"name":"post","param":null,"prefetchHints":4192,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}}}},"staleTime":300,"buildId":"PQJzir4G86-OXkJ4YWHbQ"}
