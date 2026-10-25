@@ -7165,3 +7165,52 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   delete RPC.staff_trip_letter;
   expect(errors).toEqual([]);
 });
+
+test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), and save prices and how to pay", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_ai3d_overview = {
+    settings: { enabled: false, key_set: true, ai_model: null, cost_text: 1, cost_image: 1, textured: true, packages: [{ credits: 1, price: 60 }, { credits: 5, price: 250 }], pay_ar: null, pay_en: null, free_credits: 0 },
+    stats: { wallets: 1, done: 0, failed: 0, active: 0, income: 0, pending: 1 },
+    topups: [{ id: "t1", wallet: "w1", code: "X3D-1A2B3C4D", name: "Mona Adel", phone: "+201012345678", credits: 5, amount: 250, method: "vodafone_cash", sender: "01099999999", receipt: "r/w1/x.jpg", status: "pending", note: null, created_at: at(30) }],
+    jobs: [],
+    wallets: [{ id: "w1", code: "X3D-1A2B3C4D", name: "Mona Adel", phone: "+201012345678", credits: 0, blocked: false, created_at: at(60), seen_at: at(10), models: 0 }],
+  };
+  RPC.staff_ai3d_topup_review = { ok: true, name: "Mona Adel", phone: "+201012345678", code: "X3D-1A2B3C4D", credits: 5 };
+  await signInAsOwner(page, calls);
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.route(/\/storage\/v1\/object\/sign\/ai3d\//, (route) => route.fulfill({ json: { signedURL: "/object/sign/ai3d/r/w1/x.jpg?token=t" } }));
+  await page.route(/\/storage\/v1\/object\/sign\/ai3d\/.*token=t/, (route) => route.fulfill({ body: png, contentType: "image/png" }));
+  await page.addInitScript(() => {
+    const set = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (k === "bx-wa-handoff") (window as unknown as { handoff: string }).handoff = v;
+      return set.call(this, k, v);
+    };
+  });
+  await page.goto("/app/#/staff/ai3d");
+  const card = page.getByTestId("ai3d-pending");
+  await expect(card).toContainText("Mona Adel");
+  await expect(card).toContainText("5 كريدت");
+  await expect(page.getByTestId("ai3d-receipt-img")).toBeVisible();
+  await page.getByTestId("ai3d-approve").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_ai3d_topup_review")?.body).toEqual({ p_id: "t1", p_approve: true, p_note: null });
+  await expect(page).toHaveURL(/#\/staff\/whatsapp/);
+  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { phone: string }[]; text: string };
+  expect(handoff.people[0].phone).toBe("+201012345678");
+  expect(handoff.text).toContain("اتضاف 5 كريدت");
+
+  // Settings: how to pay and a new price.
+  await page.goto("/app/#/staff/ai3d");
+  await page.getByRole("button", { name: "الإعدادات" }).click();
+  await page.getByLabel("طريقة الدفع (بالعربي)").fill("فودافون كاش: 01000000000");
+  await page.getByLabel("السعر").first().fill("70");
+  await page.getByTestId("ai3d-settings-save").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_ai3d_settings_save")?.body).toMatchObject({
+    p: { pay_ar: "فودافون كاش: 01000000000", packages: [{ credits: 1, price: 70 }, { credits: 5, price: 250 }] },
+  });
+  delete RPC.staff_ai3d_overview;
+  delete RPC.staff_ai3d_topup_review;
+  expect(errors).toEqual([]);
+});

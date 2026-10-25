@@ -70,6 +70,7 @@ import { AwardBanner, BellButton, NotificationsScreen, OverviewScreen } from "./
 import { BaqlozBuddy, BaqlozCoach, useStaffReminders, type Reminder } from "./baqloz";
 import { MeetingScreen, MeetingsScreen } from "./team-meetings";
 import { InventoryScreen } from "./inventory";
+import { Ai3dScreen } from "./ai3d";
 import { XpHomeCard, XpScreen } from "./team-xp";
 import {
   Badge,
@@ -137,6 +138,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   pages: "pages",
   whatsapp: "whatsapp",
   email: "email",
+  ai3d: "ai3d",
 };
 const areasOf = (section: string | undefined): Area[] => {
   const a = section ? AREA_OF[section] : undefined;
@@ -424,6 +426,9 @@ export function StaffApp({
       break;
     case "whatsapp":
       screen = <WhatsAppScreen me={me} />;
+      break;
+    case "ai3d":
+      screen = <Ai3dScreen me={me} />;
       break;
     case "email":
       screen = <EmailScreen me={me} />;
@@ -821,6 +826,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
       label: "واتساب (الربط والرسايل)",
       to: "/staff/whatsapp",
       show: isFull(me) || canSee(me, "whatsapp"),
+    },
+    {
+      icon: "layers",
+      label: "BuildX 3D AI (الشحن، الموديلات، الأسعار)",
+      to: "/staff/ai3d",
+      show: isFull(me) || canSee(me, "ai3d"),
     },
     {
       icon: "mail",
