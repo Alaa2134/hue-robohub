@@ -127,6 +127,18 @@ const C = {
     qrNot: "لسه",
     qrNotFound: "مش لاقيين الـ QR ده. لو سجّلت، تابع طلبك بالكود ورقم موبايلك وهيظهرلك تاني.",
     badNid: "الرقم القومي ده مش مظبوط. راجع الـ14 رقم اللي على البطاقة.",
+    friendPh: "رقم موبايله أو كود طلبه",
+    friendHelp: "لو جاي مع صاحبك وهو سجّل قبلك، اكتب رقم موبايله أو كود طلبه (F-…).",
+    friendFind: "دوّر",
+    friendIs: (n: string) => `صاحبك ${n}؟`,
+    friendYes: "أيوه، ده صاحبي",
+    friendNo: "لأ، مش هو",
+    friendOk: (n: string) => `هتيجي مع ${n}`,
+    friendChange: "غيّر",
+    friendNone: "مش لاقيين حد بالرقم أو الكود ده في الفورم ده. صاحبك لازم يكون سجّل الأول.",
+    friendBusy: "جرّبت كتير، استنى شوية وجرّب تاني.",
+    friendConfirm: "أكّد اسم صاحبك الأول، أو امسح الخانة.",
+    badFriend: "صاحبك مش متسجّل في الفورم ده.",
     nidLeft: (n: number) => (n === 1 ? "فاضل رقم واحد" : n === 2 ? "فاضل رقمين" : `فاضل ${n} ${n <= 10 ? "أرقام" : "رقم"}`),
     nidOk: (born: string, gov: string) => `✓ مواليد ${born} · ${gov}`,
     more: "اقرا التفاصيل كلها",
@@ -247,6 +259,18 @@ const C = {
     qrNot: "Not yet",
     qrNotFound: "We can't find this QR. If you registered, check your application with your code and mobile number and it shows again.",
     badNid: "That national ID doesn't look right. Check the 14 digits on your ID card.",
+    friendPh: "Their mobile number or request code",
+    friendHelp: "Coming with a friend who signed up before you? Type their mobile number or request code (F-…).",
+    friendFind: "Find",
+    friendIs: (n: string) => `Is your friend ${n}?`,
+    friendYes: "Yes, that's my friend",
+    friendNo: "No, not them",
+    friendOk: (n: string) => `Coming with ${n}`,
+    friendChange: "Change",
+    friendNone: "No one with that number or code signed up to this form. Your friend needs to sign up first.",
+    friendBusy: "Too many tries. Wait a bit and try again.",
+    friendConfirm: "Confirm your friend's name first, or clear the box.",
+    badFriend: "Your friend hasn't signed up to this form.",
     nidLeft: (n: number) => `${n} more digit${n === 1 ? "" : "s"}`,
     nidOk: (born: string, gov: string) => `✓ Born ${born} · ${gov}`,
     more: "Read all the details",
@@ -567,7 +591,7 @@ export function WaitlistForm({ locale }: { locale: string }) {
 
 /* ─── Forms built in the app ───────────────────────────────────────────── */
 
-export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file" | "nid";
+export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file" | "nid" | "friend";
 /** The form someone without a community membership sends to ask the organiser for an interview. */
 export const INTERVIEW_FORM = "membership-interview";
 export type FileAccept = "image" | "pdf" | "video" | "any";
@@ -765,6 +789,132 @@ function Intro({ text, l }: { text: string; l: Locale }) {
   );
 }
 
+type FriendHit = { ref: string; name: string };
+
+/**
+ * "Coming with a friend": type their mobile or request code, see their name, confirm. The answer is
+ * their request code (the server checks they're in the same form). Typing without confirming is
+ * reported as pending, so the form asks to confirm before sending.
+ */
+function FriendField({ id, slug, locale, error, value, onChange, onPending }: { id: string; slug: string; locale: Locale; error?: string; value: string; onChange: (ref: string) => void; onPending: (p: boolean) => void }) {
+  const t = C[locale];
+  const [q, setQ] = useState("");
+  const [state, setState] = useState<"idle" | "look" | "hit" | "none" | "busy">("idle");
+  const [hit, setHit] = useState<FriendHit | null>(null);
+  const [chosen, setChosen] = useState<FriendHit | null>(null);
+  const seq = useRef(0);
+  const ready = (v: string) => {
+    const d = asciiDigits(v).replace(/\s/g, "");
+    return /^(\+?2)?01\d{9}$/.test(d) || /^F-?[0-9A-F]{8}$/i.test(d);
+  };
+  const find = async (v = q) => {
+    if (asciiDigits(v).trim().length < 4) return;
+    const n = ++seq.current;
+    setState("look");
+    try {
+      const out = await rpc<{ ok: boolean; found?: boolean; ref?: string; name?: string; error?: string }>("form_friend", { p_slug: slug, p_query: asciiDigits(v.trim()) });
+      if (n !== seq.current) return;
+      if (out.ok && out.found && out.ref) {
+        setHit({ ref: out.ref, name: out.name || out.ref });
+        setState("hit");
+      } else setState(out.error === "rate_limited" ? "busy" : "none");
+    } catch {
+      if (n === seq.current) setState("none");
+    }
+  };
+  // A restored or changed answer without a confirmed name starts over.
+  useEffect(() => {
+    if (!value && chosen) setChosen(null);
+  }, [value, chosen]);
+  useEffect(() => onPending(!chosen && q.trim() !== ""), [q, chosen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (chosen && value)
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-ok/40 bg-ok/10 px-4 py-3" data-testid={`friend-ok-${id}`}>
+        <Icon name="check" className="size-5 shrink-0 text-ok" />
+        <p className="min-w-0 flex-1 font-semibold text-chalk">{t.friendOk(chosen.name)}</p>
+        <button
+          type="button"
+          className="text-sm font-semibold text-cyan underline-offset-4 hover:underline"
+          onClick={() => {
+            setChosen(null);
+            setHit(null);
+            setState("idle");
+            setQ("");
+            onChange("");
+          }}
+        >
+          {t.friendChange}
+        </button>
+      </div>
+    );
+  return (
+    <div className="grid gap-2">
+      <div className="flex gap-2">
+        <input
+          {...aria(id, error)}
+          className={cn(inputCls, "min-w-0 flex-1")}
+          maxLength={40}
+          value={q}
+          dir="ltr"
+          autoComplete="off"
+          inputMode="text"
+          placeholder={t.friendPh}
+          onChange={(e) => {
+            const v = e.target.value;
+            setQ(v);
+            setHit(null);
+            setState("idle");
+            if (ready(v)) void find(v);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void find();
+            }
+          }}
+        />
+        <button type="button" className="btn btn-sm shrink-0" disabled={state === "look" || asciiDigits(q).trim().length < 4} onClick={() => void find()} data-testid={`friend-find-${id}`}>
+          {state === "look" ? "…" : t.friendFind}
+        </button>
+      </div>
+      {state === "hit" && hit && (
+        <div className="grid gap-3 rounded-xl border border-cyan/40 bg-volt/10 p-4" role="status" data-testid={`friend-hit-${id}`}>
+          <p className="text-lg font-bold text-chalk">{t.friendIs(hit.name)}</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={() => {
+                setChosen(hit);
+                onChange(hit.ref);
+              }}
+            >
+              {t.friendYes}
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => {
+                setHit(null);
+                setState("idle");
+                setQ("");
+              }}
+            >
+              {t.friendNo}
+            </button>
+          </div>
+        </div>
+      )}
+      {(state === "none" || state === "busy") && (
+        <p className="text-sm text-warn" role="status">
+          {state === "busy" ? t.friendBusy : t.friendNone}
+        </p>
+      )}
+    </div>
+  );
+}
+
 const draftKey = (slug: string) => `bx-form-draft:${slug}`;
 type Answers = Record<string, string | string[] | boolean>;
 /** Short single-choice questions show as buttons (one tap) instead of a dropdown. */
@@ -788,6 +938,8 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   const [ref, setRef] = useState("");
   const [pass, setPass] = useState("");
   const [viewPass, setViewPass] = useState("");
+  /** Friend questions with something typed but no friend confirmed yet. */
+  const [pending, setPending] = useState<Record<string, boolean>>({});
   const [fs, setFs] = useState<Record<string, FileState>>({});
   const elapsed = useElapsed();
 
@@ -805,7 +957,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
         // Answers typed earlier on this device.
         try {
           const saved = JSON.parse(localStorage.getItem(draftKey(s)) ?? "null") as Answers | null;
-          const ids = new Set((f.fields ?? []).filter((x) => x.type !== "file" && x.type !== "nid").map((x) => x.id));
+          const ids = new Set((f.fields ?? []).filter((x) => x.type !== "file" && x.type !== "nid" && x.type !== "friend").map((x) => x.id));
           const keep = saved ? Object.fromEntries(Object.entries(saved).filter(([k]) => ids.has(k))) : {};
           if (Object.values(keep).some((v) => (Array.isArray(v) ? v.length : v))) {
             setA(keep);
@@ -823,8 +975,8 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     if (!slug || !form?.open || done) return;
     const id = window.setTimeout(() => {
       try {
-        // Not files (they upload again) nor national IDs (they stay off the device, like the family form).
-        const files = new Set((form.fields ?? []).filter((x) => x.type === "file" || x.type === "nid").map((x) => x.id));
+        // Not files (they upload again), national IDs (they stay off the device, like the family form) or a friend (looked up again).
+        const files = new Set((form.fields ?? []).filter((x) => x.type === "file" || x.type === "nid" || x.type === "friend").map((x) => x.id));
         const keep = Object.fromEntries(Object.entries(a).filter(([k]) => !files.has(k)));
         if (Object.keys(keep).length) localStorage.setItem(draftKey(slug), JSON.stringify(keep));
       } catch {
@@ -937,9 +1089,10 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       setFile(x.id, { ...base, status: "error", progress: 0, error: e instanceof MediaError ? mediaErrorText(e, l) : t.fileBad });
     }
   };
-  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember, nid: t.badNid };
+  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember, nid: t.badNid, friend: t.badFriend };
   const needed = fields.filter((x) => x.required);
   const missing = needed.filter((x) => !answered(x, a[x.id]));
+  const unconfirmed = fields.some((x) => x.type === "friend" && pending[x.id]);
   const goTo = (id: string) => {
     const el = document.getElementById(`ff-${id}`);
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -951,6 +1104,10 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     for (const x of fields) {
       const v = a[x.id];
       const s = typeof v === "string" ? v.trim() : "";
+      if (x.type === "friend" && pending[x.id]) {
+        e[x.id] = t.friendConfirm;
+        continue;
+      }
       if (x.type === "file" && (fs[x.id]?.status === "prep" || fs[x.id]?.status === "up")) {
         e[x.id] = t.fileWait;
         continue;
@@ -1195,6 +1352,23 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
               </Row>
             );
           }
+          if (x.type === "friend")
+            return (
+              <Row key={x.id} id={id} label={label} optional={opt} error={err} hint={helpOf(x, l) || t.friendHelp}>
+                <FriendField
+                  id={id}
+                  slug={slug}
+                  locale={l}
+                  error={err}
+                  value={s}
+                  onChange={(ref) => set(x.id, ref)}
+                  onPending={(p) => {
+                    setPending((m) => (!!m[x.id] === p ? m : { ...m, [x.id]: p }));
+                    if (!p && errors[x.id] === t.friendConfirm) setErrors((e) => ({ ...e, [x.id]: "" }));
+                  }}
+                />
+              </Row>
+            );
           if (x.type === "member")
             return (
               <div key={x.id} className="grid gap-2">
@@ -1248,8 +1422,8 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
         )}
         <div className="grid gap-3">
           {needed.length > 0 && (
-            <p className={cn("text-sm", missing.length ? "text-warn" : "text-ok")} data-testid="form-left">
-              {missing.length ? t.left(missing.length) : t.allDone}
+            <p className={cn("text-sm", missing.length || unconfirmed ? "text-warn" : "text-ok")} data-testid="form-left">
+              {missing.length ? t.left(missing.length) : unconfirmed ? t.friendConfirm : t.allDone}
               {missing.length > 0 && (
                 <button type="button" onClick={() => goTo(missing[0].id)} className="ms-2 font-semibold text-cyan underline-offset-4 hover:underline">
                   {t.goFirst}

@@ -6719,7 +6719,7 @@ test("forms on a phone: the list goes straight to each form's responses with wha
     paid_method: paid ? "cash" : null,
     created_at: at(50),
   });
-  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", false)];
+  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", true)];
   const patches: Record<string, unknown>[] = [];
   await page.route(/\/rest\/v1\/forms/, (route) => {
     if (route.request().method() === "PATCH") {
@@ -6754,6 +6754,11 @@ test("forms on a phone: the list goes straight to each form's responses with wha
   await expect(row("علي حسن")).toContainText("مدفعش");
   await expect(row("سارة محمود")).not.toContainText("مدفعش");
   await expect(row("هاجر سامي")).not.toContainText("مدفعش");
+  // Someone on the waiting list who paid isn't counted: paid and collected are the accepted only.
+  await expect(row("هاجر سامي")).not.toContainText("دفع");
+  await expect(page.getByTestId("payment-summary").locator("p").first()).toHaveText("1");
+  await expect(page.getByTestId("payment-summary")).toContainText("مقبولين دفعوا");
+  await expect(page.getByRole("button", { name: /^دفعوا/ })).toContainText("1");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
   // The editor: questions come first, the parts row jumps, a question is copied, and a save bar follows the page.
@@ -6781,6 +6786,107 @@ test("forms on a phone: the list goes straight to each form's responses with wha
   expect(saved.fields[3]).toMatchObject({ type: "select", label_ar: "السنة الدراسية", options: [{ ar: "أولى" }, { ar: "تانية" }] });
   expect(new Set(saved.fields.map((x) => x.id)).size).toBe(4);
   await expect(page.getByTestId("form-unsaved")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("coming with a friend: the editor adds the question, and each person shows who they came with (and who came with them)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "mena-trip",
+    title_ar: "رحلة القمة",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "w", type: "friend", label_ar: "جاي مع حد من صحابك؟", required: false },
+    ],
+  };
+  const resp = (id: string, ref: string, name: string, friend?: string) => ({
+    id,
+    form_id: "f1",
+    ref,
+    answers: { n: name, p: "+201012345678", ...(friend ? { w: friend } : {}) },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    tags: [],
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    created_at: at(50),
+  });
+  const rows = [resp("r1", "F-1A2B3C4D", "منى عادل"), resp("r2", "F-5E6F7A8B", "يوسف خالد", "F-1A2B3C4D")];
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+  });
+  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows, headers: { "content-range": `0-1/${rows.length}` } }));
+
+  await page.goto("/app/#/staff/forms/f1/responses");
+  // The list shows the friend's name, not their code.
+  await expect(page.locator("button", { hasText: "يوسف خالد" })).toContainText("منى عادل (F-1A2B3C4D)");
+  await page.getByText("يوسف خالد").click();
+  await expect(page.getByTestId("friend-answer")).toContainText("منى عادل");
+  await page.getByTestId("friend-answer").click();
+  await expect(page.getByRole("dialog")).toContainText("F-1A2B3C4D");
+  await expect(page.getByTestId("came-with")).toContainText("يوسف خالد");
+  await page.keyboard.press("Escape");
+
+  // Editing by hand: the friend is picked from the people in the form.
+  await page.getByText("منى عادل").first().click();
+  await page.getByTestId("response-edit").click();
+  const friendPick = page.getByTestId("response-editor").getByLabel("جاي مع حد من صحابك؟");
+  await expect(friendPick.locator("option")).toHaveText(["— مش جاي مع حد —", "يوسف خالد (F-5E6F7A8B)"]);
+  await page.keyboard.press("Escape");
+
+  // The editor: a "with a friend" question in one tap, and a text question about friends gets the tip.
+  await page.goto("/app/#/staff/forms/f1");
+  await page.getByRole("button", { name: "نص قصير" }).click();
+  await page.getByPlaceholder("السؤال بالعربي").last().fill("اسم صاحبك اللي جاي معاك");
+  await expect(page.getByTestId("field-tip")).toContainText("جاي مع صاحبه");
+  await page.getByRole("button", { name: "خليه «جاي مع صاحبه»" }).click();
+  await page.getByRole("button", { name: "جاي مع صاحبه", exact: true }).click();
+  await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
+  await expect.poll(() => patches.length).toBe(1);
+  const saved = patches[0] as { fields: { type: string; label_ar: string; required?: boolean }[] };
+  expect(saved.fields.slice(-2)).toMatchObject([
+    { type: "friend", label_ar: "اسم صاحبك اللي جاي معاك" },
+    { type: "friend", label_ar: "جاي مع حد من صحابك؟", required: false },
+  ]);
   expect(errors).toEqual([]);
 });
 
