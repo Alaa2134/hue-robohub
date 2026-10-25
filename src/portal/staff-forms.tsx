@@ -737,12 +737,15 @@ function GroupSheet({ count, groups, busy, onClose, onApply }: { count: number; 
   );
 }
 
-/** Paid / not yet, how much was collected and what's still owed. */
-function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: Response[]; /** WhatsApp to everyone not paid yet. */ onRemind?: () => void }) {
-  const live = responses.filter((r) => r.status !== "rejected");
-  const paid = live.filter((r) => r.paid_at);
+/** The fee is owed once someone is accepted: "not paid yet" counts the accepted ones only. */
+const owes = (r: Response) => r.status === "accepted" && !r.paid_at;
+
+/** Paid / not yet (of the accepted), how much was collected and what's still owed. */
+function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: Response[]; /** WhatsApp to the accepted who haven't paid yet. */ onRemind?: () => void }) {
+  const paid = responses.filter((r) => r.paid_at);
+  const unpaid = responses.filter(owes);
   const collected = paid.reduce((a, r) => a + Number(r.paid_amount ?? 0), 0);
-  const owed = (live.length - paid.length) * Number(form.payment?.amount ?? 0);
+  const owed = unpaid.length * Number(form.payment?.amount ?? 0);
   return (
     <Card className="mt-3 grid grid-cols-3 gap-2 text-center" data-testid="payment-summary">
       <div>
@@ -750,19 +753,19 @@ function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: 
         <p className="text-xs text-fog">دفعوا</p>
       </div>
       <div>
-        <p className="text-2xl font-bold text-warn">{live.length - paid.length}</p>
-        <p className="text-xs text-fog">لسه</p>
+        <p className="text-2xl font-bold text-warn">{unpaid.length}</p>
+        <p className="text-xs text-fog">مقبولين لسه مدفعوش</p>
       </div>
       <div>
         <p className="text-lg font-bold text-chalk">{egp(collected)}</p>
         <p className="text-xs text-fog">اتجمع{owed > 0 ? ` · فاضل ${egp(owed)}` : ""}</p>
       </div>
-      {onRemind && live.length > paid.length && (
+      {onRemind && unpaid.length > 0 && (
         <div className="col-span-3 flex flex-wrap items-center justify-center gap-2 border-t border-[var(--line)] pt-2">
           <Button size="sm" icon="chat" onClick={onRemind} data-testid="remind-unpaid">
-            فكّر اللي لسه مدفعوش ({live.length - paid.length})
+            فكّر المقبولين اللي لسه مدفعوش ({unpaid.length})
           </Button>
-          <span className="text-xs text-fog">وبيتبعتلهم تذكير لوحده كل يومين لحد ما يدفعوا (للي بيسجّلوا من دلوقتي)</span>
+          <span className="text-xs text-fog">وبيتبعت للمقبولين تذكير لوحده كل يومين بعد القبول لحد ما يدفعوا (للي بيسجّلوا من دلوقتي)</span>
         </div>
       )}
     </Card>
@@ -982,7 +985,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       return (data?.responses ?? []).filter(
         (r) =>
           (filter === "all" || r.status === filter) &&
-          (payFilter === "all" || (payFilter === "paid") === !!r.paid_at) &&
+          (payFilter === "all" || (payFilter === "paid" ? !!r.paid_at : owes(r))) &&
           (!group || (r.tags ?? []).includes(group)) &&
           (!needle || [r.name, r.phone, r.email, r.ref, ...Object.values(r.answers).flat()].some((v) => typeof v === "string" && v.toLowerCase().includes(needle))),
       );
@@ -1207,12 +1210,12 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           onRemind={
             me && can(me, "whatsapp")
               ? () => {
-                  const unpaid = data.responses.filter((r) => r.status !== "rejected" && !r.paid_at);
+                  const unpaid = data.responses.filter(owes);
                   const how = form.payment?.note_ar?.trim();
                   sendOnWhatsApp(
                     unpaid.map((r) => ({ ...r, vars: waVars(r) })),
                     {
-                      label: `اللي لسه مدفعوش في «${form.title_ar}» (${unpaid.length})`,
+                      label: `المقبولين اللي لسه مدفعوش في «${form.title_ar}» (${unpaid.length})`,
                       context: `form:${id}:unpaid`,
                       text: `أهلًا، تذكير برسوم «${form.title_ar}» من BuildX HUE: ${Number(form.payment?.amount ?? 0)} جنيه لسه مستنية الدفع.${how ? `\nطريقة الدفع: ${how}` : ""}\nاكتب كود طلبك {code} في رسالة التحويل، وتابع طلبك من هنا: {link}\nولو دفعت خلاص تجاهل الرسالة دي.`,
                     },
@@ -1236,7 +1239,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
             <Chip active={payFilter === "paid"} onClick={() => setPayFilter((v) => (v === "paid" ? "all" : "paid"))} count={data.responses.filter((r) => r.paid_at).length}>
               دفعوا
             </Chip>
-            <Chip active={payFilter === "unpaid"} onClick={() => setPayFilter((v) => (v === "unpaid" ? "all" : "unpaid"))} count={data.responses.filter((r) => !r.paid_at && r.status !== "rejected").length}>
+            <Chip active={payFilter === "unpaid"} onClick={() => setPayFilter((v) => (v === "unpaid" ? "all" : "unpaid"))} count={data.responses.filter(owes).length}>
               لسه مدفعوش
             </Chip>
           </>
