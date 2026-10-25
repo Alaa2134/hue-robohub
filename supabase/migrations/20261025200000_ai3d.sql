@@ -131,12 +131,16 @@ $$;
 revoke all on function public.ai3d_upload_ok(text) from public;
 grant execute on function public.ai3d_upload_ok(text) to anon, authenticated;
 
-drop policy if exists ai3d_insert on storage.objects;
-create policy ai3d_insert on storage.objects for insert to anon, authenticated
-  with check (bucket_id = 'ai3d' and public.ai3d_upload_ok(name));
-drop policy if exists ai3d_select on storage.objects;
-create policy ai3d_select on storage.objects for select to authenticated
-  using (bucket_id = 'ai3d' and (select private.can_read('ai3d')));
+do $$ begin
+if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'ai3d_insert') then
+  create policy ai3d_insert on storage.objects for insert to anon, authenticated
+    with check (bucket_id = 'ai3d' and public.ai3d_upload_ok(name));
+end if;
+if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'ai3d_select') then
+  create policy ai3d_select on storage.objects for select to authenticated
+    using (bucket_id = 'ai3d' and (select private.can_read('ai3d')));
+end if;
+end $$;
 
 -- ─────────────────────────────────────────────────────────────── helpers
 create or replace function private.ai3d_wallet(p_token text) returns public.ai3d_wallets
