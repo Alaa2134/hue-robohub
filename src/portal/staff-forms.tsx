@@ -110,6 +110,7 @@ const TYPES: { k: FieldType; ar: string }[] = [
   { k: "url", ar: "رابط" },
   { k: "checkbox", ar: "موافقة (صح)" },
   { k: "member", ar: "رقم عضوية الكميونيتي" },
+  { k: "nid", ar: "الرقم القومي" },
   { k: "file", ar: "ملف (صورة / PDF / فيديو)" },
 ];
 const ACCEPTS: { k: FileAccept; ar: string }[] = [
@@ -119,6 +120,30 @@ const ACCEPTS: { k: FileAccept; ar: string }[] = [
   { k: "any", ar: "أي واحد منهم" },
 ];
 const typeAr = (k: string) => TYPES.find((x) => x.k === k)?.ar ?? k;
+
+/** A nudge when a question's type doesn't fit what it asks (an ID typed as free text, yes/no as multi-choice…). */
+function FieldTip({ field, onFix }: { field: FormField; onFix: (p: Partial<FormField>) => void }) {
+  const opts = field.options ?? [];
+  const tip =
+    /قوم[يى]|national\s*id/i.test(`${field.label_ar} ${field.label_en ?? ""}`) && field.type !== "nid"
+      ? { text: "ده شكله سؤال رقم قومي. خليه من نوع «الرقم القومي» عشان الموقع يتأكد من الـ14 رقم ويقبل الأرقام العربي.", fix: { type: "nid" as FieldType, options: undefined }, label: "خليه رقم قومي" }
+      : /(e-?mail|ايميل|إيميل|الإيميل|البريد)/i.test(field.label_ar) && !["email", "checkbox"].includes(field.type)
+        ? { text: "ده شكله سؤال إيميل. خليه من نوع «إيميل» عشان الموقع يتأكد إنه مكتوب صح.", fix: { type: "email" as FieldType, options: undefined }, label: "خليه إيميل" }
+        : field.type === "multi" && opts.length === 2
+          ? { text: "سؤال فيه اختيارين بس ومتعدد؟ لو المفروض يختار واحد بس (زي آه/لا) خليه «اختيار واحد».", fix: { type: "select" as FieldType }, label: "خليه اختيار واحد" }
+          : field.type === "select" && opts.length === 1
+            ? { text: "سؤال فيه اختيار واحد بس. لو دي موافقة أو تأكيد خليه «موافقة (صح)».", fix: { type: "checkbox" as FieldType, options: undefined }, label: "خليه موافقة" }
+            : null;
+  if (!tip) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-frost" data-testid="field-tip">
+      <span className="flex-1">{tip.text}</span>
+      <Button size="sm" onClick={() => onFix(tip.fix)}>
+        {tip.label}
+      </Button>
+    </div>
+  );
+}
 const RESP: Record<Response["status"], { ar: string; tone: "info" | "ok" | "danger" | "warn" }> = {
   new: { ar: "جديد", tone: "info" },
   accepted: { ar: "مقبول", tone: "ok" },
@@ -516,6 +541,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
                 <Input placeholder="السؤال بالعربي" value={fl.label_ar} maxLength={200} onChange={(e) => setField(i, { label_ar: e.target.value })} />
                 <Input dir="ltr" placeholder="Question (English, optional)" value={fl.label_en ?? ""} maxLength={200} onChange={(e) => setField(i, { label_en: e.target.value })} />
               </div>
+              <FieldTip field={fl} onFix={(p) => setField(i, p)} />
               {(fl.type === "select" || fl.type === "multi") && (
                 <Field label="الاختيارات" hint="كل اختيار في سطر">
                   <Textarea
@@ -555,7 +581,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             >
               خانة دفع (إيصال)
             </Button>
-            {(["name", "phone", "text", "textarea", "select", "multi", "checkbox", "member", "file"] as FieldType[]).map((k) => (
+            {(["name", "phone", "email", "nid", "text", "textarea", "select", "multi", "checkbox", "member", "file"] as FieldType[]).map((k) => (
               <Button key={k} size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined)] })}>
                 {typeAr(k)}
               </Button>
@@ -888,7 +914,7 @@ function ResponseEditor({ form, r, onClose, onSaved }: { form: Form; r: Response
               <Toggle checked={!!str(fl.id)} onChange={(v) => setA({ ...a, [fl.id]: v ? "نعم" : "" })} label={str(fl.id) ? "نعم" : "لا"} />
             ) : (
               <Input
-                dir={["phone", "email", "url", "number", "member"].includes(fl.type) ? "ltr" : undefined}
+                dir={["phone", "email", "url", "number", "member", "nid"].includes(fl.type) ? "ltr" : undefined}
                 type={fl.type === "date" ? "date" : fl.type === "email" ? "email" : "text"}
                 inputMode={fl.type === "phone" || fl.type === "number" ? "tel" : undefined}
                 maxLength={500}
@@ -1416,7 +1442,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   <dd className="whitespace-pre-line text-chalk">
                     {fl.type === "file" && open.answers[fl.id] ? (
                       <FileAnswer path={String(open.answers[fl.id])} />
-                    ) : ["phone", "email", "url", "number", "member"].includes(fl.type) ? (
+                    ) : ["phone", "email", "url", "number", "member", "nid"].includes(fl.type) ? (
                       <span dir="ltr">{show(open.answers[fl.id]) || "—"}</span>
                     ) : (
                       show(open.answers[fl.id]) || "—"

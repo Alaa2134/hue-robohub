@@ -176,9 +176,14 @@ export const FACULTY: { title: L; body: L } = {
   },
 };
 
-export const PLANNED_EVENTS: { when: L | null; icon: IconName; title: L; body: L }[] = [
+/** `start`/`end` (dates, inclusive) let the site mark what's on now and drop what's over. */
+export type Window = { start?: string; end?: string };
+
+export const PLANNED_EVENTS: ({ when: L | null; icon: IconName; title: L; body: L } & Window)[] = [
   {
     when: { en: "Sep 2026", ar: "سبتمبر 2026" },
+    start: "2026-09-01",
+    end: "2026-09-30",
     icon: "users",
     title: { en: "Orientation Day", ar: "يوم التعريف" },
     body: {
@@ -188,6 +193,8 @@ export const PLANNED_EVENTS: { when: L | null; icon: IconName; title: L; body: L
   },
   {
     when: { en: "Oct – Nov 2026", ar: "أكتوبر – نوفمبر 2026" },
+    start: "2026-10-01",
+    end: "2026-11-30",
     icon: "wrench",
     title: { en: "Technical workshops", ar: "ورش تقنية" },
     body: {
@@ -206,6 +213,8 @@ export const PLANNED_EVENTS: { when: L | null; icon: IconName; title: L; body: L
   },
   {
     when: { en: "Jan – Mar 2027", ar: "يناير – مارس 2027" },
+    start: "2027-01-01",
+    end: "2027-03-31",
     icon: "flag",
     title: { en: "Competition preparation camps", ar: "معسكرات التحضير للمسابقات" },
     body: {
@@ -215,6 +224,8 @@ export const PLANNED_EVENTS: { when: L | null; icon: IconName; title: L; body: L
   },
   {
     when: { en: "Feb – Apr 2027", ar: "فبراير – أبريل 2027" },
+    start: "2027-02-01",
+    end: "2027-04-30",
     icon: "gauge",
     title: { en: "Industry visits", ar: "زيارات صناعية" },
     body: { en: "Visits to leading companies and factories.", ar: "زيارات لشركات ومصانع كبيرة." },
@@ -236,9 +247,11 @@ export const PLANNED_EVENTS: { when: L | null; icon: IconName; title: L; body: L
   },
 ];
 
-export const ROADMAP: { q: string; when: L; title: L; items: L[] }[] = [
+export const ROADMAP: ({ q: string; when: L; title: L; items: L[] } & Window)[] = [
   {
     q: "Q1",
+    start: "2026-09-01",
+    end: "2026-11-30",
     when: { en: "Sep – Nov 2026", ar: "سبتمبر – نوفمبر 2026" },
     title: { en: "Build the foundation", ar: "بناء الأساس" },
     items: [
@@ -250,6 +263,8 @@ export const ROADMAP: { q: string; when: L; title: L; items: L[] }[] = [
   },
   {
     q: "Q2",
+    start: "2026-12-01",
+    end: "2027-02-28",
     when: { en: "Dec 2026 – Feb 2027", ar: "ديسمبر 2026 – فبراير 2027" },
     title: { en: "Develop & train", ar: "التطوير والتدريب" },
     items: [
@@ -261,6 +276,8 @@ export const ROADMAP: { q: string; when: L; title: L; items: L[] }[] = [
   },
   {
     q: "Q3",
+    start: "2027-03-01",
+    end: "2027-05-31",
     when: { en: "Mar – May 2027", ar: "مارس – مايو 2027" },
     title: { en: "Compete & showcase", ar: "المنافسة والعرض" },
     items: [
@@ -272,6 +289,8 @@ export const ROADMAP: { q: string; when: L; title: L; items: L[] }[] = [
   },
   {
     q: "Q4",
+    start: "2027-06-01",
+    end: "2027-08-31",
     when: { en: "Jun – Aug 2027", ar: "يونيو – أغسطس 2027" },
     title: { en: "Evaluate & grow", ar: "التقييم والنمو" },
     items: [
@@ -367,8 +386,8 @@ export const JOIN_STEPS: { title: L; body: L }[] = [
     },
   },
   {
-    title: { en: "Come to Orientation", ar: "احضر يوم التعريف" },
-    body: { en: "Meet the community and the tracks.", ar: "اتعرّف على المجتمع والمسارات." },
+    title: { en: "Meet us", ar: "قابلنا" },
+    body: { en: "We set a short meet-up time with you on WhatsApp.", ar: "بنحدد معاك ميعاد مقابلة قصيرة على واتساب." },
   },
   {
     title: { en: "Start building", ar: "ابدأ البناء" },
@@ -377,3 +396,11 @@ export const JOIN_STEPS: { title: L; body: L }[] = [
 ];
 
 export const l = (x: L, locale: string) => (locale === "ar" ? x.ar : x.en);
+
+/** Where a dated window stands on a day: over, on now, or still to come (undated: always to come). */
+export function windowState(w: Window, now = new Date()): "past" | "now" | "next" {
+  const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Cairo" }).format(now);
+  if (w.end && day > w.end) return "past";
+  if (w.start && day >= w.start) return "now";
+  return "next";
+}

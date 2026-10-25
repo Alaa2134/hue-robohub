@@ -862,7 +862,11 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
         </div>
       )}
 
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-6">
+      {/* On a phone the buttons stay at the bottom of the screen, so "Next" and "Send" never hide below a long step. */}
+      <div
+        className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--line)] pt-6 max-lg:sticky max-lg:bottom-0 max-lg:z-20 max-lg:-mx-5 max-lg:rounded-b-[inherit] max-lg:bg-[rgb(6_11_24/0.92)] max-lg:px-5 max-lg:pb-[calc(0.9rem+env(safe-area-inset-bottom))] max-lg:pt-3 max-lg:backdrop-blur-xl"
+        data-testid="ap-actions"
+      >
         <span className="text-sm text-fog">
           {step + 1} {t.of} {steps.length}
         </span>

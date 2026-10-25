@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
 import { can, errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
+import { QuickPost, type QuickPrefill } from "./quick-post";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
@@ -45,6 +46,13 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
   const [editing, setEditing] = useState<SiteItem | "new" | null>(null);
   // ?k=photo&album=robotex opens the photo upload straight into that album (e.g. from an expo visit).
   const [bulk, setBulk] = useState<string | null>(query.get("album") && query.get("k") === "photo" ? query.get("album") : null);
+  // ?quick=post&title=…&body=… opens the one-screen quick post (from the home screen or an event report).
+  const [quick, setQuick] = useState<QuickPrefill | null>(() => {
+    const q = query.get("quick");
+    if (!q) return null;
+    const k = (["post", "project", "achievement", "photo"] as const).find((x) => x === q);
+    return { kind: k, title: query.get("title")?.slice(0, 160) ?? undefined, body: query.get("body")?.slice(0, 6000) ?? undefined };
+  });
   const k = kindOf(kind);
   const list = (data ?? []).filter((i) => i.kind === kind);
   // Albums already used, newest first, to pick from when uploading.
@@ -58,11 +66,17 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
         title="محتوى الموقع"
         sub={isAdmin(me) ? "انت تقدر تنشر على الموقع" : "اكتب مسودة — اللي عندهم صلاحية النشر بينشروها"}
         actions={
-          <Button size="sm" variant="primary" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>
-            {kind === "photo" ? "صور" : k.one}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="primary" icon="bolt" onClick={() => setQuick({})} data-testid="quick-open">
+              نشر سريع
+            </Button>
+            <Button size="sm" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>
+              {kind === "photo" ? "صور" : k.one}
+            </Button>
+          </div>
         }
       />
+      {quick && <QuickPost me={me} prefill={quick} onClose={() => setQuick(null)} onDone={reload} />}
       {waiting.length > 0 && (
         <Card className="mb-3 border-warn/30 bg-warn/[0.06]">
           <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-chalk">

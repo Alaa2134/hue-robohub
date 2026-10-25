@@ -170,7 +170,7 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   await expect(page.getByLabel("الاسم بالكامل")).toBeFocused();
   await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
   await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
-  await page.getByLabel("السنة الدراسية").selectOption("تانية");
+  await page.getByRole("radio", { name: "تانية" }).click();
   await page.getByRole("button", { name: "إلكترونيات" }).click();
   await page.getByLabel("موافق إن الفريق يتواصل معايا").check();
   await page.getByRole("button", { name: "ابعت" }).click();
@@ -550,7 +550,7 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
   await page.getByLabel("الاسم بالإنجليزي (زي ما هيتكتب على بادج المعرض)").fill("Mona Adel");
   await page.getByLabel("رقم الموبايل (واتساب)").fill("01012345678");
   await page.getByLabel("الإيميل").fill("mona@example.com");
-  await page.getByLabel("اليوم اللي تقدر تيجي فيه").selectOption("أي يوم");
+  await page.getByRole("radio", { name: "أي يوم" }).click();
   await page.getByLabel("موافق ألتزم بمواعيد وتعليمات الفريق يوم الزيارة").check();
   await page.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByText("وصلنا طلبك 🎉")).toBeVisible();
@@ -1281,4 +1281,69 @@ test("A file question is required, and a file of the wrong kind is refused befor
   await expect(page.getByTestId("file-status-cv")).toContainText("مش مقبول");
   expect(uploaded).toBe(0);
   expect(calls.some((c) => c.fn === "form_upload_ticket")).toBe(false);
+});
+
+test("forms on a phone: one-tap choices, a checked national ID, progress, typed answers kept after a reload, and closed forms point to open ones", async ({ page }) => {
+  const FORM = {
+    slug: "summit",
+    title_ar: "رحلة القمة",
+    intro_ar: "تفاصيل الرحلة.\n".repeat(12) + "الموقع الرسمي: https://example.org/summit",
+    open: true,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }, { ar: "تالتة" }] },
+      { id: "id", type: "nid", label_ar: "الرقم القومي", required: true },
+    ],
+  };
+  const OLD = { slug: "old-trip", title_ar: "رحلة قديمة", open: false, opens_at: inHours(-200), closes_at: inHours(-100), fields: [] };
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_forms: () => [{ ...FORM, questions: 4 }],
+      public_form: (b) => (b.p_slug === "summit" ? FORM : b.p_slug === "old-trip" ? OLD : null),
+      submit_form: () => ({ ok: true, ref: "F-9Z8Y7X6W" }),
+    },
+  });
+  await page.goto("/ar/form/?f=summit");
+  // A long intro opens on tap, and its link is clickable.
+  await expect(page.getByRole("button", { name: "اقرا التفاصيل كلها" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "example.org/summit" })).toHaveAttribute("href", "https://example.org/summit");
+  await expect(page.getByTestId("form-progress")).toContainText("جاوبت 0 من 4 سؤال مطلوب");
+  await page.getByLabel("الاسم بالكامل").fill("منى عادل");
+  await page.getByLabel("رقم الموبايل", { exact: true }).fill("٠١٠١٢٣٤٥٦٧٨");
+  await page.getByRole("radio", { name: "تانية" }).click();
+  await expect(page.getByRole("radio", { name: "تانية" })).toHaveAttribute("aria-checked", "true");
+  await page.getByLabel("الرقم القومي").fill("٣٠٥٠١٠١");
+  await expect(page.getByText("فاضل 7 أرقام")).toBeVisible();
+  await expect(page.getByTestId("form-left")).toContainText("فاضل سؤال واحد مطلوب");
+  await page.getByLabel("الرقم القومي").fill("39913321234567");
+  await expect(page.getByText("الرقم القومي ده مش مظبوط")).toBeVisible();
+  await page.getByLabel("الرقم القومي").fill("٣٠٥٠١ ٠١١٢ ٣٤٥٦٧");
+  await expect(page.getByTestId("nid-ok-id")).toContainText("الدقهلية");
+  await expect(page.getByTestId("form-left")).toContainText("كله تمام");
+
+  // Typed answers come back after a reload (not the national ID).
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.getByTestId("form-draft")).toBeVisible();
+  await expect(page.getByLabel("الاسم بالكامل")).toHaveValue("منى عادل");
+  await expect(page.getByRole("radio", { name: "تانية" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByLabel("الرقم القومي")).toHaveValue("");
+  await page.getByLabel("الرقم القومي").fill("30501011234567");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByTestId("form-ref")).toHaveText("F-9Z8Y7X6W");
+  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({
+    p_answers: { n: "منى عادل", p: "01012345678", y: "تانية", id: "30501011234567" },
+  });
+  // Sent: the saved answers are gone.
+  expect(await page.evaluate(() => localStorage.getItem("bx-form-draft:summit"))).toBeNull();
+
+  // A closed form says when it closed and lists the open ones; no form picked shows the list too.
+  await page.goto("/ar/form/?f=old-trip");
+  await expect(page.getByText("الفورم ده مقفول دلوقتي")).toBeVisible();
+  await expect(page.getByTestId("other-forms").getByRole("heading", { name: "رحلة القمة" })).toBeVisible();
+  await expect(page.getByText("4 أسئلة · حوالي دقيقة")).toBeVisible();
+  await page.goto("/ar/form/");
+  await expect(page.getByRole("heading", { level: 1, name: "اختار الفورم اللي عايز تملاه" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "املأ الفورم" })).toHaveAttribute("href", /\/ar\/form\/\?f=summit$/);
 });

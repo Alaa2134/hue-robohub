@@ -56,6 +56,8 @@ export default function PortalRoot({ children }: { children: ReactNode }) {
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Browser auto-translate rewrites the page under React and crashes it (insertBefore errors); the site has its own English. */}
+        <meta name="google" content="notranslate" />
         <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + APP_LANG }} />
         <style>{"html.bx-en-pending body{visibility:hidden}html[dir=ltr] .bx-dir{scale:-1 1}"}</style>
       </head>

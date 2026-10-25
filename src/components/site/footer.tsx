@@ -13,7 +13,7 @@ import { AppDownload } from "./app-download";
 import { HideOn } from "./hide-on";
 import { MENU_GROUPS } from "./nav";
 
-export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: Dictionary; config: SiteConfig; cta?: boolean }) {
+export function Footer({ locale, t, config, cta = true, groups = MENU_GROUPS }: { locale: Locale; t: Dictionary; config: SiteConfig; cta?: boolean; groups?: typeof MENU_GROUPS }) {
   const href = (p: string) => localePath(locale, p);
   const contact = config["site.contact"];
   const socials = (Object.entries(config["site.socials"]) as [keyof SocialConfig, string][]).filter(([, v]) => safeHref(v));
@@ -24,7 +24,7 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
   return (
     <footer className="relative overflow-hidden bg-abyss">
       {cta && (
-        <HideOn paths={["/join"]}>
+        <HideOn paths={["/join", "/form"]}>
         <section aria-labelledby="footer-cta" className="relative isolate overflow-hidden border-y border-[var(--line)]">
           {poster && (
             <div aria-hidden className="absolute inset-0 -z-10">
@@ -79,7 +79,7 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
         </div>
 
         <nav aria-label={t.footer.navigation} className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-5">
-          {MENU_GROUPS.map((g) => (
+          {groups.map((g) => (
             <div key={g.key}>
               <p className="t-eyebrow mb-4 text-fog">{t.nav[g.key]}</p>
               <ul className="space-y-2.5">

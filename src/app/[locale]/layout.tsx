@@ -19,7 +19,7 @@ import { HOME_TITLE, pageMeta, SITE_URL } from "@/lib/seo";
 import { campus, ORG_ID } from "@/lib/structured-data";
 import { JsonLd } from "@/components/seo/json-ld";
 import { STATIC_SITE } from "@/lib/deploy";
-import { buildSiteSettings } from "@/lib/build-content";
+import { buildEmptySections, buildSiteSettings } from "@/lib/build-content";
 import { announcementOf } from "@/lib/site-settings";
 import { Announcement } from "@/components/site/announcement";
 import { Mascot } from "@/components/mascot/Mascot";
@@ -81,16 +81,17 @@ export default async function SiteLayout({ children, params }: { children: React
   if (!isLocale(raw)) notFound();
   const locale = raw as Locale;
   const t = getDictionary(locale);
-  const [config, tracks, teams, settings] = await Promise.all([getSiteConfig(), getTracks(), getTeams(), STATIC_SITE ? buildSiteSettings() : null]);
+  const [config, tracks, teams, settings, hidden] = await Promise.all([getSiteConfig(), getTracks(), getTeams(), STATIC_SITE ? buildSiteSettings() : null, STATIC_SITE ? buildEmptySections() : []]);
+  const groups = MENU_GROUPS.map((g) => ({ ...g, items: g.items.filter((n) => !(hidden as string[]).includes(n.key)) }));
 
-  const previews: MenuPreview[] = PREVIEWS.map((p) => {
+  const previews: MenuPreview[] = PREVIEWS.filter((p) => !(hidden as string[]).includes(p.key)).map((p) => {
     const e = art(...p.art);
     return { key: p.key, href: p.href, image: e ? artUrl(e, 1080) : null, caption: p.caption[locale] };
   });
 
   const seeds: SearchSeed[] = [
     { title: t.nav.home, subtitle: "BuildX HUE", href: "/", kind: "page" },
-    ...MENU_GROUPS.flatMap((g) => g.items.map((n) => ({ title: t.nav[n.key], subtitle: t.nav[g.key], href: n.href, kind: "page" as const }))),
+    ...groups.flatMap((g) => g.items.map((n) => ({ title: t.nav[n.key], subtitle: t.nav[g.key], href: n.href, kind: "page" as const }))),
     { title: t.nav.join, subtitle: t.join.title, href: "/join", kind: "page" },
     ...tracks.map((tr) => ({ title: (locale === "ar" && tr.nameAr) || tr.name, subtitle: (locale === "ar" && tr.taglineAr) || tr.tagline, href: `/tracks/${tr.slug}`, kind: "track" as const })),
     ...teams.map((tm) => ({ title: (locale === "ar" && tm.nameAr) || tm.name, subtitle: tm.discipline, href: `/competitions/${tm.slug}`, kind: "team" as const })),
@@ -113,10 +114,12 @@ export default async function SiteLayout({ children, params }: { children: React
   const website = { "@context": "https://schema.org", "@type": "WebSite", "@id": `${SITE_URL}/#website`, name: "BuildX HUE", url: `${SITE_URL}/`, inLanguage: ["en", "ar"], publisher: { "@id": ORG_ID } };
 
   return (
-    <html lang={locale} dir={dirOf(locale)} className={fontVariables} suppressHydrationWarning>
+    <html lang={locale} dir={dirOf(locale)} translate="no" className={fontVariables} suppressHydrationWarning>
       <head>
         {STATIC_SITE && <meta httpEquiv="Content-Security-Policy" content={staticSiteCsp(SUPABASE_URL)} />}
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Browser auto-translate rewrites the page under React and crashes it (insertBefore errors); the site has its own English. */}
+        <meta name="google" content="notranslate" />
         {STATIC_SITE && <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + SW_REGISTER + AR_REDIRECT }} />}
         <script dangerouslySetInnerHTML={{ __html: JS_GATE }} />
         <JsonLd data={[org, website]} />
@@ -126,12 +129,12 @@ export default async function SiteLayout({ children, params }: { children: React
           {t.meta.skip}
         </a>
         <Header locale={locale} t={t.nav} />
-        <MenuSheet locale={locale} t={t.nav} previews={previews} socials={config["site.socials"]} email={config["site.contact"].email} />
+        <MenuSheet locale={locale} t={t.nav} previews={previews} socials={config["site.socials"]} email={config["site.contact"].email} groups={groups} />
         <SearchDialog locale={locale} t={{ ...t.search, close: t.nav.close }} seeds={seeds} />
         <main id="main" tabIndex={-1} className="outline-none">
           {children}
         </main>
-        <Footer locale={locale} t={t} config={config} />
+        <Footer locale={locale} t={t} config={config} groups={groups} />
         <TabBar locale={locale} t={t.nav} />
         {STATIC_SITE && <Announcement initial={announcementOf(settings, locale)} locale={locale} localePrefix={locale === "ar" ? "/ar" : ""} />}
         <Mascot locale={locale} />

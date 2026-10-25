@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Icon } from "@/components/brand/icons";
+import { PhaseBadge, PlannedItem } from "@/components/home/season-live";
 import { Reveal } from "@/components/motion/reveal";
 import { SectionHead } from "@/components/ui/section-head";
 import {
@@ -14,6 +15,7 @@ import {
   SOLUTIONS,
   UNITS,
   l,
+  windowState,
 } from "@/content/buildx";
 import { cn } from "@/lib/cn";
 
@@ -173,7 +175,7 @@ export function RoadmapSection({
             as="li"
             key={q.q}
             delay={i * 80}
-            className="relative overflow-hidden rounded-[18px] border border-[var(--line-2)] bg-panel/70 p-6"
+            className="relative overflow-hidden rounded-[18px] border border-[var(--line-2)] bg-panel/70 p-6 transition-opacity has-[[data-phase=now]]:border-cyan/60 has-[[data-phase=past]]:opacity-60"
           >
             <span aria-hidden className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-volt to-cyan" />
             <div className="flex items-baseline justify-between gap-3">
@@ -181,6 +183,9 @@ export function RoadmapSection({
                 {q.q}
               </span>
               <span className="text-sm font-semibold text-cyan">{l(q.when, locale)}</span>
+            </div>
+            <div className="mt-2 min-h-0 empty:hidden">
+              <PhaseBadge w={{ start: q.start, end: q.end }} built={windowState(q)} locale={locale} />
             </div>
             <h3 className="t-title mt-4 text-xl text-chalk">{l(q.title, locale)}</h3>
             <ul className="mt-4 space-y-2 text-base text-mist">
@@ -203,13 +208,14 @@ export function RoadmapSection({
             </h3>
           </Reveal>
           <ol className="relative grid gap-3 border-s-2 border-volt/40 ps-6 sm:ps-8">
-            {PLANNED_EVENTS.map((e, i) => (
+            {PLANNED_EVENTS.filter((e) => windowState(e) !== "past").map((e, i) => (
               <Reveal
                 as="li"
                 key={e.title.en}
                 delay={i * 50}
-                className="relative rounded-[16px] border border-[var(--line-2)] bg-panel/60 p-5"
+                className="relative rounded-[16px] border border-[var(--line-2)] bg-panel/60 p-5 has-[[data-gone]]:hidden has-[[data-phase=now]]:border-cyan/50"
               >
+                <PlannedItem w={{ start: e.start, end: e.end }} built={windowState(e)} locale={locale}>
                 <span
                   aria-hidden
                   className="absolute -start-[calc(1.5rem+7px)] top-6 size-3 rounded-full border-2 border-cyan bg-void sm:-start-[calc(2rem+7px)]"
@@ -224,6 +230,7 @@ export function RoadmapSection({
                   )}
                 </div>
                 <p className="mt-1.5 text-base text-mist">{l(e.body, locale)}</p>
+                </PlannedItem>
               </Reveal>
             ))}
           </ol>
