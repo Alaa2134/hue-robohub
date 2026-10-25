@@ -54,6 +54,7 @@ import { FormAttendance } from "./form-attendance";
 import { VoiceStudio } from "./staff-voice";
 import { PermissionsScreen } from "./staff-permissions";
 import { WhatsAppScreen } from "./whatsapp";
+import { WaInboxScreen } from "./wa-inbox";
 import { EmailScreen } from "./email";
 import { PageEditor, PagesScreen } from "./staff-pages";
 import { BansScreen, DelegationCheckin } from "./expo-delegation";
@@ -137,6 +138,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   bans: ["forms", "expo", "roster"],
   pages: "pages",
   whatsapp: "whatsapp",
+  "wa-inbox": "whatsapp",
   email: "email",
   ai3d: "ai3d",
 };
@@ -426,6 +428,9 @@ export function StaffApp({
       break;
     case "whatsapp":
       screen = <WhatsAppScreen me={me} />;
+      break;
+    case "wa-inbox":
+      screen = <WaInboxScreen key={id ?? "list"} me={me} phone={id} />;
       break;
     case "ai3d":
       screen = <Ai3dScreen me={me} />;
@@ -842,6 +847,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
       icon: "chat",
       label: "واتساب (الربط والرسايل)",
       to: "/staff/whatsapp",
+      show: isFull(me) || canSee(me, "whatsapp"),
+    },
+    {
+      icon: "chat",
+      label: "رسايل الواتساب اللي وصلت (والرد عليها)",
+      to: "/staff/wa-inbox",
       show: isFull(me) || canSee(me, "whatsapp"),
     },
     {

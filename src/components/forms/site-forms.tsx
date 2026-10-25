@@ -125,6 +125,14 @@ const C = {
     qrSessions: "مواعيد الحضور",
     qrHere: "حضرت ✅",
     qrNot: "لسه",
+    rateAsk: "إيه رأيك في السيشن؟",
+    rateStar: (n: number) => `${n} من 5`,
+    rateNote: "اكتب رأيك (اختياري): إيه اللي عجبك وإيه اللي نحسّنه؟",
+    rateSend: "ابعت التقييم",
+    rateThanks: "شكرًا، تقييمك وصل 💙",
+    rateEdit: "عدّل",
+    rateFail: "التقييم موصلش، جرّب تاني.",
+    rateJump: "⭐ قيّم السيشن اللي حضرتها",
     qrNotFound: "مش لاقيين الـ QR ده. لو سجّلت، تابع طلبك بالكود ورقم موبايلك وهيظهرلك تاني.",
     badNid: "الرقم القومي ده مش مظبوط. راجع الـ14 رقم اللي على البطاقة.",
     friendPh: "رقم موبايله أو كود طلبه",
@@ -257,6 +265,14 @@ const C = {
     qrSessions: "Sessions",
     qrHere: "Attended ✅",
     qrNot: "Not yet",
+    rateAsk: "How was this session?",
+    rateStar: (n: number) => `${n} out of 5`,
+    rateNote: "Your thoughts (optional): what did you like, and what should we improve?",
+    rateSend: "Send rating",
+    rateThanks: "Thanks, your rating is in 💙",
+    rateEdit: "Edit",
+    rateFail: "Your rating didn't go through. Try again.",
+    rateJump: "⭐ Rate the session you attended",
     qrNotFound: "We can't find this QR. If you registered, check your application with your code and mobile number and it shows again.",
     badNid: "That national ID doesn't look right. Check the 14 digits on your ID card.",
     friendPh: "Their mobile number or request code",
@@ -1445,7 +1461,7 @@ type RespStatus = "new" | "accepted" | "rejected" | "waiting";
 /** One code: the full answer. Only a number: that number's requests (form, status, when), nothing personal. */
 type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null; payment?: FormPayment | null };
 
-type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null }[] };
+type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null; rating?: number | null; comment?: string | null }[] };
 const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
 
 /** A form's attendance QR: kept on the phone (saved as a picture) and scanned by the team each session. */
@@ -1499,6 +1515,17 @@ function AttendPass({ token, locale, page }: { token: string; locale: Locale; pa
         {title && <p className="text-lg font-bold leading-snug">{title}</p>}
         {info?.name && <p className="text-white/80">{info.name}</p>}
       </div>
+      {/* Opened from the WhatsApp ask: one tap down to the session waiting for a rating (the QR stays on top for the door). */}
+      {info?.sessions?.some((x) => x.here && !x.rating) && (
+        <button
+          type="button"
+          className="w-fit rounded-full border border-[#ffd08a]/40 bg-[#ffd08a]/10 px-3 py-1.5 text-sm font-semibold text-[#ffd08a]"
+          onClick={() => document.getElementById(`rate-${info.sessions!.find((x) => x.here && !x.rating)!.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+          data-testid="rate-jump"
+        >
+          {t.rateJump}
+        </button>
+      )}
       <div className="mx-auto rounded-2xl bg-white p-3">
         {qr ? <img src={qr} alt={t.qrTitle} width={240} height={240} className="size-60" data-testid="attend-qr" /> : <div className="size-60 animate-pulse rounded-xl bg-slate-200" />}
       </div>
@@ -1522,16 +1549,109 @@ function AttendPass({ token, locale, page }: { token: string; locale: Locale; pa
           <p className="text-sm font-semibold">{t.qrSessions}</p>
           <ul className="grid gap-1.5" data-testid="attend-sessions">
             {info.sessions.map((x) => (
-              <li key={x.id} className="flex items-center justify-between gap-3 text-sm">
-                <span className="min-w-0">
-                  <span className="block truncate">{x.name}</span>
-                  {x.at && <span className="block text-xs text-white/55">{fmtWhen(x.at, locale)}</span>}
-                </span>
-                <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", x.here ? "bg-ok/20 text-[#7cf0c6]" : "bg-white/10 text-white/60")}>{x.here ? t.qrHere : t.qrNot}</span>
+              <li key={x.id} className="grid gap-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block truncate">{x.name}</span>
+                    {x.at && <span className="block text-xs text-white/55">{fmtWhen(x.at, locale)}</span>}
+                  </span>
+                  <span className={cn("shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold", x.here ? "bg-ok/20 text-[#7cf0c6]" : "bg-white/10 text-white/60")}>{x.here ? t.qrHere : t.qrNot}</span>
+                </div>
+                {x.here && (
+                  <RateSession
+                    token={token}
+                    locale={locale}
+                    session={x.id}
+                    rating={x.rating ?? null}
+                    comment={x.comment ?? null}
+                    onRated={(rating, comment) => setInfo((i) => i && { ...i, sessions: i.sessions?.map((y) => (y.id === x.id ? { ...y, rating, comment } : y)) })}
+                  />
+                )}
               </li>
             ))}
           </ul>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** After a session they came to: stars out of 5 and a few words, sent from the QR page (and editable). */
+function RateSession({ token, locale, session, rating, comment, onRated }: { token: string; locale: Locale; session: string; rating: number | null; comment: string | null; onRated: (rating: number, comment: string) => void }) {
+  const t = C[locale];
+  const [saved, setSaved] = useState<{ rating: number; comment: string } | null>(rating ? { rating, comment: comment ?? "" } : null);
+  const [stars, setStars] = useState(rating ?? 0);
+  const [note, setNote] = useState(comment ?? "");
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (saved && !editing)
+    return (
+      <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-2" data-testid={`rate-done-${session}`}>
+        <span className="text-[#ffd08a]" aria-label={t.rateStar(saved.rating)}>
+          {"★".repeat(saved.rating)}
+          <span className="text-white/25">{"★".repeat(5 - saved.rating)}</span>
+        </span>
+        <span className="min-w-0 flex-1 truncate text-xs text-white/70">{saved.comment || t.rateThanks}</span>
+        <button type="button" className="text-xs font-semibold text-cyan underline-offset-4 hover:underline" onClick={() => setEditing(true)}>
+          {t.rateEdit}
+        </button>
+      </div>
+    );
+  const send = async () => {
+    if (!stars) return;
+    setBusy(true);
+    setError("");
+    try {
+      const out = await rpc<{ ok: boolean; error?: string }>("form_session_rate", { p_token: token, p_session: session, p_rating: stars, p_comment: note.trim() || null });
+      if (!out.ok) throw new Error(out.error);
+      setSaved({ rating: stars, comment: note.trim() });
+      setEditing(false);
+      onRated(stars, note.trim());
+    } catch (e) {
+      setError(e instanceof Error && e.message === "rate_limited" ? t.errors.rate_limited : t.rateFail);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div id={`rate-${session}`} className="grid scroll-mt-24 gap-2 rounded-xl border border-[#ffd08a]/30 bg-[#ffd08a]/[0.06] p-3" data-testid={`rate-${session}`}>
+      <p className="text-sm font-semibold">{t.rateAsk}</p>
+      <div className="flex gap-1" role="radiogroup" aria-label={t.rateAsk}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            role="radio"
+            aria-checked={stars === n}
+            aria-label={t.rateStar(n)}
+            onClick={() => setStars(n)}
+            className={cn("grid size-10 place-items-center rounded-lg text-2xl transition", n <= stars ? "text-[#ffd08a]" : "text-white/25 hover:text-white/50")}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+      {stars > 0 && (
+        <>
+          <textarea
+            className="min-h-20 w-full rounded-xl border border-white/15 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-white/40"
+            maxLength={1000}
+            rows={3}
+            value={note}
+            placeholder={t.rateNote}
+            aria-label={t.rateNote}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <button type="button" className="btn btn-primary btn-sm w-fit disabled:opacity-60" disabled={busy} onClick={() => void send()} data-testid={`rate-send-${session}`}>
+            {busy ? "…" : t.rateSend}
+          </button>
+        </>
+      )}
+      {error && (
+        <p role="alert" className="text-xs text-[#ff9aa5]">
+          {error}
+        </p>
       )}
     </div>
   );

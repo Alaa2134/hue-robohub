@@ -9,7 +9,7 @@ import { canSee, errorText, fmt, isFull, must, rpc, sb, type StaffRow } from "./
 import { useFormPick } from "./form-pick";
 import { groupsOf, useStudents } from "./staff-data";
 import { fillVars, missingVar, takeHandoff, varsOf, type Handoff, type HandoffPerson, type WaVars } from "./wa-handoff";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 /** An approved template; `button` is the text of its link button whose end is filled per person. */
 type Template = { name: string; language: string; category?: string; body?: string | null; button?: string | null };
@@ -34,7 +34,7 @@ type Status = {
   can_send: boolean;
   can_connect: boolean;
 };
-type Message = { id: number; to_phone: string; to_name: string | null; kind: "text" | "template"; body: string | null; template: string | null; status: "queued" | "sent" | "failed"; error: string | null; created_at: string; context: string | null; via?: "api" | "web" };
+type Message = { id: number; to_phone: string; to_name: string | null; kind: "text" | "template"; body: string | null; template: string | null; status: "queued" | "sent" | "failed"; error: string | null; created_at: string; context: string | null; via?: "api" | "web"; delivered_at?: string | null; read_at?: string | null };
 type Person = HandoffPerson;
 
 const WA_ERRORS: Record<string, string> = {
@@ -115,6 +115,7 @@ export function WhatsAppScreen({ me }: { me: StaffRow }) {
         <ErrorBox error={error} retry={reload} />
       ) : st ? (
         <div className="grid gap-4">
+          {st.connected && <InboxLink />}
           <div role="tablist" className="grid grid-cols-2 gap-1 rounded-xl bg-white/[0.03] p-1 text-sm">
             {(["web", "api"] as const).map((m) => (
               <button key={m} type="button" role="tab" aria-selected={way(st) === m} onClick={() => setWay(m)} className={way(st) === m ? "rounded-lg bg-[#1fa855]/25 px-3 py-2 text-chalk" : "rounded-lg px-3 py-2 text-fog"}>
@@ -1086,9 +1087,20 @@ function WebSender({ me, handoff, onSent }: { me: StaffRow; handoff: Handoff | n
   );
 }
 
+/** The way into the inbox, with how many messages nobody has opened yet. */
+function InboxLink() {
+  const { data } = useAsync(() => rpc<{ unread: number }[]>("staff_wa_inbox"), []);
+  const unread = (data ?? []).reduce((a, c) => a + c.unread, 0);
+  return (
+    <Button variant={unread ? "primary" : "secondary"} icon="chat" onClick={() => go("/staff/wa-inbox")} data-testid="wa-inbox-link">
+      {unread ? `رسايل الواتساب اللي وصلت (${unread} جديدة)` : "رسايل الواتساب اللي وصلت"}
+    </Button>
+  );
+}
+
 function MessageLog() {
   const { data, error, loading, reload } = useAsync(
-    async () => (await sb().from("whatsapp_messages").select("id, to_phone, to_name, kind, body, template, status, error, created_at, context, via").order("created_at", { ascending: false }).limit(60).then(must)) as Message[],
+    async () => (await sb().from("whatsapp_messages").select("id, to_phone, to_name, kind, body, template, status, error, created_at, context, via, delivered_at, read_at").order("created_at", { ascending: false }).limit(60).then(must)) as Message[],
     [],
   );
   return (
@@ -1106,7 +1118,7 @@ function MessageLog() {
               <div className="grid gap-1">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-sm text-chalk">{m.to_name || <span dir="ltr">+{m.to_phone}</span>}</span>
-                  <Badge tone={m.status === "sent" ? "ok" : m.status === "failed" ? "danger" : "info"}>{m.status === "sent" ? "اتبعتت" : m.status === "failed" ? "فشلت" : "في الطريق"}</Badge>
+                  <Badge tone={m.status === "sent" ? "ok" : m.status === "failed" ? "danger" : "info"}>{m.status === "failed" ? "فشلت" : m.read_at ? "اتقرت" : m.delivered_at ? "وصلت" : m.status === "sent" ? "اتبعتت" : "في الطريق"}</Badge>
                 </div>
                 <p className="line-clamp-2 text-xs text-fog" dir="auto">
                   {m.kind === "template" ? `قالب ${m.template}${m.body ? `: ${m.body}` : ""}` : m.body}
