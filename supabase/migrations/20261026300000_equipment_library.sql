@@ -140,7 +140,7 @@ begin
 end $$;
 
 /** Approve (lends it to whoever asked: team member or student) or turn down a request. */
-create or replace function public.staff_inventory_request_decide(p_id uuid, p_approve boolean, p_note text, p_due timestamptz)
+create or replace function public.staff_inventory_request_decide(p_id uuid, p_approve boolean, p_note text, p_due timestamptz default null)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare
   r public.inventory_requests;
