@@ -7,7 +7,7 @@
  *
  *   node scripts/lighthouse-mobile.mjs [out-static]
  */
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -15,7 +15,7 @@ import zlib from "node:zlib";
 import { createRequire } from "node:module";
 
 const root = path.resolve(process.argv[2] || "out-static");
-const PAGES = ["/ar/", "/ar/join/", "/ar/events/", "/ar/tracks/", "/"];
+const PAGES = (process.env.LH_PAGES ?? "/ar/,/ar/join/,/ar/events/,/ar/tracks/,/").split(",");
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".avif": "image/avif", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml", ".wasm": "application/wasm" };
 
 const server = http
@@ -49,12 +49,20 @@ fs.mkdirSync("lh-reports", { recursive: true });
 const rows = [];
 for (const page of PAGES) {
   const out = path.join("lh-reports", `${page.replace(/\W+/g, "_") || "_"}.json`);
-  const r = spawnSync(
-    "npx",
-    ["-y", "lighthouse@13.5.0", `http://localhost:${port}${page}`, "--form-factor=mobile", "--only-categories=performance,accessibility,best-practices,seo", "--chrome-flags=--headless=new --no-sandbox", "--output=json", `--output-path=${out}`, "--quiet"],
-    { stdio: "inherit", env: { ...process.env, ...(chrome ? { CHROME_PATH: chrome } : {}) }, timeout: 300_000 },
-  );
-  if (r.status !== 0 || !fs.existsSync(out)) {
+  // Asynchronously: the server above runs in this process and has to keep answering meanwhile.
+  const status = await new Promise((done) => {
+    const child = spawn(
+      "npx",
+      ["-y", "lighthouse@13.5.0", `http://localhost:${port}${page}`, "--form-factor=mobile", "--only-categories=performance,accessibility,best-practices,seo", "--chrome-flags=--headless=new --no-sandbox", "--output=json", `--output-path=${out}`, "--quiet"],
+      { stdio: "inherit", env: { ...process.env, ...(chrome ? { CHROME_PATH: chrome } : {}) } },
+    );
+    const timer = setTimeout(() => child.kill("SIGKILL"), 300_000);
+    child.on("exit", (code) => {
+      clearTimeout(timer);
+      done(code);
+    });
+  });
+  if (status !== 0 || !fs.existsSync(out)) {
     rows.push(`| ${page} | — | — | — | — | — | — | — |`);
     continue;
   }
