@@ -1,6 +1,7 @@
 "use client";
 /** Event registration on the event page, and the QR ticket page (/ticket/?t=BXT-…). */
 import { useEffect, useRef, useState } from "react";
+import { NO_SHOW } from "@/lib/no-show";
 import { Icon } from "@/components/brand/icons";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
@@ -35,6 +36,7 @@ const T = {
       closed: "Registration for this event is closed.",
       rate_limited: "Too many registrations from this network. Please try again later.",
       network: "We couldn't reach the server. Check your connection and try again.",
+      banned: NO_SHOW.en.banned,
     } as Record<string, string>,
   },
   ar: {
@@ -60,6 +62,7 @@ const T = {
       closed: "التسجيل في الفعالية دي اتقفل.",
       rate_limited: "تسجيلات كتير من الشبكة دي. جرّب تاني بعد شوية.",
       network: "مقدرناش نوصل للسيرفر. اتأكد من النت وجرّب تاني.",
+      banned: NO_SHOW.ar.banned,
     } as Record<string, string>,
   },
 };
@@ -82,7 +85,7 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
   const [d, setD] = useState({ full_name: "", phone: "", email: "", faculty: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<{ ticket: string; status: string; duplicate?: boolean } | null>(null);
+  const [done, setDone] = useState<{ ticket: string; status: string; duplicate?: boolean; warned?: boolean } | null>(null);
   const honey = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,6 +104,11 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
         </span>
         <p className="t-headline text-2xl text-chalk">{wait ? t.waitlist : t.done}</p>
         <p className="text-mist">{done.duplicate ? (done.ticket ? t.again : t.againNoTicket) : wait ? t.waitBody : t.doneBody}</p>
+        {done.warned && (
+          <p role="alert" className="rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-[#ffd08a]" data-testid="no-show-warned">
+            {NO_SHOW[locale === "en" ? "en" : "ar"].warned}
+          </p>
+        )}
         {done.ticket && (
           <a href={ticketHref(locale, done.ticket)} className="btn btn-primary">
             <span>{t.ticket}</span>
@@ -130,7 +138,7 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
     setBusy(true);
     setError("");
     try {
-      const out = await rpc<{ ok: boolean; ticket?: string; status?: string; duplicate?: boolean; error?: string }>("register_event", { p_event: eventId, p: { ...d, website: honey.current?.value ?? "" } });
+      const out = await rpc<{ ok: boolean; ticket?: string; status?: string; duplicate?: boolean; warned?: boolean; error?: string }>("register_event", { p_event: eventId, p: { ...d, website: honey.current?.value ?? "" } });
       if (!out.ok) return setError(t.err[out.error ?? "invalid"] ?? t.err.invalid);
       // A repeat no longer gets the ticket back from the server (anyone could ask with a phone
       // number); this device may still have it.
@@ -138,7 +146,7 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
       try {
         if (out.ticket !== "BXT-00000000") localStorage.setItem(STORE, JSON.stringify({ ...saved(), [eventId]: out.ticket }));
       } catch {}
-      setDone({ ticket: out.ticket, status: out.status ?? "going", duplicate: out.duplicate });
+      setDone({ ticket: out.ticket, status: out.status ?? "going", duplicate: out.duplicate, warned: out.warned });
     } catch {
       setError(t.err.network);
     } finally {

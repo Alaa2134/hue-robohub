@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { NO_SHOW } from "@/lib/no-show";
 import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { BUILTIN_KEYS, consentText, extraHelp, extraLabel, optionText, parseApplyConfig, resolveField, stepTitles, type ApplyConfig, type BuiltinKey, type ExtraQ, type Resolved } from "@/content/apply-form";
@@ -442,7 +443,9 @@ export function ApplyForm({ locale, tracks, whatsapp }: { locale: "en" | "ar"; t
       if (!res.ok || !out) throw new Error("network");
       if (!out.ok) {
         if (out.error === "closed") setClosed("");
-        setFormError(out.error === "busy" ? t.err.busy : out.error === "rate_limited" ? t.err.rateLimited : out.error === "closed" ? t.err.closed : t.err.invalid);
+        setFormError(
+          out.error === "busy" ? t.err.busy : out.error === "rate_limited" ? t.err.rateLimited : out.error === "closed" ? t.err.closed : out.error === "banned" ? NO_SHOW[locale === "en" ? "en" : "ar"].banned : t.err.invalid,
+        );
         return;
       }
       // A repeat no longer gets the reference back from the server (anyone could ask with a phone

@@ -333,6 +333,32 @@ test("after a session: the QR page asks to rate the sessions they came to (stars
   await expect(page.getByTestId("rate-jump")).toHaveCount(0);
 });
 
+test("no-shows: someone with a warning is told when they register, and someone blocked can't register and is told why", async ({ page }) => {
+  let blocked = false;
+  await mockSupabase(page, {
+    rpc: {
+      public_form: () => TRYOUT,
+      submit_form: () => (blocked ? { ok: false, error: "banned" } : { ok: true, ref: "F-1A2B3C4D", warned: true }),
+    },
+  });
+  const fill = async () => {
+    await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+    await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
+    await page.getByRole("radio", { name: "تانية" }).click();
+    await page.getByRole("button", { name: "إلكترونيات" }).click();
+    await page.getByLabel("موافق إن الفريق يتواصل معايا").check();
+    await page.getByRole("button", { name: "ابعت" }).click();
+  };
+  await page.goto("/ar/form/?f=sumo-tryouts");
+  await fill();
+  await expect(page.getByTestId("no-show-warned")).toContainText("عليك إنذار");
+  blocked = true;
+  await page.evaluate(() => localStorage.clear());
+  await page.goto("/ar/form/?f=sumo-tryouts");
+  await fill();
+  await expect(page.getByText("عليك حظر من التسجيل في فعاليات BuildX HUE")).toBeVisible();
+});
+
 test("a paid form: the fee and how to pay sit above the receipt upload, and the status says whether it's paid", async ({ page }) => {
   const PAID = {
     slug: "drone-course",
@@ -848,7 +874,7 @@ test("the expo form takes members only: a wrong membership number is refused, no
   answer = { ok: false, error: "banned" };
   await page.getByLabel("رقم عضويتك في كميونيتي BuildX HUE").fill("2024001");
   await page.getByRole("button", { name: "ابعت" }).click();
-  await expect(page.getByText("عليك حظر من كميونيتي BuildX HUE")).toBeVisible();
+  await expect(page.getByText("عليك حظر من التسجيل في فعاليات BuildX HUE")).toBeVisible();
 });
 
 test("a page built in the app: /p/<slug> opens it, with its parts in the team's order", async ({ page }) => {

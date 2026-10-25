@@ -642,34 +642,37 @@ export function DelegationCheckin({ id }: { id: string }) {
   );
 }
 
-type NoShow = { id: string; name: string | null; phone: string | null; no: number | null; banned: boolean };
+type NoShow = { id: string; name: string | null; phone: string | null; no: number | null; banned: boolean; warned?: boolean; done?: boolean };
 
-/** After the visit: whoever was accepted and didn't come is banned and loses their membership (they agreed to it). */
+/** After the visit: whoever was accepted and didn't come gets a warning, or a ban if they already had one. */
 function NoShows({ formId, count }: { formId: string; count: number }) {
   const [busy, setBusy] = useState(false);
   const apply = async () => {
     setBusy(true);
     try {
       const { people } = await rpc<{ people: NoShow[] }>("staff_delegation_no_shows", { p_form: formId, p_apply: false });
-      const todo = people.filter((p) => !p.banned);
+      const todo = people.filter((p) => !p.banned && !p.done);
       if (!todo.length) {
-        toast("كل اللي مجوش عليهم حظر بالفعل");
+        toast("كل اللي مجوش اتعملهم إنذار أو حظر بالفعل");
         return;
       }
+      const toBan = todo.filter((p) => p.warned);
+      const toWarn = todo.filter((p) => !p.warned);
       const ok = await confirmDialog({
-        title: `حظر ${todo.length} من الكميونيتي؟`,
+        title: `إنذار ${toWarn.length}${toBan.length ? ` وحظر ${toBan.length}` : ""}؟`,
         body: (
           <div className="grid gap-2 text-sm">
-            <p>اللي اتقبلوا ومجوش هياخدوا حظر وتتسحب عضويتهم (مش هيقدروا يدخلوا التطبيق ولا يقدّموا تاني لحد ما تفك الحظر). وافقوا على ده وهم بيقدّموا.</p>
-            <p className="text-fog">{todo.map((p) => `${p.name ?? "—"} (${memberId(p.no)})`).join("، ")}</p>
+            <p>اللي مجوش لأول مرة بياخدوا إنذار، واللي عليه إنذار قبل كده بيتعمل له حظر من التسجيل. وبيوصلهم رسالة واتساب بده.</p>
+            {toWarn.length > 0 && <p className="text-fog">{`إنذار: ${toWarn.map((p) => `${p.name ?? "—"} (${memberId(p.no)})`).join("، ")}`}</p>}
+            {toBan.length > 0 && <p className="text-[#ff9aa5]">{`حظر: ${toBan.map((p) => `${p.name ?? "—"} (${memberId(p.no)})`).join("، ")}`}</p>}
           </div>
         ),
-        ok: "احظرهم",
-        danger: true,
+        ok: "تمام",
+        danger: toBan.length > 0,
       });
       if (!ok) return;
-      const out = await rpc<{ applied: number }>("staff_delegation_no_shows", { p_form: formId, p_apply: true });
-      toast(`اتحظر ${out.applied} واتسحبت عضويتهم`);
+      const out = await rpc<{ applied: number; warned: number }>("staff_delegation_no_shows", { p_form: formId, p_apply: true });
+      toast(`اتعمل إنذار لـ ${out.warned}${out.applied ? ` وحظر لـ ${out.applied}` : ""}`);
     } catch (e) {
       toast(errorText(e), "error");
     } finally {
@@ -680,11 +683,11 @@ function NoShows({ formId, count }: { formId: string; count: number }) {
     <Card className="mt-6 grid gap-3 border-danger/30" data-testid="no-shows">
       <p className="font-semibold text-chalk">بعد الزيارة: اللي مجوش ({count})</p>
       <p className="text-xs leading-relaxed text-fog">
-        لما الزيارة تخلص، اضغط هنا: كل اللي اتقبل ومتسجّلش حضوره بياخد حظر من الكميونيتي وتتسحب عضويته. اتأكد إنك سجّلت حضور كل اللي جه الأول. تقدر تفك الحظر بعدين من «الحظر من الكميونيتي».
+        لما الزيارة تخلص، اضغط هنا: اللي اتقبل ومتسجّلش حضوره بياخد إنذار أول مرة، ولو عليه إنذار قبل كده بيتعمل له حظر من التسجيل. اتأكد إنك سجّلت حضور كل اللي جه الأول. تقدر تفك الإنذار أو الحظر من «الحظر من الكميونيتي».
       </p>
       <div className="flex flex-wrap gap-2">
         <Button variant="danger" onClick={() => void apply()} loading={busy}>
-          احظر اللي مجوش
+          إنذار / حظر للي مجوش
         </Button>
         <Button variant="ghost" onClick={() => go("/staff/bans")}>
           الحظر من الكميونيتي
@@ -695,13 +698,30 @@ function NoShows({ formId, count }: { formId: string; count: number }) {
 }
 
 type Ban = { id: string; name: string | null; phone: string | null; reason: string; created_at: string; lifted_at: string | null; student_id: string | null };
+type Strike = { id: string; name: string | null; phone: string | null; reason: string; created_at: string; outcome: "warning" | "ban" };
 
 /** Everyone banned from the community (no-shows and others), with "lift" (and give the membership back). */
 export function BansScreen() {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("community_bans").select("id, name, phone, reason, created_at, lifted_at, student_id").order("created_at", { ascending: false }).limit(500).then(must)) as Ban[], []);
-  const [showLifted, setShowLifted] = useState(false);
+  const strikes = useAsync(
+    async () => ((await sb().from("community_strikes").select("id, name, phone, reason, created_at, outcome").eq("outcome", "warning").is("lifted_at", null).order("created_at", { ascending: false }).limit(500).then(must)) ?? []) as Strike[],
+    [],
+  );
+  const [tab, setTab] = useState<"banned" | "warned" | "lifted">("banned");
+  const showLifted = tab === "lifted";
+  const liftStrike = async (x: Strike) => {
+    const ok = await confirmDialog({ title: `تشيل الإنذار عن ${x.name ?? x.phone ?? ""}؟`, body: "لو سجّل بعد كده ومجاش هياخد إنذار جديد بدل الحظر.", ok: "شيل الإنذار" });
+    if (!ok) return;
+    try {
+      await rpc("staff_lift_strike", { p_id: x.id });
+      toast("اتشال الإنذار");
+      strikes.reload();
+    } catch (e) {
+      toast(errorText(e), "error");
+    }
+  };
   const lift = async (b: Ban) => {
-    const ok = await confirmDialog({ title: `تفك الحظر عن ${b.name ?? b.phone ?? ""}؟`, body: b.student_id ? "وهترجعله عضويته (يقدر يدخل التطبيق ويقدّم تاني)." : "هيقدر يقدّم تاني.", ok: "فك الحظر" });
+    const ok = await confirmDialog({ title: `تفك الحظر عن ${b.name ?? b.phone ?? ""}؟`, body: b.student_id ? "وهترجعله عضويته (يقدر يدخل التطبيق ويسجّل تاني)، وبيتشال الإنذار اللي عليه." : "هيقدر يسجّل تاني، وبيتشال الإنذار اللي عليه.", ok: "فك الحظر" });
     if (!ok) return;
     try {
       await rpc("staff_lift_ban", { p_id: b.id, p_restore: true });
@@ -714,16 +734,46 @@ export function BansScreen() {
   const list = (data ?? []).filter((b) => !!b.lifted_at === showLifted);
   return (
     <>
-      <TopBar title="الحظر من الكميونيتي" sub="اللي اتقبلوا في وفد ومجوش وغيرهم" back="/staff/more" />
-      <div className="flex gap-2">
-        <Chip active={!showLifted} onClick={() => setShowLifted(false)}>
+      <TopBar title="الحظر من الكميونيتي" sub="اللي سجّلوا ومجوش: إنذار أول مرة، وحظر التانية" back="/staff/more" />
+      <div className="flex flex-wrap gap-2">
+        <Chip active={tab === "banned"} onClick={() => setTab("banned")}>
           محظورين دلوقتي
         </Chip>
-        <Chip active={showLifted} onClick={() => setShowLifted(true)}>
+        <Chip active={tab === "warned"} onClick={() => setTab("warned")} count={strikes.data?.length}>
+          عليهم إنذار
+        </Chip>
+        <Chip active={tab === "lifted"} onClick={() => setTab("lifted")}>
           اتفك عنهم
         </Chip>
       </div>
-      {loading && !data ? (
+      {tab === "warned" ? (
+        strikes.loading && !strikes.data ? (
+          <Loading />
+        ) : strikes.error ? (
+          <ErrorBox error={strikes.error} retry={strikes.reload} />
+        ) : !strikes.data?.length ? (
+          <Empty icon="shield" title="مفيش حد عليه إنذار" body="أول مرة حد يسجّل ومييجيش بياخد إنذار، ولو اتكررت بيتعمل له حظر من التسجيل." />
+        ) : (
+          <List className="mt-4" >
+            {strikes.data.map((x) => (
+              <Row key={x.id} chevron={false}>
+                <div className="flex items-center gap-3" data-testid="strike-row">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-chalk">{x.name ?? "—"}</p>
+                    <p className="truncate text-xs text-fog">
+                      {x.reason} · {fmt.short(x.created_at)}
+                      {x.phone ? ` · ${x.phone}` : ""}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => void liftStrike(x)}>
+                    شيل الإنذار
+                  </Button>
+                </div>
+              </Row>
+            ))}
+          </List>
+        )
+      ) : loading && !data ? (
         <Loading />
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
