@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildItems } from "@/lib/build-content";
+import { buildItems, emptySection } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveGallery } from "@/components/live/live-content";
 import Link from "next/link";
@@ -39,7 +39,7 @@ const KEY_ART: [string, string][] = [
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/gallery", title: t.gallery.title, description: t.gallery.body, image: art("team_env", "hero")?.og });
+  return pageMeta({ locale, path: "/gallery", title: t.gallery.title, description: t.gallery.body, image: art("team_env", "hero")?.og , noindex: STATIC_SITE && (await emptySection("gallery")) });
 }
 
 export default async function Gallery({ params }: Params) {

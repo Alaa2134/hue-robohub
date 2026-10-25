@@ -95,9 +95,9 @@ function liveText(live: Live | null): string {
   return lines.join("\n");
 }
 
-/** Same question, same cache entry: case, punctuation, Arabic letter variants and spaces don't count. */
-async function cacheKey(q: string): Promise<string> {
-  const norm = q
+/** A question with case, punctuation, Arabic letter variants and spaces taken out. */
+const normalize = (q: string) =>
+  q
     .toLowerCase()
     .replace(/[\u064B-\u0652\u0640]/g, "")
     .replace(/[إأآ]/g, "ا")
@@ -105,7 +105,15 @@ async function cacheKey(q: string): Promise<string> {
     .replace(/ة/g, "ه")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
-  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(norm));
+
+/**
+ * Same question while the site's live state is the same, same cache entry. The live part (events,
+ * places left, news, open forms — not the clock) is in the key, so a cached answer never quotes
+ * seats or dates that have since changed.
+ */
+async function cacheKey(q: string, live: Live | null): Promise<string> {
+  const state = live ? JSON.stringify([live.applications_open, live.events, live.news, live.forms]) : "";
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${normalize(q)}\n${state}`));
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
@@ -158,8 +166,13 @@ Deno.serve(async (req) => {
   if (!question) return reply({ error: "invalid" }, 400);
   const path = clean(input.path, 80).replace(/[^\w\-/]/g, "");
   const history = (Array.isArray(input.history) ? input.history : [])
-    .slice(-4)
+    .slice(-5)
     .filter((t): t is Turn => !!t && typeof t === "object" && (t.role === "user" || t.role === "bot") && typeof t.text === "string");
+  // Older pages send the question itself as the last turn too: it's sent once, as the question.
+  if (history.length && history[history.length - 1].role === "user" && normalize(clean(history[history.length - 1].text, 300)) === normalize(question)) history.pop();
+  history.splice(0, Math.max(0, history.length - 4));
+  // Only the guide's greeting before it (nothing the visitor said): a first question.
+  const first = !history.some((t) => t.role === "user");
 
   // Rate limits, by the visitor's address.
   // The edge sets these two; X-Forwarded-For can carry whatever the visitor sent, so it's the last resort.
@@ -168,9 +181,17 @@ Deno.serve(async (req) => {
   const allowed = await admin.rpc("guide_chat_allow", { p_ip: ip });
   if (allowed.error) return reply({ error: "unavailable" }, 503);
   if (allowed.data !== true) return reply({ error: "busy" }, 429);
+  // The visitor as a hash (never the address itself), and whether today's token budget per person has room.
+  const me = await admin.rpc("guide_chat_who", { p_ip: ip });
+  const who = !me.error && typeof me.data?.who === "string" ? (me.data.who as string) : "";
+  if (!me.error && me.data?.room === false) return reply({ error: "busy" }, 429);
 
-  // A first question someone already asked recently: the same answer, no AI call.
-  const ckey = history.length ? null : await cacheKey(question);
+  // What's on right now (events and places left, news, open forms): changes, so not in the cached prompt.
+  const live = await admin.rpc("guide_live_context").then((r: { error: unknown; data: unknown }) => (r.error ? null : (r.data as Live)), () => null);
+
+  // A first question someone already asked recently, with nothing on the site changed since: the
+  // same answer, no AI call. Follow-ups depend on the conversation, so they always go to the AI.
+  const ckey = first ? await cacheKey(question, live) : null;
   if (ckey) {
     const hit = await admin.rpc("guide_cache_get", { p_key: ckey });
     if (!hit.error && typeof hit.data === "string" && hit.data) return reply({ text: hit.data, cached: true });
@@ -178,8 +199,6 @@ Deno.serve(async (req) => {
 
   const known = await siteKnowledge();
   if (!known) return reply({ text: null, error: "knowledge" }, 503);
-  // What's on right now (events and places left, news, open forms): changes, so not cached.
-  const live = await admin.rpc("guide_live_context").then((r: { error: unknown; data: unknown }) => (r.error ? null : (r.data as Live)), () => null);
 
   try {
     const client = new Anthropic({ apiKey: key, timeout: 13000, maxRetries: 0 });
@@ -211,7 +230,7 @@ Deno.serve(async (req) => {
       }
     }
     const u = res.usage;
-    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0 });
+    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0, p_service: "guide", p_who: who });
     if (res.stop_reason === "refusal") return reply({ text: null });
     const text = res.content
       .flatMap((b) => (b.type === "text" ? [b.text] : []))
@@ -222,7 +241,13 @@ Deno.serve(async (req) => {
     return reply({ text: text || null });
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : undefined;
-    console.error("bakloz-chat", status ?? "", e instanceof Error ? e.message : String(e));
+    // The status and the kind of error only: never the question, the answer or the visitor.
+    const kind = e instanceof Error ? e.name : "error";
+    console.error("bakloz-chat", status ?? "", kind);
+    await admin.rpc("ai_error_add", { p_service: "guide", p_status: status ?? null, p_kind: kind }).then(
+      () => undefined,
+      () => undefined,
+    );
     return reply({ text: null, error: "ai" }, 502);
   }
 });

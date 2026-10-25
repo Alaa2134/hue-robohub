@@ -3,7 +3,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
  * Hero camera: scroll drift + pointer parallax written to CSS variables on the section
- * (no React renders per frame). Disabled for reduced motion; pointer parallax only for mice.
+ * (no React renders per frame). It runs only while something moves (a scroll, the mouse, the easing
+ * catching up) and rests otherwise, so a phone sitting on the page does no work. Disabled for
+ * reduced motion; pointer parallax only for mice.
  */
 export function HeroCamera({ children, className }: { children: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -11,35 +13,55 @@ export function HeroCamera({ children, className }: { children: ReactNode; class
     const el = ref.current;
     if (!el || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let raf = 0;
+    let running = false;
     let mx = 0;
     let my = 0;
     let tx = 0;
     let ty = 0;
+    let lastY = -1;
     let visible = true;
-    const io = new IntersectionObserver(([e]) => (visible = !!e?.isIntersecting));
-    io.observe(el);
-    const loop = () => {
-      raf = requestAnimationFrame(loop);
-      if (!visible) return;
+    const step = () => {
+      if (!visible) {
+        running = false;
+        return;
+      }
       tx += (mx - tx) * 0.06;
       ty += (my - ty) * 0.06;
       const y = Math.min(window.scrollY, window.innerHeight * 1.2);
-      el.style.setProperty("--mx", tx.toFixed(4));
-      el.style.setProperty("--my", ty.toFixed(4));
-      el.style.setProperty("--sy", y.toFixed(1));
-      el.style.setProperty("--sp", (y / window.innerHeight).toFixed(4));
+      const settled = Math.abs(mx - tx) < 0.0005 && Math.abs(my - ty) < 0.0005 && y === lastY;
+      if (!settled) {
+        el.style.setProperty("--mx", tx.toFixed(4));
+        el.style.setProperty("--my", ty.toFixed(4));
+        el.style.setProperty("--sy", y.toFixed(1));
+        el.style.setProperty("--sp", (y / window.innerHeight).toFixed(4));
+        lastY = y;
+        raf = requestAnimationFrame(step);
+      } else running = false;
     };
+    const kick = () => {
+      if (running) return;
+      running = true;
+      raf = requestAnimationFrame(step);
+    };
+    const io = new IntersectionObserver(([e]) => {
+      visible = !!e?.isIntersecting;
+      if (visible) kick();
+    });
+    io.observe(el);
     const move = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
       mx = e.clientX / window.innerWidth - 0.5;
       my = e.clientY / window.innerHeight - 0.5;
+      kick();
     };
     window.addEventListener("pointermove", move, { passive: true });
-    raf = requestAnimationFrame(loop);
+    window.addEventListener("scroll", kick, { passive: true });
+    kick();
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();
       window.removeEventListener("pointermove", move);
+      window.removeEventListener("scroll", kick);
     };
   }, []);
   return (
@@ -91,11 +113,14 @@ export function Scope({ className, color = "#38dcff" }: { className?: string; co
     let raf = 0;
     let last = 0;
     let visible = true;
+    // Phones draw less often and without the glow (it's the costly part); everyone starts once the page has settled.
+    const light = matchMedia("(pointer: coarse)").matches;
+    const every = light ? 66 : 33;
     const io = new IntersectionObserver(([e]) => (visible = !!e?.isIntersecting));
     io.observe(c);
     const draw = (t: number) => {
       raf = requestAnimationFrame(draw);
-      if (!visible || t - last < 33 || w < 8 || h < 8) return;
+      if (!visible || t - last < every || w < 8 || h < 8) return;
       last = t;
       const s = t / 1000;
       ctx.clearRect(0, 0, w, h);
@@ -112,7 +137,7 @@ export function Scope({ className, color = "#38dcff" }: { className?: string; co
       ctx.lineTo(w, h / 2);
       ctx.stroke();
       ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = light ? 0 : 8;
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
@@ -132,8 +157,14 @@ export function Scope({ className, color = "#38dcff" }: { className?: string; co
       ctx.shadowBlur = 0;
       if (reduced) cancelAnimationFrame(raf);
     };
-    raf = requestAnimationFrame(draw);
+    const start = () => (raf = requestAnimationFrame(draw));
+    // After the page is interactive: the waveform is decoration and shouldn't compete with the first paint.
+    const win = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const useIdle = typeof win.requestIdleCallback === "function";
+    const later = useIdle ? win.requestIdleCallback!(start, { timeout: 3000 }) : window.setTimeout(start, 1500);
     return () => {
+      if (useIdle) win.cancelIdleCallback?.(later);
+      else window.clearTimeout(later);
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();

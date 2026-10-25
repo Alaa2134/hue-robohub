@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { SUPABASE_URL } from "@/lib/supabase-public";
-import { can, errorText, fmt, isFull, rpc, sb, type StaffRow } from "./core";
+import { can, downloadCsv, errorText, fmt, isFull, must, rpc, sb, today, type StaffRow } from "./core";
 import { Badge, Button, Card, Chip, Empty, Field, Input, Loading, Section, Select, Sheet, Stat, Textarea, Toggle, TopBar, toast, useAsync } from "./ui";
 import { sendOnWhatsApp } from "./wa-handoff";
 
@@ -450,9 +450,89 @@ function SettingsTab({ data, me, reload }: { data: Overview; me: StaffRow; reloa
   );
 }
 
+type Line = { id: number; wallet_id: string | null; kind: "free" | "topup" | "charge" | "refund" | "grant" | "adjust"; credits: number; balance: number | null; amount: number | null; note: string | null; at: string };
+const KIND: Record<Line["kind"], { ar: string; tone: "ok" | "info" | "warn" | "muted" | "danger" }> = {
+  topup: { ar: "شحن", tone: "ok" },
+  charge: { ar: "موديل", tone: "info" },
+  refund: { ar: "رجوع كريدت", tone: "warn" },
+  grant: { ar: "هدية / خصم من الفريق", tone: "muted" },
+  free: { ar: "رصيد مجاني", tone: "muted" },
+  adjust: { ar: "تعديل", tone: "muted" },
+};
+
+/**
+ * Every movement of every 3D AI wallet: top-ups (with the money), models, refunds, the team's grants.
+ * Separate from the trip and form fees, which have their own log in each form.
+ */
+function LedgerTab({ data }: { data: Overview }) {
+  const [wallet, setWallet] = useState("");
+  const lines = useAsync(async () => {
+    let q = sb().from("ai3d_ledger").select("id,wallet_id,kind,credits,balance,amount,note,at").order("at", { ascending: false }).order("id", { ascending: false }).limit(500);
+    if (wallet) q = q.eq("wallet_id", wallet);
+    return (await q.then(must)) as Line[];
+  }, [wallet]);
+  const names = new Map(data.wallets.map((w) => [w.id, w]));
+  const list = lines.data ?? [];
+  const money = list.reduce((a, l) => a + (l.kind === "topup" ? Number(l.amount ?? 0) : 0), 0);
+  const exportCsv = () =>
+    downloadCsv(`buildx-3dai-ledger-${today()}.csv`, [
+      ["التاريخ", "المحفظة", "الكود", "النوع", "الكريدت", "الرصيد بعدها", "المبلغ (جنيه)", "ملاحظة"],
+      ...list.map((l) => {
+        const w = l.wallet_id ? names.get(l.wallet_id) : undefined;
+        return [fmt.dateTime(l.at), w?.name ?? "", w?.code ?? "", KIND[l.kind].ar, String(l.credits), l.balance === null ? "" : String(l.balance), l.amount === null ? "" : String(l.amount), l.note ?? ""];
+      }),
+    ]);
+  return (
+    <div data-testid="ai3d-ledger">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Select value={wallet} onChange={(e) => setWallet(e.target.value)} className="max-w-xs" aria-label="المحفظة">
+          <option value="">كل المحافظ</option>
+          {data.wallets.map((w) => (
+            <option key={w.id} value={w.id}>
+              {`${w.name} · ${w.code}`}
+            </option>
+          ))}
+        </Select>
+        <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
+          Excel
+        </Button>
+        <p className="text-xs text-fog">{`${list.length} حركة · شحن ${egp(money)}`}</p>
+      </div>
+      {lines.loading && !lines.data ? (
+        <Loading />
+      ) : !list.length ? (
+        <Empty icon="chart" title="مفيش حركات لسه" />
+      ) : (
+        <Card className="divide-y divide-[var(--line)]">
+          {list.map((l) => {
+            const w = l.wallet_id ? names.get(l.wallet_id) : undefined;
+            return (
+              <div key={l.id} className="flex flex-wrap items-center gap-2 px-4 py-2.5" data-testid="ledger-line">
+                <Badge tone={KIND[l.kind].tone}>{KIND[l.kind].ar}</Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-chalk">{w ? `${w.name} · ${w.code}` : "محفظة اتشالت"}</p>
+                  <p className="truncate text-xs text-fog">
+                    {fmt.dateTime(l.at)}
+                    {l.note ? ` · ${l.note}` : ""}
+                  </p>
+                </div>
+                {l.amount !== null && <span className="text-xs text-mist">{egp(Number(l.amount))}</span>}
+                <span className={l.credits > 0 ? "font-semibold text-ok" : "font-semibold text-chalk"} dir="ltr">
+                  {l.credits > 0 ? `+${l.credits}` : l.credits}
+                </span>
+                {l.balance !== null && <span className="w-14 text-end text-xs text-fog">{`= ${l.balance}`}</span>}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
 export function Ai3dScreen({ me }: { me: StaffRow }) {
   const data = useAsync(() => rpc<Overview>("staff_ai3d_overview"), []);
-  const [tab, setTab] = useState<"topups" | "jobs" | "wallets" | "settings">("topups");
+  const [tab, setTab] = useState<"topups" | "jobs" | "wallets" | "ledger" | "settings">("topups");
   if (!data.data) return <>{data.error ? <Empty icon="alert" title="مقدرناش نفتح 3D AI" body={errorText(data.error)} /> : <Loading />}</>;
   const d = data.data;
   const reload = () => data.reload();
@@ -483,6 +563,9 @@ export function Ai3dScreen({ me }: { me: StaffRow }) {
         <Chip active={tab === "wallets"} onClick={() => setTab("wallets")}>
           المحافظ
         </Chip>
+        <Chip active={tab === "ledger"} onClick={() => setTab("ledger")}>
+          سجل المعاملات
+        </Chip>
         <Chip active={tab === "settings"} onClick={() => setTab("settings")}>
           الإعدادات
         </Chip>
@@ -490,6 +573,7 @@ export function Ai3dScreen({ me }: { me: StaffRow }) {
       {tab === "topups" && <TopupsTab data={d} me={me} reload={reload} />}
       {tab === "jobs" && <JobsTab data={d} me={me} reload={reload} />}
       {tab === "wallets" && <WalletsTab data={d} me={me} reload={reload} />}
+      {tab === "ledger" && <LedgerTab data={d} />}
       {tab === "settings" && <SettingsTab data={d} me={me} reload={reload} />}
     </>
   );

@@ -892,6 +892,7 @@ function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: 
   const unpaid = responses.filter(owes);
   const collected = paid.reduce((a, r) => a + Number(r.paid_amount ?? 0), 0);
   const owed = unpaid.length * Number(form.payment?.amount ?? 0);
+  const [log, setLog] = useState(false);
   return (
     <Card className="mt-3 grid grid-cols-3 gap-2 text-center" data-testid="payment-summary">
       <div>
@@ -914,7 +915,70 @@ function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: 
           <span className="text-xs text-fog">وبيتبعت للمقبولين تذكير لوحده كل يومين بعد القبول لحد ما يدفعوا (للي بيسجّلوا من دلوقتي)</span>
         </div>
       )}
+      <div className="col-span-3 border-t border-[var(--line)] pt-2">
+        <Button size="sm" variant="ghost" icon="list" onClick={() => setLog(true)} data-testid="payment-log-open">
+          سجل الدفع
+        </Button>
+      </div>
+      {log && <PaymentLog form={form} responses={responses} onClose={() => setLog(false)} />}
     </Card>
+  );
+}
+
+type PayLine = { id: number; response_id: string | null; action: "paid" | "unpaid" | "changed"; amount: number | null; method: PaidMethod | null; note: string | null; at: string };
+const PAY_ACTION: Record<PayLine["action"], { ar: string; tone: "ok" | "warn" | "info" }> = { paid: { ar: "دفع", tone: "ok" }, unpaid: { ar: "اتلغى الدفع", tone: "warn" }, changed: { ar: "اتعدّل", tone: "info" } };
+
+/** Every time someone in this form was marked paid, unpaid or had the amount changed — the trip fees' own record (the 3D AI wallet has a separate one). */
+function PaymentLog({ form, responses, onClose }: { form: Form; responses: Response[]; onClose: () => void }) {
+  const { data, loading } = useAsync(async () => (await sb().from("form_payment_log").select("id,response_id,action,amount,method,note,at").eq("form_id", form.id).order("at", { ascending: false }).limit(1000).then(must)) as PayLine[], [form.id]);
+  const who = new Map(responses.map((r) => [r.id, r]));
+  const lines = data ?? [];
+  const exportXlsx = () =>
+    downloadXlsx(`${form.slug}-payments-${today()}`, [
+      ["التاريخ", "الاسم", "الكود", "الحركة", "المبلغ", "الطريقة", "ملاحظة"],
+      ...lines.map((l) => {
+        const r = l.response_id ? who.get(l.response_id) : undefined;
+        return [fmt.dateTime(l.at), r?.name ?? "", r?.ref ?? "", PAY_ACTION[l.action].ar, l.amount ?? "", l.method ? methodAr(l.method) : "", l.note ?? ""];
+      }),
+    ]);
+  return (
+    <Sheet open onClose={onClose} title="سجل الدفع">
+      <div className="grid gap-3 text-start" data-testid="payment-log">
+        <div className="flex items-center gap-2">
+          <p className="flex-1 text-xs text-fog">كل مرة حد اتعلّم إنه دفع أو اتلغى دفعه أو المبلغ اتغيّر، مين ومتى. محفظة 3D AI ليها سجل لوحدها.</p>
+          <Button size="sm" icon="download" disabled={!lines.length} onClick={() => void exportXlsx()}>
+            Excel
+          </Button>
+        </div>
+        {loading && !data ? (
+          <Loading />
+        ) : !lines.length ? (
+          <Empty icon="list" title="مفيش حركات دفع لسه" />
+        ) : (
+          <List>
+            {lines.map((l) => {
+              const r = l.response_id ? who.get(l.response_id) : undefined;
+              return (
+                <Row key={l.id}>
+                  <div className="flex items-center gap-2" data-testid="payment-log-line">
+                    <Badge tone={PAY_ACTION[l.action].tone}>{PAY_ACTION[l.action].ar}</Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-chalk">{r ? `${r.name ?? "—"} · ${r.ref}` : "رد اتشال"}</p>
+                      <p className="truncate text-xs text-fog">
+                        {fmt.dateTime(l.at)}
+                        {l.method ? ` · ${methodAr(l.method)}` : ""}
+                        {l.note ? ` · ${l.note}` : ""}
+                      </p>
+                    </div>
+                    {l.amount !== null && <span className="text-sm font-semibold text-chalk">{egp(Number(l.amount))}</span>}
+                  </div>
+                </Row>
+              );
+            })}
+          </List>
+        )}
+      </div>
+    </Sheet>
   );
 }
 

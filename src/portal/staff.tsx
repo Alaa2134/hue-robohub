@@ -32,6 +32,7 @@ import { NotifyScreen, PushCard } from "./push";
 import { StaffContent } from "./staff-content";
 import { useStudents } from "./staff-data";
 import { QuizEditor, QuizResults, QuizzesScreen } from "./staff-quizzes";
+import { AcademyScreen } from "./staff-academy";
 import { StudentsScreen } from "./staff-students";
 import { AccountScreen, ReportsScreen, TeamScreen } from "./staff-team";
 import { ActivityScreen } from "./staff-activity";
@@ -109,6 +110,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   access: "roster",
   content: "materials",
   quizzes: "quizzes",
+  academy: ["materials", "quizzes", "attendance", "tasks", "roster"],
   tasks: "tasks",
   announcements: "announcements",
   leaderboard: "points",
@@ -434,6 +436,9 @@ export function StaffApp({
       break;
     case "ai3d":
       screen = <Ai3dScreen me={me} />;
+      break;
+    case "academy":
+      screen = <AcademyScreen me={me} id={id} sub={sub} />;
       break;
     case "email":
       screen = <EmailScreen me={me} />;
@@ -825,6 +830,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "alert", label: "إنذارات الفريق (كل السيكتورات)", to: "/staff/warnings" },
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
+    { icon: "book", label: "الأكاديمية (كورسات اللاب والشهادات)", to: "/staff/academy" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "layers", label: "صفحات الموقع (صفحة المعرض وصفحات جديدة بالسحب والإفلات)", to: "/staff/pages" },

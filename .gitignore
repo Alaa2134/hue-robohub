@@ -5,6 +5,7 @@ node_modules
 /storage
 /playwright-report
 /test-results
+/lh-reports
 *.log
 .env
 .env.*

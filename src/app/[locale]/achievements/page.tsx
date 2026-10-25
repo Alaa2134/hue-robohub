@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildItems } from "@/lib/build-content";
+import { buildItems, emptySection } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveAchievements } from "@/components/live/live-content";
 import Link from "next/link";
@@ -20,7 +20,7 @@ export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/achievements", title: t.achievements.title, description: t.achievements.body, image: art("trophy", "hero")?.og });
+  return pageMeta({ locale, path: "/achievements", title: t.achievements.title, description: t.achievements.body, image: art("trophy", "hero")?.og , noindex: STATIC_SITE && (await emptySection("achievements")) });
 }
 
 export default async function Achievements({ params }: Params) {

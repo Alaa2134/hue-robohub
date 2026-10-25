@@ -25,6 +25,7 @@ import { Diagnostics, Inspector, Library, PartSheet, SerialMonitor } from "./pan
 import { Oscilloscope, PinMonitor } from "./instruments";
 import { PART_BY_TYPE } from "./parts";
 import { CircuitThumb } from "./render";
+import { ChallengeBar } from "../academy/challenge-bar";
 
 /** The 3D view (three.js) loads only when it's opened. */
 const Circuit3D = lazy(() => import("./view3d/scene"));
@@ -320,6 +321,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
       </div>
     );
   const p = proj.project;
+  const challenge = p.tags?.find((x) => x.startsWith("challenge:"))?.slice(10) ?? null;
 
   const statusText =
     proj.state === "saving" ? t("saving") : proj.state === "dirty" ? t("unsaved") : proj.state === "readonly" ? t("readOnly") : proj.state === "conflict" ? t("conflict") : proj.state === "error" ? t("error") : `${p.local ? t("savedLocal") : t("saved")}${proj.savedAt ? ` · ${proj.savedAt.toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}`;
@@ -624,6 +626,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
           </Button>
         </div>
       )}
+      {challenge && <ChallengeBar slug={challenge} project={id} getDoc={() => store.current} readOnly={readOnly} />}
       {readOnly && (
         <div className="flex items-center gap-2 bg-panel px-3 py-1.5 text-xs text-mist">
           <Icon name="lock" size={14} /> {t("readOnly")} · {p.owner ? `${t("by")} ${p.owner}` : ""}

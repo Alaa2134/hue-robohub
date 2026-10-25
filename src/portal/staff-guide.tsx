@@ -5,13 +5,14 @@
  * The key itself lives in Supabase secrets and never reaches the app.
  */
 import { useState } from "react";
-import { must, rpc, sb } from "./core";
+import { fmt, must, rpc, sb } from "./core";
 import { Button, Card, Field, Input, Toggle, toast, useAsync } from "./ui";
 
-type GuideAi = { enabled: boolean; per_ip_10min: number; per_ip_day: number; site_day: number };
+type GuideAi = { enabled: boolean; per_ip_10min: number; per_ip_day: number; site_day: number; per_user_tokens: number };
+type Detail = { budget: number; people_today: number; top: { who: string; service: string; calls: number; tokens: number }[]; errors: { at: string; service: string; status: number | null; kind: string | null }[]; errors_week: number };
 type Day = { day: string; calls: number; cache_hits: number; refused: number; input_tokens: number; output_tokens: number; cache_read_tokens: number; cache_write_tokens: number };
 
-const DEFAULTS: GuideAi = { enabled: true, per_ip_10min: 6, per_ip_day: 25, site_day: 300 };
+const DEFAULTS: GuideAi = { enabled: true, per_ip_10min: 6, per_ip_day: 25, site_day: 300, per_user_tokens: 40000 };
 const n = (x: number) => new Intl.NumberFormat("ar-EG").format(x);
 
 export function GuideAiCard() {
@@ -20,11 +21,12 @@ export function GuideAiCard() {
       sb().from("site_settings").select("value").eq("key", "guide_ai").maybeSingle().then(must) as Promise<{ value: Partial<GuideAi> } | null>,
       rpc<Day[]>("staff_guide_usage").catch(() => [] as Day[]),
     ]);
-    return { cfg: { ...DEFAULTS, ...(s?.value ?? {}) }, usage };
+    const detail = await rpc<Detail>("staff_ai_usage_detail").catch(() => null);
+    return { cfg: { ...DEFAULTS, ...(s?.value ?? {}) }, usage, detail };
   }, []);
   const [busy, setBusy] = useState(false);
   if (!data) return null;
-  const { cfg, usage } = data;
+  const { cfg, usage, detail } = data;
   const save = async (next: GuideAi, msg = "اتحفظ") => {
     setBusy(true);
     try {
@@ -51,6 +53,9 @@ export function GuideAiCard() {
         <Field label="لكل زائر في اليوم">{num("per_ip_day", 1, 500)}</Field>
         <Field label="للموقع كله في اليوم" hint="أقصى عدد أسئلة للـ AI في اليوم">{num("site_day", 1, 20000)}</Field>
       </div>
+      <Field label="حد التوكنز لكل شخص في اليوم" hint="بيحدد التكلفة لكل زائر أو طالب أو عضو فريق، مهما كان عدد أسئلته. لما يخلص، بقلظ بيرد من معلوماته هو لحد بكرة.">
+        {num("per_user_tokens", 1000, 2000000)}
+      </Field>
       <Button size="sm" loading={busy} onClick={() => save(cfg)}>
         حفظ الحدود
       </Button>
@@ -66,6 +71,33 @@ export function GuideAiCard() {
             <p>
               آخر 7 أيام: {n(sum("calls"))} سؤال · توكنز داخلة {n(sum("input_tokens"))} · خارجة {n(sum("output_tokens"))} · من كاش البرومبت {n(sum("cache_read_tokens"))}
             </p>
+          </div>
+        )}
+        {detail && (
+          <div className="mt-3 grid gap-2 border-t border-[var(--line)] pt-3 text-mist" data-testid="ai-detail">
+            <p>{`النهارده: ${n(detail.people_today)} شخص استخدم الـ AI · الحد ${n(detail.budget)} توكن للشخص`}</p>
+            {detail.top.length > 0 && (
+              <ul className="grid gap-0.5 text-xs">
+                {detail.top.map((u) => (
+                  <li key={`${u.who}${u.service}`} className="flex justify-between gap-2">
+                    <span dir="ltr" className="font-mono text-fog">{`#${u.who}`}</span>
+                    <span>{`${u.service === "app" ? "التطبيق" : "الموقع"} · ${n(u.calls)} سؤال · ${n(u.tokens)} توكن${u.tokens >= detail.budget ? " · وصل للحد" : ""}`}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-fog">الأشخاص بيظهروا برقم مشفّر بس، من غير عنوان أو اسم.</p>
+            <p className={detail.errors_week ? "text-warn" : ""}>{detail.errors_week ? `${n(detail.errors_week)} خطأ من خدمة الـ AI آخر 7 أيام` : "مفيش أخطاء من خدمة الـ AI آخر 7 أيام"}</p>
+            {detail.errors.length > 0 && (
+              <ul className="grid gap-0.5 text-xs" data-testid="ai-errors">
+                {detail.errors.slice(0, 8).map((e, i) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span>{fmt.dateTime(e.at)}</span>
+                    <span dir="ltr">{`${e.service} · ${e.status ?? "—"} · ${e.kind || "error"}`}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
         <p className="mt-2 text-xs text-fog">بقلظ بيرد لوحده على الأسئلة اللي يعرفها (التراكات، الإيفنتات، الانضمام…)، والـ AI بيتسأل بس في اللي ميعرفوش، وبحد أقصى 8 مرات لكل زائر في الزيارة.</p>

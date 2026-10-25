@@ -36,3 +36,9 @@ jobs:
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
       - name: Smoke tests
         run: npx playwright test
+      - name: Lighthouse (mobile)
+        # Reports the phone scores and Core Web Vitals in the run summary; never fails the build.
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 15
+        run: node scripts/lighthouse-mobile.mjs out-static

@@ -5,12 +5,13 @@
  * return date, take them back, and hand out consumables. Everyone else sees the catalog, asks to
  * borrow, and sees what they have. Reminders go out from the database (20261011090500_inventory_functions.sql).
  */
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
 import { errorText, fmt, fromLocalInput, rpc, toLocalInput } from "./core";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Stat, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
 import { dueText } from "./staff-sectors";
 import { useStudentLoans } from "./baqloz";
+import { CONDITION, LabelsSheet, QrImg, ScanSheet, labelUrl } from "./equipment";
 
 export type Item = {
   id: string;
@@ -26,6 +27,11 @@ export type Item = {
   low_notified_at: string | null;
   available: number;
   out: number;
+  code: string;
+  custodian_id: string | null;
+  condition: "good" | "worn" | "repair" | "broken";
+  photo_path: string | null;
+  students_can_borrow: boolean;
 };
 export type Loan = {
   id: string;
@@ -49,7 +55,8 @@ type StoreRequest = {
   id: string;
   item_id: string;
   item_name: string;
-  staff_id: string;
+  staff_id: string | null;
+  student?: boolean;
   name: string;
   quantity: number;
   purpose: string;
@@ -95,6 +102,8 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
   const [lending, setLending] = useState<Item | null>(null);
   const [asking, setAsking] = useState<Item | null>(null);
   const [deciding, setDeciding] = useState<StoreRequest | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [labels, setLabels] = useState(false);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const cats = useMemo(() => [...new Set(items.map((i) => i.category).filter(Boolean))], [items]);
@@ -109,6 +118,20 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
       (!cat || i.category === cat) &&
       (!q.trim() || `${i.name} ${i.category} ${i.location} ${i.description}`.toLowerCase().includes(q.trim().toLowerCase())),
   );
+  const wanted = query?.get("item")?.toUpperCase() ?? null;
+  useEffect(() => {
+    if (!wanted || !data) return;
+    const hit = data.items.find((i) => i.code === wanted);
+    if (hit) setOpen(hit);
+    else toast("مفيش قطعة بالكود ده", "error");
+  }, [wanted, data]);
+  const openCode = (code: string) => {
+    const hit = items.find((i) => i.code === code);
+    setScanning(false);
+    if (hit) setOpen(hit);
+    else toast("مفيش قطعة بالكود ده", "error");
+  };
+  const staffName = (id: string | null) => (id && data?.staff?.find((x) => x.id === id)?.name) || null;
   const done = () => {
     setOpen(null);
     setLending(null);
@@ -141,11 +164,21 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
         sub={data?.keeps ? "القطع والأدوات، مين معاه إيه، والطلبات" : "القطع والأدوات اللي عندنا، واطلب اللي محتاجه"}
         back="/staff/more"
         actions={
-          data?.keeps && (
-            <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
-              قطعة
+          <div className="flex gap-2">
+            <Button size="sm" icon="scan" onClick={() => setScanning(true)}>
+              امسح
             </Button>
-          )
+            {data?.keeps && items.some((i) => i.code) && (
+              <Button size="sm" icon="barcode" onClick={() => setLabels(true)}>
+                ملصقات
+              </Button>
+            )}
+            {data?.keeps && (
+              <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
+                قطعة
+              </Button>
+            )}
+          </div>
         }
       />
       {loading && !data ? (
@@ -235,6 +268,7 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
                           <p className="text-[11px] text-fog">{i.consumable ? i.unit : `من ${i.quantity}`}</p>
                         </div>
                         {isLow(i) && <Badge tone="warn">قرّب يخلص</Badge>}
+                        {(i.condition === "repair" || i.condition === "broken") && <Badge tone={CONDITION[i.condition].tone}>{CONDITION[i.condition].label}</Badge>}
                       </div>
                     </Row>
                   ))}
@@ -261,6 +295,7 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
                             {r.item_name} × {r.quantity}
                           </p>
                           <p className="text-xs text-fog">
+                            {r.student && "🎓 "}
                             {r.name} · {fmt.dateTime(r.created_at)}
                             {r.needed_until && ` · لحد ${fmt.short(r.needed_until)}`}
                           </p>
@@ -339,6 +374,23 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
               <Stat label="برا" value={open.out} />
             </div>
             {open.description && <p className="whitespace-pre-line text-sm text-mist">{open.description}</p>}
+            {open.code && (
+              <div className="flex items-center gap-3 rounded-2xl bg-white/[0.03] p-3">
+                <span className="rounded-lg bg-white p-1">
+                  <QrImg value={labelUrl(open.code)} size={72} />
+                </span>
+                <div className="min-w-0 flex-1 text-sm">
+                  <p className="font-mono text-chalk" dir="ltr">
+                    {open.code}
+                  </p>
+                  <p className="text-fog">{staffName(open.custodian_id) ? `المسؤول: ${staffName(open.custodian_id)}` : "مفيش مسؤول محدد"}</p>
+                  <p className="mt-1 flex flex-wrap gap-1.5">
+                    <Badge tone={CONDITION[open.condition]?.tone ?? "muted"}>{CONDITION[open.condition]?.label ?? open.condition}</Badge>
+                    {open.students_can_borrow && <Badge tone="info">الطلبة يقدروا يطلبوها</Badge>}
+                  </p>
+                </div>
+              </div>
+            )}
             <p className="text-sm text-fog">
               {[open.category, open.location && `📍 ${open.location}`, open.consumable ? "بيتصرف (مش بيرجع)" : "بيتسلّف ويرجع"].filter(Boolean).join(" · ")}
             </p>
@@ -373,7 +425,9 @@ export function InventoryScreen({ me, query }: { me: string; query?: URLSearchPa
           </div>
         </Sheet>
       )}
-      {editing && <ItemSheet item={editing === "new" ? null : editing} cats={cats} onClose={() => setEditing(null)} onDone={done} />}
+      {editing && <ItemSheet item={editing === "new" ? null : editing} cats={cats} staff={data?.staff ?? []} onClose={() => setEditing(null)} onDone={done} />}
+      {scanning && <ScanSheet onClose={() => setScanning(false)} onCode={openCode} />}
+      {labels && <LabelsSheet items={items.filter((i) => !i.archived && i.code)} onClose={() => setLabels(false)} />}
       {lending && data && <LendSheet item={lending} store={data} onClose={() => setLending(null)} onDone={done} />}
       {asking && <AskSheet item={asking} onClose={() => setAsking(null)} onDone={done} />}
       {deciding && <ApproveSheet request={deciding} onClose={() => setDeciding(null)} onDone={done} />}
@@ -421,7 +475,7 @@ function LoanList({ loans, onReturn }: { loans: Loan[]; onReturn?: (l: Loan, s: 
   );
 }
 
-function ItemSheet({ item, cats, onClose, onDone }: { item: Item | null; cats: string[]; onClose: () => void; onDone: () => void }) {
+function ItemSheet({ item, cats, staff, onClose, onDone }: { item: Item | null; cats: string[]; staff: { id: string; name: string }[]; onClose: () => void; onDone: () => void }) {
   const [f, setF] = useState({
     name: item?.name ?? "",
     category: item?.category ?? "",
@@ -432,6 +486,9 @@ function ItemSheet({ item, cats, onClose, onDone }: { item: Item | null; cats: s
     unit: item?.unit ?? "قطعة",
     consumable: item?.consumable ?? false,
     archived: item?.archived ?? false,
+    custodian_id: item?.custodian_id ?? "",
+    condition: item?.condition ?? "good",
+    students_can_borrow: item?.students_can_borrow ?? false,
   });
   const [busy, setBusy] = useState(false);
   const save = async (e: FormEvent) => {
@@ -484,7 +541,31 @@ function ItemSheet({ item, cats, onClose, onDone }: { item: Item | null; cats: s
         <Field label="وصف (اختياري)">
           <Textarea value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} maxLength={1000} className="min-h-16" placeholder="الموديل، ملاحظات الاستخدام…" />
         </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="المسؤول عنها">
+            <Select value={f.custodian_id} onChange={(e) => setF({ ...f, custodian_id: e.target.value })}>
+              <option value="">مفيش</option>
+              {staff.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="حالتها">
+            <Select value={f.condition} onChange={(e) => setF({ ...f, condition: e.target.value as Item["condition"] })}>
+              {Object.entries(CONDITION).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
         <Toggle checked={f.consumable} onChange={(v) => setF({ ...f, consumable: v })} label="بيتصرف ومش بيرجع" hint="زي المقاومات والأسلاك: الصرف بينقص العدد على طول." />
+        {!f.consumable && (
+          <Toggle checked={f.students_can_borrow} onChange={(v) => setF({ ...f, students_can_borrow: v })} label="الطلبة يقدروا يطلبوها" hint="بتظهر في «استعارة المعدات» في تطبيق الطالب، والطلب بيوصلك وللمسؤول عنها." />
+        )}
         {item && <Toggle checked={f.archived} onChange={(v) => setF({ ...f, archived: v })} label="أرشفة" hint="بتختفي من الكتالوج، وسجلها بيفضل." />}
         <Button type="submit" variant="primary" size="lg" block loading={busy}>
           حفظ
@@ -675,11 +756,20 @@ function ApproveSheet({ request: r, onClose, onDone }: { request: StoreRequest; 
 export function StudentLoansCard() {
   const { data } = useStudentLoans();
   const out = (data ?? []).filter((l) => l.status === "out");
-  if (!out.length) return null;
+  if (!out.length)
+    return (
+      <a href="#/me/equipment" className="mt-4 flex items-center gap-2 rounded-2xl border border-[var(--line)] bg-panel/70 px-4 py-3 text-sm text-mist hover:border-cyan/40" data-testid="student-equipment-link">
+        <Icon name="box" size={18} className="text-cyan" /> <span className="flex-1">استعارة المعدات من المخزن</span>
+        <Icon name="chevron" size={16} className="text-fog" />
+      </a>
+    );
   return (
     <Card className="mt-4 grid gap-2" data-testid="student-loans">
       <p className="flex items-center gap-2 font-semibold text-chalk">
-        <Icon name="box" size={18} className="text-cyan" /> معاك من المخزن
+        <Icon name="box" size={18} className="text-cyan" /> <span className="flex-1">معاك من المخزن</span>
+        <a href="#/me/equipment" className="text-xs font-normal text-cyan">
+          استعارة المعدات
+        </a>
       </p>
       {out.map((l) => (
         <div key={l.id} className="flex items-center justify-between gap-2 text-sm">

@@ -20,6 +20,7 @@ import {
   modelUrl,
   photoDataUrl,
   recoverWallet,
+  rpc,
   savedWallet,
   saveWallet,
   share,
@@ -495,6 +496,7 @@ export function Ai3dStudio({ lang, home }: { lang: Lang; home: string }) {
                 </ul>
               </>
             )}
+            {me && <CreditsLog c={c} token={wallet.token} credits={me.wallet.credits} />}
             <button
               type="button"
               onClick={() => {
@@ -512,5 +514,36 @@ export function Ai3dStudio({ lang, home }: { lang: Lang; home: string }) {
       {wallet && buy !== null && <TopUp c={c} lang={lang} info={info} token={wallet.token} start={buy} onDone={() => void load()} onClose={() => setBuy(null)} />}
       {open && <ViewerDialog c={c} job={open} onClose={() => setOpen(null)} />}
     </section>
+  );
+}
+
+type Ledger = { kind: string; credits: number; balance: number | null; amount: number | null; at: string };
+
+/** The wallet's own record: every credit in or out, apart from any trip or form fee. */
+function CreditsLog({ c, token, credits }: { c: C; token: string; credits: number }) {
+  const [rows, setRows] = useState<Ledger[] | null>(null);
+  useEffect(() => {
+    rpc<Ledger[]>("ai3d_history", { p_token: token })
+      .then(setRows)
+      .catch(() => setRows(null));
+  }, [token, credits]);
+  if (!rows?.length) return null;
+  return (
+    <>
+      <h2 className="mb-1 mt-12 font-display text-xl font-bold text-chalk">{c.ledger}</h2>
+      <p className="mb-4 text-sm text-fog">{c.ledgerHint}</p>
+      <ul className="divide-y divide-[var(--line)] overflow-hidden rounded-2xl border border-[var(--line)] bg-abyss" data-testid="ai3d-credits-log">
+        {rows.map((r, i) => (
+          <li key={i} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm">
+            <span className="text-chalk">{c.ledgerKind[r.kind] ?? r.kind}</span>
+            <span className="text-fog">{new Date(r.at).toLocaleDateString()}</span>
+            <span className={cn("font-semibold", r.credits > 0 ? "text-ok" : "text-chalk")} dir="ltr">
+              {r.credits > 0 ? `+${r.credits}` : r.credits}
+              {r.balance !== null ? ` = ${r.balance}` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

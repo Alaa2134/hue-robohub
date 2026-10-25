@@ -100,3 +100,20 @@ export async function buildEmptySections(): Promise<("news" | "projects" | "gall
     return [];
   }
 }
+
+/** The verified totals (site_impact: members, events, projects…) when the site is built, for the counters at the top of the home page. */
+export async function buildImpact(): Promise<{ members: number; events: number; projects: number; sessions: number; team: number } | null> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/site_impact`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: "{}", signal: AbortSignal.timeout(10_000), cache: "force-cache" });
+    const x = r.ok ? ((await r.json()) as { ok?: boolean; members?: number; events?: number; projects?: number; sessions?: number; team?: number }) : null;
+    if (!x?.ok) return null;
+    return { members: Number(x.members ?? 0), events: Number(x.events ?? 0), projects: Number(x.projects ?? 0), sessions: Number(x.sessions ?? 0), team: Number(x.team ?? 0) };
+  } catch {
+    return null;
+  }
+}
+
+/** A section with nothing published yet is kept out of search results until it has real content. */
+export async function emptySection(section: "news" | "projects" | "gallery" | "achievements" | "stories"): Promise<boolean> {
+  return (await buildEmptySections()).includes(section);
+}

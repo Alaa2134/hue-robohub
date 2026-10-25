@@ -252,3 +252,56 @@ export function labEvent(kind: "compile_ok" | "compile_error" | "sim_run" | "exp
   if (!meStore.get()) return;
   void rpc("lab_event", { p_project: project && !isLocal(project) ? project : null, p_kind: kind, p_detail: detail }).catch(() => {});
 }
+
+/* ─── Academy ──────────────────────────────────────────────────────────── */
+
+export type LessonKind = "read" | "material" | "quiz" | "session" | "lab";
+export type CourseCard = {
+  id: string;
+  slug: string;
+  title: string;
+  title_en: string | null;
+  summary: string;
+  summary_en: string | null;
+  level: 1 | 2 | 3;
+  hours: number | null;
+  group: string | null;
+  lessons: number;
+  kinds: Partial<Record<LessonKind, number>>;
+  mine: boolean;
+  percent: number | null;
+};
+export type Lesson = {
+  id: string;
+  kind: LessonKind;
+  title: string;
+  title_en: string | null;
+  body: string;
+  body_en: string | null;
+  minutes: number | null;
+  required: boolean;
+  pass: number;
+  challenge: string | null;
+  /** Only for a student of the course; null otherwise. */
+  done: boolean | null;
+  material: { id: string; title: string; kind: "file" | "link"; url: string | null; path: string | null } | null;
+  quiz: { id: string; title: string; opens: string | null; closes: string | null; best: number | null } | null;
+  session: { title: string; at: string } | null;
+};
+export type Course = Omit<CourseCard, "lessons" | "kinds" | "mine" | "percent"> & {
+  published: boolean;
+  enrolled: boolean;
+  certificate: { code: string; on: string } | null;
+  lessons: Lesson[];
+};
+
+export const academy = {
+  catalog: () => rpc<CourseCard[]>("academy_catalog"),
+  course: (slug: string) => rpc<Course | null>("academy_course", { p_slug: slug }),
+  read: (lesson: string) => rpc<{ ok: boolean }>("academy_read", { p_lesson: lesson }),
+  materialSeen: (material: string) => rpc("student_material_seen", { p_material: material }).catch(() => undefined),
+  /** Challenges this student passed (slug → when). Empty for guests and the team. */
+  passed: async (): Promise<Record<string, string>> => (meStore.get()?.kind === "student" ? rpc<Record<string, string>>("lab_challenge_passes_mine").catch(() => ({})) : {}),
+  pass: (slug: string, project: string | null, checks: { label: { en: string; ar: string }; ok: boolean; got?: string }[], seconds: number) =>
+    rpc<{ ok: boolean }>("lab_challenge_pass", { p_slug: slug, p_project: project && !isLocal(project) ? project : null, p_checks: checks, p_seconds: seconds }),
+};
