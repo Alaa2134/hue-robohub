@@ -478,6 +478,8 @@ test("an event that registers through a form shows the form on its page; a full 
   await page.goto("/ar/events/item/?s=arduino-night");
   const form = page.getByTestId("event-form");
   await expect(form.getByRole("heading", { name: "رحلة المعرض" })).toBeVisible();
+  // The quick RSVP isn't there.
+  await expect(page.getByText("سجّل في الفعالية")).toHaveCount(0);
   const bus = form.getByTestId("bus-b");
   await expect(bus.getByRole("radio", { name: /باص المنصورة/ })).toBeDisabled();
   await expect(bus.getByRole("radio", { name: /باص المنصورة/ })).toContainText("مليان");
@@ -494,8 +496,7 @@ test("an event that registers through a form shows the form on its page; a full 
   await form.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByTestId("form-ref")).toHaveText("F-0A0B0C0D");
   expect(calls.filter((c) => c.fn === "submit_form").at(-1)!.body).toMatchObject({ p_slug: "mena-bus", p_answers: { n: "يوسف خالد", p: "01112223334", b: "جاي لوحدي" } });
-  // The quick RSVP isn't there.
-  await expect(page.getByLabel("الاسم بالكامل")).toHaveCount(1);
+  expect(calls.some((c) => c.fn === "register_event")).toBe(false);
 });
 
 test("home: the next event with a live countdown and places left", async ({ page }) => {

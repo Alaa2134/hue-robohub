@@ -483,12 +483,14 @@ test("an event that registers through a form: the organiser sees the funnel, pay
   await expect(buses).toContainText("باص المنصورة");
   await expect(buses).toContainText("45/45");
   await expect(buses).toContainText("فاضل 33 كرسي");
-  await page.getByTestId("hub-trip").click();
-  await expect(page).toHaveURL(/#\/staff\/forms\/f3\/responses\?open=trip$/);
-  await page.goBack();
+  expect(errors).toEqual([]);
+  // The tools open the form's own screens (not mocked here, so only where they go is checked).
   await page.getByTestId("hub-attendance").click();
   await expect(page).toHaveURL(/#\/staff\/forms\/f3\/attendance$/);
-  expect(errors).toEqual([]);
+  await page.goto("/app/#/staff/events/e3");
+  await page.reload();
+  await page.getByTestId("hub-trip").click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f3\/responses\?open=trip$/);
 });
 
 test("leaderboard ranks students and staff can give bonus points", async ({ page }) => {
