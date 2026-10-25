@@ -7,6 +7,7 @@
  * Data: submit_family (rate-limited, honeypot, same checks on the server); settings: site_settings 'family'.
  */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { NO_SHOW } from "@/lib/no-show";
 import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { FACULTIES } from "@/content/application";
@@ -389,6 +390,7 @@ export function FamilyForm({ locale, whatsapp }: { locale: "en" | "ar"; whatsapp
         if (out.error === "closed") return setSettings((s) => ({ ...s, open: false }));
         if (out.error === "rate_limited") return setProblem(t.err.limited);
         if (out.error === "busy") return setProblem(t.err.busy);
+        if (out.error === "banned") return setProblem(NO_SHOW[locale === "en" ? "en" : "ar"].banned);
         if (out.field) {
           const msg = {
             national_id: t.err.nid,

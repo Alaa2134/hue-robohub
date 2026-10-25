@@ -4471,7 +4471,7 @@ test("a new page from the expo template starts as a draft with its own address",
   await expect(page).toHaveURL(/#\/staff\/pages\/p9$/);
 });
 
-test("after the visit: everyone accepted who didn't come is banned and loses their membership, and a ban can be lifted", async ({
+test("after the visit: who didn't come gets a warning (a block if they had one), and a ban or a warning can be lifted", async ({
   page,
 }) => {
   await signInAsOwner(page);
@@ -4516,19 +4516,26 @@ test("after the visit: everyone accepted who didn't come is banned and loses the
     calls.push({ apply: body.p_apply });
     return route.fulfill({
       json: {
-        people: [{ id: "b2", name: "علي حسن", phone: "+201099999999", no: 2, banned: false }],
+        people: [
+          { id: "b2", name: "علي حسن", phone: "+201099999999", no: 2, banned: false, warned: true },
+          { id: "b3", name: "منى عادل", phone: "+201088888888", no: 3, banned: false, warned: false },
+        ],
         applied: body.p_apply ? 1 : 0,
+        warned: body.p_apply ? 1 : 0,
       },
     });
   });
   await page.goto("/app/#/staff/forms/f1/checkin");
   const box = page.getByTestId("no-shows");
   await expect(box).toContainText("اللي مجوش (1)");
-  await box.getByRole("button", { name: "احظر اللي مجوش" }).click();
-  await expect(page.getByRole("dialog").filter({ hasText: "علي حسن (BX-002)" })).toBeVisible();
-  await page.getByRole("button", { name: "احظرهم" }).click();
+  // A first no-show gets a warning; one who already had a warning is blocked.
+  await box.getByRole("button", { name: "إنذار / حظر للي مجوش" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("إنذار: منى عادل (BX-003)");
+  await expect(dialog).toContainText("حظر: علي حسن (BX-002)");
+  await dialog.getByRole("button", { name: "تمام" }).click();
   await expect.poll(() => calls.map((c) => c.apply)).toEqual([false, true]);
-  await expect(page.getByText("اتحظر 1 واتسحبت عضويتهم")).toBeVisible();
+  await expect(page.getByText("اتعمل إنذار لـ 1 وحظر لـ 1")).toBeVisible();
   // The bans list, with "lift".
   let lifted: unknown = null;
   await page.route(/\/rest\/v1\/community_bans/, (route) =>
@@ -4555,6 +4562,18 @@ test("after the visit: everyone accepted who didn't come is banned and loses the
   await page.getByRole("button", { name: "فك الحظر" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "فك الحظر" }).click();
   await expect.poll(() => lifted).toEqual({ p_id: "x1", p_restore: true });
+  // The warnings, with "remove".
+  let unwarned: unknown = null;
+  await page.route(/\/rest\/v1\/community_strikes/, (route) =>
+    route.fulfill({ json: [{ id: "k1", name: "منى عادل", phone: "+201088888888", reason: "اتسجل في «ورشة Arduino» ومجاش", created_at: at(60), outcome: "warning" }] }),
+  );
+  await page.route(/\/rpc\/staff_lift_strike/, (route) => ((unwarned = route.request().postDataJSON()), route.fulfill({ json: null })));
+  await page.reload();
+  await page.getByRole("button", { name: /عليهم إنذار/ }).click();
+  await expect(page.getByTestId("strike-row")).toContainText("اتسجل في «ورشة Arduino» ومجاش");
+  await page.getByRole("button", { name: "شيل الإنذار" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "شيل الإنذار" }).click();
+  await expect.poll(() => unwarned).toEqual({ p_id: "k1" });
 });
 
 /* ─── View only, the permission table, WhatsApp ───────────────────────────── */

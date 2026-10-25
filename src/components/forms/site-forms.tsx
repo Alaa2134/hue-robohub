@@ -13,6 +13,7 @@ import { cn } from "@/lib/cn";
 import { MediaError, mediaErrorText, prepareMedia, type MediaKind } from "@/lib/client-media";
 import { readNationalId } from "@/content/family";
 import { asciiDigits } from "@/lib/format";
+import { NO_SHOW } from "@/lib/no-show";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 type Locale = "ar" | "en";
@@ -56,7 +57,7 @@ const C = {
     fileDone: (name: string, before: string, after: string) => `✓ ${name} · ${before} ← ${after}`,
     fileWait: "استنى لحد ما الملف يخلص رفع.",
     fileBad: "الملف ماوصلش، ارفعه تاني.",
-    errors: { rate_limited: "بعت كذا مرة في وقت قصير. استنى شوية وجرّب تاني.", busy: "في ضغط دلوقتي. جرّب بعد دقيقة.", invalid: "في بيانات مش مظبوطة. راجعها وجرّب تاني.", network: "مقدرناش نوصل. اتأكد من النت وجرّب تاني.", closed: "الفورم ده اتقفل.", not_found: "الفورم ده مش موجود.", banned: "عليك حظر من كميونيتي BuildX HUE (اتقبلت في وفد قبل كده ومحضرتش)، فمش هتقدر تقدّم دلوقتي. لو شايف إن ده غلط كلّمنا." },
+    errors: { rate_limited: "بعت كذا مرة في وقت قصير. استنى شوية وجرّب تاني.", busy: "في ضغط دلوقتي. جرّب بعد دقيقة.", invalid: "في بيانات مش مظبوطة. راجعها وجرّب تاني.", network: "مقدرناش نوصل. اتأكد من النت وجرّب تاني.", closed: "الفورم ده اتقفل.", not_found: "الفورم ده مش موجود.", banned: NO_SHOW.ar.banned },
     sentTitle: "وصلتنا رسالتك ✅",
     sentBody: "بنقرا كل رسالة ونرد خلال أيام قليلة.",
     another: "ابعت رسالة تانية",
@@ -196,7 +197,7 @@ const C = {
     fileDone: (name: string, before: string, after: string) => `✓ ${name} · ${before} → ${after}`,
     fileWait: "Wait until the file has finished uploading.",
     fileBad: "The file didn't arrive, please upload it again.",
-    errors: { rate_limited: "Too many tries in a short time. Wait a little and try again.", busy: "We're busy right now. Try again in a minute.", invalid: "Something isn't right. Check the form and try again.", network: "We couldn't connect. Check your connection and try again.", closed: "This form is closed.", not_found: "This form doesn't exist.", banned: "You're banned from the BuildX HUE community (accepted for a delegation before and didn't come), so you can't apply now. If you think this is a mistake, contact us." },
+    errors: { rate_limited: "Too many tries in a short time. Wait a little and try again.", busy: "We're busy right now. Try again in a minute.", invalid: "Something isn't right. Check the form and try again.", network: "We couldn't connect. Check your connection and try again.", closed: "This form is closed.", not_found: "This form doesn't exist.", banned: NO_SHOW.en.banned },
     sentTitle: "Message received ✅",
     sentBody: "We read every message and reply within a few days.",
     another: "Send another message",
@@ -954,6 +955,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   const [ref, setRef] = useState("");
   const [pass, setPass] = useState("");
   const [viewPass, setViewPass] = useState("");
+  const [warned, setWarned] = useState(false);
   /** Friend questions with something typed but no friend confirmed yet. */
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [fs, setFs] = useState<Record<string, FileState>>({});
@@ -1072,6 +1074,11 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             <p className="max-w-lg text-sm text-mist">{t.refHint}</p>
           </div>
         )}
+        {warned && (
+          <p role="alert" className="max-w-lg rounded-xl border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-[#ffd08a]" data-testid="no-show-warned">
+            {NO_SHOW[l].warned}
+          </p>
+        )}
         {form.payment && done !== "dup" && <FeeBox payment={form.payment} locale={l} showRef={!!ref} />}
         {pass && <AttendPass token={pass} locale={l} />}
         {ref && statusHref && (
@@ -1157,7 +1164,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       // Numbers typed in Arabic digits go as 0-9, the way the server reads them.
       const digits = new Set(fields.filter((x) => x.type === "phone" || x.type === "number" || x.type === "nid").map((x) => x.id));
       const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? (digits.has(k) ? asciiDigits(v.trim()) : v.trim()) : v])), __t: elapsed() };
-      const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
+      const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; warned?: boolean; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) {
         try {
           localStorage.removeItem(draftKey(slug));
@@ -1166,6 +1173,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
         }
         setRef(out.ref ?? "");
         setPass(out.pass ?? "");
+        setWarned(!!out.warned);
         setDone(out.duplicate ? "dup" : "ok");
       }
       else if (out.error === "fields" && out.fields) {
