@@ -163,7 +163,7 @@ export function MascotGuide({
     if (play.update((p) => ({ asked: p.asked + 1 })).asked >= 5) play.award("chatter");
     const started = performance.now();
     try {
-      const r = await ask(text, [...msgs, mine], path);
+      const r = await ask(text, msgs, path);
       // A moment of "typing", so it reads like a reply.
       const wait = Math.max(0, 450 + Math.min(900, r.text.length * 6) - (performance.now() - started));
       await new Promise((res) => setTimeout(res, wait));
