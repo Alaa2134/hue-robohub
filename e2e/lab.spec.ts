@@ -259,6 +259,34 @@ test.describe("BuildX Lab", () => {
     await expect(page.locator(".cm-lintRange-error")).toHaveCount(1);
   });
 
+  test("a challenge is checked by running the sketch in the simulator", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(180_000);
+    await mockSupabase(page, { academy_catalog: () => [] });
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/challenges/");
+    await page.getByTestId("challenge-blink-2hz").getByRole("button", { name: "Start" }).click();
+    await expect(page.getByTestId("challenge-bar")).toBeVisible({ timeout: 30_000 });
+    // The starter sketch does nothing: the check says what the simulator saw.
+    await page.getByTestId("challenge-check").click();
+    await expect(page.getByTestId("challenge-result")).toContainText("Not yet", { timeout: 150_000 });
+    await expect(page.getByTestId("challenge-result")).toContainText("The LED lights up");
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("ControlOrMeta+a");
+    await page.keyboard.insertText(BLINK.replace(/delay\(500\)/g, "delay(250)"));
+    await page.getByTestId("challenge-check").click();
+    await expect(page.getByTestId("challenge-result")).toContainText("Passed", { timeout: 150_000 });
+    await expect(page.getByTestId("challenge-result")).toContainText("2 Hz");
+  });
+
+  test("academy with no courses says so and points to the challenges", async ({ page }) => {
+    await mockSupabase(page, { academy_catalog: () => [] });
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/learn/");
+    await expect(page.getByText("No courses yet")).toBeVisible();
+    await expect(page.getByTestId("challenge-blink-2hz")).toBeVisible();
+  });
+
   test("signed-in save goes to the account, and someone else's newer save is never overwritten", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     test.setTimeout(120_000);

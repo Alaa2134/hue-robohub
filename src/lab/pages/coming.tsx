@@ -9,8 +9,6 @@ import { Button, Card, Icon, type IconName } from "../ui";
 
 const AREAS: Record<string, { icon: IconName; title: { en: string; ar: string }; plan: { en: string; ar: string } }> = {
   codeblocks: { icon: "blocks", title: { en: "Block Code", ar: "البرمجة بالبلوكات" }, plan: { en: "Blocks that generate Arduino C++ and run in the same simulator as your circuits.", ar: "بلوكات بتطلع كود أردوينو C++ وبتشتغل في نفس محاكي الدواير." } },
-  learn: { icon: "learn", title: { en: "Academy", ar: "الأكاديمية" }, plan: { en: "Learning paths with lessons and quizzes that open straight into the editor, with your progress saved.", ar: "مسارات تعلّم بدروس وكويزات بتفتح في المحرر على طول، وتقدّمك بيتحفظ." } },
-  challenges: { icon: "trophy", title: { en: "Challenges", ar: "التحديات" }, plan: { en: "Tasks checked automatically from what the simulation actually does (e.g. the LED blinks at 1 Hz).", ar: "مهام بتتصحح أوتوماتيك من اللي المحاكاة بتعمله فعلًا (مثلًا الليد بيرمش مرة كل ثانية)." } },
   classrooms: { icon: "users", title: { en: "Classrooms", ar: "الفصول" }, plan: { en: "Instructors create classes and assignments; students submit Lab projects for review.", ar: "المدربين يعملوا فصول وتاسكات، والطلاب يسلّموا مشاريع اللاب للمراجعة." } },
   admin: { icon: "shield", title: { en: "Admin", ar: "الإدارة" }, plan: { en: "Moderation of public projects and Lab usage analytics from real activity.", ar: "مراجعة المشاريع العامة وإحصائيات استخدام اللاب من النشاط الحقيقي." } },
   missing: { icon: "alert", title: { en: "Not found", ar: "مش موجودة" }, plan: { en: "This page doesn't exist.", ar: "الصفحة دي مش موجودة." } },
