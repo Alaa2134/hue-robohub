@@ -48,7 +48,7 @@ export const viewport: Viewport = { themeColor: "#050e26", colorScheme: "dark", 
 /** BuildX Lab: a client-side app (the static site has no server), Arabic or English per visitor. */
 export default function LabRoot({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" translate="no" className={portalFontVariables} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />

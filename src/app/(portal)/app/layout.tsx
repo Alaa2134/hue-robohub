@@ -52,7 +52,7 @@ export const viewport: Viewport = {
 /** BuildX App: Arabic (or English per device, see portal/i18n.ts), client-only PWA backed by Supabase (works on static hosting). */
 export default function PortalRoot({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" translate="no" className={portalFontVariables} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
