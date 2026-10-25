@@ -1,5 +1,6 @@
 "use client";
 /** Event registration on the event page, and the QR ticket page (/ticket/?t=BXT-…). */
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { NO_SHOW } from "@/lib/no-show";
 import { Icon } from "@/components/brand/icons";
@@ -67,6 +68,11 @@ const T = {
   },
 };
 
+// An event that registers through a form (accept / waiting list, payment, QR pass, bus…) shows that form.
+const FormFiller = dynamic(() => import("@/components/forms/site-forms").then((m) => m.FormFiller), { ssr: false });
+
+type Info = { open: boolean; capacity: number | null; going: number; form?: string };
+
 const STORE = "bx-tickets";
 const saved = (): Record<string, string> => {
   try {
@@ -80,7 +86,7 @@ const input = "h-12 w-full rounded-xl border border-[var(--line-2)] bg-void/60 p
 
 export function EventRsvp({ eventId, locale }: { eventId: string; locale: string }) {
   const t = T[locale === "ar" ? "ar" : "en"];
-  const [info, setInfo] = useState<{ open: boolean; capacity: number | null; going: number } | null>(null);
+  const [info, setInfo] = useState<Info | null>(null);
   const [mine, setMine] = useState<string | null>(null);
   const [d, setD] = useState({ full_name: "", phone: "", email: "", faculty: "" });
   const [busy, setBusy] = useState(false);
@@ -90,7 +96,7 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
 
   useEffect(() => {
     setMine(saved()[eventId] ?? null);
-    rpc<{ open: boolean; capacity: number | null; going: number } | null>("event_rsvp", { p_event: eventId })
+    rpc<Info | null>("event_rsvp", { p_event: eventId })
       .then(setInfo)
       .catch(() => setInfo(null));
   }, [eventId]);
@@ -128,6 +134,12 @@ export function EventRsvp({ eventId, locale }: { eventId: string; locale: string
           <span>{t.ticket}</span>
         </a>
       </div>
+    );
+  if (info?.form)
+    return (
+      <section className="frame p-6 sm:p-8" data-testid="event-form">
+        <FormFiller locale={locale} listHref={`${locale === "en" ? "" : "/ar"}/forms`} slug={info.form} statusHref={`${locale === "en" ? "" : "/ar"}/form`} />
+      </section>
     );
   if (!info?.open) return null;
 

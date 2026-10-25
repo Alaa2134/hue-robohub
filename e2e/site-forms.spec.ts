@@ -435,6 +435,69 @@ const EVENT = {
   url: null,
 };
 
+const BUS_TRIP = {
+  slug: "mena-bus",
+  title_ar: "رحلة المعرض",
+  open: true,
+  fields: [
+    { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+    { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+    {
+      id: "b",
+      type: "bus",
+      label_ar: "هتيجي بأنهي باص؟",
+      required: true,
+      options: [
+        { ar: "باص المنصورة", seats: "1" },
+        { ar: "باص طنطا", seats: "40" },
+        { ar: "جاي لوحدي", seats: "-" },
+      ],
+    },
+  ],
+  buses: { b: { "باص المنصورة": 0, "باص طنطا": 3 } },
+};
+
+test("an event that registers through a form shows the form on its page; a full bus can't be picked, and one that fills up meanwhile asks for another", async ({
+  page,
+}) => {
+  let left = 3;
+  const calls = await mockSupabase(page, {
+    rpc: {
+      event_rsvp: () => ({ open: false, capacity: 40, going: 0, form: "mena-bus" }),
+      public_form: () => ({ ...BUS_TRIP, buses: { b: { "باص المنصورة": 0, "باص طنطا": left } } }),
+      submit_form: (b) => {
+        if ((b.p_answers as Record<string, string>).b === "باص طنطا") {
+          left = 0;
+          return { ok: false, error: "fields", fields: { b: "bus_full" } };
+        }
+        return { ok: true, ref: "F-0A0B0C0D" };
+      },
+    },
+    rest: (u) => (u.pathname.endsWith("/site_content") ? [EVENT] : []),
+  });
+  await page.goto("/ar/events/item/?s=arduino-night");
+  const form = page.getByTestId("event-form");
+  await expect(form.getByRole("heading", { name: "رحلة المعرض" })).toBeVisible();
+  const bus = form.getByTestId("bus-b");
+  await expect(bus.getByRole("radio", { name: /باص المنصورة/ })).toBeDisabled();
+  await expect(bus.getByRole("radio", { name: /باص المنصورة/ })).toContainText("مليان");
+  await expect(bus.getByRole("radio", { name: /باص طنطا/ })).toContainText("فاضل 3 كراسي");
+
+  await form.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+  await form.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
+  await bus.getByRole("radio", { name: /باص طنطا/ }).click();
+  await form.getByRole("button", { name: "ابعت" }).click();
+  // Someone took the last seat meanwhile: the bus shows full now and they pick again.
+  await expect(form.getByText("الباص ده اتملى. اختار باص تاني.")).toBeVisible();
+  await expect(bus.getByRole("radio", { name: /باص طنطا/ })).toContainText("مليان");
+  await bus.getByRole("radio", { name: /جاي لوحدي/ }).click();
+  await form.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByTestId("form-ref")).toHaveText("F-0A0B0C0D");
+  expect(calls.filter((c) => c.fn === "submit_form").at(-1)!.body).toMatchObject({ p_slug: "mena-bus", p_answers: { n: "يوسف خالد", p: "01112223334", b: "جاي لوحدي" } });
+  // The quick RSVP isn't there.
+  await expect(page.getByLabel("الاسم بالكامل")).toHaveCount(1);
+});
+
 test("home: the next event with a live countdown and places left", async ({ page }) => {
   await mockSupabase(page, {
     rpc: { event_rsvp: () => ({ open: true, capacity: 30, going: 26 }) },

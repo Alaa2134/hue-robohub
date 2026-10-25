@@ -148,6 +148,9 @@ const C = {
     friendBusy: "جرّبت كتير، استنى شوية وجرّب تاني.",
     friendConfirm: "أكّد اسم صاحبك الأول، أو امسح الخانة.",
     badFriend: "صاحبك مش متسجّل في الفورم ده.",
+    busLeft: (n: number) => (n === 1 ? "فاضل كرسي واحد" : n === 2 ? "فاضل كرسيين" : `فاضل ${n} ${n <= 10 ? "كراسي" : "كرسي"}`),
+    busFull: "مليان",
+    badBus: "الباص ده اتملى. اختار باص تاني.",
     nidLeft: (n: number) => (n === 1 ? "فاضل رقم واحد" : n === 2 ? "فاضل رقمين" : `فاضل ${n} ${n <= 10 ? "أرقام" : "رقم"}`),
     nidOk: (born: string, gov: string) => `✓ مواليد ${born} · ${gov}`,
     more: "اقرا التفاصيل كلها",
@@ -288,6 +291,9 @@ const C = {
     friendBusy: "Too many tries. Wait a bit and try again.",
     friendConfirm: "Confirm your friend's name first, or clear the box.",
     badFriend: "Your friend hasn't signed up to this form.",
+    busLeft: (n: number) => `${n} seat${n === 1 ? "" : "s"} left`,
+    busFull: "Full",
+    badBus: "That bus is full. Pick another one.",
     nidLeft: (n: number) => `${n} more digit${n === 1 ? "" : "s"}`,
     nidOk: (born: string, gov: string) => `✓ Born ${born} · ${gov}`,
     more: "Read all the details",
@@ -608,11 +614,11 @@ export function WaitlistForm({ locale }: { locale: string }) {
 
 /* ─── Forms built in the app ───────────────────────────────────────────── */
 
-export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file" | "nid" | "friend";
+export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file" | "nid" | "friend" | "bus";
 /** The form someone without a community membership sends to ask the organiser for an interview. */
 export const INTERVIEW_FORM = "membership-interview";
 export type FileAccept = "image" | "pdf" | "video" | "any";
-export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string }[]; /** For a file question: what it takes. */ accept?: FileAccept; /** A file question for the payment receipt: the fee box shows above it. */ receipt?: boolean };
+export type FormField = { id: string; type: FieldType; label_ar: string; label_en?: string; help_ar?: string; help_en?: string; required?: boolean; options?: { ar: string; en?: string; /** On a bus question: a seat limit, empty for none, or "-" for "not on a bus". */ seats?: string }[]; /** For a file question: what it takes. */ accept?: FileAccept; /** A file question for the payment receipt: the fee box shows above it. */ receipt?: boolean };
 export type PublicForm = {
   slug: string;
   title_ar: string;
@@ -633,6 +639,8 @@ export type PublicForm = {
   background_kind?: "image" | "video" | null;
   /** The fee and how to pay, when the form asks for one. */
   payment?: FormPayment | null;
+  /** Seats left on each bus with a limit: {question: {bus: left}}. */
+  buses?: Record<string, Record<string, number>> | null;
 };
 type FormPayment = { amount: number | null; note_ar?: string | null; note_en?: string | null; paid?: boolean };
 const payNote = (p: FormPayment, l: Locale) => (l === "en" ? p.note_en || p.note_ar : p.note_ar) ?? "";
@@ -1112,7 +1120,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       setFile(x.id, { ...base, status: "error", progress: 0, error: e instanceof MediaError ? mediaErrorText(e, l) : t.fileBad });
     }
   };
-  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember, nid: t.badNid, friend: t.badFriend };
+  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember, nid: t.badNid, friend: t.badFriend, bus_full: t.badBus };
   const needed = fields.filter((x) => x.required);
   const missing = needed.filter((x) => !answered(x, a[x.id]));
   const unconfirmed = fields.some((x) => x.type === "friend" && pending[x.id]);
@@ -1180,6 +1188,11 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
         const fe = Object.fromEntries(Object.entries(out.fields).map(([k, r]) => [k, reason[r] ?? t.errors.invalid]));
         setErrors(fe);
         goTo(Object.keys(fe)[0]);
+        // A bus filled up while they were typing: show the seats as they are now.
+        if (Object.values(out.fields).includes("bus_full"))
+          void rpc<PublicForm | null>("public_form", { p_slug: slug })
+            .then((f) => f && setForm(f))
+            .catch(() => undefined);
       } else if (out.error === "closed") setForm({ ...form, open: false });
       else setFormError(t.errors[(out.error as keyof typeof t.errors) ?? "invalid"] ?? t.errors.invalid);
     } catch {
@@ -1313,6 +1326,50 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             );
           }
           const s = typeof v === "string" ? v : "";
+          if (x.type === "bus")
+            return (
+              <fieldset key={x.id} className="flex flex-col gap-2.5" aria-describedby={err ? `${id}-error` : undefined} data-testid={`bus-${x.id}`}>
+                <legend className="mb-1 flex w-full items-baseline justify-between gap-3 text-[0.95rem] font-semibold text-frost">
+                  {label}
+                  {opt && <span className="text-xs font-normal text-fog">{opt}</span>}
+                </legend>
+                <div role="radiogroup" aria-label={label} className="grid gap-2 sm:grid-cols-2">
+                  {(x.options ?? []).map((o, i) => {
+                    const on = s === o.ar;
+                    const left = form.buses?.[x.id]?.[o.ar];
+                    const full = left !== undefined && left <= 0 && !on;
+                    return (
+                      <button
+                        key={o.ar}
+                        id={i === 0 ? id : undefined}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={full}
+                        onClick={() => set(x.id, on && !x.required ? "" : o.ar)}
+                        className={cn(
+                          "flex min-h-12 items-center justify-between gap-3 rounded-xl border px-4 py-2 text-start text-sm transition-colors",
+                          on ? "border-cyan/70 bg-volt/25 font-semibold text-chalk" : full ? "cursor-not-allowed border-[var(--line)] text-fog opacity-60" : "border-[var(--line-2)] text-mist hover:border-volt/50",
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Icon name={o.seats === "-" ? "pin" : "users"} size={16} />
+                          {(l === "en" && o.en) || o.ar}
+                        </span>
+                        {left !== undefined && <span className={cn("shrink-0 text-xs", left <= 0 ? "text-danger" : left <= 5 ? "text-warn" : "text-fog")}>{left <= 0 ? t.busFull : t.busLeft(left)}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {err ? (
+                  <p id={`${id}-error`} role="alert" className="text-sm text-danger">
+                    {err}
+                  </p>
+                ) : (
+                  helpOf(x, l) && <p className="text-sm text-fog">{helpOf(x, l)}</p>
+                )}
+              </fieldset>
+            );
           if (x.type === "select" && asChips(x))
             return (
               <fieldset key={x.id} className="flex flex-col gap-2.5" aria-describedby={err ? `${id}-error` : undefined}>

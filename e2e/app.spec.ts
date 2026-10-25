@@ -379,6 +379,7 @@ test("a team role in the title picks its certificate design (Volunteer), and sta
 test("door check-in by a typed ticket code marks the attendee", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_check_in = { ok: true, name: "Mona Adel", status: "going", ticket: "BXT-1A2B3C4D" };
+  RPC.staff_event_hub = { event: { id: "e1", slug: "kickoff", title: "اجتماع البداية", starts_at: at(-60), ends_at: null, location: null, published: true, rsvp_open: true, capacity: 40 }, form: null, rsvp: { going: 1, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 } };
   await signInAsOwner(page, calls);
   await page.route(/\/rest\/v1\/site_content/, (route) =>
     route.fulfill({
@@ -419,6 +420,75 @@ test("door check-in by a typed ticket code marks the attendee", async ({ page })
     p_event: "e1",
     p_ticket: "BXT-1A2B3C4D",
   });
+});
+
+test("an event on the quick RSVP moves to a registration form made from it", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_event_hub = { event: { id: "e2", slug: "open-day", title: "اليوم المفتوح", starts_at: at(-600), ends_at: null, location: null, published: true, rsvp_open: true, capacity: 60 }, form: null, rsvp: { going: 0, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 } };
+  RPC.staff_event_make_form = "f9";
+  await signInAsOwner(page, calls);
+  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: { id: "e2", title: "Open day", title_ar: "اليوم المفتوح", starts_at: at(-600), capacity: 60, rsvp_open: true, published: true } }));
+  await page.route(/\/rest\/v1\/event_registrations/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/events/e2");
+  await expect(page.getByTestId("use-form")).toBeVisible();
+  await page.getByTestId("use-form-make").click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f9$/);
+  expect(calls.find((c) => c.fn === "staff_event_make_form")?.body).toEqual({ p_event: "e2" });
+});
+
+test("an event that registers through a form: the organiser sees the funnel, payment, attendance and buses, and opens the tools from one page", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_event_hub = {
+    event: { id: "e3", slug: "expo-trip", title: "رحلة المعرض", starts_at: at(-2000), ends_at: null, location: "القاهرة", published: true, rsvp_open: false, capacity: null },
+    form: {
+      id: "f3",
+      slug: "expo-trip",
+      title_ar: "تسجيل رحلة المعرض",
+      open: true,
+      archived: false,
+      capacity: 90,
+      event_at: at(-2000),
+      closes_at: at(-1000),
+      pay: 150,
+      attendance: true,
+      sessions: 1,
+      total: 64,
+      new: 5,
+      accepted: 50,
+      waiting: 7,
+      rejected: 2,
+      paid: 41,
+      collected: 6150,
+      present: 0,
+      rating: null,
+      ratings: 0,
+      days: [{ d: new Date().toISOString().slice(0, 10), n: 9 }],
+      buses: [
+        { n: 1, label: "باص المنصورة", seats: 45, people: 45, accepted: 40 },
+        { n: 2, label: "باص طنطا", seats: 45, people: 12, accepted: 10 },
+      ],
+    },
+    rsvp: { going: 0, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 },
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/events/e3");
+  const stats = page.getByTestId("event-hub-stats");
+  await expect(stats).toContainText("64");
+  await expect(stats).toContainText("50/90");
+  await expect(stats).toContainText("41/50");
+  await expect(stats).toContainText("6,150 جنيه");
+  const buses = page.getByTestId("hub-buses");
+  await expect(buses).toContainText("باص المنصورة");
+  await expect(buses).toContainText("45/45");
+  await expect(buses).toContainText("فاضل 33 كرسي");
+  await page.getByTestId("hub-trip").click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f3\/responses\?open=trip$/);
+  await page.goBack();
+  await page.getByTestId("hub-attendance").click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f3\/attendance$/);
+  expect(errors).toEqual([]);
 });
 
 test("leaderboard ranks students and staff can give bonus points", async ({ page }) => {

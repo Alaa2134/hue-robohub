@@ -362,7 +362,7 @@ export function StaffApp({
     case "forms":
       screen = id ? (
         sub === "responses" ? (
-          <FormResponses key={id} id={id} me={me} />
+          <FormResponses key={id} id={id} me={me} openTrip={query.get("open") === "trip"} />
         ) : sub === "checkin" ? (
           <DelegationCheckin key={id} id={id} />
         ) : sub === "attendance" ? (
