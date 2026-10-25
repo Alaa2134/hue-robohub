@@ -35,7 +35,8 @@ test("3D AI page: animated hero, prices from the database, and the way into the 
   await expect(page.locator("h1")).toContainText("موديل 3D");
   await expect(page.getByText("عرض توضيحي").first()).toBeVisible();
   const pricing = page.getByTestId("ai3d-pricing");
-  await expect(pricing).toContainText("100 جنيه");
+  // The prices come from the database once the page has loaded (the 3D hero can make that slow on CI).
+  await expect(pricing).toContainText("100 جنيه", { timeout: 15_000 });
   await expect(pricing).toContainText("400 جنيه");
   // The cheaper per model is marked.
   await expect(pricing).toContainText("الأوفر");

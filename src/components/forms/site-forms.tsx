@@ -837,6 +837,16 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   if (viewPass) return <AttendPass token={viewPass} locale={l} page />;
   const formsBase = listHref.replace(/\/forms\/?$/, "/form/");
   if (form === undefined) return <p className="text-mist">{t.loading}</p>;
+  // A form placed inside a page (the page has its own heading): just a short note.
+  if (fixed && !form)
+    return (
+      <div className="frame flex flex-col items-start gap-4 p-8">
+        <p className="t-headline text-2xl text-chalk">{t.errors.not_found}</p>
+        <Link href={listHref} className="btn btn-sm">
+          {t.back}
+        </Link>
+      </div>
+    );
   if (!form || !slug)
     return (
       <div className="grid gap-6">
