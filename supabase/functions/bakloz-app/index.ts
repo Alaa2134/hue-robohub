@@ -105,6 +105,9 @@ Deno.serve(async (req) => {
   const ctx = await asUser.rpc("app_chat_context", { p_token: token });
   if (ctx.error) return reply({ error: "auth" }, 401);
   const context = ctx.data as { allowed: boolean; reason?: string } & Record<string, unknown>;
+  // Who this is, as a hash (the daily token budget per person); not part of what the AI sees.
+  const usageKey = typeof context?.usage_key === "string" ? context.usage_key : "";
+  if (context) delete context.usage_key;
   if (!context?.allowed) return context?.reason === "off" ? reply({ disabled: true }) : reply({ error: "busy" }, 429);
   const { allowed: _a, reason: _r, ...data } = context;
 
@@ -136,7 +139,7 @@ Deno.serve(async (req) => {
       }
     }
     const u = res.usage;
-    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0 });
+    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0, p_service: "app", p_who: usageKey });
     if (res.stop_reason === "refusal") return reply({ text: null });
     const text = res.content
       .flatMap((b) => (b.type === "text" ? [b.text] : []))
@@ -146,7 +149,13 @@ Deno.serve(async (req) => {
     return reply({ text: text || null });
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : undefined;
-    console.error("bakloz-app", status ?? "", e instanceof Error ? e.message : String(e));
+    // The status and the kind of error only: never the question, the answer or who asked.
+    const kind = e instanceof Error ? e.name : "error";
+    console.error("bakloz-app", status ?? "", kind);
+    await admin.rpc("ai_error_add", { p_service: "app", p_status: status ?? null, p_kind: kind }).then(
+      () => undefined,
+      () => undefined,
+    );
     return reply({ text: null, error: "ai" }, 502);
   }
 });

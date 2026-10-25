@@ -110,6 +110,9 @@ export const COPY = {
     approved: "اتضاف",
     rejected: "اترفض",
     history: "عمليات الشحن",
+    ledger: "سجل الكريدت",
+    ledgerHint: "كل كريدت دخل محفظتك أو اتصرف منها، والرصيد بعد كل حركة.",
+    ledgerKind: { topup: "شحن", charge: "موديل", refund: "رجوع كريدت (الموديل فشل)", grant: "من فريق BuildX", free: "رصيد مجاني", adjust: "رصيد البداية" } as Record<string, string>,
     close: "قفل",
     errors: {
       invalid: "راجع البيانات",
@@ -234,6 +237,9 @@ export const COPY = {
     approved: "Added",
     rejected: "Rejected",
     history: "Top-ups",
+    ledger: "Credit history",
+    ledgerHint: "Every credit added to or spent from your wallet, and the balance after each.",
+    ledgerKind: { topup: "Top-up", charge: "Model", refund: "Refund (model failed)", grant: "From the BuildX team", free: "Free credits", adjust: "Opening balance" } as Record<string, string>,
     close: "Close",
     errors: {
       invalid: "Check the details",

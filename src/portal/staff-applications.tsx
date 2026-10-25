@@ -8,6 +8,7 @@ import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
 import { can, isFull, downloadCsv, errorText, fmt, fromLocalInput, must, rpc, sb, toLocalInput, today, type StaffRow } from "./core";
 import { useApplyConfig } from "./staff-apply-form";
+import { PersonCard } from "./person-card";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { sendByEmail } from "./email-handoff";
 import { PinResults, type PinItem } from "./staff-students";
@@ -285,6 +286,9 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   return (
     <>
       <TopBar title={a.full_name} sub={`${a.ref} · ${fmt.dateTime(a.created_at)}`} back="/staff/applications" />
+      <div className="mb-3">
+        <PersonCard student={a.student_id} phone={a.phone} hide="application" />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {wa && (

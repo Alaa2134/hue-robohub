@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildItems } from "@/lib/build-content";
+import { buildItems, emptySection } from "@/lib/build-content";
 import { STATIC_SITE } from "@/lib/deploy";
 import { LiveList } from "@/components/live/live-content";
 import Link from "next/link";
@@ -18,7 +18,7 @@ export const revalidate = 900;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/news", title: t.news.title, description: t.news.body, image: art("team_env", "hero")?.og });
+  return pageMeta({ locale, path: "/news", title: t.news.title, description: t.news.body, image: art("team_env", "hero")?.og , noindex: STATIC_SITE && (await emptySection("news")) });
 }
 
 export default async function News({ params }: Params) {

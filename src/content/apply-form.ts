@@ -59,18 +59,21 @@ type Meta = {
   lock?: boolean;
   /** Required unless the team says otherwise. */
   req?: boolean;
+  /** Hidden unless the team turns it on. */
+  off?: boolean;
   /** Which list of choices it uses (and the team can change). */
   list?: "faculty" | "year" | "level" | "hours" | "days" | "heard" | "roles";
 };
 
 export const BUILTIN: Meta[] = [
   { key: "full_name", step: 0, lock: true, label: { ar: "الاسم رباعي (زي البطاقة)", en: "Full name (four names, as on your ID)" } },
-  // What the Student Welfare family list asks for: national ID, address, level.
-  { key: "national_id", step: 0, req: true, label: { ar: "الرقم القومي", en: "National ID number" }, hint: { ar: "الـ14 رقم اللي على البطاقة — بنحتاجه لكشف الأسرة في رعاية الطلاب.", en: "The 14 digits on your ID card — needed for the Student Welfare family list." } },
+  // What the Student Welfare family list asks for: national ID, address, level. Off by default: only
+  // someone accepted gives them, from the status page (no sensitive data before it's needed).
+  { key: "national_id", step: 0, off: true, label: { ar: "الرقم القومي", en: "National ID number" }, hint: { ar: "الـ14 رقم اللي على البطاقة — بنحتاجه لكشف الأسرة في رعاية الطلاب.", en: "The 14 digits on your ID card — needed for the Student Welfare family list." } },
   { key: "phone", step: 0, lock: true, label: { ar: "رقم الموبايل / واتساب", en: "Phone / WhatsApp" }, hint: { ar: "هنتواصل معاك على واتساب.", en: "We'll contact you on WhatsApp." } },
   { key: "email", step: 0, lock: true, label: { ar: "الإيميل", en: "Email" } },
-  { key: "governorate", step: 0, req: true, label: { ar: "المحافظة", en: "Governorate" } },
-  { key: "address", step: 0, req: true, label: { ar: "العنوان بالتفصيل", en: "Full address" }, hint: { ar: "المدينة أو القرية والمنطقة والشارع، مثلاً: دمياط الجديدة - الحي الخامس - المجاورة 28", en: "City or village, area and street, e.g. New Damietta - 5th district - block 28" } },
+  { key: "governorate", step: 0, off: true, label: { ar: "المحافظة", en: "Governorate" } },
+  { key: "address", step: 0, off: true, label: { ar: "العنوان بالتفصيل", en: "Full address" }, hint: { ar: "المدينة أو القرية والمنطقة والشارع، مثلاً: دمياط الجديدة - الحي الخامس - المجاورة 28", en: "City or village, area and street, e.g. New Damietta - 5th district - block 28" } },
   { key: "faculty", step: 0, req: true, list: "faculty", label: { ar: "الكلية", en: "Faculty" }, hint: { ar: "اختار من القايمة أو اكتب اسم كليتك.", en: "Pick from the list or type your faculty." } },
   { key: "academic_year", step: 0, req: true, list: "year", label: { ar: "السنة الدراسية", en: "Academic year" } },
   { key: "student_number", step: 0, req: true, label: { ar: "الرقم الجامعي (الكود)", en: "University ID (student code)" } },
@@ -169,7 +172,7 @@ const pick = (locale: Locale, ar: string | undefined, en: string | undefined, fa
 export function resolveField(cfg: ApplyConfig, key: BuiltinKey, locale: Locale): Resolved {
   const m = metaOf(key);
   const f = cfg.fields?.[key] ?? {};
-  const hidden = !m.lock && !!f.hidden;
+  const hidden = !m.lock && (f.hidden ?? !!m.off);
   const options = m.list ? (f.options?.length ? f.options : DEFAULT_LISTS[m.list]) : [];
   return {
     key,

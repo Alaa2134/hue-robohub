@@ -122,6 +122,40 @@ test("an applicant checks their application status with reference and phone", as
   expect(errors).toEqual([]);
 });
 
+test("the join form doesn't ask for a national ID or address; an accepted applicant gives them once, from the status page", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  const sent: Record<string, string>[] = [];
+  await page.route("**/rest/v1/rpc/application_status", (route) =>
+    route.fulfill({ json: { ok: true, ref: "BX-TEST02", first_name: "Omar", track: "ai-ml", status: "accepted", created_at: "2026-10-01T10:00:00Z", updated_at: "2026-10-03T10:00:00Z", note: "", family_needed: true } }),
+  );
+  await page.route("**/rest/v1/rpc/application_family_complete", async (route) => {
+    const body = route.request().postDataJSON() as Record<string, string>;
+    sent.push(body);
+    await route.fulfill({ json: body.p_national_id === "30501011100012" ? { ok: true } : { ok: false, error: "nid" } });
+  });
+  await page.goto("/ar/join/");
+  await expect(page.getByLabel("الاسم رباعي (زي البطاقة)").first()).toBeVisible();
+  await expect(page.getByLabel("الرقم القومي")).toHaveCount(0);
+  await expect(page.getByLabel("العنوان بالتفصيل")).toHaveCount(0);
+
+  await page.goto("/ar/join/status/?ref=BX-TEST02");
+  await page.getByLabel("رقم الموبايل اللي قدّمت بيه").fill("01012345678");
+  await page.getByRole("button", { name: "اعرف حالة طلبك" }).click();
+  const step = page.getByTestId("family-step");
+  await expect(step).toBeVisible();
+  await step.getByLabel("الرقم القومي (14 رقم)").fill("30501011100099");
+  await step.getByLabel("المحافظة").selectOption({ index: 1 });
+  await step.getByLabel("العنوان بالتفصيل").fill("دمياط الجديدة - الحي الخامس");
+  await step.getByRole("button", { name: "ابعت" }).click();
+  await expect(step.getByRole("alert")).toContainText("الرقم ده مش شبه الرقم القومي");
+  await step.getByLabel("الرقم القومي (14 رقم)").fill("30501011100012");
+  await step.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByTestId("family-done")).toBeVisible();
+  expect(sent.at(-1)).toMatchObject({ p_ref: "BX-TEST02", p_phone: "01012345678", p_national_id: "30501011100012", p_address: "دمياط الجديدة - الحي الخامس" });
+  expect(errors).toEqual([]);
+});
+
 test("a scanned certificate QR opens the verify page and shows it is genuine", async ({ page }) => {
   const errors = collectErrors(page);
   await mockSupabase(page);

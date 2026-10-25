@@ -1,5 +1,6 @@
+import { STATIC_SITE } from "@/lib/deploy";
 import type { Metadata } from "next";
-import { buildItems } from "@/lib/build-content";
+import { buildItems, emptySection } from "@/lib/build-content";
 import { LiveStories } from "@/components/live/live-content";
 import { Band } from "@/components/pages/section";
 import { PageHero } from "@/components/site/page-hero";
@@ -11,7 +12,7 @@ export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/stories", title: t.stories.eyebrow, description: t.stories.body, image: art("team_innovation", "hero")?.og });
+  return pageMeta({ locale, path: "/stories", title: t.stories.eyebrow, description: t.stories.body, image: art("team_innovation", "hero")?.og , noindex: STATIC_SITE && (await emptySection("stories")) });
 }
 
 /** Success stories, written by the team in the BuildX App (site content kind "story"). */

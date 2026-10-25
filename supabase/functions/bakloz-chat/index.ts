@@ -168,6 +168,10 @@ Deno.serve(async (req) => {
   const allowed = await admin.rpc("guide_chat_allow", { p_ip: ip });
   if (allowed.error) return reply({ error: "unavailable" }, 503);
   if (allowed.data !== true) return reply({ error: "busy" }, 429);
+  // The visitor as a hash (never the address itself), and whether today's token budget per person has room.
+  const me = await admin.rpc("guide_chat_who", { p_ip: ip });
+  const who = !me.error && typeof me.data?.who === "string" ? (me.data.who as string) : "";
+  if (!me.error && me.data?.room === false) return reply({ error: "busy" }, 429);
 
   // A first question someone already asked recently: the same answer, no AI call.
   const ckey = history.length ? null : await cacheKey(question);
@@ -211,7 +215,7 @@ Deno.serve(async (req) => {
       }
     }
     const u = res.usage;
-    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0 });
+    await admin.rpc("guide_usage_add", { p_in: u?.input_tokens ?? 0, p_out: u?.output_tokens ?? 0, p_cache_read: u?.cache_read_input_tokens ?? 0, p_cache_write: u?.cache_creation_input_tokens ?? 0, p_service: "guide", p_who: who });
     if (res.stop_reason === "refusal") return reply({ text: null });
     const text = res.content
       .flatMap((b) => (b.type === "text" ? [b.text] : []))
@@ -222,7 +226,13 @@ Deno.serve(async (req) => {
     return reply({ text: text || null });
   } catch (e) {
     const status = e instanceof Anthropic.APIError ? e.status : undefined;
-    console.error("bakloz-chat", status ?? "", e instanceof Error ? e.message : String(e));
+    // The status and the kind of error only: never the question, the answer or the visitor.
+    const kind = e instanceof Error ? e.name : "error";
+    console.error("bakloz-chat", status ?? "", kind);
+    await admin.rpc("ai_error_add", { p_service: "guide", p_status: status ?? null, p_kind: kind }).then(
+      () => undefined,
+      () => undefined,
+    );
     return reply({ text: null, error: "ai" }, 502);
   }
 });

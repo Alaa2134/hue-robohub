@@ -9,6 +9,7 @@ import { sendOnWhatsApp } from "./wa-handoff";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { ReportSheet } from "./report";
+import { PersonCard } from "./person-card";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -371,6 +372,11 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
           </div>
         )}
       </form>
+      {!isNew && s && (
+        <div className="mt-4">
+          <PersonCard student={s.id} hide="student" />
+        </div>
+      )}
       {reporting && s && <ReportSheet student={{ id: s.id, name: s.name, code: s.code }} onClose={() => setReporting(false)} />}
     </Sheet>
   );

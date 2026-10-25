@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { buildItems, buildSiteSettings, buildTeam } from "@/lib/build-content";
+import { buildImpact, buildItems, buildSiteSettings, buildTeam } from "@/lib/build-content";
 import { goalsOf, heroImageOf } from "@/lib/site-settings";
 import { STATIC_SITE } from "@/lib/deploy";
 import { notFound } from "next/navigation";
@@ -16,7 +16,6 @@ import type { Film } from "@/components/media/film";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
 import { SectionHead } from "@/components/ui/section-head";
-import { ACTIVITIES } from "@/content/buildx";
 import { teamText, trackTech } from "@/content/core-content";
 import { getDictionary, isLocale, localePath, type Locale } from "@/i18n";
 import { art } from "@/lib/media-library";
@@ -52,6 +51,11 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const show = config["site.homepage"].sections;
   const hero = config["site.hero"];
   const settings = STATIC_SITE ? await buildSiteSettings() : null;
+  // The static site has no server database: the verified totals come from site_impact at build time.
+  const impact = STATIC_SITE ? await buildImpact() : null;
+  const members = impact?.members ?? stats.members;
+  const events = impact?.events ?? stats.events;
+  const projects = impact?.projects ?? stats.activeProjects;
 
   // Films (CMS): the configured hero film first, then one per kind.
   const films = videos.map(toFilm);
@@ -61,10 +65,10 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
   const heroStats: HeroStat[] = [
     { value: tracks.length, label: t.stats.tracks },
     { value: teams.length, label: t.stats.teams },
-    { value: ACTIVITIES.length, label: locale === "ar" ? "أنواع أنشطة" : "Activity types" },
-    ...(stats.members > 0 ? [{ value: stats.members, label: t.stats.members }] : []),
-    ...(stats.activeProjects > 0 ? [{ value: stats.activeProjects, label: t.stats.activeProjects }] : []),
-    ...(stats.events > 0 ? [{ value: stats.events, label: t.stats.events }] : []),
+    // Only counts read from the data (no fixed numbers); a zero isn't shown.
+    ...(members > 0 ? [{ value: members, label: t.stats.members }] : []),
+    ...(events > 0 ? [{ value: events, label: t.stats.events }] : []),
+    ...(projects > 0 ? [{ value: projects, label: t.stats.activeProjects }] : []),
   ].slice(0, 4);
 
   const trackPanels: TrackPanel[] = tracks.map((tr) => {

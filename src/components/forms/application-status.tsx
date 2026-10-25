@@ -2,11 +2,12 @@
 /** /join/status: an applicant checks their application with its reference and their phone number. */
 import { useEffect, useState } from "react";
 import { Icon, type IconName } from "@/components/brand/icons";
+import { GOVERNORATES, digitsOnly, readNationalId } from "@/content/family";
 import { cn } from "@/lib/cn";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
 type Status = "new" | "contacted" | "interview" | "accepted" | "waitlist" | "rejected";
-type Result = { ref: string; first_name: string; track: string; status: Status; created_at: string; updated_at: string; note: string };
+type Result = { ref: string; first_name: string; track: string; status: Status; created_at: string; updated_at: string; note: string; family_needed?: boolean };
 
 const T = {
   en: {
@@ -25,6 +26,17 @@ const T = {
     track: "First-choice track",
     message: "Message from the team",
     again: "Check another application",
+    family: {
+      title: "One last step: the Student Welfare family list",
+      body: "Now that you're accepted, the university's family list needs your national ID, governorate and address. We ask only once, only after acceptance, and only the team sees them.",
+      nid: "National ID number (14 digits)",
+      gov: "Governorate",
+      address: "Full address",
+      save: "Send",
+      saving: "Sending…",
+      done: "Thanks — you're on the family list.",
+      err: { nid: "This doesn't look like a national ID — check the 14 digits.", governorate: "Choose your governorate.", address: "Write the full address: city or village, area and street.", rate_limited: "Too many tries. Wait 15 minutes and try again.", network: "We couldn't reach the server. Try again." } as Record<string, string>,
+    },
     steps: ["Received", "In review", "Decision"],
     status: {
       new: ["Received", "Your application is with our team and will be reviewed soon."],
@@ -51,6 +63,17 @@ const T = {
     track: "المسار الأول",
     message: "رسالة من الفريق",
     again: "اعرف حالة طلب تاني",
+    family: {
+      title: "خطوة أخيرة: كشف الأسرة في رعاية الطلاب",
+      body: "بعد ما اتقبلت، كشف الأسرة في الجامعة محتاج رقمك القومي ومحافظتك وعنوانك. بنطلبهم مرة واحدة بس، وبعد القبول بس، ومحدش بيشوفهم غير الفريق.",
+      nid: "الرقم القومي (14 رقم)",
+      gov: "المحافظة",
+      address: "العنوان بالتفصيل",
+      save: "ابعت",
+      saving: "بنبعت…",
+      done: "شكراً — اتضفت في كشف الأسرة.",
+      err: { nid: "الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.", governorate: "اختار محافظتك.", address: "اكتب العنوان بالتفصيل: المدينة أو القرية والمنطقة والشارع.", rate_limited: "محاولات كتير. استنى ربع ساعة وجرّب تاني.", network: "مقدرناش نوصل للسيرفر. جرّب تاني." } as Record<string, string>,
+    },
     steps: ["اتستلم", "بنراجعه", "القرار"],
     status: {
       new: ["اتستلم", "طلبك وصل للفريق وهيتراجع قريب."],
@@ -141,6 +164,7 @@ export function ApplicationStatus({ locale, tracks }: { locale: string; tracks: 
           ))}
         </ol>
         <p className="max-w-xl text-lg leading-relaxed text-mist">{body}</p>
+        {res.family_needed && <FamilyStep t={t.family} locale={locale} refCode={res.ref} phone={phone} />}
         {res.note && (
           <div className="rounded-xl border border-cyan/30 bg-cyan/[0.06] p-4">
             <p className="text-sm font-semibold text-cyan">{t.message}</p>
@@ -194,6 +218,78 @@ export function ApplicationStatus({ locale, tracks }: { locale: string; tracks: 
       )}
       <button type="submit" className="btn btn-primary justify-self-start" disabled={busy || ref.trim().length < 6 || phone.trim().length < 8}>
         <span>{busy ? t.checking : t.check}</span>
+      </button>
+    </form>
+  );
+}
+
+/** An accepted applicant gives what the family list needs, once (it was left out of the join form on purpose). */
+function FamilyStep({ t, locale, refCode, phone }: { t: (typeof T)["ar"]["family"]; locale: string; refCode: string; phone: string }) {
+  const [d, setD] = useState({ nid: "", gov: "", address: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+  const nid = readNationalId(d.nid);
+  if (done)
+    return (
+      <p role="status" className="rounded-xl border border-ok/40 bg-ok/10 p-4 font-semibold text-ok" data-testid="family-done">
+        {t.done}
+      </p>
+    );
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/application_family_complete`, {
+        method: "POST",
+        headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ p_ref: refCode, p_phone: phone.trim(), p_national_id: digitsOnly(d.nid), p_governorate: d.gov, p_address: d.address.trim() }),
+      });
+      const out = (await r.json().catch(() => null)) as { ok: boolean; error?: string } | null;
+      if (!r.ok || !out) throw new Error("network");
+      if (!out.ok) return setError(t.err[out.error ?? ""] ?? t.err.network);
+      setDone(true);
+    } catch {
+      setError(t.err.network);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={send} className="grid gap-4 rounded-2xl border border-volt/40 bg-volt/[0.06] p-5" data-testid="family-step" noValidate>
+      <div className="grid gap-1">
+        <p className="font-semibold text-chalk">{t.title}</p>
+        <p className="text-sm text-mist">{t.body}</p>
+      </div>
+      <label className="grid gap-2">
+        <span className="text-sm font-semibold text-chalk">{t.nid}</span>
+        <input className={input} value={d.nid} onChange={(e) => setD({ ...d, nid: e.target.value })} dir="ltr" inputMode="numeric" autoComplete="off" maxLength={20} />
+        {nid && <span className="text-sm text-ok">{`✓ ${locale === "ar" ? nid.governorate.ar : nid.governorate.en}`}</span>}
+      </label>
+      <label className="grid gap-2">
+        <span className="text-sm font-semibold text-chalk">{t.gov}</span>
+        <select className={cn(input, "appearance-none")} value={d.gov} onChange={(e) => setD({ ...d, gov: e.target.value })}>
+          <option value="">—</option>
+          {GOVERNORATES.map((g) => (
+            <option key={g.code} value={g.label.ar}>
+              {locale === "ar" ? g.label.ar : g.label.en}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="grid gap-2">
+        <span className="text-sm font-semibold text-chalk">{t.address}</span>
+        <input className={input} value={d.address} onChange={(e) => setD({ ...d, address: e.target.value })} autoComplete="street-address" maxLength={200} />
+      </label>
+      {error && (
+        <p role="alert" className="rounded-xl border border-danger/40 bg-danger/10 p-3 text-sm text-chalk">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="btn btn-primary justify-self-start" disabled={busy || digitsOnly(d.nid).length !== 14 || !d.gov || d.address.trim().length < 5}>
+        <span>{busy ? t.saving : t.save}</span>
       </button>
     </form>
   );
