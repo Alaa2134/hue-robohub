@@ -42,20 +42,16 @@ test("application form validates and submits", async ({ page }) => {
   await page.goto("/ar/join/");
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByText("اكتب اسمك بالكامل (3 حروف على الأقل).")).toBeVisible();
-  // The family list needs four names and a real national ID.
+  // Four names, as on the ID card. No national ID, governorate or address before acceptance.
   await page.fill("#ap-full_name", "طالب اختبار");
-  await page.fill("#ap-national_id", "30613451100035");
   await page.getByRole("button", { name: "التالي" }).click();
   await expect(page.getByText("اكتب اسمك رباعي زي البطاقة.")).toBeVisible();
-  await expect(page.getByText("الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.")).toBeVisible();
+  await expect(page.locator("#ap-national_id")).toHaveCount(0);
+  await expect(page.locator("#ap-governorate")).toHaveCount(0);
+  await expect(page.locator("#ap-address")).toHaveCount(0);
   await page.fill("#ap-full_name", "طالب اختبار محمد علي");
-  await page.fill("#ap-national_id", "٣٠٦٠١١٢١١٠٠٠٣٥");
-  await expect(page.locator("#ap-national_id")).toHaveValue("30601121100035");
-  await expect(page.getByTestId("ap-nid-read")).toContainText("دمياط");
   await page.fill("#ap-phone", "01012345678");
   await page.fill("#ap-email", "test@example.com");
-  await page.selectOption("#ap-governorate", "دمياط");
-  await page.fill("#ap-address", "دمياط الجديدة - الحي الخامس - المجاورة 28");
   await page.fill("#ap-faculty", "الذكاء الاصطناعي");
   await page.selectOption("#ap-academic_year", "1");
   await page.getByRole("button", { name: "التالي" }).click();
@@ -79,9 +75,7 @@ test("application form validates and submits", async ({ page }) => {
   await expect(page.getByText("BX-TEST01")).toBeVisible();
   expect(sent[0]?.p?.phone).toBe("01012345678");
   expect(sent[0]?.p?.consent).toBe(true);
-  expect(sent[0]?.p).toMatchObject({ national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس - المجاورة 28", student_number: "8240001" });
-  // The national ID is never kept in the saved draft.
-  expect(await page.evaluate(() => localStorage.getItem("buildx_apply_draft_v1") ?? "")).not.toContain("30601121100035");
+  expect(sent[0]?.p).toMatchObject({ national_id: "", governorate: "", address: "", student_number: "8240001" });
   expect(errors).toEqual([]);
 });
 
@@ -279,6 +273,10 @@ test("the join form follows the setup the team saved in the app", async ({ page 
     fields: {
       full_name: { label_ar: "اسمك الرباعي" },
       faculty: { hidden: true },
+      // The team can still ask for the family-list data up front.
+      national_id: { hidden: false, required: true },
+      governorate: { hidden: false, required: true },
+      address: { hidden: false, required: true },
       academic_year: { options: [{ key: "o_first1", ar: "أولى" }, { key: "o_other1", ar: "سنة تانية أو أكتر" }] },
       motivation: { required: false },
       hours_per_week: { hidden: true },
@@ -298,7 +296,12 @@ test("the join form follows the setup the team saved in the app", async ({ page 
   await expect(page.locator("legend", { hasText: "عنك" })).toBeVisible();
   await expect(page.locator("#ap-faculty")).toHaveCount(0);
   await page.fill("#ap-full_name", "طالب اختبار محمد علي");
-  await page.fill("#ap-national_id", "30601121100035");
+  await page.fill("#ap-national_id", "30613451100035");
+  await page.getByRole("button", { name: "التالي" }).click();
+  await expect(page.getByText("الرقم ده مش شبه الرقم القومي — راجع الـ14 رقم.")).toBeVisible();
+  await page.fill("#ap-national_id", "٣٠٦٠١١٢١١٠٠٠٣٥");
+  await expect(page.locator("#ap-national_id")).toHaveValue("30601121100035");
+  await expect(page.getByTestId("ap-nid-read")).toContainText("دمياط");
   await page.fill("#ap-phone", "01012345678");
   await page.fill("#ap-email", "test@example.com");
   await page.selectOption("#ap-governorate", "الدقهلية");
@@ -328,7 +331,9 @@ test("the join form follows the setup the team saved in the app", async ({ page 
   await expect(page.getByText("أولى")).toBeVisible();
   await page.getByRole("button", { name: "ابعت الطلب" }).click();
   await expect(page.getByText("BX-TEST01")).toBeVisible();
-  expect(sent[0]?.p).toMatchObject({ faculty: "", hours_per_week: "", academic_year: "o_first1", answers: { q_like01: "برمجة", q_laptop: "yes" } });
+  expect(sent[0]?.p).toMatchObject({ faculty: "", hours_per_week: "", academic_year: "o_first1", national_id: "30601121100035", governorate: "الدقهلية", answers: { q_like01: "برمجة", q_laptop: "yes" } });
+  // The national ID is never kept in the saved draft.
+  expect(await page.evaluate(() => localStorage.getItem("buildx_apply_draft_v1") ?? "")).not.toContain("30601121100035");
   expect(errors).toEqual([]);
 });
 
