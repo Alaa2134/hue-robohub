@@ -34,6 +34,7 @@ const en = {
     resources: "Resources",
     directory: "Useful websites",
     lab: "BuildX Lab",
+    ai3d: "BuildX 3D AI",
     join: "Join us",
     contact: "Contact",
     commandCenter: "Command Center",

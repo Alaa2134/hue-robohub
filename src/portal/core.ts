@@ -88,7 +88,7 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
 export type Area =
   | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
   | "site" | "pages" | "publish" | "forms" | "expo" | "portfolios" | "settings" | "voice"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "email" | "security" | "sectors" | "inventory";
+  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "email" | "security" | "sectors" | "inventory" | "ai3d";
 export type Level = "none" | "view" | "full";
 /** `view`: what "view only" lets them see (absent = the area has no view-only level). */
 export const AREAS: { key: Area; group: string; label: string; hint: string; view?: string }[] = [
@@ -116,6 +116,7 @@ export const AREAS: { key: Area; group: string; label: string; hint: string; vie
   { key: "email", group: "تاني", label: "الإيميل", hint: "يبعت إيميلات للمتقدمين والأسرة وأي حد، ويعدّل الإيميلات التلقائية (طلب وصل، اتقبلت، تذكرة فعالية…). ربط الحساب نفسه للمالك بس", view: "يشوف سجل الإيميلات والإيميلات التلقائية" },
   { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، زيارات الموقع وأخطاؤه، واستهلاك الباقة", view: "يشوف الهجمات والزيارات والأخطاء من غير حظر" },
   { key: "sectors", group: "تاني", label: "متابعة كل السيكتورات", hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)" },
+  { key: "ai3d", group: "تاني", label: "BuildX 3D AI", hint: "مراجعة إيصالات الشحن وإضافة الكريدت، المحافظ، الموديلات ومعرض الموقع، والأسعار وطريقة الدفع (مفتاح Meshy للمالك بس)", view: "يشوف الشحن والموديلات والمحافظ" },
   { key: "inventory", group: "تاني", label: "المخزن (القطع والأدوات)", hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)" },
 ];
 export const TRAINING: Area[] = ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"];

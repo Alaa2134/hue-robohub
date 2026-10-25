@@ -23,6 +23,7 @@ export const MENU_GROUPS: { key: NavKey; items: NavItem[] }[] = [
     key: "explore",
     items: [
       { key: "lab", href: LAB_HREF, icon: "circuit", external: true },
+      { key: "ai3d", href: "/3dai", icon: "cad" },
       { key: "tracks", href: "/tracks", icon: "layers" },
       { key: "competitions", href: "/competitions", icon: "flag" },
       { key: "bootcamp", href: "/bootcamp", icon: "rocket" },
