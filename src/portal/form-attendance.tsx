@@ -115,6 +115,7 @@ export const BUS_SESSIONS: AttendSession[] = [
 type Mark = { response_id: string; session: string; present: boolean; at: string; method: string };
 type FormRow = { id: string; title_ar: string; slug: string; fields: FormField[]; attendance: Attendance | null; payment?: { on?: boolean; amount?: number | null } | null };
 type MarkOut = { ok: boolean; error?: string; already?: boolean; id?: string; name?: string | null; ref?: string; status?: string; at?: string; present?: boolean; answer?: string | string[]; form?: string };
+type Rating = { response_id: string; session: string; rating: number; comment: string | null; updated_at: string; form_responses: { name: string | null; ref: string } };
 type Flash = { tone: "ok" | "warn" | "danger"; text: string; force?: { code: string; name: string } };
 
 /** The scan, the list of who came and who's absent per session, and the Excel sheet. */
@@ -127,6 +128,13 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
     ]);
     return { form, responses, marks };
   }, [id]);
+  // How attendees rated each session (from their QR page); a screen without ratings yet still works.
+  const ratings = useAsync(
+    async () =>
+      ((await sb().from("form_session_feedback").select("response_id, session, rating, comment, updated_at, form_responses!inner(form_id, name, ref)").eq("form_responses.form_id", id).order("updated_at", { ascending: false }).limit(5000).then(must)) ??
+        []) as Rating[],
+    [id],
+  );
   const sessions = sessionsOf(data?.form.attendance);
   const [session, setSession] = useState<string>("");
   const [scan, setScan] = useState(false);
@@ -332,6 +340,7 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
         <Stat label="غايبين" value={expected.length - inside.length} tone={expected.length - inside.length ? "danger" : undefined} />
         <Stat label="المتوقعين" value={expected.length} sub={bus || (cur.only ? `لـ «${cur.only}»` : undefined)} />
       </div>
+      <SessionRatings list={(ratings.data ?? []).filter((x) => x.session === cur.id)} attended={inside.length} />
 
       <Card className="mt-4 grid gap-3">
         <Button variant={scan ? "secondary" : "primary"} icon="scan" onClick={() => setScan((v) => !v)} data-testid="attendance-scan">
@@ -478,5 +487,64 @@ export function PassLinkRow({ pass, phone, name, title }: { pass: string; phone:
         )}
       </div>
     </div>
+  );
+}
+
+/** The session's stars (average, how many rated out of who came, how the votes split) and what people wrote. */
+function SessionRatings({ list, attended }: { list: Rating[]; attended: number }) {
+  const [open, setOpen] = useState(false);
+  if (!list.length) return null;
+  const avg = list.reduce((a, x) => a + x.rating, 0) / list.length;
+  const notes = list.filter((x) => x.comment);
+  return (
+    <Card className="mt-3 grid gap-3" data-testid="session-ratings">
+      <div className="flex items-center gap-3">
+        <p className="text-3xl font-bold text-chalk">{avg.toFixed(1)}</p>
+        <div className="min-w-0 flex-1">
+          <p className="text-lg leading-none text-[#ffd08a]" aria-label={`${avg.toFixed(1)} من 5`}>
+            {"★".repeat(Math.round(avg))}
+            <span className="text-white/20">{"★".repeat(5 - Math.round(avg))}</span>
+          </p>
+          <p className="mt-1 text-xs text-fog">{`${list.length} قيّموا من ${attended} حضروا`}</p>
+        </div>
+      </div>
+      <div className="grid gap-1">
+        {[5, 4, 3, 2, 1].map((n) => {
+          const c = list.filter((x) => x.rating === n).length;
+          return (
+            <div key={n} className="flex items-center gap-2 text-xs text-fog">
+              <span className="w-6 shrink-0">{n}★</span>
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                <span className="block h-full rounded-full bg-[#ffd08a]" style={{ width: `${(c / list.length) * 100}%` }} />
+              </span>
+              <span className="w-6 shrink-0 text-end">{c}</span>
+            </div>
+          );
+        })}
+      </div>
+      {notes.length > 0 && (
+        <>
+          <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)} data-testid="session-comments-toggle">
+            {open ? "اخفي الآراء" : `اقرا الآراء (${notes.length})`}
+          </Button>
+          {open && (
+            <ul className="grid gap-2" data-testid="session-comments">
+              {notes.map((x) => (
+                <li key={x.response_id} className="rounded-xl border border-[var(--line)] p-3">
+                  <p className="flex items-center gap-2 text-xs text-fog">
+                    <span className="text-[#ffd08a]">{"★".repeat(x.rating)}</span>
+                    <span className="min-w-0 truncate">{x.form_responses.name || x.form_responses.ref}</span>
+                    <span className="ms-auto shrink-0">{fmt.short(x.updated_at)}</span>
+                  </p>
+                  <p className="mt-1 whitespace-pre-line text-sm text-chalk" dir="auto">
+                    {x.comment}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </Card>
   );
 }

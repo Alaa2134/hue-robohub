@@ -294,6 +294,45 @@ test("a form with QR attendance: after sending, a QR to save on the phone; its l
   await expect(page.locator("#status").getByTestId("attend-pass")).toBeVisible();
 });
 
+test("after a session: the QR page asks to rate the sessions they came to (stars and a few words), sends it, and shows it after", async ({ page }) => {
+  const calls = await mockSupabase(page, {
+    rpc: {
+      form_pass: () => ({
+        ok: true,
+        pass: "AB12CD34EF56AB78",
+        ref: "F-1A2B3C4D",
+        name: "منى عادل",
+        title_ar: "ورشة Embedded",
+        sessions: [
+          { id: "s1", name: "اليوم الأول", at: null, here: true, here_at: inHours(-3), rating: null, comment: null },
+          { id: "s2", name: "اليوم التاني", at: null, here: true, here_at: inHours(-30), rating: 4, comment: "حلوة" },
+          { id: "s3", name: "اليوم التالت", at: inHours(24), here: false, here_at: null },
+        ],
+      }),
+      form_session_rate: () => ({ ok: true }),
+    },
+  });
+  await page.goto("/ar/form/?pass=ab12cd34ef56ab78");
+  await expect(page.getByTestId("attend-pass")).toContainText("منى عادل");
+  // Only the sessions they came to can be rated; one already rated shows its stars.
+  await expect(page.getByTestId("rate-s3")).toHaveCount(0);
+  await expect(page.getByTestId("rate-done-s2")).toContainText("حلوة");
+  await page.getByTestId("rate-jump").click();
+  const box = page.getByTestId("rate-s1");
+  await expect(box).toBeInViewport();
+  await box.getByRole("radio", { name: "5 من 5" }).click();
+  await box.getByRole("textbox").fill("الشرح كان ممتاز، محتاجين وقت أكتر للتطبيق");
+  await page.getByTestId("rate-send-s1").click();
+  await expect(page.getByTestId("rate-done-s1")).toContainText("الشرح كان ممتاز");
+  expect(calls.find((c) => c.fn === "form_session_rate")!.body).toMatchObject({
+    p_token: "ab12cd34ef56ab78",
+    p_session: "s1",
+    p_rating: 5,
+    p_comment: "الشرح كان ممتاز، محتاجين وقت أكتر للتطبيق",
+  });
+  await expect(page.getByTestId("rate-jump")).toHaveCount(0);
+});
+
 test("a paid form: the fee and how to pay sit above the receipt upload, and the status says whether it's paid", async ({ page }) => {
   const PAID = {
     slug: "drone-course",

@@ -6890,6 +6890,118 @@ test("coming with a friend: the editor adds the question, and each person shows 
   expect(errors).toEqual([]);
 });
 
+test("session ratings: the attendance screen shows each session's stars, how many rated out of who came, and the comments", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const form = {
+    id: "f1",
+    slug: "workshop",
+    title_ar: "ورشة Embedded",
+    fields: [{ id: "n", type: "name", label_ar: "الاسم", required: true }],
+    attendance: { on: true, sessions: [{ id: "s1", name: "اليوم الأول" }, { id: "s2", name: "اليوم التاني" }] },
+    payment: null,
+  };
+  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  const people = [1, 2, 3].map((i) => ({ id: `r${i}`, ref: `F-0000000${i}`, name: ["منى عادل", "علي حسن", "سارة محمود"][i - 1], phone: null, status: "accepted", answers: {}, pass: `P${i}`, tags: [] }));
+  await page.route(/\/rest\/v1\/form_responses\?select=id%2Cref/, (route) => route.fulfill({ json: people }));
+  await page.route(/\/rest\/v1\/form_attendance/, (route) => route.fulfill({ json: people.map((p) => ({ response_id: p.id, session: "s1", present: true, at: at(120), method: "qr" })) }));
+  await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
+    route.fulfill({
+      json: [
+        { response_id: "r1", session: "s1", rating: 5, comment: "الشرح كان ممتاز", updated_at: at(30), form_responses: { name: "منى عادل", ref: "F-00000001" } },
+        { response_id: "r2", session: "s1", rating: 4, comment: null, updated_at: at(20), form_responses: { name: "علي حسن", ref: "F-00000002" } },
+      ],
+    }),
+  );
+  await page.goto("/app/#/staff/forms/f1/attendance");
+  await page.getByTestId("attendance-sessions").getByRole("button", { name: /اليوم الأول/ }).click();
+  const card = page.getByTestId("session-ratings");
+  await expect(card).toContainText("4.5");
+  await expect(card).toContainText("2 قيّموا من 3 حضروا");
+  await card.getByTestId("session-comments-toggle").click();
+  await expect(page.getByTestId("session-comments")).toContainText("الشرح كان ممتاز");
+  await expect(page.getByTestId("session-comments")).not.toContainText("علي حسن");
+  // A session nobody rated yet shows no card.
+  await page.getByTestId("attendance-sessions").getByRole("button", { name: /اليوم التاني/ }).click();
+  await expect(page.getByTestId("session-ratings")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("WhatsApp inbox: conversations with what's new, a thread with our messages' ticks, a reply within 24 hours, a template after, and the owner connects receiving", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  await signInAsOwner(page, calls);
+  const convos = [
+    { phone: "201011111111", name: "منى عادل", profile: "Mona", last_at: at(30), last: { kind: "text", body: "هو الباص بيتحرك إمتى؟" }, unread: 2, total: 3 },
+    { phone: "201022222222", name: null, profile: "Ali", last_at: at(60 * 50), last: { kind: "image", body: null }, unread: 0, total: 1 },
+  ];
+  let setup = { url: "https://x.supabase.co/functions/v1/wa-webhook?k=abc", token: "abc", connecting: false, connected_at: null as string | null, error: null, last_hit_at: null, received: 0 };
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox$/, (route) => route.fulfill({ json: convos }));
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox_setup$/, (route) => route.fulfill({ json: setup }));
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox_connect$/, (route) => {
+    calls.push({ fn: "staff_wa_inbox_connect", body: null });
+    setup = { ...setup, connected_at: new Date().toISOString() };
+    return route.fulfill({ json: setup });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_wa_thread$/, (route) => {
+    const phone = (route.request().postDataJSON() as { p_phone: string }).p_phone;
+    if (phone === "201011111111")
+      return route.fulfill({
+        json: {
+          phone,
+          last_in: at(30),
+          items: [
+            { dir: "out", id: 9, kind: "template", template: "bx_form_pass_date_v5", body: "MENA Robotics Summit · السبت", at: at(600), status: "sent", delivered: true, read: true },
+            { dir: "in", id: 1, kind: "text", body: "شكرًا، استلمت", at: at(90) },
+            { dir: "in", id: 2, kind: "text", body: "هو الباص بيتحرك إمتى؟", at: at(30) },
+          ],
+        },
+      });
+    return route.fulfill({ json: { phone, last_in: at(60 * 50), items: [{ dir: "in", id: 3, kind: "image", body: null, media: true, at: at(60 * 50) }] } });
+  });
+  await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_send$/, (route) => {
+    calls.push({ fn: "staff_whatsapp_send", body: route.request().postDataJSON() });
+    return route.fulfill({ json: { queued: 1, skipped: 0 } });
+  });
+
+  await page.goto("/app/#/staff/wa-inbox");
+  await expect(page.getByTestId("wa-convo")).toHaveCount(2);
+  await expect(page.getByTestId("wa-convo").first()).toContainText("هو الباص بيتحرك إمتى؟");
+  await expect(page.getByTestId("wa-convo").first()).toContainText("2");
+  await expect(page.getByTestId("wa-convo").nth(1)).toContainText("+201022222222");
+  await expect(page.getByTestId("wa-convo").nth(1)).toContainText("📷 صورة");
+
+  // The owner points Meta at our webhook in one tap.
+  await expect(page.getByTestId("wa-inbox-setup")).toContainText("مش متوصل");
+  await page.getByTestId("wa-inbox-connect").click();
+  await expect.poll(() => calls.some((c) => c.fn === "staff_wa_inbox_connect")).toBe(true);
+  await expect(page.getByTestId("wa-inbox-setup")).toContainText("مستني أول رسالة");
+
+  // A thread: their messages and ours (read), and a reply in plain words within 24 hours.
+  await page.getByTestId("wa-convo").first().click();
+  await expect(page).toHaveURL(/#\/staff\/wa-inbox\/201011111111$/);
+  await expect(page.getByTestId("wa-in")).toHaveCount(2);
+  await expect(page.getByTestId("wa-out")).toContainText("اتقرت ✓✓");
+  await page.getByTestId("wa-reply").getByRole("textbox").fill("الباص بيتحرك 7 الصبح من قدام الكلية");
+  await page.getByTestId("wa-reply-send").click();
+  await expect.poll(() => calls.filter((c) => c.fn === "staff_whatsapp_send").length).toBe(1);
+  expect(calls.find((c) => c.fn === "staff_whatsapp_send")!.body).toMatchObject({
+    p_people: [{ phone: "201011111111", name: "منى عادل" }],
+    p_text: "الباص بيتحرك 7 الصبح من قدام الكلية",
+    p_context: "inbox:201011111111",
+  });
+
+  // After 24 hours only a template can go: the button hands them to the WhatsApp screen.
+  await page.goto("/app/#/staff/wa-inbox/201022222222");
+  await expect(page.getByTestId("wa-in")).toContainText("افتحها من واتساب على موبايل الفريق");
+  await expect(page.getByTestId("wa-reply")).toHaveCount(0);
+  await page.getByTestId("wa-reply-closed").getByRole("button", { name: "ابعتله قالب" }).click();
+  await expect(page).toHaveURL(/#\/staff\/whatsapp$/);
+  expect(errors).toEqual([]);
+});
+
 test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
