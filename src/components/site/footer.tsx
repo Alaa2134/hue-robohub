@@ -24,7 +24,7 @@ export function Footer({ locale, t, config, cta = true }: { locale: Locale; t: D
   return (
     <footer className="relative overflow-hidden bg-abyss">
       {cta && (
-        <HideOn paths={["/join"]}>
+        <HideOn paths={["/join", "/form"]}>
         <section aria-labelledby="footer-cta" className="relative isolate overflow-hidden border-y border-[var(--line)]">
           {poster && (
             <div aria-hidden className="absolute inset-0 -z-10">

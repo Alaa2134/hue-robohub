@@ -11,6 +11,7 @@ import { Icon } from "@/components/brand/icons";
 import { inputCls } from "@/components/command/field";
 import { cn } from "@/lib/cn";
 import { MediaError, mediaErrorText, prepareMedia, type MediaKind } from "@/lib/client-media";
+import { readNationalId } from "@/content/family";
 import { asciiDigits } from "@/lib/format";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 
@@ -125,6 +126,24 @@ const C = {
     qrHere: "حضرت ✅",
     qrNot: "لسه",
     qrNotFound: "مش لاقيين الـ QR ده. لو سجّلت، تابع طلبك بالكود ورقم موبايلك وهيظهرلك تاني.",
+    badNid: "الرقم القومي ده مش مظبوط. راجع الـ14 رقم اللي على البطاقة.",
+    nidLeft: (n: number) => (n === 1 ? "فاضل رقم واحد" : n === 2 ? "فاضل رقمين" : `فاضل ${n} ${n <= 10 ? "أرقام" : "رقم"}`),
+    nidOk: (born: string, gov: string) => `✓ مواليد ${born} · ${gov}`,
+    more: "اقرا التفاصيل كلها",
+    less: "اخفي التفاصيل",
+    progress: (done: number, all: number) => `جاوبت ${done} من ${all} سؤال مطلوب`,
+    left: (n: number) => (n === 1 ? "فاضل سؤال واحد مطلوب" : n === 2 ? "فاضل سؤالين مطلوبين" : `فاضل ${n} ${n <= 10 ? "أسئلة مطلوبة" : "سؤال مطلوب"}`),
+    goFirst: "وديني عليه",
+    allDone: "كله تمام ✓ تقدر تبعت",
+    draft: "رجّعنالك اللي كتبته قبل كده على الموبايل ده.",
+    draftClear: "ابدأ من الأول",
+    questions: (n: number) => {
+      const m = Math.max(1, Math.round(n / 3));
+      return `${n} ${n >= 3 && n <= 10 ? "أسئلة" : "سؤال"} · ${m === 1 ? "حوالي دقيقة" : m === 2 ? "حوالي دقيقتين" : `حوالي ${m} ${m <= 10 ? "دقايق" : "دقيقة"}`}`;
+    },
+    pickForm: "اختار الفورم اللي عايز تملاه",
+    otherForms: "فورمات مفتوحة دلوقتي",
+    closedAt: (d: string) => `اتقفل ${d}`,
   },
   en: {
     name: "Name",
@@ -227,6 +246,21 @@ const C = {
     qrHere: "Attended ✅",
     qrNot: "Not yet",
     qrNotFound: "We can't find this QR. If you registered, check your application with your code and mobile number and it shows again.",
+    badNid: "That national ID doesn't look right. Check the 14 digits on your ID card.",
+    nidLeft: (n: number) => `${n} more digit${n === 1 ? "" : "s"}`,
+    nidOk: (born: string, gov: string) => `✓ Born ${born} · ${gov}`,
+    more: "Read all the details",
+    less: "Hide the details",
+    progress: (done: number, all: number) => `${done} of ${all} required questions answered`,
+    left: (n: number) => (n === 1 ? "1 required question left" : `${n} required questions left`),
+    goFirst: "Take me there",
+    allDone: "All set ✓ You can send",
+    draft: "We brought back what you typed earlier on this device.",
+    draftClear: "Start over",
+    questions: (n: number) => `${n} question${n === 1 ? "" : "s"} · about ${Math.max(1, Math.round(n / 3))} min`,
+    pickForm: "Pick the form you want to fill in",
+    otherForms: "Forms open right now",
+    closedAt: (d: string) => `Closed ${d}`,
   },
 };
 
@@ -533,7 +567,7 @@ export function WaitlistForm({ locale }: { locale: string }) {
 
 /* ─── Forms built in the app ───────────────────────────────────────────── */
 
-export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file";
+export type FieldType = "name" | "text" | "textarea" | "email" | "phone" | "number" | "url" | "date" | "select" | "multi" | "checkbox" | "member" | "file" | "nid";
 /** The form someone without a community membership sends to ask the organiser for an interview. */
 export const INTERVIEW_FORM = "membership-interview";
 export type FileAccept = "image" | "pdf" | "video" | "any";
@@ -552,6 +586,8 @@ export type PublicForm = {
   open: boolean;
   opens_at?: string | null;
   closes_at?: string | null;
+  /** How many questions (the forms list). */
+  questions?: number;
   background_path?: string | null;
   background_kind?: "image" | "video" | null;
   /** The fee and how to pay, when the form asks for one. */
@@ -595,13 +631,13 @@ export function useOpenForms() {
   return forms;
 }
 
-/** /forms: every form that's open (or opening soon). */
-export function OpenForms({ locale, base }: { locale: string; base: string }) {
+/** /forms: every form that's open (or opening soon), open ones first. `exclude` leaves one out (the form on screen). */
+export function OpenForms({ locale, base, exclude }: { locale: string; base: string; exclude?: string }) {
   const l = L(locale);
   const t = C[l];
   const forms = useOpenForms();
   if (!forms) return <div className="h-40 animate-pulse rounded-[20px] bg-panel/60" aria-busy="true" />;
-  const shown = forms.filter((f) => f.listed !== false);
+  const shown = forms.filter((f) => f.listed !== false && f.slug !== exclude && (f.open || (f.opens_at && new Date(f.opens_at) > new Date())));
   if (!shown.length) return <p className="rounded-[18px] border border-[var(--line-2)] bg-panel/50 p-6 text-center text-mist">{t.noForms}</p>;
   return (
     <ul className="grid gap-4 sm:grid-cols-2">
@@ -614,6 +650,7 @@ export function OpenForms({ locale, base }: { locale: string; base: string }) {
           </p>
           <h2 className="t-title text-xl text-chalk">{titleOf(f, l)}</h2>
           {introOf(f, l) && <p className="line-clamp-3 text-sm leading-relaxed text-mist">{introOf(f, l)}</p>}
+          {!!f.questions && <p className="text-xs text-fog">{t.questions(f.questions)}</p>}
           {f.open && (
             <Link href={`${base.replace(/\/?$/, "/")}?f=${encodeURIComponent(f.slug)}`} className="btn btn-primary btn-sm mt-auto w-fit">
               <span>{t.fill}</span>
@@ -679,7 +716,7 @@ function FormStage({ form, children }: { form: PublicForm; children: ReactNode }
   if (!form.background_path) return <>{children}</>;
   const src = `${SUPABASE_URL}/storage/v1/object/public/form-media/${form.background_path.split("/").map(encodeURIComponent).join("/")}`;
   return (
-    <div className="relative isolate overflow-hidden rounded-[28px] p-4 sm:p-8" data-testid="form-stage">
+    <div className="relative isolate overflow-clip rounded-[28px] p-4 sm:p-8" data-testid="form-stage">
       {form.background_kind === "video" ? (
         <video src={src} autoPlay={!still} muted loop playsInline preload={still ? "metadata" : "auto"} aria-hidden className="absolute inset-0 -z-20 size-full object-cover" />
       ) : (
@@ -691,6 +728,50 @@ function FormStage({ form, children }: { form: PublicForm; children: ReactNode }
   );
 }
 
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+/** Links in a form's intro are clickable (and long ones don't stretch the page). */
+function Linked({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(URL_RE).map((part, i) =>
+        i % 2 ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" dir="ltr" className="break-all font-semibold text-cyan underline-offset-4 hover:underline">
+            {part.replace(/^https?:\/\//, "").replace(/\/$/, "")}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+/** A long intro shows its first lines and opens on tap, so the questions start near the top on a phone. */
+function Intro({ text, l }: { text: string; l: Locale }) {
+  const t = C[l];
+  const long = text.length > 320 || text.split("\n").length > 7;
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="grid max-w-2xl gap-2">
+      <p className={cn("whitespace-pre-line text-lg leading-relaxed text-mist [overflow-wrap:anywhere]", long && !open && "line-clamp-6")} data-testid="form-intro">
+        <Linked text={text} />
+      </p>
+      {long && (
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-fit text-sm font-semibold text-cyan underline-offset-4 hover:underline">
+          {open ? t.less : t.more}
+        </button>
+      )}
+    </div>
+  );
+}
+
+const draftKey = (slug: string) => `bx-form-draft:${slug}`;
+type Answers = Record<string, string | string[] | boolean>;
+/** Short single-choice questions show as buttons (one tap) instead of a dropdown. */
+const asChips = (x: FormField) => (x.options?.length ?? 0) > 0 && (x.options?.length ?? 0) <= 8 && (x.options ?? []).every((o) => o.ar.length <= 28);
+const answered = (x: FormField, v: Answers[string] | undefined) =>
+  x.type === "multi" ? Array.isArray(v) && v.length > 0 : x.type === "checkbox" ? v === true : x.type === "nid" ? typeof v === "string" && !!readNationalId(v) : typeof v === "string" && v.trim() !== "";
+
 /** /form?f=<slug>: fill in one form (or a fixed form embedded in a page, with a status link). */
 export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { locale: string; listHref: string; slug?: string; statusHref?: string }) {
   const l = L(locale);
@@ -698,7 +779,8 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
   const honey = useRef<HTMLInputElement>(null);
   const [slug, setSlug] = useState<string | null>(null);
   const [form, setForm] = useState<PublicForm | null | undefined>(undefined);
-  const [a, setA] = useState<Record<string, string | string[] | boolean>>({});
+  const [a, setA] = useState<Answers>({});
+  const [restored, setRestored] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -717,27 +799,60 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setSlug(s);
     if (!s) return setForm(null);
     rpc<PublicForm | null>("public_form", { p_slug: s })
-      .then((f) => setForm(f ?? null))
+      .then((f) => {
+        setForm(f ?? null);
+        if (!f?.open) return;
+        // Answers typed earlier on this device.
+        try {
+          const saved = JSON.parse(localStorage.getItem(draftKey(s)) ?? "null") as Answers | null;
+          const ids = new Set((f.fields ?? []).filter((x) => x.type !== "file" && x.type !== "nid").map((x) => x.id));
+          const keep = saved ? Object.fromEntries(Object.entries(saved).filter(([k]) => ids.has(k))) : {};
+          if (Object.values(keep).some((v) => (Array.isArray(v) ? v.length : v))) {
+            setA(keep);
+            setRestored(true);
+          }
+        } catch {
+          /* no storage: start empty */
+        }
+      })
       .catch(() => setForm(null));
   }, [fixed]);
 
+  // Keep what's typed on this device until it's sent (closing the tab by mistake loses nothing).
+  useEffect(() => {
+    if (!slug || !form?.open || done) return;
+    const id = window.setTimeout(() => {
+      try {
+        // Not files (they upload again) nor national IDs (they stay off the device, like the family form).
+        const files = new Set((form.fields ?? []).filter((x) => x.type === "file" || x.type === "nid").map((x) => x.id));
+        const keep = Object.fromEntries(Object.entries(a).filter(([k]) => !files.has(k)));
+        if (Object.keys(keep).length) localStorage.setItem(draftKey(slug), JSON.stringify(keep));
+      } catch {
+        /* storage full or blocked */
+      }
+    }, 400);
+    return () => window.clearTimeout(id);
+  }, [a, slug, form, done]);
+
   if (viewPass) return <AttendPass token={viewPass} locale={l} page />;
+  const formsBase = listHref.replace(/\/forms\/?$/, "/form/");
   if (form === undefined) return <p className="text-mist">{t.loading}</p>;
   if (!form || !slug)
     return (
-      <div className="frame flex flex-col items-start gap-4 p-8">
-        <p className="t-headline text-2xl text-chalk">{t.errors.not_found}</p>
-        <Link href={listHref} className="btn btn-sm">
-          {t.back}
-        </Link>
+      <div className="grid gap-6">
+        <header className="flex flex-col gap-2">
+          <h1 className="t-headline text-3xl text-chalk sm:text-4xl">{slug ? t.errors.not_found : t.pickForm}</h1>
+          {slug && <p className="text-mist">{t.pickForm}</p>}
+        </header>
+        <OpenForms locale={l} base={formsBase} />
       </div>
     );
 
   const fields = form.fields ?? [];
   const head = (
     <header className="mb-8 flex flex-col gap-3">
-      <h1 className="t-headline text-3xl text-chalk sm:text-4xl">{titleOf(form, l)}</h1>
-      {introOf(form, l) && <p className="max-w-2xl whitespace-pre-line text-lg leading-relaxed text-mist">{introOf(form, l)}</p>}
+      <h1 className="t-headline text-3xl text-chalk [overflow-wrap:anywhere] sm:text-4xl">{titleOf(form, l).trim()}</h1>
+      {introOf(form, l) && <Intro text={introOf(form, l).trim()} l={l} />}
       {form.open && form.closes_at && <p className="text-sm font-semibold text-warn">{t.closesAt(fmtWhen(form.closes_at, l))}</p>}
       {form.payment && !(form.fields ?? []).some((x) => x.receipt) && <FeeBox payment={form.payment} locale={l} />}
     </header>
@@ -752,11 +867,18 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             <Icon name="clock" size={22} />
           </span>
           <p className="t-headline text-2xl text-chalk">{t.closedTitle}</p>
-          {form.opens_at && new Date(form.opens_at) > new Date() && <p className="text-mist">{t.opensAt(fmtWhen(form.opens_at, l))}</p>}
-          <Link href={listHref} className="btn btn-sm">
-            {t.back}
-          </Link>
+          {form.opens_at && new Date(form.opens_at) > new Date() ? (
+            <p className="text-mist">{t.opensAt(fmtWhen(form.opens_at, l))}</p>
+          ) : (
+            form.closes_at && new Date(form.closes_at) < new Date() && <p className="text-mist">{t.closedAt(fmtWhen(form.closes_at, l))}</p>
+          )}
         </div>
+        {!fixed && (
+          <section className="mt-10 grid gap-4" data-testid="other-forms">
+            <h2 className="t-title text-xl text-chalk">{t.otherForms}</h2>
+            <OpenForms locale={l} base={formsBase} exclude={slug} />
+          </section>
+        )}
       </FormStage>
     );
 
@@ -805,7 +927,14 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       setFile(x.id, { ...base, status: "error", progress: 0, error: e instanceof MediaError ? mediaErrorText(e, l) : t.fileBad });
     }
   };
-  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember };
+  const reason: Record<string, string> = { file: t.fileBad, required: t.required, email: t.badEmail, phone: t.badPhone, number: t.badNumber, url: t.badUrl, date: t.badDate, option: t.badOption, too_long: t.tooLong, member: t.badMember, nid: t.badNid };
+  const needed = fields.filter((x) => x.required);
+  const missing = needed.filter((x) => !answered(x, a[x.id]));
+  const goTo = (id: string) => {
+    const el = document.getElementById(`ff-${id}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.focus({ preventScroll: true });
+  };
 
   const check = () => {
     const e: Record<string, string> = {};
@@ -824,7 +953,8 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       if (x.type === "email" && !EMAIL.test(s)) e[x.id] = t.badEmail;
       if (x.type === "phone" && !PHONE.test(cleanPhone(s))) e[x.id] = t.badPhone;
       if (x.type === "url" && !/^https?:\/\/\S+$/i.test(s)) e[x.id] = t.badUrl;
-      if (x.type === "number" && !/^-?\d+(\.\d+)?$/.test(s)) e[x.id] = t.badNumber;
+      if (x.type === "number" && !/^-?\d+(\.\d+)?$/.test(asciiDigits(s))) e[x.id] = t.badNumber;
+      if (x.type === "nid" && !readNationalId(s)) e[x.id] = t.badNid;
     }
     return e;
   };
@@ -835,17 +965,22 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     setErrors(e);
     const first = Object.keys(e)[0];
     if (first) {
-      document.getElementById(`ff-${first}`)?.focus();
+      goTo(first);
       return;
     }
     setBusy(true);
     setFormError("");
     try {
       // Numbers typed in Arabic digits go as 0-9, the way the server reads them.
-      const phones = new Set(fields.filter((x) => x.type === "phone").map((x) => x.id));
-      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? (phones.has(k) ? asciiDigits(v.trim()) : v.trim()) : v])), __t: elapsed() };
+      const digits = new Set(fields.filter((x) => x.type === "phone" || x.type === "number" || x.type === "nid").map((x) => x.id));
+      const answers = { ...Object.fromEntries(Object.entries(a).map(([k, v]) => [k, typeof v === "string" ? (digits.has(k) ? asciiDigits(v.trim()) : v.trim()) : v])), __t: elapsed() };
       const out = await rpc<{ ok: boolean; duplicate?: boolean; ref?: string; pass?: string; error?: string; fields?: Record<string, string> }>("submit_form", { p_slug: slug, p_answers: answers, p_locale: l, p_website: honey.current?.value ?? "" });
       if (out.ok) {
+        try {
+          localStorage.removeItem(draftKey(slug));
+        } catch {
+          /* nothing saved */
+        }
         setRef(out.ref ?? "");
         setPass(out.pass ?? "");
         setDone(out.duplicate ? "dup" : "ok");
@@ -853,7 +988,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       else if (out.error === "fields" && out.fields) {
         const fe = Object.fromEntries(Object.entries(out.fields).map(([k, r]) => [k, reason[r] ?? t.errors.invalid]));
         setErrors(fe);
-        document.getElementById(`ff-${Object.keys(fe)[0]}`)?.focus();
+        goTo(Object.keys(fe)[0]);
       } else if (out.error === "closed") setForm({ ...form, open: false });
       else setFormError(t.errors[(out.error as keyof typeof t.errors) ?? "invalid"] ?? t.errors.invalid);
     } catch {
@@ -868,6 +1003,40 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
       {head}
       <form onSubmit={submit} noValidate className="frame relative grid gap-6 p-5 sm:p-8">
         <Honeypot value={honey} />
+        {restored && (
+          <p role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-cyan/30 bg-cyan/5 px-4 py-3 text-sm text-frost" data-testid="form-draft">
+            {t.draft}
+            <button
+              type="button"
+              className="font-semibold text-cyan underline-offset-4 hover:underline"
+              onClick={() => {
+                setA({});
+                setErrors({});
+                setRestored(false);
+                try {
+                  localStorage.removeItem(draftKey(slug));
+                } catch {
+                  /* nothing saved */
+                }
+              }}
+            >
+              {t.draftClear}
+            </button>
+          </p>
+        )}
+        {needed.length > 2 && (
+          <div className="sticky top-0 z-20 -mx-5 -mt-5 rounded-t-[inherit] border-b border-[var(--line)] bg-[rgb(6_11_24/0.88)] px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:-mt-8 sm:px-8" data-testid="form-progress">
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+              <span className="font-semibold text-frost">{t.progress(needed.length - missing.length, needed.length)}</span>
+              <span className="font-mono text-fog" dir="ltr">
+                {Math.round(((needed.length - missing.length) / needed.length) * 100)}%
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={needed.length} aria-valuenow={needed.length - missing.length} aria-label={t.progress(needed.length - missing.length, needed.length)}>
+              <div className="h-full rounded-full bg-gradient-to-r from-volt to-cyan transition-[width] duration-500" style={{ width: `${((needed.length - missing.length) / needed.length) * 100}%` }} />
+            </div>
+          </div>
+        )}
         {fields.map((x) => {
           const id = `ff-${x.id}`;
           const err = errors[x.id];
@@ -953,6 +1122,69 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             );
           }
           const s = typeof v === "string" ? v : "";
+          if (x.type === "select" && asChips(x))
+            return (
+              <fieldset key={x.id} className="flex flex-col gap-2.5" aria-describedby={err ? `${id}-error` : undefined}>
+                <legend className="mb-1 flex w-full items-baseline justify-between gap-3 text-[0.95rem] font-semibold text-frost">
+                  {label}
+                  {opt && <span className="text-xs font-normal text-fog">{opt}</span>}
+                </legend>
+                <div role="radiogroup" aria-label={label} className="flex flex-wrap gap-2">
+                  {(x.options ?? []).map((o, i) => {
+                    const on = s === o.ar;
+                    return (
+                      <button
+                        key={o.ar}
+                        id={i === 0 ? id : undefined}
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        onClick={() => set(x.id, on && !x.required ? "" : o.ar)}
+                        className={cn("min-h-11 rounded-xl border px-4 py-2 text-sm transition-colors", on ? "border-cyan/70 bg-volt/25 font-semibold text-chalk" : "border-[var(--line-2)] text-mist hover:border-volt/50")}
+                      >
+                        {(l === "en" && o.en) || o.ar}
+                      </button>
+                    );
+                  })}
+                </div>
+                {err ? (
+                  <p id={`${id}-error`} role="alert" className="text-sm text-danger">
+                    {err}
+                  </p>
+                ) : (
+                  helpOf(x, l) && <p className="text-sm text-fog">{helpOf(x, l)}</p>
+                )}
+              </fieldset>
+            );
+          if (x.type === "nid") {
+            const d = asciiDigits(s).replace(/\D/g, "");
+            const read = d.length === 14 ? readNationalId(d) : null;
+            const gov = read ? (l === "ar" ? read.governorate.ar : read.governorate.en) : "";
+            const hint = read ? (
+              <span className="text-ok" data-testid={`nid-ok-${x.id}`}>
+                {t.nidOk(read.birth.toLocaleDateString(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }), gov)}
+              </span>
+            ) : d.length > 0 && d.length < 14 ? (
+              t.nidLeft(14 - d.length)
+            ) : (
+              helpOf(x, l)
+            );
+            return (
+              <Row key={x.id} id={id} label={label} optional={opt} error={err || (d.length >= 14 && !read ? t.badNid : undefined)} hint={hint}>
+                <input
+                  {...aria(id, err)}
+                  className={cn(inputCls, "font-mono tracking-wider")}
+                  maxLength={20}
+                  value={s}
+                  onChange={(e) => set(x.id, e.target.value)}
+                  dir="ltr"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="30xxxxxxxxxxxx"
+                />
+              </Row>
+            );
+          }
           if (x.type === "member")
             return (
               <div key={x.id} className="grid gap-2">
@@ -1004,8 +1236,20 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
             {formError}
           </p>
         )}
-        <div>
-          <Submit busy={busy} label={t.send} busyLabel={t.sending} />
+        <div className="grid gap-3">
+          {needed.length > 0 && (
+            <p className={cn("text-sm", missing.length ? "text-warn" : "text-ok")} data-testid="form-left">
+              {missing.length ? t.left(missing.length) : t.allDone}
+              {missing.length > 0 && (
+                <button type="button" onClick={() => goTo(missing[0].id)} className="ms-2 font-semibold text-cyan underline-offset-4 hover:underline">
+                  {t.goFirst}
+                </button>
+              )}
+            </p>
+          )}
+          <div>
+            <Submit busy={busy} label={t.send} busyLabel={t.sending} />
+          </div>
         </div>
       </form>
     </FormStage>

@@ -69,7 +69,7 @@ function columnsOf(fields: FormField[], paying: boolean, grouped: boolean, lang:
         ar: f.label_ar,
         en: f.label_en || (f.type === "name" ? "Full name" : f.type === "phone" ? "Mobile" : f.type === "email" ? "Email" : undefined),
         wide: f.type === "textarea" || f.type === "multi",
-        ltr: ["phone", "email", "url", "number", "member"].includes(f.type),
+        ltr: ["phone", "email", "url", "number", "member", "nid"].includes(f.type),
         name: f.type === "name",
         get: (r) => value(f, r),
       })),

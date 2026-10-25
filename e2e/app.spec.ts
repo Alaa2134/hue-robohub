@@ -6000,11 +6000,18 @@ test("form builder: a file question that takes video, and a background video tha
   await page.getByRole("button", { name: "ملف (صورة / PDF / فيديو)" }).click();
   await page.getByPlaceholder("السؤال بالعربي").last().fill("فيديو المشروع");
   await page.getByLabel("بيقبل إيه؟").selectOption("video");
+  // A national ID asked as plain text: the editor suggests the national-ID type, which the site checks.
+  await page.getByRole("button", { name: "نص قصير" }).click();
+  await page.getByPlaceholder("السؤال بالعربي").last().fill("رقمك القومي");
+  await expect(page.getByTestId("field-tip")).toContainText("ده شكله سؤال رقم قومي");
+  await page.getByRole("button", { name: "خليه رقم قومي" }).click();
+  await expect(page.getByTestId("field-tip")).toHaveCount(0);
   await page.getByRole("button", { name: "حفظ", exact: true }).first().click();
   await expect.poll(() => patches.at(-1)).toMatchObject({ background_kind: "video" });
   const saved = patches.at(-1) as { background_path: string; fields: { type: string; accept?: string }[] };
   expect(saved.background_path).toMatch(/^b\/[0-9a-f-]{36}\/intro\.webm$/);
-  expect(saved.fields.at(-1)).toMatchObject({ type: "file", accept: "video", label_ar: "فيديو المشروع" });
+  expect(saved.fields.at(-2)).toMatchObject({ type: "file", accept: "video", label_ar: "فيديو المشروع" });
+  expect(saved.fields.at(-1)).toMatchObject({ type: "nid", label_ar: "رقمك القومي" });
   expect(errors).toEqual([]);
 });
 
