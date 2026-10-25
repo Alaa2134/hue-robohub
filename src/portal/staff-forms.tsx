@@ -112,6 +112,7 @@ const TYPES: { k: FieldType; ar: string }[] = [
   { k: "member", ar: "رقم عضوية الكميونيتي" },
   { k: "nid", ar: "الرقم القومي" },
   { k: "friend", ar: "جاي مع صاحبه" },
+  { k: "bus", ar: "اختيار الباص" },
   { k: "file", ar: "ملف (صورة / PDF / فيديو)" },
 ];
 const ACCEPTS: { k: FileAccept; ar: string }[] = [
@@ -435,8 +436,9 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     if (attendIssue) return toast(attendIssue, "error");
     for (const fl of next.fields) {
       if (!fl.label_ar.trim()) return toast("في سؤال من غير عنوان", "error");
-      if ((fl.type === "select" || fl.type === "multi") && !(fl.options ?? []).length) return toast(`السؤال «${fl.label_ar}» محتاج اختيارات`, "error");
+      if ((fl.type === "select" || fl.type === "multi" || fl.type === "bus") && !(fl.options ?? []).length) return toast(`السؤال «${fl.label_ar}» محتاج اختيارات`, "error");
     }
+    if (next.fields.filter((fl) => fl.type === "bus").length > 1) return toast("خلي سؤال باص واحد بس في الفورم", "error");
     setBusy(true);
     try {
       const { id: _id, created_at: _c, ...row } = next;
@@ -511,7 +513,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             <Card key={fl.id} className="grid gap-3">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-fog">{i + 1}</span>
-                <Select value={fl.type} onChange={(e) => setField(i, { type: e.target.value as FieldType, ...(["select", "multi"].includes(e.target.value) && !fl.options?.length ? { options: [{ ar: "اختيار 1" }, { ar: "اختيار 2" }] } : {}) })} className="max-w-44">
+                <Select value={fl.type} onChange={(e) => setField(i, { type: e.target.value as FieldType, ...(["select", "multi", "bus"].includes(e.target.value) && !fl.options?.length ? { options: [{ ar: "اختيار 1" }, { ar: "اختيار 2" }] } : {}) })} className="max-w-44">
                   {TYPES.map((t) => (
                     <option key={t.k} value={t.k}>
                       {t.ar}
@@ -550,6 +552,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
                   />
                 </Field>
               )}
+              {fl.type === "bus" && <BusOptions key={fl.id} options={fl.options ?? []} onChange={(options) => setField(i, { options })} />}
               {fl.type === "file" && (
                 <Field label="بيقبل إيه؟" hint="الصور والفيديو بتتضغط في متصفح الزائر قبل ما تتبعت. الـPDF لازم يكون أقل من 10 ميجا.">
                   <Select value={fl.accept ?? "image"} onChange={(e) => setField(i, { accept: e.target.value as FileAccept })}>
@@ -579,19 +582,21 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             >
               خانة دفع (إيصال)
             </Button>
-            {(["name", "phone", "email", "nid", "text", "textarea", "select", "multi", "checkbox", "member", "friend", "file"] as FieldType[]).map((k) => (
+            {(["name", "phone", "email", "nid", "text", "textarea", "select", "multi", "checkbox", "member", "friend", "bus", "file"] as FieldType[]).map((k) => (
               <Button
                 key={k}
                 size="sm"
                 icon="plus"
-                disabled={fields.length >= 40}
+                disabled={fields.length >= 40 || (k === "bus" && fields.some((q) => q.type === "bus"))}
                 onClick={() =>
                   edit({
                     fields: [
                       ...fields,
                       k === "friend"
                         ? { ...f(k, "جاي مع حد من صحابك؟", "Coming with a friend?", false), help_ar: "لو صاحبك سجّل قبلك، اكتب رقم موبايله أو كود طلبه وأكّد اسمه.", help_en: "If your friend signed up before you, type their mobile or request code and confirm their name." }
-                        : f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined),
+                        : k === "bus"
+                          ? { ...f(k, "هتيجي بأنهي باص؟", "Which bus will you take?"), options: [{ ar: "باص 1", seats: "50" }, { ar: "باص 2", seats: "50" }, { ar: "جاي لوحدي", seats: "-" }], help_ar: "الباص اللي يتملى مش هيتاخد تاني." }
+                          : f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined),
                     ],
                   })
                 }
@@ -811,6 +816,41 @@ function GroupEditor({ r, groups, onChange }: { r: Response; groups: string[]; o
 }
 
 /** Put the ticked people in a group, or take them out of one. */
+/** The buses of a bus question, one per line: «باص المنصورة | 50» (seats), «باص 2» (no limit), «جاي لوحدي | -» (not a bus). */
+function BusOptions({ options, onChange }: { options: NonNullable<FormField["options"]>; onChange: (o: NonNullable<FormField["options"]>) => void }) {
+  const [text, setText] = useState(() => options.map((o) => (o.seats ? `${o.ar} | ${o.seats}` : o.ar)).join("\n"));
+  const parse = (t: string) =>
+    t
+      .split("\n")
+      .map((line) => {
+        const [name, seats = ""] = line.split("|");
+        const n = seats.trim();
+        return { ar: name.trim(), ...(n === "-" || /^[0-9]{1,4}$/.test(n) ? { seats: n } : {}) };
+      })
+      .filter((o) => o.ar);
+  const buses = parse(text);
+  return (
+    <Field label="الباصات" hint="كل باص في سطر، وبعده | وعدد الكراسي (مثلاً: باص المنصورة | 50). من غير رقم يبقى مفتوح، و«| -» يعني مش باص (جاي لوحدي). الباص اللي يتملى بيتقفل لوحده، وكل واحد بيتحط في جروب «أتوبيس رقم» على طول.">
+      <Textarea
+        rows={Math.min(8, Math.max(3, buses.length + 1))}
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          onChange(parse(e.target.value));
+        }}
+        data-testid="bus-options"
+      />
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {buses.map((o, k) => (
+          <Badge key={`${o.ar}${k}`} tone={o.seats === "-" ? "muted" : "info"}>
+            {o.seats === "-" ? `${o.ar} · مش باص` : `أتوبيس ${buses.slice(0, k + 1).filter((b) => b.seats !== "-").length} · ${o.ar}${o.seats ? ` · ${o.seats} كرسي` : " · مفتوح"}`}
+          </Badge>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
 function GroupSheet({ count, groups, busy, onClose, onApply }: { count: number; groups: string[]; busy: boolean; onClose: () => void; onApply: (g: string, on: boolean) => Promise<void> }) {
   const [name, setName] = useState("");
   return (
@@ -1017,7 +1057,7 @@ function ResponseEditor({ form, r, people, onClose, onSaved }: { form: Form; r: 
           <Field key={fl.id} label={fl.label_ar}>
             {fl.type === "textarea" ? (
               <Textarea rows={3} maxLength={4000} value={str(fl.id)} onChange={(e) => setA({ ...a, [fl.id]: e.target.value })} />
-            ) : fl.type === "select" ? (
+            ) : fl.type === "select" || fl.type === "bus" ? (
               <Select value={str(fl.id)} onChange={(e) => setA({ ...a, [fl.id]: e.target.value })}>
                 <option value="">—</option>
                 {(fl.options ?? []).map((o) => (
@@ -1082,7 +1122,7 @@ function ResponseEditor({ form, r, people, onClose, onSaved }: { form: Form; r: 
   );
 }
 
-export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
+export function FormResponses({ id, me, openTrip }: { id: string; me?: StaffRow; /** Open the event file (bus lists, supervisor letters…) straight away. */ openTrip?: boolean }) {
   const { data, error, loading, reload, set } = useAsync(async () => {
     const [form, responses] = await Promise.all([
       sb().from("forms").select("*").eq("id", id).single().then(must) as Promise<Form>,
@@ -1102,7 +1142,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const [queue, setQueue] = useState(false);
   const [editing, setEditing] = useState<Response | "new" | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
-  const [busOpen, setBusOpen] = useState(false);
+  const [busOpen, setBusOpen] = useState(!!openTrip);
   // Who was really there (their QR scanned at any check), for the event's papers.
   const attendedIds = useAsync(
     async () =>

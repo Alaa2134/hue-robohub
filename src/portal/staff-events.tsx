@@ -1,5 +1,9 @@
 "use client";
-/** BuildX App → events: who registered on the website, the waiting list, CSV export and door check-in by QR. */
+/**
+ * BuildX App → events: every event with its registrations. An event that registers through a form has
+ * the organiser's page (event-hub); one on the quick RSVP has its list, the waiting list, CSV export and
+ * door check-in by QR, and can move to a form.
+ */
 import { useMemo, useState } from "react";
 import type { SiteItem } from "@/lib/site-content";
 import { can, downloadCsv, errorText, fmt, must, rpc, sb, today, type StaffRow } from "./core";
@@ -8,6 +12,7 @@ import { TripLetterSheet } from "./trip-letter";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { SendQrButton } from "./wa-qr-send";
 import { whatsappLink } from "@/lib/contact";
+import { EventHub, UseFormCard, type Hub } from "./event-hub";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Row, SearchBox, Sheet, Stat, Textarea, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 type Reg = { id: string; ticket: string; full_name: string; phone: string; email: string | null; faculty: string | null; status: "going" | "waitlist" | "cancelled"; checked_in_at: string | null; created_at: string };
@@ -19,21 +24,20 @@ const STATUS: Record<Reg["status"], { ar: string; tone: "ok" | "warn" | "muted" 
   cancelled: { ar: "لغى", tone: "muted" },
 };
 
+type Overview = Pick<Ev, "id" | "slug" | "title" | "title_ar" | "starts_at" | "capacity" | "rsvp_open" | "published"> & {
+  form_id: string | null;
+  form_open: boolean | null;
+  going: number;
+  waitlist: number;
+  inside: number;
+  responses: number;
+  accepted: number;
+  waiting: number;
+};
+
 export function EventsScreen() {
-  const { data, error, loading, reload } = useAsync(async () => {
-    const events = (await sb().from("site_content").select("id,slug,title,title_ar,starts_at,capacity,rsvp_open,published,location,location_ar").eq("kind", "event").order("starts_at", { ascending: false, nullsFirst: false }).limit(200).then(must)) as Ev[];
-    const regs = (await sb().from("event_registrations").select("event_id,status,checked_in_at").limit(20000).then(must)) as { event_id: string; status: string; checked_in_at: string | null }[];
-    const by = new Map<string, { going: number; waitlist: number; inside: number }>();
-    for (const r of regs) {
-      const c = by.get(r.event_id) ?? { going: 0, waitlist: 0, inside: 0 };
-      if (r.status === "going") c.going++;
-      if (r.status === "waitlist") c.waitlist++;
-      if (r.checked_in_at) c.inside++;
-      by.set(r.event_id, c);
-    }
-    return events.map((e) => ({ ...e, counts: by.get(e.id) ?? { going: 0, waitlist: 0, inside: 0 } }));
-  }, []);
-  const withRsvp = (data ?? []).filter((e) => e.rsvp_open || e.counts.going || e.counts.waitlist);
+  const { data, error, loading, reload } = useAsync(() => rpc<Overview[]>("staff_events_overview"), []);
+  const withRsvp = (data ?? []).filter((e) => e.form_id || e.rsvp_open || e.going || e.waitlist);
 
   return (
     <>
@@ -61,13 +65,23 @@ export function EventsScreen() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-chalk">{e.title_ar || e.title}</p>
                   <p className="truncate text-xs text-fog">
-                    {e.starts_at ? fmt.dateTime(e.starts_at) : "—"} · {e.counts.going}
-                    {e.capacity ? `/${e.capacity}` : ""} مسجل
-                    {e.counts.waitlist ? ` · ${e.counts.waitlist} انتظار` : ""}
-                    {e.counts.inside ? ` · ${e.counts.inside} دخلوا` : ""}
+                    {e.starts_at ? fmt.dateTime(e.starts_at) : "—"}
+                    {e.form_id ? (
+                      <>
+                        {` · ${e.responses} سجّلوا · ${e.accepted} مقبول`}
+                        {e.waiting ? ` · ${e.waiting} انتظار` : ""}
+                      </>
+                    ) : (
+                      <>
+                        {` · ${e.going}${e.capacity ? `/${e.capacity}` : ""} مسجل`}
+                        {e.waitlist ? ` · ${e.waitlist} انتظار` : ""}
+                        {e.inside ? ` · ${e.inside} دخلوا` : ""}
+                      </>
+                    )}
                   </p>
                 </div>
-                {e.rsvp_open ? <Badge tone="ok">مفتوح</Badge> : <Badge tone="muted">مقفول</Badge>}
+                {e.form_id && <Badge tone="info">فورم</Badge>}
+                {(e.form_id ? e.form_open : e.rsvp_open) ? <Badge tone="ok">مفتوح</Badge> : <Badge tone="muted">مقفول</Badge>}
               </div>
             </Row>
           ))}
@@ -80,6 +94,17 @@ export function EventsScreen() {
 type CheckResult = { ok: boolean; error?: string; name?: string; status?: string; already?: boolean; event?: string };
 
 export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
+  const hub = useAsync(() => rpc<Hub | null>("staff_event_hub", { p_event: id }), [id]);
+  const [old, setOld] = useState(false);
+  if (hub.loading && !hub.data) return <Loading />;
+  if (hub.error || !hub.data) return <ErrorBox error={hub.error ?? "الفعالية مش موجودة"} retry={hub.reload} />;
+  const h = hub.data;
+  if (h.form && !old) return <EventHub hub={h} me={me} reload={hub.reload} onOld={h.rsvp.going + h.rsvp.waitlist + h.rsvp.cancelled > 0 ? () => setOld(true) : undefined} />;
+  return <RsvpRegistrations id={id} me={me} offerForm={!h.form && !!me && can(me, "forms")} onLinked={hub.reload} />;
+}
+
+/** The quick RSVP of an event: the list, the waiting list, Excel and door check-in by ticket QR. */
+function RsvpRegistrations({ id, me, offerForm, onLinked }: { id: string; me?: StaffRow; offerForm: boolean; onLinked: () => void }) {
   const ev = useAsync(async () => (await sb().from("site_content").select("id,slug,title,title_ar,starts_at,capacity,rsvp_open,published,location,location_ar").eq("id", id).single().then(must)) as Ev, [id]);
   const regs = useAsync(async () => (await sb().from("event_registrations").select("*").eq("event_id", id).order("created_at").limit(5000).then(must)) as Reg[], [id]);
   const [q, setQ] = useState("");
@@ -189,6 +214,7 @@ export function EventRegistrations({ id, me }: { id: string; me?: StaffRow }) {
         <Stat label="انتظار" value={counts.waitlist} />
         <Stat label="دخلوا" value={counts.inside} />
       </div>
+      {offerForm && <UseFormCard eventId={id} onLinked={onLinked} />}
 
       {me && can(me, "whatsapp") && counts.going + counts.waitlist > 0 && (
         <Card className="mt-3 flex flex-wrap items-center gap-2">
