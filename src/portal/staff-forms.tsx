@@ -216,10 +216,43 @@ function liveState(x: Form, count: number) {
   return { ar: "مفتوح", tone: "ok" as const };
 }
 
+/** A form's name in a header: an English name cuts off at its end, not its start. */
+function FormTitle({ title }: { title: string }) {
+  return (
+    <span dir="auto" className="block truncate text-right">
+      {title}
+    </span>
+  );
+}
+
+/** Opening/closing times that would keep the form from ever taking answers. */
+function timesProblem(x: Pick<Form, "opens_at" | "closes_at">) {
+  if (x.opens_at && x.closes_at && new Date(x.closes_at) <= new Date(x.opens_at)) return "ميعاد القفل لازم يكون بعد ميعاد الفتح";
+  return null;
+}
+
+/** Jump straight to a part of the (long) form editor. */
+const EDITOR_PARTS = [
+  ["form-q", "الأسئلة"],
+  ["form-info", "البيانات"],
+  ["form-pay", "الدفع"],
+  ["form-qr", "الحضور"],
+  ["form-accepted", "بعد القبول"],
+  ["form-delegation", "الوفد"],
+  ["form-bg", "الخلفية"],
+] as const;
+
 const formLink = (slug: string) => (slug === "robotex-2026" ? `${SITE}/ar/robotex/` : `${SITE}/ar/form/?f=${encodeURIComponent(slug)}`);
 
 export function FormsScreen() {
   const { data, error, loading, reload } = useAsync(async () => (await sb().from("forms").select("*, form_responses(count)").order("created_at", { ascending: false }).then(must)) as (Form & { form_responses: { count: number }[] })[], []);
+  // New (not yet reviewed) answers per form, so the list shows where there's work waiting.
+  const news = useAsync(async () => {
+    const rows = ((await sb().from("form_responses").select("form_id").eq("status", "new").limit(5000).then(must)) ?? []) as { form_id: string }[];
+    const out: Record<string, number> = {};
+    for (const r of rows) out[r.form_id] = (out[r.form_id] ?? 0) + 1;
+    return out;
+  }, []);
   const [creating, setCreating] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const list = (data ?? []).filter((x) => x.archived === showArchived);
@@ -245,20 +278,36 @@ export function FormsScreen() {
           {list.map((x) => {
             const n = x.form_responses?.[0]?.count ?? 0;
             const st = liveState(x, n);
+            const fresh = news.data?.[x.id] ?? 0;
+            const ended = !!x.closes_at && new Date(x.closes_at).getTime() <= Date.now();
             return (
-              <Row key={x.id} onClick={() => go(`/staff/forms/${x.id}`)}>
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-chalk">{x.title_ar}</p>
-                    <p className="mt-0.5 text-xs text-fog">
-                      {n} رد{x.max_responses ? ` من ${x.max_responses}` : ""}
-                      {x.closes_at ? ` · بيقفل ${fmt.dateTime(x.closes_at)}` : ""}
-                      {x.team ? ` · ${coreTeams.find((t) => t.slug === x.team)?.nameAr ?? x.team}` : ""}
-                    </p>
-                  </div>
-                  <Badge tone={st.tone}>{st.ar}</Badge>
-                </div>
-              </Row>
+              <div key={x.id} className="flex items-center gap-2 pe-3" data-testid="form-item">
+                <button type="button" onClick={() => go(`/staff/forms/${x.id}`)} className="min-w-0 flex-1 px-4 py-3 text-start transition hover:bg-white/[0.03] active:bg-white/[0.05]">
+                  {/* An English title in an Arabic list still cuts off at its end, not its start. */}
+                  <p dir="auto" className="truncate text-right font-semibold text-chalk">
+                    {x.title_ar}
+                  </p>
+                  <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-fog">
+                    <Badge tone={st.tone}>{st.ar}</Badge>
+                    {x.closes_at && <span>{ended ? "قفل" : "بيقفل"} {fmt.dateTime(x.closes_at)}</span>}
+                    {x.team && <span>· {coreTeams.find((t) => t.slug === x.team)?.nameAr ?? x.team}</span>}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => go(`/staff/forms/${x.id}/responses`)}
+                  className="flex shrink-0 flex-col items-center rounded-xl border border-[var(--line-2)] px-3 py-1.5 text-chalk hover:bg-white/[0.04]"
+                  aria-label={`ردود ${x.title_ar}`}
+                  data-testid="form-item-responses"
+                >
+                  <span className="text-base font-bold leading-tight">
+                    {n}
+                    {x.max_responses ? <span className="text-xs font-normal text-fog">/{x.max_responses}</span> : null}
+                  </span>
+                  <span className="text-[11px] text-fog">رد</span>
+                  {fresh > 0 && <span className="mt-0.5 rounded-full bg-cyan/20 px-1.5 text-[10px] text-ice">{fresh} جديد</span>}
+                </button>
+              </div>
             );
           })}
         </List>
@@ -374,6 +423,8 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
     const next = { ...x, ...p };
     if (!/^[a-z0-9][a-z0-9-]{1,48}$/.test(next.slug)) return toast("الرابط المختصر: حروف إنجليزي صغيرة وأرقام و - بس", "error");
     if (next.title_ar.trim().length < 2) return toast("اكتب عنوان الفورم", "error");
+    const when = timesProblem(next);
+    if (when) return toast(when, "error");
     if (next.accepted_url && !/^https:\/\/\S+$/.test(next.accepted_url)) return toast("لينك ما بعد القبول لازم يبدأ بـ https://", "error");
     if (next.delegation?.register_url && !/^https:\/\/\S+$/.test(next.delegation.register_url)) return toast("لينك تسجيل الزوار لازم يبدأ بـ https://", "error");
     if (next.payment?.on && !(Number(next.payment.amount) > 0)) return toast("اكتب مبلغ الدفع", "error");
@@ -399,6 +450,10 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
   const st = liveState(x, data.count);
   const fields = x.fields;
   const setField = (i: number, p: Partial<FormField>) => edit({ fields: fields.map((fl, j) => (j === i ? { ...fl, ...p } : fl)) });
+  const duplicate = (i: number) => {
+    const copy = { ...fields[i], id: `q_${fid()}`, receipt: undefined, options: fields[i].options?.map((o) => ({ ...o })) };
+    edit({ fields: [...fields.slice(0, i + 1), copy, ...fields.slice(i + 1)] });
+  };
   const move = (i: number, d: number) => {
     const j = i + d;
     if (j < 0 || j >= fields.length) return;
@@ -409,7 +464,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
 
   return (
     <>
-      <TopBar title={x.title_ar} sub={<Badge tone={st.tone}>{st.ar}</Badge>} back="/staff/forms" actions={<Button size="sm" variant="primary" loading={busy} disabled={!dirty} onClick={() => save()}>حفظ</Button>} />
+      <TopBar title={<FormTitle title={x.title_ar} />} sub={<Badge tone={st.tone}>{st.ar}</Badge>} back="/staff/forms" actions={<Button size="sm" variant="primary" loading={busy} disabled={!dirty} onClick={() => save()}>حفظ</Button>} />
 
       <Card className={`mt-4 grid gap-3 ${st.tone === "ok" ? "border-ok/30" : ""}`}>
         <Toggle checked={x.open} disabled={busy} onChange={(v) => save({ open: v }, v ? "الفورم اتفتح على الموقع" : "الفورم اتقفل")} label={x.open ? "الفورم مفتوح" : "الفورم مقفول"} hint="بيتغيّر على الموقع على طول. الميعاد والعدد تحت بيقفلوه لوحده." />
@@ -417,7 +472,7 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
           <Field label="يفتح لوحده في" hint="اختياري">
             <Input type="datetime-local" value={toLocal(x.opens_at)} onChange={(e) => edit({ opens_at: fromLocal(e.target.value) })} />
           </Field>
-          <Field label="يقفل لوحده في" hint="اختياري">
+          <Field label="يقفل لوحده في" hint={timesProblem(x) ?? (x.closes_at && new Date(x.closes_at).getTime() <= Date.now() ? "الميعاد ده عدّى، فالفورم مش بياخد ردود دلوقتي" : "اختياري")}>
             <Input type="datetime-local" value={toLocal(x.closes_at)} onChange={(e) => edit({ closes_at: fromLocal(e.target.value) })} />
           </Field>
           <Field label="أقصى عدد ردود" hint="اختياري">
@@ -438,78 +493,15 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
         </div>
       </Card>
 
-      <Section title="بيانات الفورم">
-        <Card className="grid gap-3">
-          <Field label="العنوان (عربي)">
-            <Input value={x.title_ar} maxLength={160} onChange={(e) => edit({ title_ar: e.target.value })} />
-          </Field>
-          <Field label="Title (English)" hint="اختياري — لو فاضي بيظهر العربي">
-            <Input dir="ltr" value={x.title_en ?? ""} maxLength={160} onChange={(e) => edit({ title_en: e.target.value || null })} />
-          </Field>
-          <Field label="مقدمة (عربي)">
-            <Textarea rows={3} maxLength={2000} value={x.intro_ar ?? ""} onChange={(e) => edit({ intro_ar: e.target.value || null })} />
-          </Field>
-          <Field label="Intro (English)">
-            <Textarea dir="ltr" rows={2} maxLength={2000} value={x.intro_en ?? ""} onChange={(e) => edit({ intro_en: e.target.value || null })} />
-          </Field>
-          <Field label="رسالة بعد الإرسال" hint="مثلاً: هنكلمك على واتساب بميعاد الاختبار">
-            <Input maxLength={600} value={x.success_ar ?? ""} onChange={(e) => edit({ success_ar: e.target.value || null })} />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="الرابط المختصر" hint={<span dir="ltr">{`/form/?f=${x.slug}`}</span>}>
-              <Input dir="ltr" value={x.slug} maxLength={49} onChange={(e) => edit({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} />
-            </Field>
-            <Field label="فريق مسابقة" hint="صفحة الفريق هيظهر فيها زرار «قدّم على الفريق» وهو مفتوح">
-              <Select value={x.team ?? ""} onChange={(e) => edit({ team: e.target.value || null })}>
-                <option value="">— مش لفريق —</option>
-                {coreTeams.map((t) => (
-                  <option key={t.slug} value={t.slug}>
-                    {t.nameAr}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </div>
-          <Toggle checked={x.listed} onChange={(v) => edit({ listed: v })} label="يظهر في صفحة «الفورمات المفتوحة»" hint="اقفلها لو عايز الفورم يوصل باللينك بس." />
-        </Card>
-      </Section>
+      <nav aria-label="أجزاء الفورم" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0" data-testid="form-parts">
+        {EDITOR_PARTS.map(([to, label]) => (
+          <Chip key={to} onClick={() => document.getElementById(to)?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            {label === "الأسئلة" ? `${label} (${fields.length})` : label}
+          </Chip>
+        ))}
+      </nav>
 
-      <Section title="خلفية الفورم">
-        <FormBackground form={x} onChange={(p) => edit(p)} />
-      </Section>
-
-      <Section title="بعد القبول">
-        <Card className="grid gap-3">
-          <p className="text-xs text-fog">اللي بيتقبل بيشوف الرسالة دي واللينك لما يتابع طلبه بكود الطلب، ويقدر يقول إنه سجّل في اللينك (زي موقع تسجيل المعرض).</p>
-          <Field label="رسالة للمقبولين">
-            <Textarea rows={3} maxLength={1000} value={x.accepted_ar ?? ""} onChange={(e) => edit({ accepted_ar: e.target.value || null })} />
-          </Field>
-          <Field label="لينك الخطوة الجاية" hint="اختياري — مثلاً تسجيل الزوار في موقع المعرض">
-            <Input dir="ltr" placeholder="https://" value={x.accepted_url ?? ""} maxLength={300} onChange={(e) => edit({ accepted_url: e.target.value.trim() || null })} />
-          </Field>
-          <Field label="ميعاد الفعالية" hint="اختياري — بيتكتب في رسالة القبول على واتساب. لو الفورم فيه «الحضور بالـ QR» بياخد أول موعد منه.">
-            <Input type="datetime-local" data-testid="form-event-at" value={toLocal(x.event_at ?? null)} onChange={(e) => edit({ event_at: fromLocal(e.target.value) })} />
-          </Field>
-        </Card>
-      </Section>
-
-      <Section title="الدفع">
-        <PaymentSettings value={x.payment ?? null} onChange={(payment) => edit({ payment })} />
-      </Section>
-
-      <Section title="الحضور بالـ QR">
-        <AttendanceSettings value={x.attendance ?? null} fields={fields} onChange={(a) => edit({ attendance: a })} />
-      </Section>
-
-      <Section title="وفد (زيارة معرض أو فعالية)">
-        <DelegationSettings
-          delegation={x.delegation ?? null}
-          capacity={x.capacity ?? null}
-          dayOptions={(fields.find((q) => q.id === "day" && q.type === "select")?.options ?? []).map((o) => o.ar)}
-          onChange={(p) => edit(p)}
-        />
-      </Section>
-
+      <div id="form-q" className="scroll-mt-20">
       <Section title={`الأسئلة (${fields.length})`}>
         <div className="grid gap-3">
           {fields.map((fl, i) => (
@@ -532,6 +524,9 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
                 </button>
                 <button type="button" aria-label="لتحت" onClick={() => move(i, 1)} className="rounded-lg p-1.5 text-fog hover:text-chalk">
                   ↓
+                </button>
+                <button type="button" aria-label="كرّر السؤال" disabled={fields.length >= 40 || !!fl.receipt} onClick={() => duplicate(i)} className="rounded-lg p-1.5 text-fog hover:text-chalk disabled:opacity-40" data-testid="field-duplicate">
+                  <Icon name="copy" size={16} />
                 </button>
                 <button type="button" aria-label="امسح السؤال" onClick={() => edit({ fields: fields.filter((_, j) => j !== i) })} className="rounded-lg p-1.5 text-[#ff9aa5]">
                   <Icon name="trash" size={16} />
@@ -590,11 +585,93 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
           <p className="text-xs text-fog">الرد بيتحفظ مرة واحدة لكل رقم موبايل أو إيميل، والموقع بيراجع الإجابات قبل ما يقبلها. سؤال «رقم عضوية الكميونيتي» بيقبل الأعضاء المفعّلين بس، واللي مش عضو بيلاقي لينك يطلب انترفيو.</p>
         </div>
       </Section>
+      </div>
+
+      <div id="form-info" className="scroll-mt-20">
+      <Section title="بيانات الفورم">
+        <Card className="grid gap-3">
+          <Field label="العنوان (عربي)">
+            <Input value={x.title_ar} maxLength={160} onChange={(e) => edit({ title_ar: e.target.value })} />
+          </Field>
+          <Field label="Title (English)" hint="اختياري — لو فاضي بيظهر العربي">
+            <Input dir="ltr" value={x.title_en ?? ""} maxLength={160} onChange={(e) => edit({ title_en: e.target.value || null })} />
+          </Field>
+          <Field label="مقدمة (عربي)">
+            <Textarea rows={3} maxLength={2000} value={x.intro_ar ?? ""} onChange={(e) => edit({ intro_ar: e.target.value || null })} />
+          </Field>
+          <Field label="Intro (English)">
+            <Textarea dir="ltr" rows={2} maxLength={2000} value={x.intro_en ?? ""} onChange={(e) => edit({ intro_en: e.target.value || null })} />
+          </Field>
+          <Field label="رسالة بعد الإرسال" hint="مثلاً: هنكلمك على واتساب بميعاد الاختبار">
+            <Input maxLength={600} value={x.success_ar ?? ""} onChange={(e) => edit({ success_ar: e.target.value || null })} />
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="الرابط المختصر" hint={<span dir="ltr">{`/form/?f=${x.slug}`}</span>}>
+              <Input dir="ltr" value={x.slug} maxLength={49} onChange={(e) => edit({ slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-") })} />
+            </Field>
+            <Field label="فريق مسابقة" hint="صفحة الفريق هيظهر فيها زرار «قدّم على الفريق» وهو مفتوح">
+              <Select value={x.team ?? ""} onChange={(e) => edit({ team: e.target.value || null })}>
+                <option value="">— مش لفريق —</option>
+                {coreTeams.map((t) => (
+                  <option key={t.slug} value={t.slug}>
+                    {t.nameAr}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Toggle checked={x.listed} onChange={(v) => edit({ listed: v })} label="يظهر في صفحة «الفورمات المفتوحة»" hint="اقفلها لو عايز الفورم يوصل باللينك بس." />
+        </Card>
+      </Section>
+      </div>
+
+      <div id="form-pay" className="scroll-mt-20">
+      <Section title="الدفع">
+        <PaymentSettings value={x.payment ?? null} onChange={(payment) => edit({ payment })} />
+      </Section>
+      </div>
+
+      <div id="form-qr" className="scroll-mt-20">
+      <Section title="الحضور بالـ QR">
+        <AttendanceSettings value={x.attendance ?? null} fields={fields} onChange={(a) => edit({ attendance: a })} />
+      </Section>
+      </div>
+
+      <div id="form-accepted" className="scroll-mt-20">
+      <Section title="بعد القبول">
+        <Card className="grid gap-3">
+          <p className="text-xs text-fog">اللي بيتقبل بيشوف الرسالة دي واللينك لما يتابع طلبه بكود الطلب، ويقدر يقول إنه سجّل في اللينك (زي موقع تسجيل المعرض).</p>
+          <Field label="رسالة للمقبولين">
+            <Textarea rows={3} maxLength={1000} value={x.accepted_ar ?? ""} onChange={(e) => edit({ accepted_ar: e.target.value || null })} />
+          </Field>
+          <Field label="لينك الخطوة الجاية" hint="اختياري — مثلاً تسجيل الزوار في موقع المعرض">
+            <Input dir="ltr" placeholder="https://" value={x.accepted_url ?? ""} maxLength={300} onChange={(e) => edit({ accepted_url: e.target.value.trim() || null })} />
+          </Field>
+          <Field label="ميعاد الفعالية" hint="اختياري — بيتكتب في رسالة القبول على واتساب. لو الفورم فيه «الحضور بالـ QR» بياخد أول موعد منه.">
+            <Input type="datetime-local" data-testid="form-event-at" value={toLocal(x.event_at ?? null)} onChange={(e) => edit({ event_at: fromLocal(e.target.value) })} />
+          </Field>
+        </Card>
+      </Section>
+      </div>
+
+      <div id="form-delegation" className="scroll-mt-20">
+      <Section title="وفد (زيارة معرض أو فعالية)">
+        <DelegationSettings
+          delegation={x.delegation ?? null}
+          capacity={x.capacity ?? null}
+          dayOptions={(fields.find((q) => q.id === "day" && q.type === "select")?.options ?? []).map((o) => o.ar)}
+          onChange={(p) => edit(p)}
+        />
+      </Section>
+      </div>
+
+      <div id="form-bg" className="scroll-mt-20">
+      <Section title="خلفية الفورم">
+        <FormBackground form={x} onChange={(p) => edit(p)} />
+      </Section>
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <Button variant="primary" loading={busy} disabled={!dirty} onClick={() => save()}>
-          حفظ التعديلات
-        </Button>
         <Button
           onClick={async () => {
             if (!x.archived && !(await confirmDialog({ title: "تودّي الفورم للأرشيف؟", body: "هيتقفل ويختفي من الموقع، والردود هتفضل محفوظة.", ok: "أرشيف" }))) return;
@@ -621,6 +698,15 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
           </Button>
         )}
       </div>
+      {/* The editor is long: unsaved changes stay one tap away wherever you are on the page. */}
+      {dirty && (
+        <div className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 -mx-4 mt-6 flex items-center gap-3 border-t border-[var(--line)] bg-abyss/90 px-4 py-3 backdrop-blur-xl sm:mx-0 sm:rounded-2xl sm:border" data-testid="form-unsaved">
+          <p className="flex-1 text-sm text-mist">فيه تعديلات لسه متحفظتش</p>
+          <Button variant="primary" loading={busy} onClick={() => save()}>
+            حفظ التعديلات
+          </Button>
+        </div>
+      )}
     </>
   );
 }
@@ -1142,23 +1228,33 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   const first = form.fields.find((fl) => fl.type !== "name" && fl.type !== "phone" && fl.type !== "email" && fl.type !== "checkbox");
   return (
     <>
-      <TopBar title={`ردود: ${form.title_ar}`} sub={`${data.responses.length} رد`} back={`/staff/forms/${id}`} actions={
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button size="sm" icon="plus" onClick={() => setEditing("new")} data-testid="response-add">
-              إضافة
-            </Button>
-            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setPdfOpen(true)} data-testid="form-pdf-open">
-              PDF
-            </Button>
-            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setBusOpen(true)} data-testid="trip-letter-open" aria-label="ملف الفعالية: أتوبيس، اعتذار، تقرير، حسابات، شهادات">
-              ملف الفعالية
-            </Button>
-            <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
-              Excel
-            </Button>
-          </div>
+      <TopBar
+        title={<FormTitle title={form.title_ar} />}
+        sub={`الردود · ${data.responses.length} رد`}
+        back={`/staff/forms/${id}`}
+        actions={
+          <Button size="sm" icon="plus" onClick={() => setEditing("new")} data-testid="response-add">
+            إضافة
+          </Button>
         }
       />
+      {/* Downloads sit in their own row so the form's name keeps the whole header on a phone. */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0 [&>*]:shrink-0" data-testid="responses-tools">
+        <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setPdfOpen(true)} data-testid="form-pdf-open">
+          PDF
+        </Button>
+        <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => setBusOpen(true)} data-testid="trip-letter-open" aria-label="ملف الفعالية: أتوبيس، اعتذار، تقرير، حسابات، شهادات">
+          ملف الفعالية
+        </Button>
+        <Button size="sm" icon="download" disabled={!data.responses.length} onClick={() => exportXlsx()}>
+          Excel
+        </Button>
+        {count("accepted") > 0 && !form.delegation && (
+          <Button size="sm" icon="download" onClick={() => exportXlsx("accepted")}>
+            Excel المقبولين
+          </Button>
+        )}
+      </div>
       {form.delegation && (
         <DelegationCard
           form={form}
@@ -1193,14 +1289,9 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           onClose={() => setQueue(false)}
         />
       )}
-      {count("accepted") > 0 && !form.delegation && (
-        <Card className="mt-3 flex flex-wrap items-center gap-2">
-          <p className="flex-1 text-sm text-mist">
-            {count("accepted")} مقبول{external ? ` · ${data.responses.filter((r) => r.status === "accepted" && r.external_done_at).length} سجّلوا في اللينك` : ""}
-          </p>
-          <Button size="sm" icon="download" onClick={() => exportXlsx("accepted")}>
-            Excel المقبولين
-          </Button>
+      {external && count("accepted") > 0 && !form.delegation && (
+        <Card className="mt-3 text-sm text-mist">
+          {`${count("accepted")} مقبول · ${data.responses.filter((r) => r.status === "accepted" && r.external_done_at).length} سجّلوا في اللينك`}
         </Card>
       )}
       {paying && (
@@ -1225,7 +1316,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
           }
         />
       )}
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" data-testid="responses-filters">
         <Chip active={filter === "all"} onClick={() => setFilter("all")} count={data.responses.length}>
           الكل
         </Chip>
@@ -1338,7 +1429,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   </p>
                   <LinkBadges r={r} links={links.data?.[r.id]} />
                 </div>
-                {paying && r.status !== "rejected" && <Badge tone={r.paid_at ? "ok" : "warn"}>{r.paid_at ? "دفع" : "مدفعش"}</Badge>}
+                {paying && (r.paid_at ? <Badge tone="ok">دفع</Badge> : owes(r) && <Badge tone="warn">مدفعش</Badge>)}
                 <Badge tone={RESP[r.status].tone}>{RESP[r.status].ar}</Badge>
               </div>
             </Row>

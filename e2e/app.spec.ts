@@ -6663,6 +6663,127 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   expect(errors).toEqual([]);
 });
 
+test("forms on a phone: the list goes straight to each form's responses with what's new, and the long editor has jumps, copies and a save bar", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const base = {
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: { on: true, amount: 100, note_ar: null },
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "y", type: "select", label_ar: "السنة الدراسية", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }] },
+    ],
+  };
+  const forms = [
+    { ...base, id: "f1", slug: "summit", title_ar: "MENA ROBOTICS SUMMIT 2026 — Cairo Edition", created_at: at(100), form_responses: [{ count: 4 }] },
+    { ...base, id: "f2", slug: "old", title_ar: "ورشة قديمة", payment: null, closes_at: at(60 * 24 * 3), created_at: at(200), form_responses: [{ count: 0 }] },
+  ];
+  const resp = (id: string, name: string, status: string, paid: boolean) => ({
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}000000`,
+    answers: { n: name, p: "+201012345678" },
+    name,
+    phone: "+201012345678",
+    email: null,
+    locale: "ar",
+    status,
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    tags: [],
+    paid_at: paid ? at(30) : null,
+    paid_amount: paid ? 100 : null,
+    paid_method: paid ? "cash" : null,
+    created_at: at(50),
+  });
+  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", false)];
+  const patches: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/forms/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push(route.request().postDataJSON());
+      return route.fulfill({ json: [{ ...forms[0], ...(route.request().postDataJSON() as object) }] });
+    }
+    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? forms[0] : forms });
+  });
+  await page.route(/\/rest\/v1\/form_responses/, (route) => {
+    const url = route.request().url();
+    if (url.includes("status=eq.new")) return route.fulfill({ json: [{ form_id: "f1" }, { form_id: "f1" }] });
+    return route.fulfill({ json: rows, headers: { "content-range": `0-3/${rows.length}` } });
+  });
+
+  // The list: an English name cuts off at its end, a closed date reads as past, and the count opens the responses.
+  await page.goto("/app/#/staff/forms");
+  const items = page.getByTestId("form-item");
+  await expect(items).toHaveCount(2);
+  await expect(items.first().locator("p[dir=auto]")).toHaveText(forms[0].title_ar);
+  await expect(items.first().getByTestId("form-item-responses")).toContainText("4");
+  await expect(items.first().getByTestId("form-item-responses")).toContainText("2 جديد");
+  await expect(items.nth(1)).toContainText("قفل ");
+  await expect(items.nth(1)).not.toContainText("بيقفل");
+  await items.first().getByTestId("form-item-responses").click();
+  await expect(page).toHaveURL(/#\/staff\/forms\/f1\/responses$/);
+
+  // Responses: the name has the header to itself, the downloads sit in their own row, and "not paid" is only on the accepted.
+  await expect(page.locator("header h1")).toContainText("MENA ROBOTICS SUMMIT");
+  await expect(page.getByTestId("responses-tools").getByRole("button", { name: "Excel المقبولين" })).toBeVisible();
+  const row = (name: string) => page.locator("button", { hasText: name });
+  await expect(row("منى عادل")).toContainText("دفع");
+  await expect(row("علي حسن")).toContainText("مدفعش");
+  await expect(row("سارة محمود")).not.toContainText("مدفعش");
+  await expect(row("هاجر سامي")).not.toContainText("مدفعش");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+
+  // The editor: questions come first, the parts row jumps, a question is copied, and a save bar follows the page.
+  await page.goto("/app/#/staff/forms/f1");
+  await expect(page.getByTestId("form-parts")).toBeVisible();
+  await expect(page.getByTestId("form-unsaved")).toHaveCount(0);
+  await page.getByTestId("form-parts").getByRole("button", { name: "الدفع" }).click();
+  await expect(page.locator("#form-pay")).toBeInViewport();
+  await page.getByTestId("field-duplicate").nth(2).click();
+  await expect(page.getByPlaceholder("السؤال بالعربي")).toHaveCount(4);
+  await expect(page.getByPlaceholder("السؤال بالعربي").nth(3)).toHaveValue("السنة الدراسية");
+  const bar = page.getByTestId("form-unsaved");
+  await expect(bar).toBeInViewport();
+  // Closing before opening is caught before saving.
+  await page.getByLabel("يفتح لوحده في").fill("2026-12-10T10:00");
+  await page.getByLabel("يقفل لوحده في").fill("2026-12-01T10:00");
+  await expect(page.getByText("ميعاد القفل لازم يكون بعد ميعاد الفتح").first()).toBeVisible();
+  await bar.getByRole("button", { name: "حفظ التعديلات" }).click();
+  expect(patches).toHaveLength(0);
+  await page.getByLabel("يقفل لوحده في").fill("2026-12-20T10:00");
+  await bar.getByRole("button", { name: "حفظ التعديلات" }).click();
+  await expect.poll(() => patches.length).toBe(1);
+  const saved = patches[0] as { fields: { id: string; label_ar: string; options?: { ar: string }[] }[] };
+  expect(saved.fields).toHaveLength(4);
+  expect(saved.fields[3]).toMatchObject({ type: "select", label_ar: "السنة الدراسية", options: [{ ar: "أولى" }, { ar: "تانية" }] });
+  expect(new Set(saved.fields.map((x) => x.id)).size).toBe(4);
+  await expect(page.getByTestId("form-unsaved")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
 test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
