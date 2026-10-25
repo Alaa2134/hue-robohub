@@ -79,3 +79,24 @@ export async function buildSiteSettings(): Promise<SiteSettings | null> {
 export function buildDirectory<T>(): Promise<T[]> {
   return rows<T>("directory_sites?select=slug,name,url,cat,price,idea_ar,tip_ar,idea_en,tip_en&published=eq.true&order=sort_order.asc,name.asc&limit=500");
 }
+
+/**
+ * Menu sections with nothing published yet (news, projects, photos, achievements, stories), so the
+ * menu doesn't send people to an empty page. The site rebuilds within half an hour of new content.
+ * A failed read hides nothing.
+ */
+export async function buildEmptySections(): Promise<("news" | "projects" | "gallery" | "achievements" | "stories")[]> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/site_content?select=kind&published=eq.true&kind=in.(post,project,photo,achievement,story)`, {
+      headers: { apikey: SUPABASE_KEY, Accept: "application/json" },
+      signal: AbortSignal.timeout(10_000),
+      cache: "force-cache",
+    });
+    if (!r.ok) return [];
+    const kinds = new Set(((await r.json()) as { kind: ContentKind }[]).map((x) => x.kind));
+    const map = { post: "news", project: "projects", photo: "gallery", achievement: "achievements", story: "stories" } as const;
+    return (Object.keys(map) as (keyof typeof map)[]).filter((k) => !kinds.has(k)).map((k) => map[k]);
+  } catch {
+    return [];
+  }
+}

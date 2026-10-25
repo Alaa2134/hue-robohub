@@ -52,10 +52,12 @@ export const viewport: Viewport = {
 /** BuildX App: Arabic (or English per device, see portal/i18n.ts), client-only PWA backed by Supabase (works on static hosting). */
 export default function PortalRoot({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" translate="no" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Browser auto-translate rewrites the page under React and crashes it (insertBefore errors); the site has its own English. */}
+        <meta name="google" content="notranslate" />
         <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + APP_LANG }} />
         <style>{"html.bx-en-pending body{visibility:hidden}html[dir=ltr] .bx-dir{scale:-1 1}"}</style>
       </head>

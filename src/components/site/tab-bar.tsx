@@ -8,11 +8,15 @@ import type { Dictionary } from "@/i18n";
 import { TAB_BAR, isActive } from "./nav";
 import { ui, useUi } from "./ui-state";
 
+const FORM_PAGES = /^\/(join|form)\/?$/;
+
 /** Phone navigation that behaves like a native app tab bar (safe-area aware, thumb-reachable). */
 export function TabBar({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) {
   const pathname = usePathname();
   const { path } = stripLocale(pathname);
   const { menu } = useUi();
+  // Pages that are one long form keep the whole screen (and their own buttons at the bottom).
+  if (FORM_PAGES.test(path)) return null;
   return (
     <nav
       aria-label={t.menu}

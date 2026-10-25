@@ -6,7 +6,7 @@
  *
  * Only what the site itself says: nothing here invents dates, prices or results.
  */
-import { ACTIVITIES, GOALS, PLANNED_EVENTS, ROADMAP, SEASON } from "@/content/buildx";
+import { ACTIVITIES, GOALS, PLANNED_EVENTS, ROADMAP, SEASON, windowState } from "@/content/buildx";
 import { coreBootcamp, coreTeams, coreTracks } from "@/content/core-content";
 import { FAQ_DEFAULTS } from "@/content/faq";
 
@@ -41,7 +41,7 @@ export const KB = {
   ),
   bootcamp: coreBootcamp.map((w) => ({ week: w.week, title: w.title, summary: w.summary })),
   activities: ACTIVITIES.map((a) => ({ title: a.title.ar, body: a.body.ar })),
-  events: PLANNED_EVENTS.map((e) => ({ when: e.when?.ar ?? null, title: e.title.ar, body: e.body.ar })),
+  events: PLANNED_EVENTS.filter((e) => windowState(e) !== "past").map((e) => ({ when: e.when?.ar ?? null, title: e.title.ar, body: e.body.ar })),
   roadmap: ROADMAP.map((r) => ({ q: r.q, when: r.when.ar, title: r.title.ar, items: r.items.map((i) => i.ar) })),
   goals: GOALS.map((g) => ({ value: g.value, label: g.label.ar })),
   faq: FAQ_DEFAULTS.ar,

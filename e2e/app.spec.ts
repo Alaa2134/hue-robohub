@@ -6916,6 +6916,51 @@ test("gallery upload: from an event, pick photos, drop one, and save them in one
   expect(errors).toEqual([]);
 });
 
+test("quick post: from the home screen, a news post with photos in one screen (cover first, the rest in its album)", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const uploads: string[] = [];
+  const posts: unknown[] = [];
+  await page.route(/\/storage\/v1\/object\/site\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff");
+  await page.getByTestId("home-quick-post").click();
+  const sheet = page.getByTestId("quick-post");
+  await expect(sheet).toBeVisible();
+  // Nothing written yet: it asks for the title.
+  await page.getByTestId("quick-send").click();
+  await expect(page.getByText("اكتب العنوان")).toBeVisible();
+  const png = readFileSync("public/brand/icon-512.png");
+  await page.getByTestId("quick-photos").setInputFiles([
+    { name: "a.png", mimeType: "image/png", buffer: png },
+    { name: "b.png", mimeType: "image/png", buffer: png },
+  ]);
+  await expect(sheet.getByText("الغلاف", { exact: true })).toBeVisible();
+  await sheet.getByLabel("العنوان").fill("ورشة Arduino الأولى");
+  await sheet.getByLabel("إيه اللي حصل؟").fill("اتعلمنا نوصّل حساسات ونبرمجها. شارك 40 طالب.");
+  await expect(sheet.getByText("على كارت الموقع: «اتعلمنا نوصّل حساسات ونبرمجها.»")).toBeVisible();
+  await page.getByTestId("quick-send").click();
+  await expect(page.getByText("اتنشر على الموقع ✅")).toBeVisible();
+  expect(uploads).toHaveLength(4);
+  expect(posts).toHaveLength(1);
+  const [post, photo] = posts[0] as Record<string, unknown>[];
+  expect(post).toMatchObject({ kind: "post", title_ar: "ورشة Arduino الأولى", summary_ar: "اتعلمنا نوصّل حساسات ونبرمجها.", published: true });
+  expect(String(post.slug)).toMatch(/^news-[0-9a-f]{8}$/);
+  expect(String(post.image_path)).toMatch(/^u1\/[0-9a-f-]{36}\.w\.webp$/);
+  expect(photo).toMatchObject({ kind: "photo", tags: ["ورشة Arduino الأولى"], published: true });
+  expect(errors).toEqual([]);
+});
+
 test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));

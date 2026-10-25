@@ -19,7 +19,7 @@ export type MenuPreview = { key: NavKey; href: string; image: string | null; cap
  * Full-screen navigation. Desktop: oversized primary list with a live render preview per destination.
  * Phones: a bottom sheet with the same hierarchy, sized for thumbs.
  */
-export function MenuSheet({ locale, t, previews, socials, email }: { locale: Locale; t: Dictionary["nav"]; previews: MenuPreview[]; socials: SocialConfig; email: string }) {
+export function MenuSheet({ locale, t, previews, socials, email, groups = MENU_GROUPS }: { locale: Locale; t: Dictionary["nav"]; previews: MenuPreview[]; socials: SocialConfig; email: string; groups?: typeof MENU_GROUPS }) {
   const { menu } = useUi();
   const pathname = usePathname();
   const { path } = stripLocale(pathname);
@@ -165,7 +165,7 @@ export function MenuSheet({ locale, t, previews, socials, email }: { locale: Loc
           {/* Groups, language, command center */}
           <div className="flex flex-col gap-7 lg:col-span-3 lg:gap-8">
             <div className="hidden lg:block">{signIn}</div>
-            {MENU_GROUPS.map((g) => (
+            {groups.map((g) => (
               <div key={g.key}>
                 <p className="t-eyebrow mb-3 text-fog">{t[g.key]}</p>
                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1 lg:grid-cols-1">

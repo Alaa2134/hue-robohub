@@ -131,8 +131,8 @@ const en = {
     stepsTitle: "How it works",
     steps: [
       { t: "Pick a track", d: "Choose the one that matches your interests." },
-      { t: "Send us a message", d: "Your name, faculty, year and the track you like." },
-      { t: "Come to Orientation", d: "Meet the community and the tracks." },
+      { t: "Fill in the form", d: "A few minutes: about you, the track you like and your time." },
+      { t: "Meet us", d: "We set a short meet-up time with you on WhatsApp." },
       { t: "Start building", d: "Join a team and work on a real project." },
     ],
     privacy: "Your phone number and email are only visible to the team leads reviewing applications.",
@@ -295,8 +295,8 @@ const ar: typeof en = {
     stepsTitle: "كيف تسير العملية",
     steps: [
       { t: "اختار مسار", d: "اختار المسار اللي يناسب اهتمامك." },
-      { t: "ابعتلنا رسالة", d: "اسمك وكليتك وسنتك والمسار اللي عاجبك." },
-      { t: "احضر يوم التعريف", d: "اتعرّف على المجتمع والمسارات." },
+      { t: "املا الفورم", d: "كام دقيقة: بياناتك والمسار اللي عاجبك ووقتك." },
+      { t: "قابلنا", d: "بنحدد معاك ميعاد مقابلة قصيرة على واتساب." },
       { t: "ابدأ البناء", d: "انضم لفريق واشتغل على مشروع حقيقي." },
     ],
     privacy: "رقم هاتفك وبريدك لا يراهما إلا القادة الذين يراجعون الطلبات.",

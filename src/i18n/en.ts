@@ -218,7 +218,7 @@ const en = {
     eyebrow: "Join BuildX HUE",
     title: "Apply to the team",
     body: "Tell us who you are and which track you like — we'll get back to you with the next steps.",
-    steps: ["Pick a track", "Message us", "Orientation", "Start building"],
+    steps: ["Pick a track", "Fill in the form", "Meet us", "Start building"],
     sections: { about: "About you", tech: "Technical background", motivation: "Motivation" },
     fields: {
       fullName: "Full name",

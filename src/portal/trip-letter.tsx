@@ -451,6 +451,21 @@ export function TripLetterSheet({ me, letterKey, slug, defaults, sets, extraLabe
             <Button variant="primary" icon="download" loading={busy} onClick={() => void make("report")} data-testid="trip-report-make">
               نزّل التقرير PDF
             </Button>
+            {me && can(me, "site") && (
+              <Button
+                icon="globe"
+                data-testid="trip-report-post"
+                onClick={() => {
+                  // A news post started from the report: the summary and the real numbers, ready to edit.
+                  const came = stats?.attended || stats?.accepted || 0;
+                  const body = [l.summary?.trim(), came ? `شارك ${came} من أعضاء BuildX HUE.` : ""].filter(Boolean).join("\n\n");
+                  onClose();
+                  go(`/staff/site?quick=post&title=${encodeURIComponent(l.event)}&body=${encodeURIComponent(body)}`);
+                }}
+              >
+                انشر خبر عن الفعالية على الموقع
+              </Button>
+            )}
           </>
         )}
 

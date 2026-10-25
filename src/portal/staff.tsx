@@ -618,6 +618,23 @@ function StaffHome({ me }: { me: StaffRow }) {
       <TeamTasksHome summary={data?.team} />
       <AwardBanner award={data?.award} />
       <SiteGapsCard me={me} />
+      {can(me, "site") && (
+        <button
+          type="button"
+          onClick={() => go("/staff/site?quick=post")}
+          className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-volt/40 bg-gradient-to-l from-volt/20 to-transparent p-4 text-start"
+          data-testid="home-quick-post"
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-volt/25 text-chalk">
+            <Icon name="bolt" size={20} />
+          </span>
+          <span className="flex-1">
+            <span className="block font-semibold text-chalk">انشر على الموقع</span>
+            <span className="block text-xs text-mist">خبر أو مشروع أو إنجاز أو صور، من شاشة واحدة</span>
+          </span>
+          <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+        </button>
+      )}
 
       {!!data?.applications && (
         <Card className="mt-4 flex items-center gap-3 border-cyan/30 bg-cyan/[0.06]">

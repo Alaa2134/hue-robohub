@@ -70,6 +70,11 @@ test("application form validates and submits", async ({ page }) => {
   await page.getByRole("radio", { name: "3 – 5 ساعات" }).click();
   await page.check("#ap-consent");
   await page.getByRole("button", { name: "التالي" }).click();
+  // On a phone the buttons stay on screen under the long review (no bottom tab bar on this page).
+  if (test.info().project.name === "mobile") {
+    await expect(page.getByRole("button", { name: "ابعت الطلب" })).toBeInViewport();
+    await expect(page.getByRole("link", { name: "الرئيسية" })).toHaveCount(0);
+  }
   await page.getByRole("button", { name: "ابعت الطلب" }).click();
   await expect(page.getByText("BX-TEST01")).toBeVisible();
   expect(sent[0]?.p?.phone).toBe("01012345678");
@@ -270,5 +275,30 @@ test("the join form follows the setup the team saved in the app", async ({ page 
   await page.getByRole("button", { name: "ابعت الطلب" }).click();
   await expect(page.getByText("BX-TEST01")).toBeVisible();
   expect(sent[0]?.p).toMatchObject({ faculty: "", hours_per_week: "", academic_year: "o_first1", answers: { q_like01: "برمجة", q_laptop: "yes" } });
+  expect(errors).toEqual([]);
+});
+
+test("an empty section points to what's there instead of a dead end", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  await page.goto("/ar/news/");
+  const empty = page.getByTestId("empty-next");
+  await expect(empty).toContainText("لسه بنجهّز المحتوى ده");
+  await expect(empty.getByRole("link", { name: "الفعاليات" })).toHaveAttribute("href", /^\/ar\/events\/?$/);
+  await expect(empty.getByRole("link", { name: "الفورمات المفتوحة" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the season plan follows the date: finished quarters say so, the one running now is marked, past planned events drop", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  await page.clock.setFixedTime(new Date("2026-12-15T10:00:00+02:00"));
+  await page.goto("/ar/events/");
+  const roadmap = page.locator("#roadmap");
+  await expect(roadmap.locator("li", { hasText: "Q1" }).getByText("خلص ✓")).toBeVisible();
+  await expect(roadmap.locator("li", { hasText: "Q2" }).getByText("دلوقتي")).toBeVisible();
+  await expect(roadmap.getByText("يوم التعريف")).toHaveCount(0);
+  await expect(roadmap.getByRole("heading", { name: "ورش تقنية" })).toBeHidden();
+  await expect(roadmap.getByRole("heading", { name: "معسكرات التحضير للمسابقات" })).toBeVisible();
   expect(errors).toEqual([]);
 });

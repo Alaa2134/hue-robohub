@@ -33,7 +33,8 @@ export default async function Join({ params }: Params) {
   return (
     <div className="relative">
       <div className="mx-auto grid max-w-[1680px] gap-10 px-5 pb-20 pt-24 sm:px-8 lg:grid-cols-12 lg:gap-14 lg:pt-32">
-        <aside className="lg:col-span-5">
+        {/* On a phone the form comes first; the picture and the steps follow it. */}
+        <aside className="max-lg:order-last lg:col-span-5">
           <div className="lg:sticky lg:top-28">
             <div className="frame relative aspect-[4/3] overflow-hidden !rounded-[22px] lg:aspect-[4/5]">
               {img && <Picture image={img} sizes="(min-width:1024px) 40vw, 100vw" priority className="absolute inset-0 h-full w-full" focal={[68, 45]} />}

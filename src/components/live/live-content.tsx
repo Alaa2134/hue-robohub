@@ -5,6 +5,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@/components/brand/icons";
 import { trackName } from "@/components/team/team-directory";
 import { EventRsvp } from "./event-rsvp";
+import { localePath, type Locale } from "@/i18n/config";
 import { cn } from "@/lib/cn";
 import { bodyOf, fetchContent, fetchItem, fetchUpcoming, fmtDate, locationOf, resultOf, safeLink, siteImageUrl, summaryOf, titleOf, type ContentKind, type SiteItem } from "@/lib/site-content";
 
@@ -38,6 +39,40 @@ const Skeleton = ({ n = 3, tall }: { n?: number; tall?: boolean }) => (
   </div>
 );
 const Note = ({ children }: { children: ReactNode }) => <p className="rounded-[18px] border border-[var(--line-2)] bg-panel/50 p-6 text-center text-mist">{children}</p>;
+
+const NEXT = {
+  ar: { title: "لسه بنجهّز المحتوى ده", body: "أول ما ننشر حاجة هنا هتظهر على طول. لحد ده ما يحصل، دي حاجات تقدر تشوفها دلوقتي:", links: [["/events", "الفعاليات", "calendar"], ["/forms", "الفورمات المفتوحة", "news"], ["/gallery", "صور من المعمل", "image"], ["/join", "انضم لـ BuildX HUE", "plus"]] },
+  en: { title: "We're getting this ready", body: "The moment something is published here it shows up. Meanwhile, here's what you can see now:", links: [["/events", "Events", "calendar"], ["/forms", "Open forms", "news"], ["/gallery", "Photos from the lab", "image"], ["/join", "Join BuildX HUE", "plus"]] },
+} as const;
+
+/** An empty section points somewhere useful instead of a dead end ("nothing here yet"). */
+function EmptyNext({ locale, skip }: { locale: string; skip?: string }) {
+  const l: Locale = locale === "ar" ? "ar" : "en";
+  const t = NEXT[l];
+  return (
+    <div className="frame flex flex-col items-center gap-5 p-8 text-center sm:p-10" data-testid="empty-next">
+      <span className="flex size-14 items-center justify-center rounded-2xl border border-cyan/30 bg-cyan/10 text-cyan">
+        <Icon name="clock" size={24} />
+      </span>
+      <div className="grid gap-2">
+        <p className="t-headline text-2xl text-chalk">{t.title}</p>
+        <p className="mx-auto max-w-lg text-mist">{t.body}</p>
+      </div>
+      <ul className="flex flex-wrap justify-center gap-2">
+        {t.links
+          .filter(([href]) => href !== skip)
+          .map(([href, label, icon]) => (
+            <li key={href}>
+              <Link href={localePath(l, href)} className="btn btn-sm">
+                <Icon name={icon} size={14} />
+                <span>{label}</span>
+              </Link>
+            </li>
+          ))}
+      </ul>
+    </div>
+  );
+}
 
 function Cover({ item, className, full }: { item: SiteItem; className?: string; full?: boolean }) {
   return item.image_path ? <img src={siteImageUrl(item.image_path, full ? "full" : "thumb")} alt="" loading="lazy" decoding="async" className={cn("w-full object-cover", className)} /> : null;
@@ -162,7 +197,7 @@ export function LiveList({ kind, locale, href, initial }: { kind: "post" | "proj
   const s = useLive(() => fetchContent(kind, 200), [kind], initial?.length ? initial : undefined);
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton tall />;
-  if (!s.data.length) return <Note>{t.empty}</Note>;
+  if (!s.data.length) return <EmptyNext locale={locale} />;
   return (
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {s.data.map((i) => (
@@ -283,6 +318,7 @@ export function LiveGallery({
   if (heading !== undefined && !photos.length) return null;
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton n={6} />;
+  if (!s.data.length && !tag && !empty) return <EmptyNext locale={locale} skip="/gallery" />;
   if (!s.data.length || (tag && !photos.length)) return <Note>{empty ?? t.empty}</Note>;
   const albums = tag ? [] : [...new Set(s.data.flatMap((p) => p.tags))];
   const album = picked;
@@ -353,7 +389,7 @@ export function LiveAchievements({ locale, initial }: { locale: string; initial?
   const s = useLive(() => fetchContent("achievement", 200), [], initial?.length ? initial : undefined);
   if (s.failed) return <Note>{t.error}</Note>;
   if (!s.data) return <Skeleton />;
-  if (!s.data.length) return <Note>{t.empty}</Note>;
+  if (!s.data.length) return <EmptyNext locale={locale} />;
   const featured = s.data.filter((a) => a.pinned);
   const rest = s.data.filter((a) => !a.pinned);
   const fields = new Set(s.data.map((a) => a.track).filter(Boolean)).size;
@@ -650,7 +686,7 @@ export function LiveStories({ locale, initial }: { locale: string; initial?: Sit
   const [open, setOpen] = useState<string | null>(null);
   if (s.failed) return <Note>{tr(locale).error}</Note>;
   if (!s.data) return <Skeleton n={3} tall />;
-  if (!s.data.length) return <Note>{t.empty}</Note>;
+  if (!s.data.length) return <EmptyNext locale={locale} />;
   return (
     <ul className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
       {s.data.map((x) => {

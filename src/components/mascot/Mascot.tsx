@@ -22,7 +22,10 @@ function hasWebGL() {
   try {
     const c = document.createElement("canvas");
     const o = { failIfMajorPerformanceCaveat: true };
-    return !!(c.getContext("webgl2", o) ?? c.getContext("webgl", o));
+    const gl = (c.getContext("webgl2", o) ?? c.getContext("webgl", o)) as WebGLRenderingContext | null;
+    // Free the test context right away: phones (iOS above all) allow only a few at a time.
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return !!gl;
   } catch {
     return false;
   }

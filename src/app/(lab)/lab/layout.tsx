@@ -48,10 +48,12 @@ export const viewport: Viewport = { themeColor: "#050e26", colorScheme: "dark", 
 /** BuildX Lab: a client-side app (the static site has no server), Arabic or English per visitor. */
 export default function LabRoot({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" className={portalFontVariables} suppressHydrationWarning>
+    <html lang="ar" dir="rtl" translate="no" className={portalFontVariables} suppressHydrationWarning>
       <head>
         <meta httpEquiv="Content-Security-Policy" content={CSP} />
         <meta name="referrer" content="strict-origin-when-cross-origin" />
+        {/* Browser auto-translate rewrites the page under React and crashes it (insertBefore errors); the site has its own English. */}
+        <meta name="google" content="notranslate" />
         <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + LAB_LANG }} />
       </head>
       <body className="bg-void text-frost antialiased">{children}</body>

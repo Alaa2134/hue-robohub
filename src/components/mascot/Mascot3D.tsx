@@ -361,6 +361,19 @@ export default function Mascot3D({ url, quality, fps, paused, onProgress, onErro
           e.preventDefault();
           error.current?.();
         });
+        // iOS Safari can drop the context mid-frame (memory pressure): a frame that fails falls back
+        // to the poster instead of throwing ("shaderSource must be an instance of WebGLShader").
+        const render = gl.render.bind(gl);
+        let failed = false;
+        gl.render = (scene, cam) => {
+          if (failed || gl.getContext().isContextLost()) return;
+          try {
+            render(scene, cam);
+          } catch {
+            failed = true;
+            error.current?.();
+          }
+        };
       }}
       style={{ pointerEvents: "none" }}
       aria-hidden
