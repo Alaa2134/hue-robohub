@@ -4,252 +4,561 @@
 <loc>https://buildxhue.com/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/" />
+<priority>1</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/" />
 <priority>1</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/about/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/about/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/about/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/about/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/about/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/about/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/about/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/about/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://buildxhue.com/projects/</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/projects/" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/projects/" />
+<loc>https://buildxhue.com/ar/tracks/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/bootcamp/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/bootcamp/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/bootcamp/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/bootcamp/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/bootcamp/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/bootcamp/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/bootcamp/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/bootcamp/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/team/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/team/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/team/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/team/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/achievements/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/achievements/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/achievements/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/achievements/" />
 <priority>0.7</priority>
 </url>
 <url>
-<loc>https://buildxhue.com/stories/</loc>
-<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/stories/" />
-<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/stories/" />
+<loc>https://buildxhue.com/ar/achievements/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/achievements/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/achievements/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/achievements/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/events/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/events/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/events/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/events/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/robotex/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/robotex/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/robotex/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/robotex/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/robotex/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/robotex/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/robotex/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/robotex/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/gallery/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/gallery/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/gallery/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/gallery/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/gallery/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/gallery/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/gallery/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/gallery/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/films/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/films/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/films/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/films/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/films/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/films/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/films/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/films/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/sponsors/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/sponsors/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/sponsors/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/sponsors/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/sponsors/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/sponsors/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/sponsors/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/sponsors/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/join/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/join/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/join/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/join/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/join/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/join/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/join/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/join/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/join/status/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/join/status/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/join/status/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/join/status/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/join/status/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/join/status/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/join/status/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/join/status/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/family/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/family/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/family/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/family/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/family/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/family/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/family/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/family/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/faq/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/faq/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/faq/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/faq/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/faq/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/faq/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/faq/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/faq/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/verify/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/verify/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/verify/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/verify/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/verify/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/verify/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/verify/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/verify/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/forms/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/forms/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/forms/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/forms/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/forms/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/forms/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/forms/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/forms/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/contact/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/contact/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/contact/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/contact/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/contact/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/contact/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/contact/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/contact/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/news/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/news/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/resources/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/resources/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/resources/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/resources/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/resources/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/resources/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/resources/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/resources/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/directory/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/directory/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/directory/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/directory/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/directory/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/directory/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/directory/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/directory/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/3dai/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/3dai/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/3dai/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/3dai/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/3dai/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/3dai/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/3dai/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/3dai/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/brand/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/brand/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/brand/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/brand/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/brand/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/brand/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/brand/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/brand/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/privacy/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/privacy/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/privacy/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/privacy/" />
+<priority>0.7</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/privacy/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/privacy/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/privacy/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/privacy/" />
 <priority>0.7</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/robotics-embedded/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/robotics-embedded/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/robotics-embedded/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/robotics-embedded/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/robotics-embedded/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/robotics-embedded/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/robotics-embedded/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/robotics-embedded/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/ai-ml/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/ai-ml/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/ai-ml/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/ai-ml/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/ai-ml/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/ai-ml/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/ai-ml/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/ai-ml/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/software/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/software/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/software/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/software/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/software/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/software/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/software/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/software/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/iot/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/iot/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/iot/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/iot/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/iot/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/iot/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/iot/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/iot/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/3d-design/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/3d-design/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/3d-design/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/3d-design/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/3d-design/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/3d-design/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/3d-design/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/3d-design/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/media-design/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/media-design/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/media-design/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/media-design/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/media-design/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/media-design/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/media-design/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/media-design/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/tracks/business/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/business/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/business/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/business/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/tracks/business/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/tracks/business/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/tracks/business/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/tracks/business/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/line-follower/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/line-follower/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/line-follower/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/line-follower/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/line-follower/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/line-follower/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/line-follower/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/line-follower/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/sumo/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/sumo/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/sumo/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/sumo/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/sumo/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/sumo/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/sumo/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/sumo/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/iot-challenges/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/iot-challenges/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/iot-challenges/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/iot-challenges/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/iot-challenges/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/iot-challenges/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/iot-challenges/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/iot-challenges/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/ai-hackathons/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/ai-hackathons/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/ai-hackathons/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/ai-hackathons/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/ai-hackathons/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/ai-hackathons/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/ai-hackathons/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/ai-hackathons/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/programming/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/programming/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/programming/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/programming/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/programming/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/programming/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/programming/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/programming/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/competitions/green-innovation/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/green-innovation/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/green-innovation/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/green-innovation/" />
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/competitions/green-innovation/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/competitions/green-innovation/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/competitions/green-innovation/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/competitions/green-innovation/" />
 <priority>0.6</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/team/mo/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team/mo/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team/mo/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/team/mo/" />
+<priority>0.5</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/team/mo/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/team/mo/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/team/mo/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/team/mo/" />
 <priority>0.5</priority>
 </url>
 <url>
 <loc>https://buildxhue.com/news/mena-robotics-summit-partnership/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/mena-robotics-summit-partnership/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/mena-robotics-summit-partnership/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/mena-robotics-summit-partnership/" />
+<lastmod>2026-10-24T17:20:26.291Z</lastmod>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/news/mena-robotics-summit-partnership/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/mena-robotics-summit-partnership/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/mena-robotics-summit-partnership/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/mena-robotics-summit-partnership/" />
 <lastmod>2026-10-24T17:20:26.291Z</lastmod>
 <priority>0.6</priority>
 </url>
@@ -257,6 +566,15 @@
 <loc>https://buildxhue.com/events/embedded-systems-workshop-01/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/embedded-systems-workshop-01/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/embedded-systems-workshop-01/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/events/embedded-systems-workshop-01/" />
+<lastmod>2026-10-24T17:38:30.667Z</lastmod>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/events/embedded-systems-workshop-01/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/embedded-systems-workshop-01/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/embedded-systems-workshop-01/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/events/embedded-systems-workshop-01/" />
 <lastmod>2026-10-24T17:38:30.667Z</lastmod>
 <priority>0.6</priority>
 </url>

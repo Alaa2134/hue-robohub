@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,97518,e=>{"use strict";var s=e.i(94070);self.onmessage=e=>{let{id:l,slug:o,doc:t,hex:n}=e.data,a=(0,s.challengeBySlug)(o);if(!a)return self.postMessage({id:l,error:"unknown_challenge"});self.postMessage({id:l,outcome:(0,s.runChallenge)(a,t,n)})},e.s([])}]);
