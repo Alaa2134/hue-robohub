@@ -843,10 +843,12 @@ function GroupSheet({ count, groups, busy, onClose, onApply }: { count: number; 
 
 /** The fee is owed once someone is accepted: "not paid yet" counts the accepted ones only. */
 const owes = (r: Response) => r.status === "accepted" && !r.paid_at;
+/** Paid counts only for the accepted: the waiting list, new and rejected stay out of the money. */
+const paidIn = (r: Response) => r.status === "accepted" && !!r.paid_at;
 
 /** Paid / not yet (of the accepted), how much was collected and what's still owed. */
 function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: Response[]; /** WhatsApp to the accepted who haven't paid yet. */ onRemind?: () => void }) {
-  const paid = responses.filter((r) => r.paid_at);
+  const paid = responses.filter(paidIn);
   const unpaid = responses.filter(owes);
   const collected = paid.reduce((a, r) => a + Number(r.paid_amount ?? 0), 0);
   const owed = unpaid.length * Number(form.payment?.amount ?? 0);
@@ -854,7 +856,7 @@ function PaymentSummary({ form, responses, onRemind }: { form: Form; responses: 
     <Card className="mt-3 grid grid-cols-3 gap-2 text-center" data-testid="payment-summary">
       <div>
         <p className="text-2xl font-bold text-ok">{paid.length}</p>
-        <p className="text-xs text-fog">دفعوا</p>
+        <p className="text-xs text-fog">مقبولين دفعوا</p>
       </div>
       <div>
         <p className="text-2xl font-bold text-warn">{unpaid.length}</p>
@@ -1119,7 +1121,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       return (data?.responses ?? []).filter(
         (r) =>
           (filter === "all" || r.status === filter) &&
-          (payFilter === "all" || (payFilter === "paid" ? !!r.paid_at : owes(r))) &&
+          (payFilter === "all" || (payFilter === "paid" ? paidIn(r) : owes(r))) &&
           (!group || (r.tags ?? []).includes(group)) &&
           (!needle || [r.name, r.phone, r.email, r.ref, ...Object.values(r.answers).flat()].some((v) => typeof v === "string" && v.toLowerCase().includes(needle))),
       );
@@ -1386,7 +1388,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
         ))}
         {paying && (
           <>
-            <Chip active={payFilter === "paid"} onClick={() => setPayFilter((v) => (v === "paid" ? "all" : "paid"))} count={data.responses.filter((r) => r.paid_at).length}>
+            <Chip active={payFilter === "paid"} onClick={() => setPayFilter((v) => (v === "paid" ? "all" : "paid"))} count={data.responses.filter(paidIn).length}>
               دفعوا
             </Chip>
             <Chip active={payFilter === "unpaid"} onClick={() => setPayFilter((v) => (v === "unpaid" ? "all" : "unpaid"))} count={data.responses.filter(owes).length}>
@@ -1488,7 +1490,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   </p>
                   <LinkBadges r={r} links={links.data?.[r.id]} />
                 </div>
-                {paying && (r.paid_at ? <Badge tone="ok">دفع</Badge> : owes(r) && <Badge tone="warn">مدفعش</Badge>)}
+                {paying && (paidIn(r) ? <Badge tone="ok">دفع</Badge> : owes(r) && <Badge tone="warn">مدفعش</Badge>)}
                 <Badge tone={RESP[r.status].tone}>{RESP[r.status].ar}</Badge>
               </div>
             </Row>
@@ -1515,7 +1517,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
             registered: data.responses.filter((r) => r.status !== "rejected").length,
             accepted: data.responses.some((r) => r.status === "accepted") ? count("accepted") : undefined,
             attended: thereIds?.size || undefined,
-            ...(paying ? { paid: data.responses.filter((r) => r.paid_at).length, collected: data.responses.reduce((a, r) => a + (r.paid_at ? Number(r.paid_amount ?? 0) : 0), 0) } : {}),
+            ...(paying ? { paid: data.responses.filter(paidIn).length, collected: data.responses.reduce((a, r) => a + (paidIn(r) ? Number(r.paid_amount ?? 0) : 0), 0) } : {}),
           }}
           letterKey={`form:${form.id}`}
           slug={form.slug}

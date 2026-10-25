@@ -6719,7 +6719,7 @@ test("forms on a phone: the list goes straight to each form's responses with wha
     paid_method: paid ? "cash" : null,
     created_at: at(50),
   });
-  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", false)];
+  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", true)];
   const patches: Record<string, unknown>[] = [];
   await page.route(/\/rest\/v1\/forms/, (route) => {
     if (route.request().method() === "PATCH") {
@@ -6754,6 +6754,11 @@ test("forms on a phone: the list goes straight to each form's responses with wha
   await expect(row("علي حسن")).toContainText("مدفعش");
   await expect(row("سارة محمود")).not.toContainText("مدفعش");
   await expect(row("هاجر سامي")).not.toContainText("مدفعش");
+  // Someone on the waiting list who paid isn't counted: paid and collected are the accepted only.
+  await expect(row("هاجر سامي")).not.toContainText("دفع");
+  await expect(page.getByTestId("payment-summary").locator("p").first()).toHaveText("1");
+  await expect(page.getByTestId("payment-summary")).toContainText("مقبولين دفعوا");
+  await expect(page.getByRole("button", { name: /^دفعوا/ })).toContainText("1");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
   // The editor: questions come first, the parts row jumps, a question is copied, and a save bar follows the page.
