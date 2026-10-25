@@ -111,6 +111,7 @@ const TYPES: { k: FieldType; ar: string }[] = [
   { k: "checkbox", ar: "موافقة (صح)" },
   { k: "member", ar: "رقم عضوية الكميونيتي" },
   { k: "nid", ar: "الرقم القومي" },
+  { k: "friend", ar: "جاي مع صاحبه" },
   { k: "file", ar: "ملف (صورة / PDF / فيديو)" },
 ];
 const ACCEPTS: { k: FileAccept; ar: string }[] = [
@@ -127,6 +128,8 @@ function FieldTip({ field, onFix }: { field: FormField; onFix: (p: Partial<FormF
   const tip =
     /قوم[يى]|national\s*id/i.test(`${field.label_ar} ${field.label_en ?? ""}`) && field.type !== "nid"
       ? { text: "ده شكله سؤال رقم قومي. خليه من نوع «الرقم القومي» عشان الموقع يتأكد من الـ14 رقم ويقبل الأرقام العربي.", fix: { type: "nid" as FieldType, options: undefined }, label: "خليه رقم قومي" }
+      : /(صاحب|صحاب|صديق|friend)/i.test(`${field.label_ar} ${field.label_en ?? ""}`) && ["text", "phone", "member"].includes(field.type)
+        ? { text: "ده شكله سؤال «جاي مع مين». خليه من نوع «جاي مع صاحبه»: الزائر يكتب رقم صاحبه أو كوده ويظهرله اسمه يأكده، وانت تشوف الاتنين مع بعض.", fix: { type: "friend" as FieldType, options: undefined }, label: "خليه «جاي مع صاحبه»" }
       : /(e-?mail|ايميل|إيميل|الإيميل|البريد)/i.test(field.label_ar) && !["email", "checkbox"].includes(field.type)
         ? { text: "ده شكله سؤال إيميل. خليه من نوع «إيميل» عشان الموقع يتأكد إنه مكتوب صح.", fix: { type: "email" as FieldType, options: undefined }, label: "خليه إيميل" }
         : field.type === "multi" && opts.length === 2
@@ -576,8 +579,23 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
             >
               خانة دفع (إيصال)
             </Button>
-            {(["name", "phone", "email", "nid", "text", "textarea", "select", "multi", "checkbox", "member", "file"] as FieldType[]).map((k) => (
-              <Button key={k} size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined)] })}>
+            {(["name", "phone", "email", "nid", "text", "textarea", "select", "multi", "checkbox", "member", "friend", "file"] as FieldType[]).map((k) => (
+              <Button
+                key={k}
+                size="sm"
+                icon="plus"
+                disabled={fields.length >= 40}
+                onClick={() =>
+                  edit({
+                    fields: [
+                      ...fields,
+                      k === "friend"
+                        ? { ...f(k, "جاي مع حد من صحابك؟", "Coming with a friend?", false), help_ar: "لو صاحبك سجّل قبلك، اكتب رقم موبايله أو كود طلبه وأكّد اسمه.", help_en: "If your friend signed up before you, type their mobile or request code and confirm their name." }
+                        : f(k, "", "", k !== "textarea", k === "select" || k === "multi" ? ["اختيار 1", "اختيار 2"] : undefined),
+                    ],
+                  })
+                }
+              >
                 {typeAr(k)}
               </Button>
             ))}
@@ -948,8 +966,27 @@ function FileAnswer({ path }: { path: string }) {
   );
 }
 
+/** A friend answer: their name (tap to open them) and code; or the code alone if they're gone. */
+function FriendAnswer({ code, friend, onOpen }: { code: string; friend?: Response; onOpen: (r: Response) => void }) {
+  if (!friend)
+    return (
+      <span dir="ltr" className="font-mono">
+        {code}
+      </span>
+    );
+  return (
+    <button type="button" onClick={() => onOpen(friend)} className="inline-flex flex-wrap items-center gap-2 text-start text-cyan underline-offset-4 hover:underline" data-testid="friend-answer">
+      <span className="font-semibold">{friend.name || friend.phone || code}</span>
+      <span dir="ltr" className="font-mono text-xs text-fog">
+        {code}
+      </span>
+      <Badge tone={RESP[friend.status].tone}>{RESP[friend.status].ar}</Badge>
+    </button>
+  );
+}
+
 /** Add someone by hand, or correct a response's answers (uploaded files stay as sent). */
-function ResponseEditor({ form, r, onClose, onSaved }: { form: Form; r: Response | null; onClose: () => void; onSaved: (r: Response, isNew: boolean) => void }) {
+function ResponseEditor({ form, r, people, onClose, onSaved }: { form: Form; r: Response | null; people: Response[]; onClose: () => void; onSaved: (r: Response, isNew: boolean) => void }) {
   const [a, setA] = useState<Record<string, string | string[]>>(() => ({ ...(r?.answers ?? {}) }));
   const [status, setStatus] = useState<Response["status"]>(r?.status ?? "accepted");
   const [busy, setBusy] = useState(false);
@@ -999,6 +1036,17 @@ function ResponseEditor({ form, r, onClose, onSaved }: { form: Form; r: Response
                   );
                 })}
               </div>
+            ) : fl.type === "friend" ? (
+              <Select value={str(fl.id)} onChange={(e) => setA({ ...a, [fl.id]: e.target.value })}>
+                <option value="">— مش جاي مع حد —</option>
+                {people
+                  .filter((o) => o.id !== r?.id && o.status !== "rejected")
+                  .map((o) => (
+                    <option key={o.id} value={o.ref}>
+                      {`${o.name || o.phone || "—"} (${o.ref})`}
+                    </option>
+                  ))}
+              </Select>
             ) : fl.type === "checkbox" ? (
               <Toggle checked={!!str(fl.id)} onChange={(v) => setA({ ...a, [fl.id]: v ? "نعم" : "" })} label={str(fl.id) ? "نعم" : "لا"} />
             ) : (
@@ -1082,6 +1130,17 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
   if (error || !data) return <ErrorBox error={error} retry={reload} />;
   const { form } = data;
   const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("، ") : (v ?? ""));
+  // "Coming with a friend" answers hold the friend's request code: shown as their name.
+  const byRef = new Map(data.responses.map((r) => [r.ref, r]));
+  const friendName = (ref: string) => byRef.get(ref)?.name || byRef.get(ref)?.phone || "";
+  const answerText = (fl: FormField, v: string | string[] | undefined) => {
+    if (fl.type !== "friend" || typeof v !== "string" || !v) return show(v);
+    const n = friendName(v);
+    return n ? `${n} (${v})` : v;
+  };
+  const friendFields = form.fields.filter((fl) => fl.type === "friend");
+  /** Who said they're coming with this person. */
+  const cameWith = (r: Response) => data.responses.filter((o) => o.id !== r.id && friendFields.some((fl) => o.answers[fl.id] === r.ref));
   const regUrl = form.delegation?.register_url || null;
   const external = !!form.accepted_url || !!regUrl;
   const paying = !!form.payment?.on;
@@ -1099,7 +1158,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
         ...(form.delegation ? [r.status === "accepted" ? memberId(r.member_no) : ""] : []),
         ...(paying ? [r.paid_at ? "دفع ✓" : "لسه", r.paid_at ? Number(r.paid_amount ?? 0) : "", methodAr(r.paid_method), r.paid_at ? fmt.dateTime(r.paid_at) : ""] : []),
         ...(groups.length ? [(r.tags ?? []).join("، ")] : []),
-        ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : show(r.answers[fl.id]))),
+        ...form.fields.map((fl) => (fl.type === "file" && r.answers[fl.id] ? "ملف مرفق (افتحه من التطبيق)" : answerText(fl, r.answers[fl.id]))),
         ...(hasName ? [r.name_en || nameToEnglish(r.name).text] : []),
         ...(external ? [r.external_done_at ? "✓ " + fmt.dateTime(r.external_done_at) : ""] : []),
         r.note,
@@ -1425,7 +1484,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                     <span dir="ltr" className="font-mono">{r.ref}</span> · {fmt.rel(r.created_at)}
                     {external && r.external_done_at ? " · سجّل ✓" : ""}
                     {form.delegation && r.status === "accepted" && r.member_no ? ` · ${memberId(r.member_no)}` : ""}
-                    {first && r.answers[first.id] ? ` · ${show(r.answers[first.id])}` : ""}
+                    {first && r.answers[first.id] ? ` · ${answerText(first, r.answers[first.id])}` : ""}
                   </p>
                   <LinkBadges r={r} links={links.data?.[r.id]} />
                 </div>
@@ -1506,6 +1565,7 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
       {editing && (
         <ResponseEditor
           form={form}
+          people={data.responses}
           r={editing === "new" ? null : editing}
           onClose={() => setEditing(null)}
           onSaved={(saved, isNew) => {
@@ -1536,6 +1596,8 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   <dd className="whitespace-pre-line text-chalk">
                     {fl.type === "file" && open.answers[fl.id] ? (
                       <FileAnswer path={String(open.answers[fl.id])} />
+                    ) : fl.type === "friend" && open.answers[fl.id] ? (
+                      <FriendAnswer code={String(open.answers[fl.id])} friend={byRef.get(String(open.answers[fl.id]))} onOpen={setOpen} />
                     ) : ["phone", "email", "url", "number", "member", "nid"].includes(fl.type) ? (
                       <span dir="ltr">{show(open.answers[fl.id]) || "—"}</span>
                     ) : (
@@ -1544,6 +1606,18 @@ export function FormResponses({ id, me }: { id: string; me?: StaffRow }) {
                   </dd>
                 </div>
               ))}
+              {friendFields.length > 0 && cameWith(open).length > 0 && (
+                <div data-testid="came-with">
+                  <dt className="text-xs text-fog">قالوا إنهم جايين معاه</dt>
+                  <dd className="flex flex-wrap gap-2 pt-1">
+                    {cameWith(open).map((o) => (
+                      <Chip key={o.id} onClick={() => setOpen(o)}>
+                        {o.name || o.phone || o.ref}
+                      </Chip>
+                    ))}
+                  </dd>
+                </div>
+              )}
             </dl>
             <div className="grid grid-cols-2 gap-2">
               <Button size="sm" icon="edit" onClick={() => setEditing(open)} data-testid="response-edit">

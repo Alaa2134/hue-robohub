@@ -47,12 +47,14 @@ const show = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join("�
 export const englishNameField = (fields: FormField[]) => fields.find((f) => f.id === "name_en" || (f.type === "text" && /(إنجليزي|انجليزي|انجليزى)/.test(f.label_ar) && /اسم/.test(f.label_ar)));
 
 /** Every column the PDF can have, in form order. In English, `names` holds each person's checked name. */
-function columnsOf(fields: FormField[], paying: boolean, grouped: boolean, lang: Lang, names: Record<string, string>): Col[] {
+function columnsOf(fields: FormField[], paying: boolean, grouped: boolean, lang: Lang, names: Record<string, string>, friends: Record<string, string> = {}): Col[] {
   const en = lang === "en";
   const mainName = fields.find((f) => f.type === "name")?.id;
   const optionEn = (f: FormField, v: string) => f.options?.find((o) => o.ar === v)?.en || v;
   const value = (f: FormField, r: PdfRow) => {
     const v = r.answers[f.id];
+    // "Coming with a friend" holds the friend's request code: their name next to it.
+    if (f.type === "friend") return typeof v === "string" && v ? (friends[v] ? `${friends[v]} (${v})` : v) : "";
     if (!en) return f.type === "phone" ? localPhone(show(v)) : show(v);
     if (f.id === mainName) return names[r.id] ?? nameToEnglish(r.name ?? show(v)).text;
     if (f.type === "name") return nameToEnglish(show(v)).text;
@@ -264,7 +266,8 @@ export function FormPdfSheet({ formId, title, titleEn, slug, fields, paying, gro
   }, [all, enField, mainName]);
   const [names, setNames] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(start).map(([k, v]) => [k, v.text])));
   const [heads, setHeads] = useState<Record<string, string>>({});
-  const cols = useMemo(() => columnsOf(fields, paying, groups.length > 0, lang, names), [fields, paying, groups.length, lang, names]);
+  const friends = useMemo(() => Object.fromEntries(all.map((r) => [r.ref, en ? names[r.id] ?? "" : (r.name ?? "")])), [all, en, names]);
+  const cols = useMemo(() => columnsOf(fields, paying, groups.length > 0, lang, names, friends), [fields, paying, groups.length, lang, names, friends]);
   const [keys, setKeys] = useState<string[]>(() => defaultPick(fields, paying));
   const [who, setWho] = useState<string>(picked.length ? "picked" : all.some((r) => r.status === "accepted") ? "accepted" : "all");
   const [head, setHead] = useState(title);

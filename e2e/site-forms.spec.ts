@@ -183,6 +183,57 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   });
 });
 
+test("coming with a friend: type their number in Arabic digits or their code, see their name, confirm it, and it goes with the answers", async ({ page }) => {
+  const form = {
+    ...TRYOUT,
+    slug: "mena-trip",
+    title_ar: "رحلة القمة",
+    team: null,
+    fields: [
+      { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
+      { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
+      { id: "w", type: "friend", label_ar: "جاي مع حد من صحابك؟", required: false },
+    ],
+  };
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_form: () => form,
+      form_friend: (b) =>
+        String(b.p_query) === "01012345678" || String(b.p_query).toUpperCase() === "F-1A2B3C4D"
+          ? { ok: true, found: true, ref: "F-1A2B3C4D", name: "منى عادل" }
+          : { ok: true, found: false },
+      submit_form: () => ({ ok: true, ref: "F-99887766" }),
+    },
+  });
+  await page.goto("/ar/form/?f=mena-trip");
+  await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
+  await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
+  const friend = page.getByLabel("جاي مع حد من صحابك؟");
+
+  // Someone who isn't in the form.
+  await friend.fill("01099999999");
+  await expect(page.getByText("مش لاقيين حد بالرقم أو الكود ده")).toBeVisible();
+  // Typed but not confirmed: the form asks to confirm first.
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByText("أكّد اسم صاحبك الأول").first()).toBeVisible();
+  expect(calls.some((c) => c.fn === "submit_form")).toBe(false);
+
+  // Their number in Arabic digits finds them on its own; "not them" starts over.
+  await friend.fill("٠١٠١٢٣٤٥٦٧٨");
+  await expect(page.getByTestId("friend-hit-ff-w")).toContainText("صاحبك منى عادل؟");
+  expect(calls.filter((c) => c.fn === "form_friend").at(-1)!.body).toMatchObject({ p_slug: "mena-trip", p_query: "01012345678" });
+  await page.getByRole("button", { name: "لأ، مش هو" }).click();
+  await expect(friend).toHaveValue("");
+
+  // Their request code, then confirm.
+  await friend.fill("f-1a2b3c4d");
+  await page.getByRole("button", { name: "أيوه، ده صاحبي" }).click();
+  await expect(page.getByTestId("friend-ok-ff-w")).toContainText("هتيجي مع منى عادل");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect(page.getByTestId("form-ref")).toHaveText("F-99887766");
+  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({ p_answers: { n: "يوسف خالد", p: "01112223334", w: "F-1A2B3C4D" } });
+});
+
 test("a form with QR attendance: after sending, a QR to save on the phone; its link and the status show the sessions attended", async ({
   page,
 }) => {
