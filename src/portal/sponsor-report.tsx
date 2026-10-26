@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BASE_PATH, errorText, rpc } from "./core";
 import { imagesReady } from "./certificate";
+import { PartnersPanel } from "./partners";
 import { saveNodesAsPdf } from "./pdf";
 import { Button, Card, Field, Input, Stat, Textarea, TopBar, toast } from "./ui";
 
@@ -381,6 +382,7 @@ export function SponsorReportScreen() {
           </div>,
           document.body,
         )}
+      <PartnersPanel />
     </>
   );
 }

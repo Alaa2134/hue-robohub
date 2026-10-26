@@ -7900,3 +7900,18 @@ test("print hub (team): the price comes from what the slicer reported and the ra
   delete RPC.staff_print_jobs;
   delete RPC.staff_print_quote;
 });
+
+test("partners: the team copies a partner's private link and issues a verified report for a finished month", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_partners = { partners: [{ id: "p1", name: "Acme Robotics", contact: "Mr. A", token: "c".repeat(48), active: true, reports: 0 }], reports: [] };
+  RPC.staff_impact_issue = { ok: true, code: "BXR-1A2B3C4D5E" };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/sponsor-report");
+  await expect(page.getByTestId("partner-Acme Robotics")).toBeVisible();
+  await page.getByTestId("partners-panel").locator('input[type="month"]').fill("2026-09");
+  await page.getByTestId("partners-panel").locator("select").selectOption("p1");
+  await page.getByRole("button", { name: "أصدر التقرير" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_impact_issue")?.body).toEqual({ p_partner: "p1", p_from: "2026-09-01", p_to: "2026-09-30" });
+  delete RPC.staff_partners;
+  delete RPC.staff_impact_issue;
+});

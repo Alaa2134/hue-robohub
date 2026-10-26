@@ -1527,3 +1527,41 @@ test("forms on a phone: one-tap choices, a checked national ID, progress, typed 
   await expect(page.getByRole("heading", { level: 1, name: "اختار الفورم اللي عايز تملاه" })).toBeVisible();
   await expect(page.getByRole("link", { name: "املأ الفورم" })).toHaveAttribute("href", /\/ar\/form\/\?f=summit$/);
 });
+
+test("a verified impact report shows its numbers with how each is counted, and a partner's page lists their reports", async ({ page }) => {
+  const data = {
+    from: "2026-09-01",
+    to: "2026-09-30",
+    reach: { views: 5120, visitors: 1830, countries: 4, mobile: 4000, views_before: 4000, top: [] },
+    training: { sessions: 12, attendances: 318, students: 64, active: 80, quizzes: 140 },
+    events: [{ title: "Arduino Day", at: "2026-09-20T10:00:00Z", registered: 90, attended: 71 }],
+    community: { applications: 40, accepted: 25, new_students: 25 },
+    output: { certificates: 18, projects: 3, posts: 6, highlights: [] },
+    lab: { challenges_passed: 57, lab_learners: 21, prints_delivered: 4 },
+  };
+  const calls = await mockSupabase(page, {
+    rpc: {
+      verify_impact_report: (b) =>
+        String(b.p_code).toUpperCase() === "BXR-1A2B3C4D5E"
+          ? { ok: true, found: true, code: "BXR-1A2B3C4D5E", from: "2026-09-01", to: "2026-09-30", issued_at: "2026-10-02T09:00:00Z", partner: "Acme Robotics", revoked_at: null, revoked_reason: null, data, digest: "ab".repeat(32), intact: true }
+          : { ok: true, found: false },
+      partner_portal: (b) =>
+        b.p_token === "c".repeat(48)
+          ? { ok: true, found: true, name: "Acme Robotics", reports: [{ code: "BXR-1A2B3C4D5E", from: "2026-09-01", to: "2026-09-30", issued_at: "2026-10-02T09:00:00Z", revoked: false }] }
+          : { ok: true, found: false },
+    },
+  });
+  await page.goto(`/partner/?t=${"c".repeat(48)}`);
+  await expect(page.getByTestId("partner-portal")).toContainText("Acme Robotics");
+  await page.getByRole("link", { name: /BXR-1A2B3C4D5E/ }).click();
+  const report = page.getByTestId("impact-report");
+  await expect(report).toContainText("exactly as issued");
+  await expect(report).toContainText("Lab challenges passed");
+  await expect(report).toContainText("running the student's program in the simulator");
+  await expect(report).toContainText("57");
+  await expect(report).toContainText("Arduino Day");
+  // A wrong link says so.
+  await page.goto(`/ar/partner/?t=${"d".repeat(48)}`);
+  await expect(page.getByTestId("partner-state")).toContainText("مش متاحة");
+  expect(calls.filter((c) => c.fn === "verify_impact_report").length).toBe(1);
+});
