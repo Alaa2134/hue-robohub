@@ -12,6 +12,8 @@ export const LAB_STATIC_ROUTES = [
   "learn",
   "challenges",
   "classrooms",
+  "robot",
+  "architect",
   "components",
   "profile",
   "settings",

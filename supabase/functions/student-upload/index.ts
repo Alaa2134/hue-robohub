@@ -1,6 +1,7 @@
-// One-time upload URL for a student's task file or project photo. Students have no Supabase Auth
-// account, so the database checks their app session (and the task: student_upload_ticket; or the
-// photo: student_project_upload_ticket; service role only) and hands back the storage path; this
+// One-time upload URL for a student's task file, project photo or 3D file for the Print Hub. Students
+// have no Supabase Auth account, so the database checks their app session (and the task:
+// student_upload_ticket; the photo: student_project_upload_ticket; the print file:
+// student_print_upload_ticket; service role only) and hands back the storage path; this
 // function then signs an upload URL for that exact path in the private "submissions" bucket. The
 // file itself goes straight from the phone to storage.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -34,7 +35,8 @@ Deno.serve(async (req) => {
   const token = typeof input.token === "string" ? input.token : "";
   const assignment = typeof input.assignment === "string" ? input.assignment : "";
   const project = input.kind === "project";
-  if (!/^[0-9a-f]{64}$/.test(token) || (!project && !/^[0-9a-f-]{36}$/i.test(assignment))) return reply({ error: "invalid" }, 400);
+  const print = input.kind === "print";
+  if (!/^[0-9a-f]{64}$/.test(token) || (!project && !print && !/^[0-9a-f-]{36}$/i.test(assignment))) return reply({ error: "invalid" }, 400);
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
   // The database checks the session and the task, and limits uploads per student.
@@ -42,7 +44,9 @@ Deno.serve(async (req) => {
   const size = typeof input.size === "number" ? Math.floor(input.size) : 0;
   const ticket = project
     ? await admin.rpc("student_project_upload_ticket", { p_token: token, p_ext: ext, p_size: size })
-    : await admin.rpc("student_upload_ticket", { p_token: token, p_assignment: assignment, p_ext: ext, p_size: size });
+    : print
+      ? await admin.rpc("student_print_upload_ticket", { p_token: token, p_ext: ext, p_size: size })
+      : await admin.rpc("student_upload_ticket", { p_token: token, p_assignment: assignment, p_ext: ext, p_size: size });
   if (ticket.error) {
     const session = /session_invalid/.test(ticket.error.message);
     return reply({ error: session ? "session_invalid" : "failed" }, session ? 401 : 500);

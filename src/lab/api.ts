@@ -304,4 +304,56 @@ export const academy = {
   passed: async (): Promise<Record<string, string>> => (meStore.get()?.kind === "student" ? rpc<Record<string, string>>("lab_challenge_passes_mine").catch(() => ({})) : {}),
   pass: (slug: string, project: string | null, checks: { label: { en: string; ar: string }; ok: boolean; got?: string }[], seconds: number) =>
     rpc<{ ok: boolean }>("lab_challenge_pass", { p_slug: slug, p_project: project && !isLocal(project) ? project : null, p_checks: checks, p_seconds: seconds }),
+  /** Challenge points and the leaderboards (students only). */
+  board: async (): Promise<Board | null> => (meStore.get()?.kind === "student" ? rpc<Board>("lab_challenge_board").catch(() => null) : null),
+};
+
+export type BoardRow = { name: string; points: number; passed: number; me: boolean };
+export type Board = { me: { points: number; passed: number; rank: number; group_rank: number } | null; group: string | null; group_top: BoardRow[]; top: BoardRow[] };
+
+/* ─── Classrooms (Lab tasks from the team) ─────────────────────────────── */
+
+export type LabCheck = { label: { en: string; ar: string }; ok: boolean; got?: string };
+export type LabTask = {
+  id: string;
+  title: string;
+  description: string;
+  due: string | null;
+  max_points: number;
+  allow_late: boolean;
+  challenge: string | null;
+  template: { title: string; kind: Kind; data: unknown } | null;
+  submission: { at: string; late: boolean; project: string | null; passed: boolean | null; checks: LabCheck[] | null; grade: number | null; feedback: string | null; graded_at: string | null } | null;
+};
+
+export const classroom = {
+  tasks: () => rpc<LabTask[]>("lab_assignments"),
+  submit: (assignment: string, project: string, checks: LabCheck[] | null, passed: boolean | null) =>
+    rpc<{ ok: boolean; late?: boolean; error?: string }>("lab_assignment_submit", { p_assignment: assignment, p_project: project, p_checks: checks, p_passed: passed }),
+};
+
+/* ─── Project Architect (prices and the BuildX store) ───────────────────── */
+
+export type PartPrice = { label: string; price: number; currency: string; source: string; url: string | null; checked_on: string; stale: boolean };
+export type PartAvail = { store: { items: number; free: number; students: boolean }; prices: PartPrice[] };
+export type ArchitectPlan = { title: string; summary: string; parts: { type: string; qty: number; why: string }[]; connections: string[]; steps: string[]; code: string };
+
+export const architect = {
+  /** Per Lab part type: free now in the BuildX store, and every dated price the team entered. */
+  parts: async (types: string[]): Promise<Record<string, PartAvail>> => {
+    if (!types.length) return {};
+    const { data, error } = await sb().rpc("architect_parts", { p_parts: types });
+    if (error) throw error;
+    return (data ?? {}) as Record<string, PartAvail>;
+  },
+  aiOn: async (): Promise<boolean> => {
+    const { data } = await sb().rpc("architect_ai_on");
+    return data === true;
+  },
+  /** The AI plan (parts from the catalog only), or why there isn't one. */
+  plan: async (idea: string, catalog: { type: string; name: string }[]): Promise<{ plan: ArchitectPlan | null; error?: string; disabled?: boolean }> => {
+    const { data, error } = await sb().functions.invoke<{ plan: ArchitectPlan | null; error?: string; disabled?: boolean }>("architect-plan", { body: { idea, catalog } });
+    if (error || !data) return { plan: null, error: "busy" };
+    return data;
+  },
 };

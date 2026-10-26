@@ -40,6 +40,10 @@ import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
 import { AtRiskScreen, atRiskCount } from "./at-risk";
+import { StaffTeams } from "./teams";
+import { StaffPrint } from "./print";
+import { StaffRules } from "./staff-rules";
+import { PartPrices } from "./part-prices";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -107,6 +111,10 @@ const AREA_OF: Record<string, Area | Area[]> = {
   reports: "attendance",
   students: "roster",
   "at-risk": "roster",
+  "student-teams": "roster",
+  print: "print",
+  rules: "materials",
+  "part-prices": "inventory",
   access: "roster",
   content: "materials",
   quizzes: "quizzes",
@@ -333,6 +341,18 @@ export function StaffApp({
       break;
     case "at-risk":
       screen = <AtRiskScreen me={me} />;
+      break;
+    case "student-teams":
+      screen = <StaffTeams />;
+      break;
+    case "print":
+      screen = <StaffPrint />;
+      break;
+    case "rules":
+      screen = <StaffRules me={me} />;
+      break;
+    case "part-prices":
+      screen = <PartPrices me={me} />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -827,6 +847,9 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "calendar", label: "الاجتماعات", to: "/staff/meetings" },
     { icon: "users", label: "السيكتورات وتاسكات الفريق", to: "/staff/sectors" },
     { icon: "box", label: "المخزن (القطع والأدوات، السلف والطلبات)", to: "/staff/inventory" },
+    { icon: "box", label: "طباعة 3D (طلبات الطلبة والأسعار)", to: "/staff/print" },
+    { icon: "book", label: "قواعد المسابقات (مدرب المسابقات على الموقع)", to: "/staff/rules" },
+    { icon: "chart", label: "أسعار القطع (معماري المشاريع في اللاب)", to: "/staff/part-prices" },
     { icon: "alert", label: "إنذارات الفريق (كل السيكتورات)", to: "/staff/warnings" },
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
@@ -881,6 +904,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk" },
+    { icon: "users", label: "فرق مشاريع الطلبة (التطبيق)", to: "/staff/student-teams" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },

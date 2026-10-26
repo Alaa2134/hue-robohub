@@ -6,6 +6,9 @@ import { BASE_PATH, SITE_ORIGIN, STATUS_LABEL, asciiDigits, errorText, fileUrl, 
 import { StudentBaqloz } from "./baqloz";
 import { StudentLoansCard } from "./inventory";
 import { StudentEquipment } from "./equipment";
+import { StudentPassport } from "./passport";
+import { StudentTeams } from "./teams";
+import { StudentPrint } from "./print";
 import { MemberCardScreen, MemberCardTile } from "./member-card";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
@@ -124,6 +127,9 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
   else if (section === "schedule") screen = <StudentSchedule />;
   else if (section === "projects") screen = <StudentProjects />;
   else if (section === "equipment") screen = <StudentEquipment />;
+  else if (section === "passport") screen = <StudentPassport />;
+  else if (section === "teams") screen = <StudentTeams />;
+  else if (section === "print") screen = <StudentPrint />;
   else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
   else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
@@ -554,6 +560,22 @@ function Account({ session }: { session: StudentSession }) {
           </Button>
         </form>
       </Card>
+      <a href="#/me/print" data-testid="print-entry" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+        <Icon name="box" size={20} className="shrink-0 text-cyan" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">طباعة 3D</span>
+          <span className="block text-xs text-fog">ابعت موديل STL والفريق يطبعهولك بعد ما توافق على السعر</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
+      <a href="#/me/passport" data-testid="passport-entry" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+        <Icon name="award" size={20} className="shrink-0 text-cyan" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">جواز المهارات</span>
+          <span className="block text-xs text-fog">صفحة بإنجازاتك الحقيقية تبعتها لشركة أو تحطها في الـCV</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
       <a href="#/me/projects" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
         <Icon name="star" size={20} className="shrink-0 text-gold" />
         <span className="min-w-0 flex-1">

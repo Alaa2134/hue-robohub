@@ -162,6 +162,21 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("circuit-3d")).toHaveCount(0);
   });
 
+  test("build it for real: a printable Uno case opens in 3D Studio as an editable design", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(90_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/");
+    await page.getByTestId("example-blink").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Export file" }).click();
+    await expect(page.getByTestId("bom")).toContainText("Arduino Uno");
+    await page.getByTestId("uno-case").click();
+    await expect(page.getByTestId("cad-studio")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("cad-stats")).toContainText("cm³", { timeout: 60_000 });
+  });
+
   test("workspace: right-click menu, pinout, copy and paste, delete asks first", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     await mockSupabase(page);
@@ -279,12 +294,135 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("challenge-result")).toContainText("2 Hz");
   });
 
+  test("robot arena: the starter sketch drives the robot along the line and passes the lap test", async ({ page, isMobile }) => {
+    test.setTimeout(180_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/robot/");
+    await expect(page.getByTestId("robot-canvas")).toBeVisible();
+    await expect(page.getByTestId("robot-code")).toContainText("lastSide");
+    if (isMobile) return; // the layout check is enough on a phone
+    await page.getByTestId("robot-run").click();
+    // Live: the robot sits on the tape, so the centre sensor sees it, and it moves along the lap.
+    await expect(page.getByTestId("robot-sensor-C")).toHaveAttribute("data-on", "1", { timeout: 120_000 });
+    await expect(page.getByTestId("robot-laps")).not.toContainText("· 0%", { timeout: 20_000 });
+    await page.getByTestId("robot-lap").click();
+    await expect(page.getByTestId("robot-result")).toContainText("Passed", { timeout: 150_000 });
+    await expect(page.getByTestId("robot-result")).toContainText("Finished a full lap");
+  });
+
+  test("challenge leaderboard: a student's points, rank and the group's top", async ({ page }) => {
+    await mockSupabase(page, {
+      lab_me: () => ({ kind: "student", id: "s1", name: "Mona Adel", instructor: false, admin: false }),
+      lab_challenge_passes_mine: () => ({ "blink-2hz": "2026-10-26T10:00:00Z", "robot-oval": "2026-10-26T11:00:00Z" }),
+      lab_challenge_board: () => ({
+        me: { points: 30, passed: 2, rank: 3, group_rank: 2 },
+        group: "A",
+        group_top: [
+          { name: "Omar K.", points: 50, passed: 3, me: false },
+          { name: "Mona A.", points: 30, passed: 2, me: true },
+        ],
+        top: [{ name: "Sara M.", points: 90, passed: 5, me: false }],
+      }),
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem("bx-lab-lang", "en");
+      localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "2024001", group: "A" }));
+    });
+    await page.goto("/lab/challenges/");
+    await expect(page.getByTestId("my-points")).toContainText("30");
+    await expect(page.getByTestId("my-points")).toContainText("#2 in your group");
+    await expect(page.getByTestId("board-group")).toContainText("Omar K.");
+    await expect(page.getByTestId("board-top")).toContainText("Sara M.");
+    await expect(page.getByTestId("challenge-robot-oval")).toContainText("Passed");
+    await page.getByTestId("challenge-robot-wavy").getByRole("button", { name: "Open the arena" }).click();
+    await expect(page.getByTestId("robot-track")).toHaveValue("wavy");
+  });
+
+  test("project architect: store availability and dated prices for a Lab design, a wiring review, and an AI plan whose parts come from the catalog", async ({ page }) => {
+    const plan = {
+      title: "Plant waterer",
+      summary: "Waters a plant when the soil is dry.",
+      parts: [
+        { type: "arduino-uno", qty: 1, why: "The brain" },
+        { type: "led", qty: 1, why: "Shows when it waters" },
+      ],
+      connections: ["LED long leg → D9 through a 220 Ω resistor"],
+      steps: ["Wire the LED", "Upload the sketch"],
+      code: "void setup(){}\nvoid loop(){}\n",
+    };
+    let ai = false;
+    await mockSupabase(page, {
+      architect_ai_on: () => ai,
+      architect_parts: () => ({
+        led: { store: { items: 1, free: 40, students: true }, prices: [{ label: "5 mm", price: 1.5, currency: "EGP", source: "Old Shop", url: null, checked_on: "2026-08-01", stale: true }, { label: "5 mm", price: 2, currency: "EGP", source: "Shop A", url: "https://example.org/led", checked_on: "2026-10-20", stale: false }] },
+        "arduino-uno": { store: { items: 1, free: 3, students: false }, prices: [] },
+      }),
+    });
+    await page.route(/\/functions\/v1\/architect-plan$/, (route) => route.fulfill({ json: { plan } }));
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/architect/");
+    const led = page.getByTestId("architect-line-led");
+    await expect(led).toContainText("40 free");
+    await expect(led).toContainText("1.50 EGP");
+    await expect(led).toContainText("Old Shop");
+    await expect(led).toContainText("old");
+    await expect(page.getByTestId("architect-line-arduino-uno")).toContainText("No checked price yet");
+    await expect(page.getByTestId("architect-total")).toContainText("no checked price — not counted");
+    await expect(page.getByTestId("architect-wiring")).toContainText("found nothing to fix");
+    await expect(page.getByTestId("architect-ai")).toHaveCount(0);
+    // With the AI on: the plan's parts, its connections as a checklist, then the Lab.
+    ai = true;
+    await page.reload();
+    await page.getByTestId("architect-ai").getByRole("textbox").fill("A plant pot that waters itself when the soil is dry");
+    await page.getByRole("button", { name: "Plan it" }).click();
+    await expect(page.getByTestId("architect-plan")).toContainText("Plant waterer");
+    await expect(page.getByTestId("architect-wiring")).toContainText("☐ LED long leg → D9");
+    await page.getByTestId("architect-open").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+  });
+
   test("academy with no courses says so and points to the challenges", async ({ page }) => {
     await mockSupabase(page, { academy_catalog: () => [] });
     await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
     await page.goto("/lab/learn/");
     await expect(page.getByText("No courses yet")).toBeVisible();
     await expect(page.getByTestId("challenge-blink-2hz")).toBeVisible();
+  });
+
+  test("classroom: a student starts a Lab task and submits it with the simulator's check", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(180_000);
+    const pid = "22222222-2222-4222-8222-222222222222";
+    let created: { p_data: unknown; p_meta: { tags: string[] } } | null = null;
+    const submits: Record<string, unknown>[] = [];
+    const task = { id: "33333333-3333-4333-8333-333333333333", title: "Blink twice a second", description: "Use the LED on pin 13.", due: null, max_points: 10, allow_late: true, challenge: "blink-2hz", template: null, submission: null };
+    await mockSupabase(page, {
+      lab_me: () => ({ kind: "student", id: "s1", name: "Mona Adel", instructor: false, admin: false }),
+      lab_assignments: () => [task],
+      lab_project_create: (b) => ((created = b as typeof created), { ok: true, id: pid }),
+      lab_project_get: () => ({
+        ok: true,
+        role: "owner",
+        project: { id: pid, kind: "circuit", title: task.title, description: "", tags: created!.p_meta.tags, category: null, visibility: "private", thumbnail: null, revision: 1, created_at: "2026-10-26T10:00:00Z", updated_at: "2026-10-26T10:00:00Z", deleted_at: null, mine: true, owner: "Mona", favorite: false, favorites: 0, data: created!.p_data, share_token: null },
+      }),
+      lab_project_save: () => ({ ok: true, revision: 2 }),
+      lab_assignment_submit: (b) => (submits.push(b), { ok: true, late: false }),
+      lab_event: () => null,
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem("bx-lab-lang", "en");
+      localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "2024001", group: "A" }));
+    });
+    await page.goto("/lab/classrooms/");
+    await page.getByTestId(`lab-task-${task.id}`).getByRole("button", { name: "Start" }).click();
+    await expect(page.getByTestId("assignment-bar")).toBeVisible({ timeout: 30_000 });
+    expect(created!.p_meta.tags).toEqual(["assignment", `assignment:${task.id}`, "challenge:blink-2hz"]);
+    await expect(page.getByTestId("challenge-bar")).toBeVisible();
+    await page.getByTestId("assignment-submit").click();
+    await expect.poll(() => submits.length, { timeout: 150_000 }).toBe(1);
+    expect(submits[0]).toMatchObject({ p_assignment: task.id, p_project: pid, p_passed: false, p_token: "a".repeat(64) });
+    expect(JSON.stringify(submits[0].p_checks)).toContain("Blinks 2 times a second");
   });
 
   test("signed-in save goes to the account, and someone else's newer save is never overwritten", async ({ page, isMobile }) => {

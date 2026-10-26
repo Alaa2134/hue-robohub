@@ -90,6 +90,14 @@ export function StudentProjects() {
   return (
     <>
       <TopBar title="مشاريعي والفرق" back="/me/account" />
+      <a href="#/me/teams" data-testid="teams-entry" className="mb-4 flex items-center gap-3 rounded-2xl border border-cyan/30 bg-cyan/5 px-4 py-3.5 transition hover:border-cyan/50">
+        <Icon name="users" size={20} className="shrink-0 text-cyan" />
+        <span className="min-w-0 flex-1">
+          <span className="block font-semibold text-chalk">لاقي فريق لمشروعك</span>
+          <span className="block text-xs text-fog">اعمل فريق وقول محتاج مين، أو انضم لفريق محتاج مهاراتك</span>
+        </span>
+        <Icon name="chevron" size={18} className="rotate-180 text-fog" />
+      </a>
       <Card>
         <form onSubmit={send} className="grid gap-3">
           <p className="font-semibold text-chalk">اعرض مشروعك على موقع BuildX HUE</p>

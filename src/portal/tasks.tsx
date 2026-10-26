@@ -4,9 +4,9 @@
  * link and up to five files from the app; coaches grade with feedback and the grade counts towards
  * points. See 20261008120000_assignments.sql and the student-upload Edge Function.
  */
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { errorText, fmt, fromLocalInput, must, prepareImage, rpc, sb, studentRpc, studentRpcOffline, studentStore, toLocalInput, type StaffRow } from "./core";
+import { BASE_PATH, errorText, fmt, fromLocalInput, must, prepareImage, rpc, sb, studentRpc, studentRpcOffline, studentStore, toLocalInput, type StaffRow } from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, Row, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
@@ -15,7 +15,7 @@ const MAX_BYTES = 20 * 1024 * 1024;
 
 type MyFile = { name: string; size: number };
 type MySubmission = { submittedAt: string; late: boolean; body: string; link: string | null; files: MyFile[]; grade: number | null; feedback: string; gradedAt: string | null };
-export type StudentTask = { id: string; title: string; description: string; dueAt: string | null; maxPoints: number; allowLate: boolean; submission: MySubmission | null };
+export type StudentTask = { id: string; title: string; description: string; dueAt: string | null; maxPoints: number; allowLate: boolean; submission: MySubmission | null; lab?: boolean };
 
 const overdue = (t: { dueAt: string | null }) => !!t.dueAt && new Date(t.dueAt).getTime() < Date.now();
 
@@ -216,7 +216,7 @@ function StudentTaskDetail({ t, onDone }: { t: StudentTask; onDone: () => void }
                 <span className="text-xs text-fog">{fmt.size(f.size)}</span>
               </p>
             ))}
-            {!graded && !closed && (
+            {!graded && !closed && !t.lab && (
               <Button className="mt-2" icon="edit" onClick={() => setEditing(true)}>
                 عدّل التسليم
               </Button>
@@ -227,7 +227,14 @@ function StudentTaskDetail({ t, onDone }: { t: StudentTask; onDone: () => void }
 
       {!sub && closed && <Card className="mt-3 border-danger/30 text-sm text-[#ff9aa5]">ميعاد التسليم خلص.</Card>}
 
-      {editing && !graded && (
+      {t.lab && !graded && (
+        <a href={`${BASE_PATH}/lab/classrooms/`} className="mt-3 flex items-center gap-3 rounded-2xl border border-cyan/30 bg-cyan/10 p-4 text-sm text-chalk">
+          <Icon name="layers" size={20} className="text-cyan" />
+          <span className="flex-1">التاسك ده بيتعمل في BuildX Lab: افتحه هناك، اعمله في المحرر، وسلّمه من المحرر.</span>
+          <Icon name="chevron" size={16} className="rotate-180 text-fog" />
+        </a>
+      )}
+      {editing && !graded && !t.lab && (
         <form onSubmit={submit} className="mt-3 grid gap-3">
           <Field label="ردّك (اختياري)">
             <Textarea value={body} onChange={(e) => setBody(e.target.value)} maxLength={4000} className="min-h-28" />
@@ -272,10 +279,11 @@ function StudentTaskDetail({ t, onDone }: { t: StudentTask; onDone: () => void }
 
 /* ─── Staff ────────────────────────────────────────────────────────────── */
 
-type Assignment = { id: string; title: string; description: string; group_name: string; due_at: string | null; max_points: number; allow_late: boolean; published: boolean; created_at: string };
+type Assignment = { id: string; title: string; description: string; group_name: string; due_at: string | null; max_points: number; allow_late: boolean; published: boolean; created_at: string; lab_challenge?: string | null; lab_template?: string | null };
 type AssignmentRow = Assignment & { assignment_submissions: { id: string; grade: number | null }[] };
 type SubFile = { path: string; name: string; size: number; mime: string };
-type Submission = { id: string; assignment_id: string; student_id: string; body: string; link: string | null; files: SubFile[]; submitted_at: string; late: boolean; grade: number | null; feedback: string; graded_at: string | null };
+type LabCheck = { label: { en: string; ar: string }; ok: boolean; got?: string };
+type Submission = { id: string; assignment_id: string; student_id: string; body: string; link: string | null; files: SubFile[]; submitted_at: string; late: boolean; grade: number | null; feedback: string; graded_at: string | null; lab_project_id?: string | null; lab_checks?: LabCheck[] | null; lab_passed?: boolean | null };
 
 /** /staff/tasks */
 export function TasksScreen({ me }: { me: StaffRow }) {
@@ -350,16 +358,32 @@ function TaskSheet({ task, onClose, onSaved }: { me: StaffRow; task: Assignment 
     max_points: String(task?.max_points ?? 10),
     allow_late: task?.allow_late ?? true,
     published: task?.published ?? true,
+    lab: (task?.lab_challenge ? "challenge" : task?.lab_template ? "template" : "") as "" | "challenge" | "template",
+    lab_challenge: task?.lab_challenge ?? "",
+    lab_template: task?.lab_template ?? "",
   });
+  const lab = useLabChoices(f.lab !== "");
   const [busy, setBusy] = useState(false);
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (f.title.trim().length < 2) return toast("اكتب عنوان التاسك", "error");
     const max = parseInt(f.max_points, 10);
     if (!(max >= 1 && max <= 1000)) return toast("الدرجة من 1 لـ 1000", "error");
+    if (f.lab === "challenge" && !f.lab_challenge) return toast("اختار التحدي", "error");
+    if (f.lab === "template" && !f.lab_template) return toast("اختار الدايرة اللي الطلاب هيبدأوا منها", "error");
     setBusy(true);
     try {
-      const row = { title: f.title.trim(), description: f.description.trim(), group_name: f.group_name, due_at: fromLocalInput(f.due_at), max_points: max, allow_late: f.allow_late, published: f.published };
+      const row = {
+        title: f.title.trim(),
+        description: f.description.trim(),
+        group_name: f.group_name,
+        due_at: fromLocalInput(f.due_at),
+        max_points: max,
+        allow_late: f.allow_late,
+        published: f.published,
+        lab_challenge: f.lab === "challenge" ? f.lab_challenge : null,
+        lab_template: f.lab === "template" ? f.lab_template : null,
+      };
       if (task) {
         await sb().from("assignments").update(row).eq("id", task.id).then(must);
         toast("اتحفظ");
@@ -395,6 +419,37 @@ function TaskSheet({ task, onClose, onSaved }: { me: StaffRow; task: Assignment 
             <Input type="number" inputMode="numeric" min={1} max={1000} value={f.max_points} onChange={(e) => setF({ ...f, max_points: e.target.value })} dir="ltr" />
           </Field>
         </div>
+        <Field label="مهمة في اللاب (اختياري)" hint="الطالب بيفتحها في محرر BuildX Lab ويسلّم مشروعه من هناك.">
+          <select value={f.lab} onChange={(e) => setF({ ...f, lab: e.target.value as typeof f.lab })} className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2.5 text-sm text-chalk">
+            <option value="">لأ، تسليم عادي (نص، رابط، ملفات)</option>
+            <option value="challenge">تحدي بيتصحح أوتوماتيك في المحاكي</option>
+            <option value="template">دايرة عملتها في اللاب يبدأوا منها</option>
+          </select>
+        </Field>
+        {f.lab === "challenge" && (
+          <Field label="التحدي">
+            <select value={f.lab_challenge} onChange={(e) => setF({ ...f, lab_challenge: e.target.value })} className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2.5 text-sm text-chalk">
+              <option value="">اختار…</option>
+              {lab.challenges.map((c) => (
+                <option key={c.slug} value={c.slug}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {f.lab === "template" && (
+          <Field label="الدايرة" hint="من مشاريعك في اللاب. كل طالب بياخد نسخة منها.">
+            <select value={f.lab_template} onChange={(e) => setF({ ...f, lab_template: e.target.value })} className="w-full rounded-xl border border-[var(--line)] bg-white/[0.04] px-3 py-2.5 text-sm text-chalk">
+              <option value="">{lab.projects === null ? "بيحمّل…" : lab.projects.length ? "اختار…" : "مفيش مشاريع ليك في اللاب لسه"}</option>
+              {(lab.projects ?? []).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Toggle checked={f.allow_late} onChange={(v) => setF({ ...f, allow_late: v })} label="يقبل تسليم متأخر" hint="بيتعلّم عليه «متأخر»." />
         <Toggle checked={f.published} onChange={(v) => setF({ ...f, published: v })} label="ظاهر للطلاب" />
         <Button type="submit" variant="primary" size="lg" block loading={busy}>
@@ -569,6 +624,30 @@ function GradeSheet({ sub, max, name, onClose, onDone }: { sub: Submission; max:
             {sub.link}
           </a>
         )}
+        {sub.lab_project_id && (
+          <div className="grid gap-2 rounded-xl border border-[var(--line)] p-3">
+            <a href={`${BASE_PATH}/lab/circuits/${sub.lab_project_id}/`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm font-semibold text-cyan">
+              <Icon name="layers" size={16} /> افتح المشروع في اللاب
+            </a>
+            {sub.lab_checks?.length ? (
+              <>
+                <Badge tone={sub.lab_passed ? "ok" : "warn"}>{sub.lab_passed ? "عدّى التصحيح في المحاكي" : "لسه معدّاش التصحيح"}</Badge>
+                {sub.lab_checks.map((c, i) => (
+                  <p key={i} className="flex items-center gap-2 text-xs text-mist">
+                    <Icon name={c.ok ? "check" : "alert"} size={14} className={c.ok ? "text-ok" : "text-[#ff9aa5]"} />
+                    <span className="flex-1">{c.label.ar}</span>
+                    {c.got && (
+                      <span className="font-mono text-fog" dir="ltr">
+                        {c.got}
+                      </span>
+                    )}
+                  </p>
+                ))}
+                <p className="text-[11px] text-fog">التصحيح بيشتغل على جهاز الطالب؛ افتح المشروع وشغّله لو عايز تتأكد بنفسك.</p>
+              </>
+            ) : null}
+          </div>
+        )}
         {sub.files.map((f, i) => (
           <button key={i} type="button" onClick={() => openFile(f)} className="flex items-center gap-2 rounded-xl border border-[var(--line)] px-3 py-2 text-start text-sm text-mist hover:border-cyan/40">
             <Icon name={f.mime.startsWith("image/") ? "image" : "file"} size={16} className="text-cyan" />
@@ -600,4 +679,19 @@ function GradeSheet({ sub, max, name, onClose, onDone }: { sub: Submission; max:
       </div>
     </Sheet>
   );
+}
+
+/** The Lab's challenges and this trainer's own Lab projects, for a Lab task. */
+function useLabChoices(on: boolean) {
+  const [challenges, setChallenges] = useState<{ slug: string; title: string }[]>([]);
+  const [projects, setProjects] = useState<{ id: string; title: string }[] | null>(null);
+  useEffect(() => {
+    if (!on) return;
+    void import("@/lab/academy/challenges").then((m) => setChallenges(m.CHALLENGES.map((c) => ({ slug: c.slug, title: c.title.ar }))));
+    rpc<{ id: string; title: string; kind: string }[]>("lab_projects_list", { p_token: null, p_filter: {} }).then(
+      (r) => setProjects(r.filter((p) => p.kind === "circuit" || p.kind === "code")),
+      () => setProjects([]),
+    );
+  }, [on]);
+  return { challenges, projects };
 }

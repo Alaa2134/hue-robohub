@@ -7696,3 +7696,222 @@ test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), 
   delete RPC.staff_ai3d_topup_review;
   expect(errors).toEqual([]);
 });
+
+test("a student turns on their Skill Passport, sees the link, and the public page shows only the records", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const slug = "0123456789abcdef";
+  const data = {
+    name: "Mona A.",
+    group: null,
+    headline: null,
+    since: "2026-02",
+    certificates: [{ code: "BXC-1A2B3C4D", kind: "completion", title: "Arduino Basics", title_ar: "أساسيات الأردوينو", hours: 12, on: "2026-09-01" }],
+    challenges: [{ slug: "robot-oval", on: "2026-10-26" }, { slug: "blink-2hz", on: "2026-10-20" }],
+    courses: [],
+    projects: [],
+    numbers: { sessions: 9, quizzes: 3, tasks: 2 },
+  };
+  let pass = { slug, visible: false, full_name: false, show_group: false, headline: "", preview: data };
+  const saved: Record<string, unknown>[] = [];
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_passport") return route.fulfill({ json: pass });
+    if (fn === "student_passport_save") {
+      const b = route.request().postDataJSON();
+      saved.push(b);
+      pass = { ...pass, visible: b.p_visible, full_name: b.p_full_name, show_group: b.p_show_group, headline: b.p_headline };
+      return route.fulfill({ json: { ...pass, ok: true } });
+    }
+    if (fn === "passport_public") return route.fulfill({ json: pass.visible ? { ok: true, found: true, ...data } : { ok: true, found: false } });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByTestId("passport-entry").click();
+  await expect(page.getByTestId("passport-counts")).toContainText("1 شهادة · 2 تحدي");
+  await expect(page.getByTestId("passport-link")).toHaveCount(0);
+  await page.getByRole("switch", { name: /الصفحة شغالة/ }).click();
+  await expect(page.getByTestId("passport-link")).toContainText(`/passport/?id=${slug}`);
+  expect(saved.at(-1)).toMatchObject({ p_visible: true, p_full_name: false, p_show_group: false });
+
+  await page.goto(`/passport/?id=${slug}`);
+  await expect(page.getByTestId("passport-name")).toHaveText("Mona A.");
+  await expect(page.getByTestId("passport-challenges")).toContainText("Robot lap — Oval");
+  await expect(page.getByTestId("passport-page")).toContainText("Robotics · 1");
+  await expect(page.getByRole("link", { name: /Verify BXC-1A2B3C4D/ })).toHaveAttribute("href", "/verify/?c=BXC-1A2B3C4D");
+  await expect(page.getByTestId("passport-page")).not.toContainText("S1");
+  // Turned off: the page says so.
+  pass = { ...pass, visible: false };
+  await page.goto(`/ar/passport/?id=${slug}`);
+  await expect(page.getByTestId("passport-state")).toContainText("مش متاح");
+  expect(errors).toEqual([]);
+});
+
+test("team matching: open teams that need the student's verified Lab skills come first, they ask to join, and the owner accepts", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const calls: { fn: string; body: Record<string, unknown> }[] = [];
+  const state = {
+    skills: { robotics: 2 },
+    mine: [
+      {
+        id: "m1", title: "Smart greenhouse", idea: "Sensors + pump", needs: ["electronics"], size_max: 3, status: "open", closed_reason: null, owner: true,
+        contact: "https://chat.whatsapp.com/xyz", members: [{ name: "Mona A.", owner: true, me: true }],
+        requests: [{ id: "r1", name: "Omar K.", message: "I can wire it", skills: ["electronics", "cad"], verified: { electronics: 3 }, passport: "0123456789abcdef", at: "2026-10-26T10:00:00Z" }],
+      },
+    ],
+    open: [
+      { id: "o1", title: "Robotex line follower", idea: "PID", needs: ["robotics", "cad"], size_max: 4, owner: "Sara M.", group: "G2", members: 2, match: ["robotics"], request: null as string | null },
+      { id: "o2", title: "Chat bot", idea: "", needs: ["ai"], size_max: 3, owner: "Ali H.", group: null, members: 1, match: [], request: null as string | null },
+    ],
+  };
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_projects_mine") return route.fulfill({ json: [] });
+    if (fn === "public_forms") return route.fulfill({ json: [] });
+    if (fn === "student_teams") return route.fulfill({ json: state });
+    if (fn === "student_team_request") {
+      state.open[0].request = "pending";
+      return route.fulfill({ json: { ok: true } });
+    }
+    if (fn === "student_team_answer") {
+      state.mine[0].members.push({ name: "Omar K.", owner: false, me: false });
+      state.mine[0].requests = [];
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/projects");
+  await page.getByTestId("teams-entry").click();
+  await expect(page.getByTestId("teams")).toContainText("روبوتات · 2 تحدي");
+  // The request shows verified skills apart from what the student says.
+  const req = page.getByTestId("team-request-r1");
+  await expect(req).toContainText("✓ إلكترونيات · 3");
+  await expect(req).toContainText("تصميم 3D (بيقول)");
+  await expect(page.getByTestId("team-contact")).toHaveText("https://chat.whatsapp.com/xyz");
+  // The matching team is first and says so.
+  const first = page.locator('[data-testid^="open-team-"]').first();
+  await expect(first).toHaveAttribute("data-testid", "open-team-o1");
+  await expect(first).toContainText("بيدوّروا على حاجة إنت متحقق فيها");
+  await first.getByRole("button", { name: "اطلب تنضم" }).click();
+  await page.getByTestId("team-ask").getByRole("textbox").fill("I passed all the robot laps");
+  await page.getByTestId("team-ask").getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByTestId("open-team-o1")).toContainText("طلبك مستني رد");
+  expect(calls.find((c) => c.fn === "student_team_request")?.body).toMatchObject({ p_team: "o1", p_message: "I passed all the robot laps", p_skills: ["robotics"] });
+  await req.getByRole("button", { name: "اقبل" }).click();
+  await expect(page.getByTestId("my-team-m1")).toContainText("Omar K.");
+  expect(calls.find((c) => c.fn === "student_team_answer")?.body).toMatchObject({ p_request: "r1", p_accept: true });
+  expect(errors).toEqual([]);
+});
+
+/** A 20 × 10 × 5 mm box as a binary STL (12 triangles). */
+function boxStl() {
+  const V = [[0, 0, 0], [20, 0, 0], [20, 10, 0], [0, 10, 0], [0, 0, 5], [20, 0, 5], [20, 10, 5], [0, 10, 5]];
+  const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  const buf = Buffer.alloc(84 + F.length * 50);
+  buf.writeUInt32LE(F.length, 80);
+  F.forEach((f, i) => f.forEach((vi, k) => V[vi].forEach((c, j) => buf.writeFloatLE(c, 84 + i * 50 + 12 + k * 12 + j * 4))));
+  return buf;
+}
+
+test("print hub: the student sees the size and a rough estimate (not a price), sends the file, then accepts the slicer price", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })),
+  );
+  const info = { open: true, note: "", price_per_hour: 10, min_fee: 20, priced: true, materials: [{ key: "pla", name: "PLA", colors: ["أسود", "أبيض"], density: 1.24, price_per_gram: 1.5 }] };
+  const jobs: Record<string, unknown>[] = [];
+  const calls: { fn: string; body: Record<string, unknown> }[] = [];
+  let uploaded = false;
+  await page.route(/supabase\.co/, async (route) => {
+    const url = new URL(route.request().url());
+    const fn = url.pathname.split("/rpc/")[1];
+    if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
+    if (url.pathname.endsWith("/functions/v1/student-upload"))
+      return route.fulfill({ json: { ok: true, path: "prints/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002.stl", token: "t" } });
+    if (url.pathname.includes("/storage/v1/object/upload/sign/")) {
+      uploaded = true;
+      return route.fulfill({ json: { Key: "submissions/prints/x.stl" } });
+    }
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "print_hub_info") return route.fulfill({ json: info });
+    if (fn === "student_print_jobs") return route.fulfill({ json: jobs });
+    if (fn === "student_print_submit") {
+      jobs.unshift({ id: "j1", code: "BXP-1A2B3C", file_name: "box.stl", material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 1, est_volume: 1, status: "quoted", slicer: "OrcaSlicer", grams: 4.2, minutes: 18, price: 20, quote_note: null, reason: null, paid: false, created_at: new Date().toISOString() });
+      return route.fulfill({ json: { ok: true, code: "BXP-1A2B3C" } });
+    }
+    if (fn === "student_print_answer") {
+      jobs[0].status = "accepted";
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByTestId("print-entry").click();
+  await page.getByTestId("print-file").setInputFiles({ name: "box.stl", mimeType: "model/stl", buffer: boxStl() });
+  await expect(page.getByTestId("print-size")).toHaveText("20.0 × 10.0 × 5.0 mm · 1.00 cm³");
+  await expect(page.getByTestId("print-estimate")).toContainText("تقدير مبدئي — مش السعر");
+  await page.getByRole("button", { name: "ابعت للطباعة" }).click();
+  await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("20 ج");
+  expect(uploaded).toBe(true);
+  expect(calls.find((c) => c.fn === "student_print_submit")?.body).toMatchObject({ p_name: "box.stl", p_volume: 1, p_bbox: [20, 10, 5], p_material: "pla", p_infill: 20 });
+  await page.getByRole("button", { name: "موافق على السعر" }).click();
+  await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("وافقت — في الطابور");
+  expect(errors).toEqual([]);
+});
+
+test("print hub (team): the price comes from what the slicer reported and the rates", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_print_jobs = {
+    settings: { open: true, note: "", price_per_hour: 10, min_fee: 20, materials: [{ key: "pla", name: "PLA", colors: ["أسود"], density: 1.24, price_per_gram: 1.5 }] },
+    jobs: [{ id: "j1", code: "BXP-1A2B3C", file_name: "bracket.stl", file_path: "prints/a/b.stl", file_size: 1000, material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 2, est_volume: 12.5, bbox: [40, 30, 20], notes: "", status: "submitted", slicer: null, slicer_grams: null, slicer_minutes: null, price: null, quote_note: null, reason: null, paid: false, created_at: at(30), student: "Mona Adel", student_code: "S1", group: "G1" }],
+  };
+  RPC.staff_print_quote = { ok: true, price: 74 };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/print");
+  const job = page.getByTestId("staff-print-BXP-1A2B3C");
+  await expect(job).toContainText("40 × 30 × 20 mm");
+  await job.getByRole("button", { name: "سعّر من الـSlicer" }).click();
+  const sheet = page.getByTestId("print-quote");
+  await sheet.getByRole("spinbutton").nth(0).fill("38.4");
+  await sheet.getByRole("spinbutton").nth(1).fill("95");
+  await expect(page.getByTestId("print-quote-preview")).toHaveText("السعر: 74 ج");
+  await sheet.getByRole("button", { name: "ابعت السعر للطالب" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_print_quote")?.body).toMatchObject({ p_job: "j1", p_slicer: "OrcaSlicer", p_grams: 38.4, p_minutes: 95 });
+  delete RPC.staff_print_jobs;
+  delete RPC.staff_print_quote;
+});
+
+test("partners: the team copies a partner's private link and issues a verified report for a finished month", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_partners = { partners: [{ id: "p1", name: "Acme Robotics", contact: "Mr. A", token: "c".repeat(48), active: true, reports: 0 }], reports: [] };
+  RPC.staff_impact_issue = { ok: true, code: "BXR-1A2B3C4D5E" };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/sponsor-report");
+  await expect(page.getByTestId("partner-Acme Robotics")).toBeVisible();
+  await page.getByTestId("partners-panel").locator('input[type="month"]').fill("2026-09");
+  await page.getByTestId("partners-panel").locator("select").selectOption("p1");
+  await page.getByRole("button", { name: "أصدر التقرير" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_impact_issue")?.body).toEqual({ p_partner: "p1", p_from: "2026-09-01", p_to: "2026-09-30" });
+  delete RPC.staff_partners;
+  delete RPC.staff_impact_issue;
+});
