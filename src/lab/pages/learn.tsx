@@ -6,10 +6,12 @@
  */
 import { useEffect, useState } from "react";
 import { APP_PATH, fileUrl } from "@/portal/core";
-import { academy, meStore, type Course, type CourseCard, type Lesson } from "../api";
+import { academy, meStore, type Board, type Course, type CourseCard, type Lesson } from "../api";
 import { createAndOpen } from "../circuit/editor";
 import { CircuitThumb } from "../circuit/render";
 import { CHALLENGES, challengeBySlug, starterDoc } from "../academy/challenges";
+import { CHALLENGE_POINTS } from "../academy/points";
+import { TRACKS } from "../robot/tracks";
 import { fmtNum, useLang } from "../i18n";
 import { BASE, href, navigate } from "../router";
 import { Badge, Button, Card, Empty, Icon, Spinner, cn, toast, type IconName } from "../ui";
@@ -280,8 +282,107 @@ export function ChallengesPage() {
           })}
         </p>
       </header>
+      <Leaderboard />
       <ChallengeGrid />
+      <RobotChallenges />
     </div>
+  );
+}
+
+/** Points from passed challenges, the learner's rank, and the top of their group and of everyone. */
+function Leaderboard() {
+  const { l } = useLang();
+  const me = meStore.use();
+  const [board, setBoard] = useState<Board | null>(null);
+  useEffect(() => {
+    let live = true;
+    void academy.board().then((b) => live && setBoard(b));
+    return () => {
+      live = false;
+    };
+  }, [me]);
+  if (me?.kind !== "student")
+    return (
+      <p className="text-sm text-fog">
+        {l({ en: "Each challenge is worth points (10, 20 or 30 by level). Sign in with your student code to collect them and join the leaderboard.", ar: "كل تحدي ليه نقط (10 أو 20 أو 30 حسب المستوى). سجّل دخول بكود الطالب عشان تجمعها وتدخل لوحة الترتيب." })}
+      </p>
+    );
+  if (!board) return <Spinner />;
+  const list = (title: string, rows: Board["top"], id: string) => (
+    <Card className="grid content-start gap-2" data-testid={id}>
+      <p className="text-sm font-semibold">{title}</p>
+      {rows.length ? (
+        <ol className="grid gap-1 text-sm">
+          {rows.map((r, i) => (
+            <li key={i} className={cn("flex items-center justify-between gap-2 rounded-md px-2 py-1", r.me && "bg-volt/15 ring-1 ring-volt/40")}>
+              <span>
+                <span className="inline-block w-6 text-fog">{fmtNum(i + 1)}</span>
+                {r.name}
+              </span>
+              <span className="text-mist">
+                {fmtNum(r.points)} {l({ en: "pts", ar: "نقطة" })}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-sm text-fog">{l({ en: "No one yet — be the first.", ar: "لسه محدش — خليك الأول." })}</p>
+      )}
+    </Card>
+  );
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <Card className="grid content-start gap-1" data-testid="my-points">
+        <p className="text-sm text-fog">{l({ en: "Your challenge points", ar: "نقطك في التحديات" })}</p>
+        <p className="font-display text-3xl font-bold">{fmtNum(board.me?.points ?? 0)}</p>
+        <p className="text-sm text-mist">
+          {board.me
+            ? l({
+                en: `${board.me.passed} passed · #${board.me.group_rank} in your group · #${board.me.rank} overall`,
+                ar: `${board.me.passed} تحدي · رقم ${board.me.group_rank} في مجموعتك · رقم ${board.me.rank} على الكل`,
+              })
+            : l({ en: "Pass a challenge to get on the board.", ar: "عدّي تحدي عشان تظهر في الترتيب." })}
+        </p>
+      </Card>
+      {board.group && list(l({ en: `Top of ${board.group}`, ar: `الأوائل في ${board.group}` }), board.group_top, "board-group")}
+      {list(l({ en: "Top of the Lab", ar: "الأوائل في اللاب" }), board.top, "board-top")}
+    </div>
+  );
+}
+
+/** The robot's lap challenges (one per track), run in the Robot Arena. */
+function RobotChallenges() {
+  const { l } = useLang();
+  const me = meStore.use();
+  const [passed, setPassed] = useState<Record<string, string>>({});
+  useEffect(() => {
+    void academy.passed().then(setPassed);
+  }, [me]);
+  return (
+    <section className="grid gap-3">
+      <h2 className="font-display text-lg font-bold">{l({ en: "Robot laps", ar: "لفّات الروبوت" })}</h2>
+      <div className="grid gap-4 sm:grid-cols-3">
+        {TRACKS.map((t) => (
+          <Card key={t.id} className="grid gap-2" data-testid={`challenge-robot-${t.id}`}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold">{l(t.name)}</p>
+              <span className="flex items-center gap-1.5">
+                {passed[`robot-${t.id}`] && <Badge tone="ok">{l({ en: "Passed", ar: "عدّيت" })}</Badge>}
+                <Badge tone="volt">+{fmtNum(CHALLENGE_POINTS[`robot-${t.id}`] ?? 0)}</Badge>
+              </span>
+            </div>
+            <p className="text-sm text-fog">
+              {l({ en: "Program the line follower to finish one lap, never more than half a second off the line, within 60 s.", ar: "برمج الروبوت يكمّل لفة كاملة، من غير ما يخرج من الخط أكتر من نص ثانية، في أقل من 60 ثانية." })}
+            </p>
+            <div>
+              <Button size="sm" icon="play" onClick={() => navigate("robot", { query: { track: t.id } })}>
+                {l({ en: "Open the arena", ar: "افتح الحلبة" })}
+              </Button>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -303,6 +404,7 @@ function ChallengeGrid({ limit }: { limit?: number }) {
               <span className="flex items-center gap-1.5">
                 {passed[c.slug] && <Badge tone="ok">{l({ en: "Passed", ar: "عدّيت" })}</Badge>}
                 <Badge tone={c.level === 1 ? "ok" : c.level === 2 ? "volt" : "warn"}>{LEVEL(c.level)}</Badge>
+                <Badge tone="volt">+{fmtNum(CHALLENGE_POINTS[c.slug] ?? 0)}</Badge>
               </span>
             </div>
             <p className="text-sm text-fog">{l(c.goal)}</p>

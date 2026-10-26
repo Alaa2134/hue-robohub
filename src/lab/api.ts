@@ -304,7 +304,12 @@ export const academy = {
   passed: async (): Promise<Record<string, string>> => (meStore.get()?.kind === "student" ? rpc<Record<string, string>>("lab_challenge_passes_mine").catch(() => ({})) : {}),
   pass: (slug: string, project: string | null, checks: { label: { en: string; ar: string }; ok: boolean; got?: string }[], seconds: number) =>
     rpc<{ ok: boolean }>("lab_challenge_pass", { p_slug: slug, p_project: project && !isLocal(project) ? project : null, p_checks: checks, p_seconds: seconds }),
+  /** Challenge points and the leaderboards (students only). */
+  board: async (): Promise<Board | null> => (meStore.get()?.kind === "student" ? rpc<Board>("lab_challenge_board").catch(() => null) : null),
 };
+
+export type BoardRow = { name: string; points: number; passed: number; me: boolean };
+export type Board = { me: { points: number; passed: number; rank: number; group_rank: number } | null; group: string | null; group_top: BoardRow[]; top: BoardRow[] };
 
 /* ─── Classrooms (Lab tasks from the team) ─────────────────────────────── */
 

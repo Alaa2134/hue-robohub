@@ -296,6 +296,34 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("robot-result")).toContainText("Finished a full lap");
   });
 
+  test("challenge leaderboard: a student's points, rank and the group's top", async ({ page }) => {
+    await mockSupabase(page, {
+      lab_me: () => ({ kind: "student", id: "s1", name: "Mona Adel", instructor: false, admin: false }),
+      lab_challenge_passes_mine: () => ({ "blink-2hz": "2026-10-26T10:00:00Z", "robot-oval": "2026-10-26T11:00:00Z" }),
+      lab_challenge_board: () => ({
+        me: { points: 30, passed: 2, rank: 3, group_rank: 2 },
+        group: "A",
+        group_top: [
+          { name: "Omar K.", points: 50, passed: 3, me: false },
+          { name: "Mona A.", points: 30, passed: 2, me: true },
+        ],
+        top: [{ name: "Sara M.", points: 90, passed: 5, me: false }],
+      }),
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem("bx-lab-lang", "en");
+      localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "2024001", group: "A" }));
+    });
+    await page.goto("/lab/challenges/");
+    await expect(page.getByTestId("my-points")).toContainText("30");
+    await expect(page.getByTestId("my-points")).toContainText("#2 in your group");
+    await expect(page.getByTestId("board-group")).toContainText("Omar K.");
+    await expect(page.getByTestId("board-top")).toContainText("Sara M.");
+    await expect(page.getByTestId("challenge-robot-oval")).toContainText("Passed");
+    await page.getByTestId("challenge-robot-wavy").getByRole("button", { name: "Open the arena" }).click();
+    await expect(page.getByTestId("robot-track")).toHaveValue("wavy");
+  });
+
   test("academy with no courses says so and points to the challenges", async ({ page }) => {
     await mockSupabase(page, { academy_catalog: () => [] });
     await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));

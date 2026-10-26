@@ -5,12 +5,14 @@
  * is its own physical model. The lap test runs one lap as fast as the device can and saves a pass.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CHALLENGE_POINTS } from "../academy/points";
 import { academy, meStore } from "../api";
 import { CodeEditor } from "../code/editor";
 import { compile, onCompilerEvent } from "../compiler/client";
 import { explainCompile } from "../compiler/explain";
 import type { Diagnostic } from "../compiler/sketch";
 import { fmtNum, useLang } from "../i18n";
+import { useRoute } from "../router";
 import { DEFAULT_ROBOT, type RobotParams, type Track } from "../robot/physics";
 import { OFF_TRACK } from "../robot/sim";
 import { PINS, STARTER, TRACKS, trackById } from "../robot/tracks";
@@ -140,7 +142,8 @@ export function RobotPage() {
   const { l, lang } = useLang();
   const me = meStore.use();
   const [code, setCode] = useState(readCode);
-  const [trackId, setTrackId] = useState(TRACKS[0].id);
+  const { query } = useRoute();
+  const [trackId, setTrackId] = useState(() => trackById(query.get("track") ?? "").id);
   const [battery, setBattery] = useState(DEFAULT_ROBOT.vBattery);
   const [speed, setSpeed] = useState(1);
   const [diags, setDiags] = useState<Diagnostic[]>([]);
@@ -330,7 +333,7 @@ export function RobotPage() {
               <Select value={trackId} onChange={(e) => (reset(), setResult(null), setTrackId(e.target.value))} data-testid="robot-track">
                 {TRACKS.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {l(t.name)}
+                    {l(t.name)} (+{CHALLENGE_POINTS[`robot-${t.id}`] ?? 0})
                     {passed[`robot-${t.id}`] ? " ✓" : ""}
                   </option>
                 ))}

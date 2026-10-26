@@ -59,6 +59,21 @@ create table if not exists public.lab_challenge_passes (
   primary key (student_id, slug)
 );
 
+/**
+ * The challenges the Lab offers and what each is worth. The Lab's code lists the same slugs and
+ * points (src/lab/academy/points.ts; a unit test keeps them in step). Only these can be passed.
+ */
+create table if not exists public.lab_challenges (
+  slug text primary key check (slug ~ '^[a-z0-9][a-z0-9-]{1,40}$'),
+  points int not null check (points between 1 and 100)
+);
+insert into public.lab_challenges (slug, points) values
+  ('blink-2hz', 10), ('button-hold', 10), ('serial-echo', 10), ('traffic-cycle', 20), ('dimmer-knob', 20), ('night-light', 20),
+  ('servo-sweep', 20), ('buzzer-a4', 20), ('seg7-seven', 30), ('robot-oval', 20), ('robot-rounded', 30), ('robot-wavy', 30)
+on conflict (slug) do update set points = excluded.points;
+alter table public.lab_challenges enable row level security;
+revoke all on public.lab_challenges from anon, authenticated;
+
 /** The course a completion certificate was issued for. */
 alter table public.certificates add column if not exists academy_course_id uuid references public.academy_courses(id) on delete set null;
 create index if not exists certificates_academy on public.certificates (academy_course_id, student_id) where academy_course_id is not null;
@@ -213,6 +228,9 @@ begin
      or exists (select 1 from jsonb_array_elements(p_checks) e where (e->>'ok')::boolean is not true) then
     return jsonb_build_object('ok', false, 'error', 'not_passed');
   end if;
+  if not exists (select 1 from public.lab_challenges c where c.slug = p_slug) then
+    return jsonb_build_object('ok', false, 'error', 'unknown_challenge');
+  end if;
   if p_project is not null and not exists (select 1 from public.lab_projects p where p.id = p_project and p.owner_kind = 'student' and p.owner_id = v_id) then
     p_project := null;
   end if;
@@ -228,6 +246,43 @@ create or replace function public.lab_challenge_passes_mine(p_token text)
 returns jsonb language sql stable security definer set search_path = '' as $$
   select coalesce(jsonb_object_agg(slug, passed_at), '{}') from public.lab_challenge_passes where student_id = private.session_student(p_token)
 $$;
+
+/**
+ * Challenge points: the signed-in student's total and rank, and the top 10 of their group and of
+ * everyone (first name and an initial only). Ties go to whoever got there first.
+ */
+create or replace function public.lab_challenge_board(p_token text)
+returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare
+  v_id uuid := private.session_student(p_token);
+  v_group text;
+begin
+  select s.group_name into v_group from public.students s where s.id = v_id;
+  return (
+    with t as (
+      select s.id, s.group_name,
+             split_part(btrim(s.full_name), ' ', 1) || coalesce(' ' || left(nullif(split_part(btrim(s.full_name), ' ', 2), ''), 1) || '.', '') as name,
+             sum(c.points)::int as points, count(*)::int as passed, max(p.passed_at) as last_at
+        from public.lab_challenge_passes p
+        join public.lab_challenges c on c.slug = p.slug
+        join public.students s on s.id = p.student_id and s.active
+       group by s.id
+    ), me as (select * from t where t.id = v_id)
+    select jsonb_build_object(
+      'me', (select jsonb_build_object('points', me.points, 'passed', me.passed,
+                                       'rank', (select count(*) + 1 from t where t.points > me.points or (t.points = me.points and t.last_at < me.last_at)),
+                                       'group_rank', (select count(*) + 1 from t where t.group_name is not distinct from me.group_name
+                                                        and (t.points > me.points or (t.points = me.points and t.last_at < me.last_at))))
+               from me),
+      'group', v_group,
+      'group_top', coalesce((select jsonb_agg(jsonb_build_object('name', x.name, 'points', x.points, 'passed', x.passed, 'me', x.id = v_id) order by x.points desc, x.last_at)
+                               from (select * from t where v_group is not null and t.group_name = v_group order by t.points desc, t.last_at limit 10) x), '[]'),
+      'top', coalesce((select jsonb_agg(jsonb_build_object('name', x.name, 'points', x.points, 'passed', x.passed, 'me', x.id = v_id) order by x.points desc, x.last_at)
+                         from (select * from t order by t.points desc, t.last_at limit 10) x), '[]'),
+      'points', (select jsonb_object_agg(c.slug, c.points) from public.lab_challenges c)
+    )
+  );
+end $$;
 
 /* ─── Team ─────────────────────────────────────────────────────────────── */
 
@@ -361,9 +416,9 @@ end $$;
 
 revoke all on function private.academy_done(uuid, public.academy_lessons), private.academy_course_progress(uuid) from public, anon, authenticated;
 revoke all on function public.academy_catalog(text), public.academy_course(text, text), public.academy_read(text, uuid),
-  public.lab_challenge_pass(text, text, uuid, jsonb, numeric), public.lab_challenge_passes_mine(text) from public;
+  public.lab_challenge_pass(text, text, uuid, jsonb, numeric), public.lab_challenge_passes_mine(text), public.lab_challenge_board(text) from public;
 grant execute on function public.academy_catalog(text), public.academy_course(text, text), public.academy_read(text, uuid),
-  public.lab_challenge_pass(text, text, uuid, jsonb, numeric), public.lab_challenge_passes_mine(text) to anon, authenticated;
+  public.lab_challenge_pass(text, text, uuid, jsonb, numeric), public.lab_challenge_passes_mine(text), public.lab_challenge_board(text) to anon, authenticated;
 revoke all on function public.staff_academy_courses(), public.staff_academy_save(jsonb), public.staff_academy_sources(text),
   public.staff_academy_progress(uuid), public.staff_academy_issue(uuid, uuid[], text) from public, anon;
 grant execute on function public.staff_academy_courses(), public.staff_academy_save(jsonb), public.staff_academy_sources(text),
