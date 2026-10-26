@@ -183,6 +183,27 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   });
 });
 
+test("a form opened from a link doesn't push the page around while it loads (status box and footer stay put)", async ({ page }) => {
+  await mockSupabase(page, { rpc: { public_forms: () => [] } });
+  // Slow, like a phone on mobile data: the form arrives well after the page is drawn.
+  await page.route(/\/rest\/v1\/rpc\/public_form$/, async (route) => {
+    await new Promise((r) => setTimeout(r, 1200));
+    await route.fulfill({ json: TRYOUT });
+  });
+  await page.addInitScript(() => {
+    const w = window as unknown as { __cls: number };
+    w.__cls = 0;
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) if (!e.hadRecentInput) w.__cls += e.value;
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await page.goto("/ar/form/?f=sumo-tryouts");
+  await expect(page.getByTestId("form-loading")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "اختبارات فريق السومو" })).toBeVisible();
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBeLessThan(0.1);
+});
+
 test("coming with a friend: type their number in Arabic digits or their code, see their name, confirm it, and it goes with the answers", async ({ page }) => {
   const form = {
     ...TRYOUT,
