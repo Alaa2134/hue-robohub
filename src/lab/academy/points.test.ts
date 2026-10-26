@@ -18,8 +18,9 @@ describe("challenge points", () => {
 
   it("matches the database's list", () => {
     const sql = readFileSync(new URL("../../../supabase/migrations/20261026200000_academy.sql", import.meta.url), "utf8");
-    const seed = sql.match(/insert into public\.lab_challenges \(slug, points\) values([\s\S]*?)on conflict/)![1];
-    const db = Object.fromEntries([...seed.matchAll(/\('([a-z0-9-]+)', (\d+)\)/g)].map((m) => [m[1], Number(m[2])]));
-    expect(db).toEqual(CHALLENGE_POINTS);
+    const seed = sql.match(/insert into public\.lab_challenges \(slug, points, skill\) values([\s\S]*?)on conflict/)![1];
+    const rows = [...seed.matchAll(/\('([a-z0-9-]+)', (\d+), '([a-z]+)'\)/g)];
+    expect(Object.fromEntries(rows.map((m) => [m[1], Number(m[2])]))).toEqual(CHALLENGE_POINTS);
+    expect(Object.fromEntries(rows.map((m) => [m[1], m[3]]))).toEqual(Object.fromEntries(Object.entries(CHALLENGE_INFO).map(([k, v]) => [k, v.skill])));
   });
 });

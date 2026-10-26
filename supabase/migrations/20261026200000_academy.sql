@@ -65,12 +65,14 @@ create table if not exists public.lab_challenge_passes (
  */
 create table if not exists public.lab_challenges (
   slug text primary key check (slug ~ '^[a-z0-9][a-z0-9-]{1,40}$'),
-  points int not null check (points between 1 and 100)
+  points int not null check (points between 1 and 100),
+  skill text not null check (skill in ('programming', 'electronics', 'robotics'))
 );
-insert into public.lab_challenges (slug, points) values
-  ('blink-2hz', 10), ('button-hold', 10), ('serial-echo', 10), ('traffic-cycle', 20), ('dimmer-knob', 20), ('night-light', 20),
-  ('servo-sweep', 20), ('buzzer-a4', 20), ('seg7-seven', 30), ('robot-oval', 20), ('robot-rounded', 30), ('robot-wavy', 30)
-on conflict (slug) do update set points = excluded.points;
+insert into public.lab_challenges (slug, points, skill) values
+  ('blink-2hz', 10, 'programming'), ('button-hold', 10, 'electronics'), ('serial-echo', 10, 'programming'), ('traffic-cycle', 20, 'programming'),
+  ('dimmer-knob', 20, 'electronics'), ('night-light', 20, 'electronics'), ('servo-sweep', 20, 'robotics'), ('buzzer-a4', 20, 'programming'),
+  ('seg7-seven', 30, 'electronics'), ('robot-oval', 20, 'robotics'), ('robot-rounded', 30, 'robotics'), ('robot-wavy', 30, 'robotics')
+on conflict (slug) do update set points = excluded.points, skill = excluded.skill;
 alter table public.lab_challenges enable row level security;
 revoke all on public.lab_challenges from anon, authenticated;
 

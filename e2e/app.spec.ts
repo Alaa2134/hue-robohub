@@ -7754,3 +7754,69 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
   await expect(page.getByTestId("passport-state")).toContainText("مش متاح");
   expect(errors).toEqual([]);
 });
+
+test("team matching: open teams that need the student's verified Lab skills come first, they ask to join, and the owner accepts", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const calls: { fn: string; body: Record<string, unknown> }[] = [];
+  const state = {
+    skills: { robotics: 2 },
+    mine: [
+      {
+        id: "m1", title: "Smart greenhouse", idea: "Sensors + pump", needs: ["electronics"], size_max: 3, status: "open", closed_reason: null, owner: true,
+        contact: "https://chat.whatsapp.com/xyz", members: [{ name: "Mona A.", owner: true, me: true }],
+        requests: [{ id: "r1", name: "Omar K.", message: "I can wire it", skills: ["electronics", "cad"], verified: { electronics: 3 }, passport: "0123456789abcdef", at: "2026-10-26T10:00:00Z" }],
+      },
+    ],
+    open: [
+      { id: "o1", title: "Robotex line follower", idea: "PID", needs: ["robotics", "cad"], size_max: 4, owner: "Sara M.", group: "G2", members: 2, match: ["robotics"], request: null as string | null },
+      { id: "o2", title: "Chat bot", idea: "", needs: ["ai"], size_max: 3, owner: "Ali H.", group: null, members: 1, match: [], request: null as string | null },
+    ],
+  };
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_projects_mine") return route.fulfill({ json: [] });
+    if (fn === "public_forms") return route.fulfill({ json: [] });
+    if (fn === "student_teams") return route.fulfill({ json: state });
+    if (fn === "student_team_request") {
+      state.open[0].request = "pending";
+      return route.fulfill({ json: { ok: true } });
+    }
+    if (fn === "student_team_answer") {
+      state.mine[0].members.push({ name: "Omar K.", owner: false, me: false });
+      state.mine[0].requests = [];
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/projects");
+  await page.getByTestId("teams-entry").click();
+  await expect(page.getByTestId("teams")).toContainText("روبوتات · 2 تحدي");
+  // The request shows verified skills apart from what the student says.
+  const req = page.getByTestId("team-request-r1");
+  await expect(req).toContainText("✓ إلكترونيات · 3");
+  await expect(req).toContainText("تصميم 3D (بيقول)");
+  await expect(page.getByTestId("team-contact")).toHaveText("https://chat.whatsapp.com/xyz");
+  // The matching team is first and says so.
+  const first = page.locator('[data-testid^="open-team-"]').first();
+  await expect(first).toHaveAttribute("data-testid", "open-team-o1");
+  await expect(first).toContainText("بيدوّروا على حاجة إنت متحقق فيها");
+  await first.getByRole("button", { name: "اطلب تنضم" }).click();
+  await page.getByTestId("team-ask").getByRole("textbox").fill("I passed all the robot laps");
+  await page.getByTestId("team-ask").getByRole("button", { name: "ابعت الطلب" }).click();
+  await expect(page.getByTestId("open-team-o1")).toContainText("طلبك مستني رد");
+  expect(calls.find((c) => c.fn === "student_team_request")?.body).toMatchObject({ p_team: "o1", p_message: "I passed all the robot laps", p_skills: ["robotics"] });
+  await req.getByRole("button", { name: "اقبل" }).click();
+  await expect(page.getByTestId("my-team-m1")).toContainText("Omar K.");
+  expect(calls.find((c) => c.fn === "student_team_answer")?.body).toMatchObject({ p_request: "r1", p_accept: true });
+  expect(errors).toEqual([]);
+});

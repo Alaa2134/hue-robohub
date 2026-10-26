@@ -40,6 +40,7 @@ import { DeletionsScreen, pendingDeletions } from "./account-deletion";
 import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
 import { AtRiskScreen, atRiskCount } from "./at-risk";
+import { StaffTeams } from "./teams";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -107,6 +108,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   reports: "attendance",
   students: "roster",
   "at-risk": "roster",
+  "student-teams": "roster",
   access: "roster",
   content: "materials",
   quizzes: "quizzes",
@@ -333,6 +335,9 @@ export function StaffApp({
       break;
     case "at-risk":
       screen = <AtRiskScreen me={me} />;
+      break;
+    case "student-teams":
+      screen = <StaffTeams />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -881,6 +886,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "award", label: "الشهادات (إصدار وطباعة وتحقق بالـ QR)", to: "/staff/certificates" },
     { icon: "chart", label: "تقارير الحضور", to: "/staff/reports" },
     { icon: "users", label: "طلاب محتاجين متابعة (غياب أو اختفاء)", to: "/staff/at-risk" },
+    { icon: "users", label: "فرق مشاريع الطلبة (التطبيق)", to: "/staff/student-teams" },
     { icon: "chart", label: "زيارات الموقع (مين بيزور وبيشوف إيه)", to: "/staff/stats" },
     { icon: "shield", label: "الأمان والهجمات", to: "/staff/security" },
     { icon: "alert", label: "أخطاء الموقع", to: "/staff/errors" },
