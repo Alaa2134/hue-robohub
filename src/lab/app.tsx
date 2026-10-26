@@ -13,6 +13,7 @@ import { ComponentsPage } from "./pages/components";
 import { SettingsPage, ProfilePage } from "./pages/settings";
 import { Coming } from "./pages/coming";
 import { Academy, ChallengesPage, CoursePage } from "./pages/learn";
+import { ClassroomsPage } from "./pages/classrooms";
 
 /** The 3D Studio (three.js + the geometry kernel) loads only when a design is opened. */
 const CadStudio = lazy(() => import("./cad/studio"));
@@ -158,8 +159,10 @@ function Routes() {
     case "challenges":
       page = <ChallengesPage />;
       break;
-    case "codeblocks":
     case "classrooms":
+      page = <ClassroomsPage />;
+      break;
+    case "codeblocks":
     case "admin":
       page = <Coming area={a} />;
       break;

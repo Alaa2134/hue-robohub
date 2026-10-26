@@ -9,7 +9,6 @@ import { Button, Card, Icon, type IconName } from "../ui";
 
 const AREAS: Record<string, { icon: IconName; title: { en: string; ar: string }; plan: { en: string; ar: string } }> = {
   codeblocks: { icon: "blocks", title: { en: "Block Code", ar: "البرمجة بالبلوكات" }, plan: { en: "Blocks that generate Arduino C++ and run in the same simulator as your circuits.", ar: "بلوكات بتطلع كود أردوينو C++ وبتشتغل في نفس محاكي الدواير." } },
-  classrooms: { icon: "users", title: { en: "Classrooms", ar: "الفصول" }, plan: { en: "Instructors create classes and assignments; students submit Lab projects for review.", ar: "المدربين يعملوا فصول وتاسكات، والطلاب يسلّموا مشاريع اللاب للمراجعة." } },
   admin: { icon: "shield", title: { en: "Admin", ar: "الإدارة" }, plan: { en: "Moderation of public projects and Lab usage analytics from real activity.", ar: "مراجعة المشاريع العامة وإحصائيات استخدام اللاب من النشاط الحقيقي." } },
   missing: { icon: "alert", title: { en: "Not found", ar: "مش موجودة" }, plan: { en: "This page doesn't exist.", ar: "الصفحة دي مش موجودة." } },
 };

@@ -5,6 +5,7 @@ import { useLang } from "../i18n";
 import { Badge, Button, Icon, IconButton, Input, Select, cn } from "../ui";
 import type { Diagnostic } from "../compiler/sketch";
 import { diagHelp, diagText, partLabels, type SimDiagnostic } from "../sim/diagnostics";
+import { explainCompile } from "../compiler/explain";
 import type { Frame } from "../sim/engine";
 import type { SerialLine } from "../sim/use-sim";
 import { DocStore, useDoc } from "./doc-store";
@@ -533,7 +534,18 @@ export function Diagnostics({
   const labels = useMemo(() => partLabels(doc, l), [doc, l]);
   const order = { error: 0, warning: 1, info: 2 };
   const items: { level: "error" | "warning" | "info"; text: string; where: string; why?: string; fix?: string; goto?: () => void }[] = [
-    ...compile.filter((d) => d.severity !== "note").map((d) => ({ level: d.severity === "error" ? ("error" as const) : ("warning" as const), text: d.message, where: d.file ? `${d.file}${d.line ? `:${d.line}:${d.col}` : ""}` : "", goto: d.line ? () => onGoto(d.file, d.line) : undefined })),
+    ...compile
+      .filter((d) => d.severity !== "note")
+      .map((d) => {
+        const ex = explainCompile(d.message);
+        return {
+          level: d.severity === "error" ? ("error" as const) : ("warning" as const),
+          text: d.message,
+          where: d.file ? `${d.file}${d.line ? `:${d.line}:${d.col}` : ""}` : "",
+          ...(ex ? { why: l(ex.why), fix: l(ex.fix) } : {}),
+          goto: d.line ? () => onGoto(d.file, d.line) : undefined,
+        };
+      }),
     ...sim
       .map((d) => {
         const target = d.wire && doc.wires.some((w) => w.id === d.wire) ? { wire: d.wire } : d.part && doc.parts.some((p) => p.id === d.part) ? { part: d.part } : null;

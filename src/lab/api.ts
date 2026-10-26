@@ -305,3 +305,24 @@ export const academy = {
   pass: (slug: string, project: string | null, checks: { label: { en: string; ar: string }; ok: boolean; got?: string }[], seconds: number) =>
     rpc<{ ok: boolean }>("lab_challenge_pass", { p_slug: slug, p_project: project && !isLocal(project) ? project : null, p_checks: checks, p_seconds: seconds }),
 };
+
+/* ─── Classrooms (Lab tasks from the team) ─────────────────────────────── */
+
+export type LabCheck = { label: { en: string; ar: string }; ok: boolean; got?: string };
+export type LabTask = {
+  id: string;
+  title: string;
+  description: string;
+  due: string | null;
+  max_points: number;
+  allow_late: boolean;
+  challenge: string | null;
+  template: { title: string; kind: Kind; data: unknown } | null;
+  submission: { at: string; late: boolean; project: string | null; passed: boolean | null; checks: LabCheck[] | null; grade: number | null; feedback: string | null; graded_at: string | null } | null;
+};
+
+export const classroom = {
+  tasks: () => rpc<LabTask[]>("lab_assignments"),
+  submit: (assignment: string, project: string, checks: LabCheck[] | null, passed: boolean | null) =>
+    rpc<{ ok: boolean; late?: boolean; error?: string }>("lab_assignment_submit", { p_assignment: assignment, p_project: project, p_checks: checks, p_passed: passed }),
+};

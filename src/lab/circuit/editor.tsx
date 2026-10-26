@@ -26,6 +26,8 @@ import { Oscilloscope, PinMonitor } from "./instruments";
 import { PART_BY_TYPE } from "./parts";
 import { CircuitThumb } from "./render";
 import { ChallengeBar } from "../academy/challenge-bar";
+import { bom, bomCsv, guideHtml, wiring } from "./bom";
+import { AssignmentBar } from "../academy/assignment-bar";
 
 /** The 3D view (three.js) loads only when it's opened. */
 const Circuit3D = lazy(() => import("./view3d/scene"));
@@ -322,6 +324,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
     );
   const p = proj.project;
   const challenge = p.tags?.find((x) => x.startsWith("challenge:"))?.slice(10) ?? null;
+  const assignment = p.tags?.find((x) => x.startsWith("assignment:"))?.slice(11) ?? null;
 
   const statusText =
     proj.state === "saving" ? t("saving") : proj.state === "dirty" ? t("unsaved") : proj.state === "readonly" ? t("readOnly") : proj.state === "conflict" ? t("conflict") : proj.state === "error" ? t("error") : `${p.local ? t("savedLocal") : t("saved")}${proj.savedAt ? ` · ${proj.savedAt.toLocaleTimeString(lang === "ar" ? "ar-EG" : "en-GB", { hour: "2-digit", minute: "2-digit" })}` : ""}`;
@@ -627,6 +630,7 @@ export function CircuitEditor({ id, share, layout = "circuit" }: { id: string; s
         </div>
       )}
       {challenge && <ChallengeBar slug={challenge} project={id} getDoc={() => store.current} readOnly={readOnly} />}
+      {assignment && <AssignmentBar assignment={assignment} challenge={challenge} project={id} getDoc={() => store.current} save={proj.save} readOnly={readOnly} />}
       {readOnly && (
         <div className="flex items-center gap-2 bg-panel px-3 py-1.5 text-xs text-mist">
           <Icon name="lock" size={14} /> {t("readOnly")} · {p.owner ? `${t("by")} ${p.owner}` : ""}
@@ -830,7 +834,15 @@ function download(name: string, data: BlobPart, type: string) {
 const slug = (s: string) => s.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 60) || "project";
 
 function ExportPanel({ doc, project, hex, thumb, onDone }: { doc: CircuitDoc; project: Project; hex?: string; thumb: React.RefObject<HTMLDivElement | null>; onDone: () => void }) {
-  const { t } = useLang();
+  const { t, l, lang } = useLang();
+  const lines = bom(doc, l);
+  const svgText = () => {
+    const svg = thumb.current?.querySelector("svg");
+    if (!svg) return null;
+    const big = svg.cloneNode(true) as SVGSVGElement;
+    big.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    return new XMLSerializer().serializeToString(big);
+  };
   const name = slug(project.title);
   const done = (kind: string) => {
     labEvent("export", project.id, { format: kind });
@@ -862,6 +874,45 @@ function ExportPanel({ doc, project, hex, thumb, onDone }: { doc: CircuitDoc; pr
       >
         {t("exportPng")}
       </Button>
+      <div className="mt-3 grid gap-2 border-t border-[var(--line)] pt-3" data-testid="real-project">
+        <p className="font-semibold">{l({ en: "Build it for real", ar: "اعملها في الحقيقة" })}</p>
+        {lines.length ? (
+          <ul className="grid max-h-48 gap-1 overflow-y-auto text-sm" data-testid="bom">
+            {lines.map((x) => (
+              <li key={`${x.type}|${x.spec}`} className="flex gap-2">
+                <span className="w-8 shrink-0 font-mono text-cyan">{x.qty}×</span>
+                <span className="min-w-0 flex-1">{l(x.name)}</span>
+                {x.spec && (
+                  <span className="text-fog" dir="auto">
+                    {x.spec}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-fog">{l({ en: "Add parts to get a parts list.", ar: "ضيف قطع عشان تطلع قائمة المكونات." })}</p>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            icon="file"
+            disabled={!lines.length}
+            onClick={() => {
+              const code = doc.files.map((f) => (doc.files.length > 1 ? `// ── ${f.name} ──\n${f.text}` : f.text)).join("\n\n");
+              download(`${name}-guide.html`, guideHtml({ title: project.title, description: project.description, svg: svgText(), lines, steps: wiring(doc, l), code, lang, l }), "text/html");
+              done("guide");
+            }}
+          >
+            {l({ en: "Build guide", ar: "دليل التركيب" })}
+          </Button>
+          <Button icon="download" disabled={!lines.length} onClick={() => (download(`${name}-parts.csv`, "\ufeff" + bomCsv(lines, l), "text/csv"), done("bom"))}>
+            {l({ en: "Parts list (CSV)", ar: "قائمة المكونات (CSV)" })}
+          </Button>
+        </div>
+        <Button variant="ghost" icon="cube" onClick={() => (onDone(), navigate("3d/new"))}>
+          {l({ en: "Need a case or bracket? Design it in 3D Studio", ar: "محتاج علبة أو حامل؟ صمّمه في استوديو 3D" })}
+        </Button>
+      </div>
     </div>
   );
 }

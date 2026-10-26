@@ -287,6 +287,41 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("challenge-blink-2hz")).toBeVisible();
   });
 
+  test("classroom: a student starts a Lab task and submits it with the simulator's check", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(180_000);
+    const pid = "22222222-2222-4222-8222-222222222222";
+    let created: { p_data: unknown; p_meta: { tags: string[] } } | null = null;
+    const submits: Record<string, unknown>[] = [];
+    const task = { id: "33333333-3333-4333-8333-333333333333", title: "Blink twice a second", description: "Use the LED on pin 13.", due: null, max_points: 10, allow_late: true, challenge: "blink-2hz", template: null, submission: null };
+    await mockSupabase(page, {
+      lab_me: () => ({ kind: "student", id: "s1", name: "Mona Adel", instructor: false, admin: false }),
+      lab_assignments: () => [task],
+      lab_project_create: (b) => ((created = b as typeof created), { ok: true, id: pid }),
+      lab_project_get: () => ({
+        ok: true,
+        role: "owner",
+        project: { id: pid, kind: "circuit", title: task.title, description: "", tags: created!.p_meta.tags, category: null, visibility: "private", thumbnail: null, revision: 1, created_at: "2026-10-26T10:00:00Z", updated_at: "2026-10-26T10:00:00Z", deleted_at: null, mine: true, owner: "Mona", favorite: false, favorites: 0, data: created!.p_data, share_token: null },
+      }),
+      lab_project_save: () => ({ ok: true, revision: 2 }),
+      lab_assignment_submit: (b) => (submits.push(b), { ok: true, late: false }),
+      lab_event: () => null,
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem("bx-lab-lang", "en");
+      localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "2024001", group: "A" }));
+    });
+    await page.goto("/lab/classrooms/");
+    await page.getByTestId(`lab-task-${task.id}`).getByRole("button", { name: "Start" }).click();
+    await expect(page.getByTestId("assignment-bar")).toBeVisible({ timeout: 30_000 });
+    expect(created!.p_meta.tags).toEqual(["assignment", `assignment:${task.id}`, "challenge:blink-2hz"]);
+    await expect(page.getByTestId("challenge-bar")).toBeVisible();
+    await page.getByTestId("assignment-submit").click();
+    await expect.poll(() => submits.length, { timeout: 150_000 }).toBe(1);
+    expect(submits[0]).toMatchObject({ p_assignment: task.id, p_project: pid, p_passed: false, p_token: "a".repeat(64) });
+    expect(JSON.stringify(submits[0].p_checks)).toContain("Blinks 2 times a second");
+  });
+
   test("signed-in save goes to the account, and someone else's newer save is never overwritten", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     test.setTimeout(120_000);
