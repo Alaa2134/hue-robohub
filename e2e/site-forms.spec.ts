@@ -1565,3 +1565,38 @@ test("a verified impact report shows its numbers with how each is counted, and a
   await expect(page.getByTestId("partner-state")).toContainText("مش متاحة");
   expect(calls.filter((c) => c.fn === "verify_impact_report").length).toBe(1);
 });
+
+test("competition coach: the rules that match come with their numbers, and the AI answer cites only them", async ({ page }) => {
+  const sections = [
+    { ref: "1.2", heading: "Weight", body: "The maximum weight of the robot is 1.5 kg.", snippet: "The «maximum» «weight» of the robot is 1.5 kg." },
+    { ref: "1.1", heading: "Size", body: "The robot must fit inside a 250 mm × 250 mm × 250 mm box before the start.", snippet: "The robot must fit inside a 250 mm box" },
+  ];
+  const calls = await mockSupabase(page, {
+    rpc: {
+      rulebooks_public: () => [{ slug: "wro-2026", title: "قواعد WRO", title_en: "WRO rules", competition: "WRO", edition: "2026", source_url: "https://example.org/wro.pdf", sections: 40, ai: true }],
+      coach_search: () => ({ ok: true, sections }),
+    },
+  });
+  let asked: Record<string, unknown> | null = null;
+  await page.route(/\/functions\/v1\/coach-ask$/, (route) => {
+    asked = route.request().postDataJSON();
+    return route.fulfill({ json: { answer: "The robot may weigh at most 1.5 kg [1.2].", cited: ["1.2"] } });
+  });
+  await page.goto("/coach/");
+  await page.getByPlaceholder("e.g. What's the maximum robot size?").fill("max weight");
+  await page.getByRole("button", { name: "Find the rules" }).click();
+  const results = page.getByTestId("coach-results");
+  await expect(results.locator("article").first()).toContainText("1.2");
+  await expect(results.locator("mark").first()).toHaveText("maximum");
+  await page.getByRole("button", { name: "Ask the coach (AI)" }).click();
+  await expect(page.getByTestId("coach-answer")).toHaveText("The robot may weigh at most 1.5 kg [1.2].");
+  await expect(page.getByTestId("coach-ai").getByRole("link", { name: "1.2" })).toHaveAttribute("href", "#rule-1.2");
+  expect(asked).toEqual({ book: "wro-2026", question: "max weight" });
+  expect(calls.find((c) => c.fn === "coach_search")?.body).toEqual({ p_book: "wro-2026", p_q: "max weight" });
+});
+
+test("competition coach: no rule books yet says so", async ({ page }) => {
+  await mockSupabase(page, { rpc: { rulebooks_public: () => [] } });
+  await page.goto("/ar/coach/");
+  await expect(page.getByTestId("coach-empty")).toContainText("لسه مفيش قواعد");
+});
