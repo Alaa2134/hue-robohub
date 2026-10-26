@@ -14,6 +14,13 @@ const P: Record<string, ReactNode> = {
       <circle cx="15" cy="14" r="1.5" />
     </>
   ),
+  robot: (
+    <>
+      <rect x="5" y="8" width="14" height="10" rx="2" />
+      <path d="M12 4v4M9 13h.01M15 13h.01M3 12v3M21 12v3" />
+      <circle cx="12" cy="4" r="1" />
+    </>
+  ),
   cube: (
     <>
       <path d="m12 2 9 5v10l-9 5-9-5V7z" />

@@ -279,6 +279,23 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("challenge-result")).toContainText("2 Hz");
   });
 
+  test("robot arena: the starter sketch drives the robot along the line and passes the lap test", async ({ page, isMobile }) => {
+    test.setTimeout(180_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/robot/");
+    await expect(page.getByTestId("robot-canvas")).toBeVisible();
+    await expect(page.getByTestId("robot-code")).toContainText("lastSide");
+    if (isMobile) return; // the layout check is enough on a phone
+    await page.getByTestId("robot-run").click();
+    // Live: the robot sits on the tape, so the centre sensor sees it, and it moves along the lap.
+    await expect(page.getByTestId("robot-sensor-C")).toHaveAttribute("data-on", "1", { timeout: 120_000 });
+    await expect(page.getByTestId("robot-laps")).not.toContainText("· 0%", { timeout: 20_000 });
+    await page.getByTestId("robot-lap").click();
+    await expect(page.getByTestId("robot-result")).toContainText("Passed", { timeout: 150_000 });
+    await expect(page.getByTestId("robot-result")).toContainText("Finished a full lap");
+  });
+
   test("academy with no courses says so and points to the challenges", async ({ page }) => {
     await mockSupabase(page, { academy_catalog: () => [] });
     await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));

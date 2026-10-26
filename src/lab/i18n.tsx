@@ -31,6 +31,7 @@ const D = {
   navLearn: ["Academy", "الأكاديمية"],
   navChallenges: ["Challenges", "التحديات"],
   navClassrooms: ["Classrooms", "الفصول"],
+  navRobot: ["Robot Arena", "حلبة الروبوت"],
   navComponents: ["Components", "القطع"],
   navProfile: ["Profile", "البروفايل"],
   navSettings: ["Settings", "الإعدادات"],

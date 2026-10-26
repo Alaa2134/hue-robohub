@@ -14,6 +14,7 @@ import { SettingsPage, ProfilePage } from "./pages/settings";
 import { Coming } from "./pages/coming";
 import { Academy, ChallengesPage, CoursePage } from "./pages/learn";
 import { ClassroomsPage } from "./pages/classrooms";
+import { RobotPage } from "./pages/robot";
 
 /** The 3D Studio (three.js + the geometry kernel) loads only when a design is opened. */
 const CadStudio = lazy(() => import("./cad/studio"));
@@ -24,6 +25,7 @@ const NAV: { path: string; key: TKey; icon: IconName; group?: "build" | "learn" 
   { path: "code", key: "navCode", icon: "code", group: "build" },
   { path: "codeblocks", key: "navBlocks", icon: "blocks", group: "build" },
   { path: "3d", key: "nav3d", icon: "cube", group: "build" },
+  { path: "robot", key: "navRobot", icon: "robot", group: "build" },
   { path: "projects", key: "navProjects", icon: "folder", group: "build" },
   { path: "gallery", key: "navGallery", icon: "gallery", group: "learn" },
   { path: "learn", key: "navLearn", icon: "learn", group: "learn" },
@@ -162,6 +164,9 @@ function Routes() {
     case "classrooms":
       page = <ClassroomsPage />;
       break;
+    case "robot":
+      page = <RobotPage />;
+      break;
     case "codeblocks":
     case "admin":
       page = <Coming area={a} />;
@@ -169,7 +174,7 @@ function Routes() {
     default:
       page = <Coming area="missing" />;
   }
-  return <Shell>{page}</Shell>;
+  return <Shell wide={a === "robot"}>{page}</Shell>;
 }
 
 export default function LabApp() {
