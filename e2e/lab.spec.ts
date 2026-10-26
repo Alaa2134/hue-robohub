@@ -162,6 +162,21 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("circuit-3d")).toHaveCount(0);
   });
 
+  test("build it for real: a printable Uno case opens in 3D Studio as an editable design", async ({ page, isMobile }) => {
+    test.skip(isMobile, "desktop workflow");
+    test.setTimeout(90_000);
+    await mockSupabase(page);
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/");
+    await page.getByTestId("example-blink").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("button", { name: "Export file" }).click();
+    await expect(page.getByTestId("bom")).toContainText("Arduino Uno");
+    await page.getByTestId("uno-case").click();
+    await expect(page.getByTestId("cad-studio")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("cad-stats")).toContainText("cm³", { timeout: 60_000 });
+  });
+
   test("workspace: right-click menu, pinout, copy and paste, delete asks first", async ({ page, isMobile }) => {
     test.skip(isMobile, "desktop workflow");
     await mockSupabase(page);

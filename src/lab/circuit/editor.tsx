@@ -26,6 +26,7 @@ import { Oscilloscope, PinMonitor } from "./instruments";
 import { PART_BY_TYPE } from "./parts";
 import { CircuitThumb } from "./render";
 import { ChallengeBar } from "../academy/challenge-bar";
+import { unoCase } from "../cad/case";
 import { bom, bomCsv, guideHtml, wiring } from "./bom";
 import { AssignmentBar } from "../academy/assignment-bar";
 
@@ -909,6 +910,20 @@ function ExportPanel({ doc, project, hex, thumb, onDone }: { doc: CircuitDoc; pr
             {l({ en: "Parts list (CSV)", ar: "قائمة المكونات (CSV)" })}
           </Button>
         </div>
+        {doc.parts.some((x) => x.type === "arduino-uno") && (
+          <Button
+            icon="cube"
+            data-testid="uno-case"
+            onClick={() =>
+              projects.create("cad", l({ en: `Case — ${project.title}`, ar: `علبة — ${project.title}` }), unoCase()).then(
+                (id) => (done("case"), navigate(`3d/${id}`)),
+                () => toast(l({ en: "Couldn't create the design", ar: "معرفتش أعمل التصميم" }), "danger"),
+              )
+            }
+          >
+            {l({ en: "Printable case for the Uno (3D Studio)", ar: "علبة للطباعة للأونو (استوديو 3D)" })}
+          </Button>
+        )}
         <Button variant="ghost" icon="cube" onClick={() => (onDone(), navigate("3d/new"))}>
           {l({ en: "Need a case or bracket? Design it in 3D Studio", ar: "محتاج علبة أو حامل؟ صمّمه في استوديو 3D" })}
         </Button>
