@@ -7696,3 +7696,61 @@ test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), 
   delete RPC.staff_ai3d_topup_review;
   expect(errors).toEqual([]);
 });
+
+test("a student turns on their Skill Passport, sees the link, and the public page shows only the records", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
+  );
+  const slug = "0123456789abcdef";
+  const data = {
+    name: "Mona A.",
+    group: null,
+    headline: null,
+    since: "2026-02",
+    certificates: [{ code: "BXC-1A2B3C4D", kind: "completion", title: "Arduino Basics", title_ar: "أساسيات الأردوينو", hours: 12, on: "2026-09-01" }],
+    challenges: [{ slug: "robot-oval", on: "2026-10-26" }, { slug: "blink-2hz", on: "2026-10-20" }],
+    courses: [],
+    projects: [],
+    numbers: { sessions: 9, quizzes: 3, tasks: 2 },
+  };
+  let pass = { slug, visible: false, full_name: false, show_group: false, headline: "", preview: data };
+  const saved: Record<string, unknown>[] = [];
+  await page.route(/supabase\.co/, async (route) => {
+    const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "student_passport") return route.fulfill({ json: pass });
+    if (fn === "student_passport_save") {
+      const b = route.request().postDataJSON();
+      saved.push(b);
+      pass = { ...pass, visible: b.p_visible, full_name: b.p_full_name, show_group: b.p_show_group, headline: b.p_headline };
+      return route.fulfill({ json: { ...pass, ok: true } });
+    }
+    if (fn === "passport_public") return route.fulfill({ json: pass.visible ? { ok: true, found: true, ...data } : { ok: true, found: false } });
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByTestId("passport-entry").click();
+  await expect(page.getByTestId("passport-counts")).toContainText("1 شهادة · 2 تحدي");
+  await expect(page.getByTestId("passport-link")).toHaveCount(0);
+  await page.getByRole("switch", { name: /الصفحة شغالة/ }).click();
+  await expect(page.getByTestId("passport-link")).toContainText(`/passport/?id=${slug}`);
+  expect(saved.at(-1)).toMatchObject({ p_visible: true, p_full_name: false, p_show_group: false });
+
+  await page.goto(`/passport/?id=${slug}`);
+  await expect(page.getByTestId("passport-name")).toHaveText("Mona A.");
+  await expect(page.getByTestId("passport-challenges")).toContainText("Robot lap — Oval");
+  await expect(page.getByTestId("passport-page")).toContainText("Robotics · 1");
+  await expect(page.getByRole("link", { name: /Verify BXC-1A2B3C4D/ })).toHaveAttribute("href", "/verify/?c=BXC-1A2B3C4D");
+  await expect(page.getByTestId("passport-page")).not.toContainText("S1");
+  // Turned off: the page says so.
+  pass = { ...pass, visible: false };
+  await page.goto(`/ar/passport/?id=${slug}`);
+  await expect(page.getByTestId("passport-state")).toContainText("مش متاح");
+  expect(errors).toEqual([]);
+});
