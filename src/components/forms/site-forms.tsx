@@ -1014,7 +1014,19 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
 
   if (viewPass) return <AttendPass token={viewPass} locale={l} page />;
   const formsBase = listHref.replace(/\/forms\/?$/, "/form/");
-  if (form === undefined) return <p className="text-mist">{t.loading}</p>;
+  // Holds about a form's height while it loads, so what's under it (the status box, the footer) doesn't
+  // jump when the form arrives — most visitors open this on a phone from a WhatsApp link.
+  if (form === undefined)
+    return (
+      <div className={cn("frame grid content-start gap-5 p-5 sm:p-8", fixed ? "min-h-96" : "min-h-[85svh]")} aria-busy="true" data-testid="form-loading">
+        <p className="text-mist">{t.loading}</p>
+        <div className="h-8 w-3/4 animate-pulse rounded-lg bg-panel/60" />
+        <div className="h-24 animate-pulse rounded-lg bg-panel/40" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-12 animate-pulse rounded-xl bg-panel/50" />
+        ))}
+      </div>
+    );
   // A form placed inside a page (the page has its own heading): just a short note.
   if (fixed && !form)
     return (
@@ -1027,7 +1039,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
     );
   if (!form || !slug)
     return (
-      <div className="grid gap-6">
+      <div className="grid min-h-[85svh] content-start gap-6">
         <header className="flex flex-col gap-2">
           <h1 className="t-headline text-3xl text-chalk sm:text-4xl">{slug ? t.errors.not_found : t.pickForm}</h1>
           {slug && <p className="text-mist">{t.pickForm}</p>}
