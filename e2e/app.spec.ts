@@ -7820,3 +7820,83 @@ test("team matching: open teams that need the student's verified Lab skills come
   expect(calls.find((c) => c.fn === "student_team_answer")?.body).toMatchObject({ p_request: "r1", p_accept: true });
   expect(errors).toEqual([]);
 });
+
+/** A 20 × 10 × 5 mm box as a binary STL (12 triangles). */
+function boxStl() {
+  const V = [[0, 0, 0], [20, 0, 0], [20, 10, 0], [0, 10, 0], [0, 0, 5], [20, 0, 5], [20, 10, 5], [0, 10, 5]];
+  const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  const buf = Buffer.alloc(84 + F.length * 50);
+  buf.writeUInt32LE(F.length, 80);
+  F.forEach((f, i) => f.forEach((vi, k) => V[vi].forEach((c, j) => buf.writeFloatLE(c, 84 + i * 50 + 12 + k * 12 + j * 4))));
+  return buf;
+}
+
+test("print hub: the student sees the size and a rough estimate (not a price), sends the file, then accepts the slicer price", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.addInitScript(() =>
+    localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })),
+  );
+  const info = { open: true, note: "", price_per_hour: 10, min_fee: 20, priced: true, materials: [{ key: "pla", name: "PLA", colors: ["أسود", "أبيض"], density: 1.24, price_per_gram: 1.5 }] };
+  const jobs: Record<string, unknown>[] = [];
+  const calls: { fn: string; body: Record<string, unknown> }[] = [];
+  let uploaded = false;
+  await page.route(/supabase\.co/, async (route) => {
+    const url = new URL(route.request().url());
+    const fn = url.pathname.split("/rpc/")[1];
+    if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
+    if (url.pathname.endsWith("/functions/v1/student-upload"))
+      return route.fulfill({ json: { ok: true, path: "prints/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002.stl", token: "t" } });
+    if (url.pathname.includes("/storage/v1/object/upload/sign/")) {
+      uploaded = true;
+      return route.fulfill({ json: { Key: "submissions/prints/x.stl" } });
+    }
+    if (fn === "student_home")
+      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+    if (fn === "print_hub_info") return route.fulfill({ json: info });
+    if (fn === "student_print_jobs") return route.fulfill({ json: jobs });
+    if (fn === "student_print_submit") {
+      jobs.unshift({ id: "j1", code: "BXP-1A2B3C", file_name: "box.stl", material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 1, est_volume: 1, status: "quoted", slicer: "OrcaSlicer", grams: 4.2, minutes: 18, price: 20, quote_note: null, reason: null, paid: false, created_at: new Date().toISOString() });
+      return route.fulfill({ json: { ok: true, code: "BXP-1A2B3C" } });
+    }
+    if (fn === "student_print_answer") {
+      jobs[0].status = "accepted";
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({ json: fn ? null : [] });
+  });
+  await page.goto("/app/#/me/account");
+  await page.getByTestId("print-entry").click();
+  await page.getByTestId("print-file").setInputFiles({ name: "box.stl", mimeType: "model/stl", buffer: boxStl() });
+  await expect(page.getByTestId("print-size")).toHaveText("20.0 × 10.0 × 5.0 mm · 1.00 cm³");
+  await expect(page.getByTestId("print-estimate")).toContainText("تقدير مبدئي — مش السعر");
+  await page.getByRole("button", { name: "ابعت للطباعة" }).click();
+  await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("20 ج");
+  expect(uploaded).toBe(true);
+  expect(calls.find((c) => c.fn === "student_print_submit")?.body).toMatchObject({ p_name: "box.stl", p_volume: 1, p_bbox: [20, 10, 5], p_material: "pla", p_infill: 20 });
+  await page.getByRole("button", { name: "موافق على السعر" }).click();
+  await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("وافقت — في الطابور");
+  expect(errors).toEqual([]);
+});
+
+test("print hub (team): the price comes from what the slicer reported and the rates", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_print_jobs = {
+    settings: { open: true, note: "", price_per_hour: 10, min_fee: 20, materials: [{ key: "pla", name: "PLA", colors: ["أسود"], density: 1.24, price_per_gram: 1.5 }] },
+    jobs: [{ id: "j1", code: "BXP-1A2B3C", file_name: "bracket.stl", file_path: "prints/a/b.stl", file_size: 1000, material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 2, est_volume: 12.5, bbox: [40, 30, 20], notes: "", status: "submitted", slicer: null, slicer_grams: null, slicer_minutes: null, price: null, quote_note: null, reason: null, paid: false, created_at: at(30), student: "Mona Adel", student_code: "S1", group: "G1" }],
+  };
+  RPC.staff_print_quote = { ok: true, price: 74 };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/print");
+  const job = page.getByTestId("staff-print-BXP-1A2B3C");
+  await expect(job).toContainText("40 × 30 × 20 mm");
+  await job.getByRole("button", { name: "سعّر من الـSlicer" }).click();
+  const sheet = page.getByTestId("print-quote");
+  await sheet.getByRole("spinbutton").nth(0).fill("38.4");
+  await sheet.getByRole("spinbutton").nth(1).fill("95");
+  await expect(page.getByTestId("print-quote-preview")).toHaveText("السعر: 74 ج");
+  await sheet.getByRole("button", { name: "ابعت السعر للطالب" }).click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_print_quote")?.body).toMatchObject({ p_job: "j1", p_slicer: "OrcaSlicer", p_grams: 38.4, p_minutes: 95 });
+  delete RPC.staff_print_jobs;
+  delete RPC.staff_print_quote;
+});

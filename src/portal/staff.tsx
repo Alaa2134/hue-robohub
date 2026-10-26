@@ -41,6 +41,7 @@ import { AccessRequestsScreen, pendingAccessRequests } from "./access-requests";
 import { StudentProjectsReview, pendingStudentProjects } from "./student-projects";
 import { AtRiskScreen, atRiskCount } from "./at-risk";
 import { StaffTeams } from "./teams";
+import { StaffPrint } from "./print";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -109,6 +110,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   students: "roster",
   "at-risk": "roster",
   "student-teams": "roster",
+  print: "print",
   access: "roster",
   content: "materials",
   quizzes: "quizzes",
@@ -338,6 +340,9 @@ export function StaffApp({
       break;
     case "student-teams":
       screen = <StaffTeams />;
+      break;
+    case "print":
+      screen = <StaffPrint />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -832,6 +837,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "calendar", label: "الاجتماعات", to: "/staff/meetings" },
     { icon: "users", label: "السيكتورات وتاسكات الفريق", to: "/staff/sectors" },
     { icon: "box", label: "المخزن (القطع والأدوات، السلف والطلبات)", to: "/staff/inventory" },
+    { icon: "box", label: "طباعة 3D (طلبات الطلبة والأسعار)", to: "/staff/print" },
     { icon: "alert", label: "إنذارات الفريق (كل السيكتورات)", to: "/staff/warnings" },
     { icon: "bell", label: "إرسال إشعار للطلاب أو الفريق", to: "/staff/notify" },
     { icon: "upload", label: "التاسكات (تسليم وتصحيح)", to: "/staff/tasks" },
