@@ -15,6 +15,7 @@ import { Coming } from "./pages/coming";
 import { Academy, ChallengesPage, CoursePage } from "./pages/learn";
 import { ClassroomsPage } from "./pages/classrooms";
 import { RobotPage } from "./pages/robot";
+import { ArchitectPage } from "./pages/architect";
 
 /** The 3D Studio (three.js + the geometry kernel) loads only when a design is opened. */
 const CadStudio = lazy(() => import("./cad/studio"));
@@ -26,6 +27,7 @@ const NAV: { path: string; key: TKey; icon: IconName; group?: "build" | "learn" 
   { path: "codeblocks", key: "navBlocks", icon: "blocks", group: "build" },
   { path: "3d", key: "nav3d", icon: "cube", group: "build" },
   { path: "robot", key: "navRobot", icon: "robot", group: "build" },
+  { path: "architect", key: "navArchitect", icon: "bolt", group: "build" },
   { path: "projects", key: "navProjects", icon: "folder", group: "build" },
   { path: "gallery", key: "navGallery", icon: "gallery", group: "learn" },
   { path: "learn", key: "navLearn", icon: "learn", group: "learn" },
@@ -166,6 +168,9 @@ function Routes() {
       break;
     case "robot":
       page = <RobotPage />;
+      break;
+    case "architect":
+      page = <ArchitectPage />;
       break;
     case "codeblocks":
     case "admin":

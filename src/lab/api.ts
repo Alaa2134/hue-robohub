@@ -331,3 +331,29 @@ export const classroom = {
   submit: (assignment: string, project: string, checks: LabCheck[] | null, passed: boolean | null) =>
     rpc<{ ok: boolean; late?: boolean; error?: string }>("lab_assignment_submit", { p_assignment: assignment, p_project: project, p_checks: checks, p_passed: passed }),
 };
+
+/* ─── Project Architect (prices and the BuildX store) ───────────────────── */
+
+export type PartPrice = { label: string; price: number; currency: string; source: string; url: string | null; checked_on: string; stale: boolean };
+export type PartAvail = { store: { items: number; free: number; students: boolean }; prices: PartPrice[] };
+export type ArchitectPlan = { title: string; summary: string; parts: { type: string; qty: number; why: string }[]; connections: string[]; steps: string[]; code: string };
+
+export const architect = {
+  /** Per Lab part type: free now in the BuildX store, and every dated price the team entered. */
+  parts: async (types: string[]): Promise<Record<string, PartAvail>> => {
+    if (!types.length) return {};
+    const { data, error } = await sb().rpc("architect_parts", { p_parts: types });
+    if (error) throw error;
+    return (data ?? {}) as Record<string, PartAvail>;
+  },
+  aiOn: async (): Promise<boolean> => {
+    const { data } = await sb().rpc("architect_ai_on");
+    return data === true;
+  },
+  /** The AI plan (parts from the catalog only), or why there isn't one. */
+  plan: async (idea: string, catalog: { type: string; name: string }[]): Promise<{ plan: ArchitectPlan | null; error?: string; disabled?: boolean }> => {
+    const { data, error } = await sb().functions.invoke<{ plan: ArchitectPlan | null; error?: string; disabled?: boolean }>("architect-plan", { body: { idea, catalog } });
+    if (error || !data) return { plan: null, error: "busy" };
+    return data;
+  },
+};

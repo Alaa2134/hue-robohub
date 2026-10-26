@@ -339,6 +339,49 @@ test.describe("BuildX Lab", () => {
     await expect(page.getByTestId("robot-track")).toHaveValue("wavy");
   });
 
+  test("project architect: store availability and dated prices for a Lab design, a wiring review, and an AI plan whose parts come from the catalog", async ({ page }) => {
+    const plan = {
+      title: "Plant waterer",
+      summary: "Waters a plant when the soil is dry.",
+      parts: [
+        { type: "arduino-uno", qty: 1, why: "The brain" },
+        { type: "led", qty: 1, why: "Shows when it waters" },
+      ],
+      connections: ["LED long leg → D9 through a 220 Ω resistor"],
+      steps: ["Wire the LED", "Upload the sketch"],
+      code: "void setup(){}\nvoid loop(){}\n",
+    };
+    let ai = false;
+    await mockSupabase(page, {
+      architect_ai_on: () => ai,
+      architect_parts: () => ({
+        led: { store: { items: 1, free: 40, students: true }, prices: [{ label: "5 mm", price: 1.5, currency: "EGP", source: "Old Shop", url: null, checked_on: "2026-08-01", stale: true }, { label: "5 mm", price: 2, currency: "EGP", source: "Shop A", url: "https://example.org/led", checked_on: "2026-10-20", stale: false }] },
+        "arduino-uno": { store: { items: 1, free: 3, students: false }, prices: [] },
+      }),
+    });
+    await page.route(/\/functions\/v1\/architect-plan$/, (route) => route.fulfill({ json: { plan } }));
+    await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
+    await page.goto("/lab/architect/");
+    const led = page.getByTestId("architect-line-led");
+    await expect(led).toContainText("40 free");
+    await expect(led).toContainText("1.50 EGP");
+    await expect(led).toContainText("Old Shop");
+    await expect(led).toContainText("old");
+    await expect(page.getByTestId("architect-line-arduino-uno")).toContainText("No checked price yet");
+    await expect(page.getByTestId("architect-total")).toContainText("no checked price — not counted");
+    await expect(page.getByTestId("architect-wiring")).toContainText("found nothing to fix");
+    await expect(page.getByTestId("architect-ai")).toHaveCount(0);
+    // With the AI on: the plan's parts, its connections as a checklist, then the Lab.
+    ai = true;
+    await page.reload();
+    await page.getByTestId("architect-ai").getByRole("textbox").fill("A plant pot that waters itself when the soil is dry");
+    await page.getByRole("button", { name: "Plan it" }).click();
+    await expect(page.getByTestId("architect-plan")).toContainText("Plant waterer");
+    await expect(page.getByTestId("architect-wiring")).toContainText("☐ LED long leg → D9");
+    await page.getByTestId("architect-open").click();
+    await expect(page.getByTestId("circuit-canvas")).toBeVisible({ timeout: 30_000 });
+  });
+
   test("academy with no courses says so and points to the challenges", async ({ page }) => {
     await mockSupabase(page, { academy_catalog: () => [] });
     await page.addInitScript(() => localStorage.setItem("bx-lab-lang", "en"));
