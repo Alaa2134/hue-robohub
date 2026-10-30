@@ -6384,6 +6384,7 @@ test("QR attendance from a form: turned on in the editor with a session for one 
     { id: "r1", ref: "F-AAAA0001", name: "أحمد سامي", phone: "01011111111", status: "new", answers: { n: "أحمد سامي", g: "A" }, pass: "AAAAAAAAAAAAAAA1" },
     { id: "r2", ref: "F-BBBB0002", name: "بسمة علي", phone: "01022222222", status: "new", answers: { n: "بسمة علي", g: "B" }, pass: "BBBBBBBBBBBBBBB2" },
     { id: "r3", ref: "F-CCCC0003", name: "كريم حسن", phone: "01033333333", status: "accepted", answers: { n: "كريم حسن", g: "A" }, pass: "CCCCCCCCCCCCCCC3" },
+    { id: "r4", ref: "F-DDDD0004", name: "دينا فؤاد", phone: "01044444444", status: "waiting", answers: { n: "دينا فؤاد", g: "A" }, pass: "DDDDDDDDDDDDDDD4" },
   ];
   await page.route(/\/rest\/v1\/form_responses\?select=id%2Cref/, (route) => route.fulfill({ json: people }));
   await page.route(/\/rest\/v1\/form_attendance/, (route) =>
@@ -6394,6 +6395,8 @@ test("QR attendance from a form: turned on in the editor with a session for one 
     marks.push(b);
     const who = people.find((p) => p.id === b.p_response || (b.p_code && b.p_code.toUpperCase().includes(p.ref)));
     if (!who) return route.fulfill({ json: { ok: false, error: "not_found" } });
+    if (who.status === "waiting" && b.p_present && !b.p_force)
+      return route.fulfill({ json: { ok: false, error: "not_accepted", id: who.id, name: who.name, ref: who.ref, status: who.status } });
     const s2 = (form.attendance as { sessions: { id: string }[] }).sessions[1].id;
     if (who.id === "r2" && b.p_session === s2 && !b.p_force)
       return route.fulfill({ json: { ok: false, error: "not_this_session", id: "r2", name: who.name, ref: who.ref, answer: "B" } });
@@ -6435,6 +6438,16 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   await expect(page.getByTestId("attendance-row")).toContainText("بسمة علي");
   await expect(page.getByRole("button", { name: "انسخ الغايبين وأرقامهم" })).toBeVisible();
   await expect(page.getByTestId("absent-whatsapp")).toBeVisible();
+
+  // Someone on the waiting list isn't expected, and scanning them stops: not marked present unless let in.
+  await expect(page.getByTestId("attendance-row").filter({ hasText: "دينا فؤاد" })).toHaveCount(0);
+  await page.getByLabel("كود الطلب").fill("F-DDDD0004");
+  await page.getByRole("button", { name: "سجّل", exact: true }).click();
+  await expect(page.getByTestId("attendance-flash")).toContainText("دينا فؤاد في قايمة الانتظار — لسه مش مقبول، ومتسجّلش حاضر");
+  await expect(page.getByTestId("attendance-stats")).toContainText("حضروا2");
+  await page.getByRole("button", { name: "سجّله حاضر برضه" }).click();
+  await expect(page.getByTestId("attendance-flash")).toContainText("✓ دينا فؤاد حاضر (من قايمة الانتظار)");
+  expect(marks.filter((m) => m.p_code === "F-DDDD0004").map((m) => m.p_force)).toEqual([false, true]);
 
   // The second lecture is group A's: Basma (B) is flagged, and can still be let in.
   await page.getByTestId("attendance-sessions").getByRole("button", { name: /محاضرة 2/ }).click();

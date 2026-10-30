@@ -160,8 +160,10 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const byField = data?.form.fields.find((fl) => fl.id === attendance?.by);
   const marks = useMemo(() => new Map((data?.marks ?? []).map((m) => [`${m.response_id}:${m.session}`, m])), [data]);
   const here = (r: Resp, s: AttendSession) => !!marks.get(`${r.id}:${s.id}`)?.present;
-  const buses = useMemo(() => [...new Set((data?.responses ?? []).map(busOf).filter((b): b is string => !!b))].sort(), [data]);
-  const expected = useMemo(() => (data?.responses ?? []).filter((r) => sessionFor(attendance, cur, r.answers) && (!bus || busOf(r) === bus)), [data, attendance, cur, bus]);
+  // The waiting list isn't coming unless they're accepted: they aren't expected, absent or in the sheet.
+  const people = useMemo(() => (data?.responses ?? []).filter((r) => r.status !== "waiting"), [data]);
+  const buses = useMemo(() => [...new Set(people.map(busOf).filter((b): b is string => !!b))].sort(), [people]);
+  const expected = useMemo(() => people.filter((r) => sessionFor(attendance, cur, r.answers) && (!bus || busOf(r) === bus)), [people, attendance, cur, bus]);
   const inside = expected.filter((r) => here(r, cur));
   const shown = expected.filter((r) => {
     if (show === "in" && !here(r, cur)) return false;
@@ -229,9 +231,15 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
         setFlash(
           out.already
             ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}${busNote}${unpaid}${wrongBus}` }
-            : { tone: unpaid || wrongBus ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "new" ? "" : out.status === "accepted" ? "" : ` (${out.status})`}${busNote}${unpaid}${wrongBus}` },
+            : { tone: unpaid || wrongBus ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "waiting" ? " (من قايمة الانتظار)" : out.status === "rejected" ? " (مش مقبول)" : ""}${busNote}${unpaid}${wrongBus}` },
         );
-      } else if (out.error === "not_this_session" && args.code)
+      } else if (out.error === "not_accepted" && args.code)
+        setFlash({
+          tone: "danger",
+          text: `⚠ ${out.name ?? out.ref} ${out.status === "waiting" ? "في قايمة الانتظار — لسه مش مقبول" : "مش مقبول في الفورم ده"}، ومتسجّلش حاضر`,
+          force: { code: args.code, name: out.name ?? out.ref ?? "" },
+        });
+      else if (out.error === "not_this_session" && args.code)
         setFlash({ tone: "warn", text: `${out.name ?? out.ref} مش من «${cur.name}» (اختار: ${txt(out.answer)})`, force: { code: args.code, name: out.name ?? out.ref ?? "" } });
       else if (out.error === "other_form") setFlash({ tone: "danger", text: `ده QR فورم تاني: «${out.form ?? ""}» (${out.name ?? ""})` });
       else setFlash({ tone: "danger", text: "الكود ده مش لاقيينه في الفورم ده" });
@@ -250,7 +258,7 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   };
 
   const exportXlsx = () => {
-    const rows = data.responses;
+    const rows = people;
     downloadXlsx(
       `buildx-attendance-${data.form.slug}-${today()}.xlsx`,
       [

@@ -10,7 +10,8 @@ export type Sound = "pop" | "click" | "tada" | "whoosh" | "thud" | "boing";
 export function playSound(kind: Sound) {
   try {
     ctx ??= new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
+    // iOS can refuse ("Failed to start the audio device", e.g. during a call); then the sound is just skipped.
+    if (ctx.state === "suspended") ctx.resume().catch(() => undefined);
     const now = ctx.currentTime;
     const notes: [number, number, number][] =
       kind === "pop"

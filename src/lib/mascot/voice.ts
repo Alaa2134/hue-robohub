@@ -98,8 +98,14 @@ export function setDeviceVoice(on: boolean) {
     localStorage.setItem(DEVICE_KEY, on ? "1" : "0");
   } catch {}
 }
-/** speechSynthesis.speak can throw: Brave on iOS wraps it and fails on an utterance with no voice. */
+/**
+ * speechSynthesis.speak can throw: Brave on iOS wraps it and fails on an utterance with no voice —
+ * sometimes later, out of reach of this try ("Object.getPrototypeOf(voice)"), so Brave only speaks
+ * with a voice picked.
+ */
+const brave = () => typeof navigator !== "undefined" && (/\bBrave\b/.test(navigator.userAgent) || "brave" in navigator);
 function say(u: SpeechSynthesisUtterance): boolean {
+  if (!u.voice && brave()) return false;
   try {
     window.speechSynthesis.speak(u);
     return true;
