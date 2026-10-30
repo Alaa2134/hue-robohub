@@ -1538,7 +1538,7 @@ type RespStatus = "new" | "accepted" | "rejected" | "waiting";
 /** One code: the full answer. Only a number: that number's requests (form, status, when), nothing personal. */
 type StatusOut = { ok: boolean; error?: string; list?: { title_ar: string; title_en: string | null; status: RespStatus; at: string }[]; status?: RespStatus; title_ar?: string; title_en?: string | null; accepted_ar?: string | null; accepted_url?: string | null; external_done?: boolean; pass?: Pass | null; attend_pass?: string | null; payment?: FormPayment | null };
 
-type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null; rating?: number | null; comment?: string | null }[] };
+type PassOut = { ok: boolean; error?: string; pass?: string; ref?: string; name?: string | null; title_ar?: string; title_en?: string | null; bus?: number | null; seat?: number | null; sessions?: { id: string; name: string; at: string | null; here: boolean; here_at: string | null; rating?: number | null; comment?: string | null }[] };
 const passUrl = (token: string, l: Locale) => `${location.origin}/${l}/form/?pass=${token.toLowerCase()}`;
 
 /** A form's attendance QR: kept on the phone (saved as a picture) and scanned by the team each session. */
@@ -1591,6 +1591,11 @@ function AttendPass({ token, locale, page }: { token: string; locale: Locale; pa
         <p className="text-xs font-semibold uppercase tracking-widest text-cyan">{t.qrTitle}</p>
         {title && <p className="text-lg font-bold leading-snug">{title}</p>}
         {info?.name && <p className="text-white/80">{info.name}</p>}
+        {info?.bus ? (
+          <p className="mt-1 w-fit rounded-full bg-cyan/15 px-3 py-1 text-sm font-semibold text-cyan" data-testid="pass-seat">
+            {locale === "ar" ? `🚌 أتوبيس ${info.bus}${info.seat ? ` · كرسي ${info.seat}` : ""}` : `🚌 Bus ${info.bus}${info.seat ? ` · seat ${info.seat}` : ""}`}
+          </p>
+        ) : null}
       </div>
       {/* Opened from the WhatsApp ask: one tap down to the session waiting for a rating (the QR stays on top for the door). */}
       {info?.sessions?.some((x) => x.here && !x.rating) && (

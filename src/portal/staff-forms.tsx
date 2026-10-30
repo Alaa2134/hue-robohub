@@ -92,6 +92,8 @@ type Response = {
   name_en?: string | null;
   /** Groups the team put this person in after the form (a slot, a team, "on the bus"…). */
   tags?: string[];
+  /** Their seat on their bus (the seat map), while they stay on that bus. */
+  seat?: number | null;
   created_at: string;
 };
 /** Who else this person is: their other forms, membership, and join application. */
@@ -1634,13 +1636,35 @@ export function FormResponses({ id, me, openTrip }: { id: string; me?: StaffRow;
           extraLabel={tripExtra?.label_ar}
           buses={{
             current: Object.fromEntries(data.responses.map((r) => [r.id, busOf(r)])),
+            seats: {
+              of: Object.fromEntries(data.responses.map((r) => [r.id, busOf(r) ? (r.seat ?? 0) : 0])),
+              // «جاي مع صاحبه»: the friend's request code → that person, to seat them side by side.
+              friends: (() => {
+                const byRef = new Map(data.responses.map((r) => [r.ref, r.id]));
+                const q = form.fields.find((fl) => fl.type === "friend");
+                return Object.fromEntries(data.responses.map((r) => [r.id, q ? byRef.get(String(r.answers[q.id] ?? "").trim().toUpperCase()) : undefined]));
+              })(),
+              rank: Object.fromEntries([...data.responses].sort((a, b) => a.created_at.localeCompare(b.created_at)).map((r, i) => [r.id, i])),
+              save: async (assign) => {
+                await rpc("staff_form_set_seats", { p_form: form.id, p_seats: assign });
+                set((d) => {
+                  const cur = d ?? data;
+                  return { ...cur, responses: cur.responses.map((r) => (r.id in assign ? { ...r, seat: assign[r.id] || null } : r)) };
+                });
+              },
+            },
             split: async (assign) => {
               // Whoever isn't in the chosen list comes off the buses (e.g. refused since).
               const all = { ...Object.fromEntries(data.responses.filter((r) => busOf(r) && !(r.id in assign)).map((r) => [r.id, 0])), ...assign };
               await rpc("staff_form_set_buses", { p_form: form.id, p_buses: all });
               set((d) => {
                 const cur = d ?? data;
-                return { ...cur, responses: cur.responses.map((r) => (r.id in all ? { ...r, tags: [...(r.tags ?? []).filter((t) => !BUS.test(t)), ...(all[r.id] ? [`أتوبيس ${all[r.id]}`] : [])] } : r)) };
+                return {
+                  ...cur,
+                  responses: cur.responses.map((r) =>
+                    r.id in all ? { ...r, seat: busOf(r) === all[r.id] ? r.seat : null, tags: [...(r.tags ?? []).filter((t) => !BUS.test(t)), ...(all[r.id] ? [`أتوبيس ${all[r.id]}`] : [])] } : r,
+                  ),
+                };
               });
             },
           }}

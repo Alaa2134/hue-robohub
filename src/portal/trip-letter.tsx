@@ -36,6 +36,7 @@ import {
 import { siteImageUrl } from "@/lib/site-content";
 import { can, errorText, must, rpc, sb, today, type StaffRow } from "./core";
 import { imagesReady, verifyUrl } from "./certificate";
+import { BusSeats } from "./bus-seats";
 import { saveNodesAsPdf } from "./pdf";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { downloadXlsx } from "./xlsx";
@@ -68,7 +69,12 @@ export function TripLetterSheet({ me, letterKey, slug, defaults, sets, extraLabe
   /** A third column in the names list (faculty, year…), when the people have it. */
   extraLabel?: string;
   /** A form's people can be split into buses: each person's bus now (1, 2…), and saving a new split. */
-  buses?: { current: Record<string, number>; split: (assign: Record<string, number>) => Promise<void> };
+  buses?: {
+    current: Record<string, number>;
+    split: (assign: Record<string, number>) => Promise<void>;
+    /** Where each one sits on their bus, who they came with, and saving a bus's seats. */
+    seats?: { of: Record<string, number>; friends: Record<string, string | undefined>; rank: Record<string, number>; save: (assign: Record<string, number>) => Promise<void> };
+  };
   /** For the report and the accounts. */
   stats?: ReportStats & { fee?: number | null };
   /** What attendees said (events). */
@@ -83,6 +89,7 @@ export function TripLetterSheet({ me, letterKey, slug, defaults, sets, extraLabe
   const [who, setWho] = useState(sets[0]?.[0] ?? "");
   const [list, setList] = useState(true);
   const [perBus, setPerBus] = useState(true);
+  const [seatsOf, setSeatsOf] = useState<number | null>(null);
   const [splitting, setSplitting] = useState(false);
   const [more, setMore] = useState(false);
   const [render, setRender] = useState<Tab | null>(null);
@@ -322,10 +329,20 @@ export function TripLetterSheet({ me, letterKey, slug, defaults, sets, extraLabe
                   <>
                     <div className="grid gap-2 sm:grid-cols-2 [&>*]:min-w-0">
                       {Array.from({ length: maxBus }, (_, i) => (
-                        <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 [&>*]:min-w-0">
+                        <div key={i} className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2 [&>*]:min-w-0">
                           <span className="text-xs text-fog">أتوبيس {i + 1}</span>
                           <Input value={l.bus_sups?.[i]?.name ?? ""} maxLength={60} placeholder="المشرف" aria-label={`مشرف أتوبيس ${i + 1}`} onChange={(e) => setSup(i, "name", e.target.value)} />
                           <Input value={l.bus_sups?.[i]?.phone ?? ""} maxLength={20} placeholder="رقمه" dir="ltr" inputMode="tel" aria-label={`رقم مشرف أتوبيس ${i + 1}`} onChange={(e) => setSup(i, "phone", e.target.value)} />
+                          {busSplit?.seats ? (
+                            <Button size="sm" disabled={!busCount(i + 1)} onClick={() => setSeatsOf(i + 1)} data-testid={`bus-seats-open-${i + 1}`}>
+                              {(() => {
+                                const sat = people.filter((x) => onBus(x.id) === i + 1 && busSplit.seats!.of[x.id]).length;
+                                return sat ? `الكراسي ${sat}/${busCount(i + 1)}` : "الكراسي";
+                              })()}
+                            </Button>
+                          ) : (
+                            <span />
+                          )}
                         </div>
                       ))}
                     </div>
@@ -545,6 +562,20 @@ export function TripLetterSheet({ me, letterKey, slug, defaults, sets, extraLabe
           </>
         )}
       </div>
+      {seatsOf != null && busSplit?.seats && (
+        <BusSeats
+          key={seatsOf}
+          bus={seatsOf}
+          seats={s.seats}
+          title={l.event}
+          sup={l.bus_sups?.[seatsOf - 1]}
+          people={people.filter((x) => onBus(x.id) === seatsOf).sort((a, b) => (busSplit.seats!.rank[a.id] ?? 0) - (busSplit.seats!.rank[b.id] ?? 0))}
+          seatOf={busSplit.seats.of}
+          friendOf={busSplit.seats.friends}
+          onSave={busSplit.seats.save}
+          onClose={() => setSeatsOf(null)}
+        />
+      )}
       {render &&
         createPortal(
           <div ref={box} aria-hidden style={{ position: "fixed", top: 0, left: "-20000px" }}>

@@ -7605,6 +7605,31 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   await page.getByTestId("trip-split").click();
   await expect(page.getByTestId("trip-bus-counts")).toContainText("أتوبيس 1: 3 · أتوبيس 2: 2");
   expect(calls.find((c) => c.fn === "staff_form_set_buses")?.body).toEqual({ p_form: "f1", p_buses: { r0: 1, r1: 1, r2: 1, r3: 2, r4: 2, r5: 0 } });
+
+  // Bus 1's seat map: the bus from above, seated in the order they registered, then moved by hand.
+  await page.getByTestId("bus-seats-open-1").click();
+  const seatsSheet = page.getByRole("dialog").filter({ has: page.getByTestId("bus-seats") });
+  await expect(page.getByTestId("bus-drawing")).toContainText("السواق");
+  await expect(page.getByTestId("bus-standing").getByRole("button")).toHaveCount(3);
+  await page.getByTestId("bus-arrange").click();
+  await expect(page.getByTestId("seat-1")).toContainText("طالب 1");
+  await expect(page.getByTestId("seat-3")).toContainText("طالب 3");
+  await expect(page.getByText("كله قاعد ✓")).toBeVisible();
+  // Tap someone, then a seat: moved to an empty seat, or swapped with whoever sits there.
+  await page.getByTestId("seat-1").click();
+  await page.getByTestId("seat-6").click();
+  await page.getByTestId("seat-2").click();
+  await page.getByTestId("seat-3").click();
+  await expect(page.getByTestId("seat-6")).toContainText("طالب 1");
+  await expect(page.getByTestId("seat-2")).toContainText("طالب 3");
+  await expect(page.getByTestId("seat-1")).toHaveAccessibleName("كرسي 1 فاضي");
+  await page.getByTestId("bus-save").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_form_set_seats")?.body).toEqual({ p_form: "f1", p_seats: { r0: 6, r1: 3, r2: 2 } });
+  const seatPdf = page.waitForEvent("download");
+  await page.getByTestId("bus-pdf").click();
+  expect((await seatPdf).suggestedFilename()).toMatch(/^buildx-bus-1-seats-.*\.pdf$/);
+  await seatsSheet.getByRole("button", { name: "إغلاق" }).last().click();
+  await expect(page.getByTestId("bus-seats-open-1")).toContainText("3/3");
   let text = await pages();
   let file = page.waitForEvent("download");
   await page.getByTestId("trip-letter-make").click();
