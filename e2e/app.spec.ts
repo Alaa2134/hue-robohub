@@ -7404,6 +7404,135 @@ test("quick post: from the home screen, a news post with photos in one screen (c
   expect(errors).toEqual([]);
 });
 
+test("media desk: the news post and social posts of each event are written from its real numbers, saved as a draft in one tap", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+  RPC.staff_media_desk = [
+    // A summit the team went to by bus, two days ago.
+    { key: "form:f1", slug: "summit", title: "MENA ROBOTICS SUMMIT 2026", title_en: "MENA ROBOTICS SUMMIT 2026", at: inDays(-2), place: null, registered: 78, accepted: 47, attended: 45, sessions: 1, bus: true, rating: 4.5, ratings: 12, photos: 0, cover: null, post: null },
+    // A workshop in two days: the invitation.
+    { key: "form:f2", slug: "workshop-02", title: "Workshop 02 – Introduction to Embedded Systems", title_en: null, at: inDays(2), place: "قاعة A403", registered: 14, accepted: 0, attended: 0, sessions: 0, bus: false, rating: null, ratings: 0, photos: 0, cover: null, post: null },
+  ];
+  await signInAsOwner(page);
+  const posts: Record<string, unknown>[] = [];
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/site");
+  await page.getByTestId("media-open").click();
+  await expect(page.getByTestId("media-desk")).toContainText("1 فعالية خلصت ومستنية خبرها على الموقع.");
+
+  // The summit: «شارك» (the team went), the bus, the real numbers; nothing about photos it doesn't have.
+  const summit = page.getByTestId("desk-form:f1");
+  await expect(summit).toContainText("مستني خبر");
+  const body = summit.getByTestId("desk-news-body");
+  await expect(body).toHaveValue(/شارك 45 طالب من BuildX HUE/);
+  await expect(body).toHaveValue(/بأتوبيسات الفريق/);
+  await expect(body).toHaveValue(/4.5 من 5 \(12 تقييم\)/);
+  await expect(body).not.toHaveValue(/نظّم/);
+  await expect(summit.getByTestId("desk-caption")).toHaveValue(/👥 شارك من الفريق 45 طالب/);
+  await summit.getByRole("button", { name: "لينكدإن" }).click();
+  await expect(summit.getByTestId("desk-caption")).toHaveValue(/45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./);
+  await summit.getByTestId("desk-news-save").click();
+  await expect(page.getByText("الخبر اتحفظ مسودة في «محتوى الموقع»")).toBeVisible();
+  expect(posts).toHaveLength(1);
+  expect(posts[0]).toMatchObject({ kind: "post", tags: ["event:form:f1"], published: false, image_path: null });
+  expect(String(posts[0].title_ar)).toContain("MENA ROBOTICS SUMMIT 2026");
+  expect(String(posts[0].slug)).toMatch(/^news-[0-9a-f]{8}$/);
+
+  // The workshop coming up: the invitation with the registration link and how long is left.
+  const ws = page.getByTestId("desk-form:f2");
+  await expect(ws).toContainText("جاية");
+  await ws.getByRole("button", { name: /Workshop 02/ }).click();
+  const invite = ws.getByTestId("desk-caption");
+  await expect(invite).toHaveValue(/📣 ورشة جديدة من BuildX HUE: Workshop 02/);
+  await expect(invite).toHaveValue(/فاضل يومين/);
+  await expect(invite).toHaveValue(/https:\/\/buildxhue\.com\/ar\/form\/\?f=workshop-02/);
+  await expect(invite).toHaveValue(/📍 قاعة A403/);
+  delete RPC.staff_media_desk;
+  expect(errors).toEqual([]);
+});
+
+test("photos in the frame: wide ones fill it, tall and square ones sit whole; a ZIP to download and an album on the website", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const uploads: string[] = [];
+  const posts: Record<string, unknown>[][] = [];
+  await page.route(/\/storage\/v1\/object\/site\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/site");
+  await page.getByTestId("frame-open").click();
+  await expect(page.getByTestId("photo-frame")).toBeVisible();
+  // Real photos: a wide team photo, a tall workshop photo, a square one.
+  await page.getByTestId("frame-photos").setInputFiles([
+    { name: "team.webp", mimeType: "image/webp", buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp") },
+    { name: "workshop.webp", mimeType: "image/webp", buffer: readFileSync("public/media/workshops/embedded-systems-01/01.w.webp") },
+    { name: "summit.jpg", mimeType: "image/jpeg", buffer: readFileSync("public/media/news/mena-robotics-summit-partnership.jpg") },
+    // The same shot twice (a burst): only one of them is kept.
+    { name: "team-again.webp", mimeType: "image/webp", buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp") },
+  ]);
+  await expect(page.getByTestId("frame-cull-sum")).toHaveText("هيتعمل 3 من 4 · اتشال 1 مكررة");
+  await page.getByRole("button", { name: "شوف اللي اتشال" }).click();
+  await expect(page.getByTestId("frame-left-out")).toContainText("team-again.webp");
+  const previews = page.getByTestId("frame-previews").locator("figure");
+  await expect(previews).toHaveCount(4);
+  await expect(previews.nth(0)).toContainText("مالية البرواز");
+  await expect(previews.nth(1)).toContainText("كاملة على خلفية");
+  await expect(previews.nth(2)).toContainText("كاملة على خلفية");
+  // Every result is the frame's size, with the frame drawn on top (its blue bar at the top middle).
+  const look = await previews.nth(0).locator("img").evaluate(async (img: HTMLImageElement) => {
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const x = c.getContext("2d")!;
+    x.drawImage(img, 0, 0);
+    const [r, g, b] = x.getImageData(836, 48, 1, 1).data;
+    return { w: img.naturalWidth, h: img.naturalHeight, r, g, b };
+  });
+  expect(look).toMatchObject({ w: 1672, h: 941 });
+  expect(look.b).toBeGreaterThan(180);
+  expect(look.r).toBeLessThan(80);
+  if (process.env.FRAME_SHOT) for (let i = 0; i < 3; i++) await previews.nth(i).locator("img").screenshot({ path: `${process.env.FRAME_SHOT}-${i}.png` });
+
+  // All of them as a ZIP of JPEGs, numbered in the order picked.
+  const zip = page.waitForEvent("download");
+  await page.getByTestId("frame-zip").click();
+  const z = await zip;
+  expect(z.suggestedFilename()).toMatch(/^buildx-framed-\d{4}-\d{2}-\d{2}\.zip$/);
+  const bytes = readFileSync((await z.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  const names = [...bytes.toString("latin1").matchAll(/PK\x01\x02[\s\S]{42}([\x20-\x7e]+?\.jpg)/g)].map((m) => m[1]);
+  expect(names).toEqual(["001-team.jpg", "002-workshop.jpg", "003-summit.jpg"]);
+  expect(bytes.length).toBeLessThan(3 * 700_000);
+
+  // Up to the website: an album name first, then three small WebP photos (and thumbnails) in the gallery.
+  await expect(page.getByTestId("frame-upload")).toHaveText("ارفع 3 على الموقع");
+  await page.getByTestId("frame-upload").click();
+  await expect(page.getByText("اكتب اسم الألبوم")).toBeVisible();
+  await page.getByTestId("frame-album").fill("ورشة Embedded Systems");
+  await page.getByTestId("frame-upload").click();
+  await expect(page.getByText("اترفع 3 صورة في ألبوم «ورشة Embedded Systems»")).toBeVisible();
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
+  expect(posts.flat()).toEqual([1, 2, 3].map(() => expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems"], published: true })));
+  expect(errors).toEqual([]);
+});
+
 test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -7605,6 +7734,31 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   await page.getByTestId("trip-split").click();
   await expect(page.getByTestId("trip-bus-counts")).toContainText("أتوبيس 1: 3 · أتوبيس 2: 2");
   expect(calls.find((c) => c.fn === "staff_form_set_buses")?.body).toEqual({ p_form: "f1", p_buses: { r0: 1, r1: 1, r2: 1, r3: 2, r4: 2, r5: 0 } });
+
+  // Bus 1's seat map: the bus from above, seated in the order they registered, then moved by hand.
+  await page.getByTestId("bus-seats-open-1").click();
+  const seatsSheet = page.getByRole("dialog").filter({ has: page.getByTestId("bus-seats") });
+  await expect(page.getByTestId("bus-drawing")).toContainText("السواق");
+  await expect(page.getByTestId("bus-standing").getByRole("button")).toHaveCount(3);
+  await page.getByTestId("bus-arrange").click();
+  await expect(page.getByTestId("seat-1")).toContainText("طالب 1");
+  await expect(page.getByTestId("seat-3")).toContainText("طالب 3");
+  await expect(page.getByText("كله قاعد ✓")).toBeVisible();
+  // Tap someone, then a seat: moved to an empty seat, or swapped with whoever sits there.
+  await page.getByTestId("seat-1").click();
+  await page.getByTestId("seat-6").click();
+  await page.getByTestId("seat-2").click();
+  await page.getByTestId("seat-3").click();
+  await expect(page.getByTestId("seat-6")).toContainText("طالب 1");
+  await expect(page.getByTestId("seat-2")).toContainText("طالب 3");
+  await expect(page.getByTestId("seat-1")).toHaveAccessibleName("كرسي 1 فاضي");
+  await page.getByTestId("bus-save").click();
+  await expect.poll(() => calls.find((c) => c.fn === "staff_form_set_seats")?.body).toEqual({ p_form: "f1", p_seats: { r0: 6, r1: 3, r2: 2 } });
+  const seatPdf = page.waitForEvent("download");
+  await page.getByTestId("bus-pdf").click();
+  expect((await seatPdf).suggestedFilename()).toMatch(/^buildx-bus-1-seats-.*\.pdf$/);
+  await seatsSheet.getByRole("button", { name: "إغلاق" }).last().click();
+  await expect(page.getByTestId("bus-seats-open-1")).toContainText("3/3");
   let text = await pages();
   let file = page.waitForEvent("download");
   await page.getByTestId("trip-letter-make").click();

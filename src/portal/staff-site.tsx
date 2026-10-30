@@ -9,7 +9,7 @@ import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
 import { can, errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
 import { QuickPost, type QuickPrefill } from "./quick-post";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
 type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned" | "sort" | "schedule" | "rsvp";
@@ -77,6 +77,15 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
         }
       />
       {quick && <QuickPost me={me} prefill={quick} onClose={() => setQuick(null)} onDone={reload} />}
+      {/* The automatic helpers: each event's post and captions, and photos in the frame. */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <Button icon="edit" onClick={() => go("/staff/media")} data-testid="media-open">
+          مكتب الميديا
+        </Button>
+        <Button icon="image" onClick={() => go("/staff/photo-frame")} data-testid="frame-open">
+          صور في البرواز
+        </Button>
+      </div>
       {waiting.length > 0 && (
         <Card className="mb-3 border-warn/30 bg-warn/[0.06]">
           <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-chalk">
