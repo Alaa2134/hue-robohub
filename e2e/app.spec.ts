@@ -7404,6 +7404,75 @@ test("quick post: from the home screen, a news post with photos in one screen (c
   expect(errors).toEqual([]);
 });
 
+test("photos in the frame: wide ones fill it, tall and square ones sit whole; a ZIP to download and an album on the website", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  const uploads: string[] = [];
+  const posts: Record<string, unknown>[][] = [];
+  await page.route(/\/storage\/v1\/object\/site\//, async (route) => {
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    await route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "POST") {
+      posts.push(route.request().postDataJSON());
+      return route.fulfill({ status: 201, json: [] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/site");
+  await page.getByTestId("frame-open").click();
+  await expect(page.getByTestId("photo-frame")).toBeVisible();
+  // Real photos: a wide team photo, a tall workshop photo, a square one.
+  await page.getByTestId("frame-photos").setInputFiles([
+    { name: "team.webp", mimeType: "image/webp", buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp") },
+    { name: "workshop.webp", mimeType: "image/webp", buffer: readFileSync("public/media/workshops/embedded-systems-01/01.w.webp") },
+    { name: "summit.jpg", mimeType: "image/jpeg", buffer: readFileSync("public/media/news/mena-robotics-summit-partnership.jpg") },
+  ]);
+  const previews = page.getByTestId("frame-previews").locator("figure");
+  await expect(previews).toHaveCount(3);
+  await expect(previews.nth(0)).toContainText("مالية البرواز");
+  await expect(previews.nth(1)).toContainText("كاملة على خلفية");
+  await expect(previews.nth(2)).toContainText("كاملة على خلفية");
+  // Every result is the frame's size, with the frame drawn on top (its blue bar at the top middle).
+  const look = await previews.nth(0).locator("img").evaluate(async (img: HTMLImageElement) => {
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const x = c.getContext("2d")!;
+    x.drawImage(img, 0, 0);
+    const [r, g, b] = x.getImageData(836, 48, 1, 1).data;
+    return { w: img.naturalWidth, h: img.naturalHeight, r, g, b };
+  });
+  expect(look).toMatchObject({ w: 1672, h: 941 });
+  expect(look.b).toBeGreaterThan(180);
+  expect(look.r).toBeLessThan(80);
+  if (process.env.FRAME_SHOT) for (let i = 0; i < 3; i++) await previews.nth(i).locator("img").screenshot({ path: `${process.env.FRAME_SHOT}-${i}.png` });
+
+  // All of them as a ZIP of JPEGs, numbered in the order picked.
+  const zip = page.waitForEvent("download");
+  await page.getByTestId("frame-zip").click();
+  const z = await zip;
+  expect(z.suggestedFilename()).toMatch(/^buildx-framed-\d{4}-\d{2}-\d{2}\.zip$/);
+  const bytes = readFileSync((await z.path())!);
+  expect(bytes.subarray(0, 2).toString()).toBe("PK");
+  const names = [...bytes.toString("latin1").matchAll(/PK\x01\x02[\s\S]{42}([\x20-\x7e]+?\.jpg)/g)].map((m) => m[1]);
+  expect(names).toEqual(["001-team.jpg", "002-workshop.jpg", "003-summit.jpg"]);
+  expect(bytes.length).toBeLessThan(3 * 700_000);
+
+  // Up to the website: an album name first, then three small WebP photos (and thumbnails) in the gallery.
+  await page.getByTestId("frame-upload").click();
+  await expect(page.getByText("اكتب اسم الألبوم")).toBeVisible();
+  await page.getByTestId("frame-album").fill("ورشة Embedded Systems");
+  await page.getByTestId("frame-upload").click();
+  await expect(page.getByText("اترفع 3 صورة في ألبوم «ورشة Embedded Systems»")).toBeVisible();
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
+  expect(posts.flat()).toEqual([1, 2, 3].map(() => expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems"], published: true })));
+  expect(errors).toEqual([]);
+});
+
 test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));

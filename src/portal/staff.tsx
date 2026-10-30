@@ -44,6 +44,7 @@ import { StaffTeams } from "./teams";
 import { StaffPrint } from "./print";
 import { StaffRules } from "./staff-rules";
 import { PartPrices } from "./part-prices";
+import { PhotoFrameScreen } from "./photo-frame";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -115,6 +116,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   print: "print",
   rules: "materials",
   "part-prices": "inventory",
+  "photo-frame": "site",
   access: "roster",
   content: "materials",
   quizzes: "quizzes",
@@ -353,6 +355,9 @@ export function StaffApp({
       break;
     case "part-prices":
       screen = <PartPrices me={me} />;
+      break;
+    case "photo-frame":
+      screen = <PhotoFrameScreen me={me} />;
       break;
     case "projects":
       screen = <StudentProjectsReview me={me} />;
@@ -856,6 +861,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "book", label: "الأكاديمية (كورسات اللاب والشهادات)", to: "/staff/academy" },
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
+    { icon: "image", label: "صور في البرواز (لحد 500 صورة للجاليري)", to: "/staff/photo-frame" },
     { icon: "layers", label: "صفحات الموقع (صفحة المعرض وصفحات جديدة بالسحب والإفلات)", to: "/staff/pages" },
     { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },
     { icon: "link", label: "مواقع هتفيدك (المواقع واقتراحات الزوار)", to: "/staff/directory" },

@@ -9,7 +9,7 @@ import { coreTracks } from "@/content/core-content";
 import { siteImageUrl, type ContentKind, type SiteItem } from "@/lib/site-content";
 import { can, errorText, fmt, fromLocalInput, must, removeObjects, sb, toLocalInput, uid, uploadImage, type StaffRow } from "./core";
 import { QuickPost, type QuickPrefill } from "./quick-post";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Select, Sheet, Textarea, Toggle, TopBar, confirmDialog, go, toast, useAsync } from "./ui";
 
 const SITE = "https://buildxhue.com";
 type F = "title" | "summary" | "body" | "image" | "starts" | "ends" | "location" | "url" | "track" | "tags" | "result" | "slug" | "pinned" | "sort" | "schedule" | "rsvp";
@@ -69,6 +69,9 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
           <div className="flex gap-2">
             <Button size="sm" variant="primary" icon="bolt" onClick={() => setQuick({})} data-testid="quick-open">
               نشر سريع
+            </Button>
+            <Button size="sm" icon="image" onClick={() => go("/staff/photo-frame")} data-testid="frame-open">
+              صور في البرواز
             </Button>
             <Button size="sm" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>
               {kind === "photo" ? "صور" : k.one}
