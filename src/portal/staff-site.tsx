@@ -70,9 +70,6 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
             <Button size="sm" variant="primary" icon="bolt" onClick={() => setQuick({})} data-testid="quick-open">
               نشر سريع
             </Button>
-            <Button size="sm" icon="image" onClick={() => go("/staff/photo-frame")} data-testid="frame-open">
-              صور في البرواز
-            </Button>
             <Button size="sm" icon="plus" onClick={() => (kind === "photo" ? setBulk("") : setEditing("new"))}>
               {kind === "photo" ? "صور" : k.one}
             </Button>
@@ -80,6 +77,15 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
         }
       />
       {quick && <QuickPost me={me} prefill={quick} onClose={() => setQuick(null)} onDone={reload} />}
+      {/* The automatic helpers: each event's post and captions, and photos in the frame. */}
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <Button icon="edit" onClick={() => go("/staff/media")} data-testid="media-open">
+          مكتب الميديا
+        </Button>
+        <Button icon="image" onClick={() => go("/staff/photo-frame")} data-testid="frame-open">
+          صور في البرواز
+        </Button>
+      </div>
       {waiting.length > 0 && (
         <Card className="mb-3 border-warn/30 bg-warn/[0.06]">
           <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-chalk">

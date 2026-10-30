@@ -4,12 +4,14 @@
  * nothing leaves the phone until it's uploaded). For each photo: where its subject is (detail, skin,
  * the middle), whether it fills the frame with a crop that keeps the subject or sits whole on a
  * blurred copy of itself (square and portrait photos), then levels, white balance, colour and a
- * little sharpening. Then either up to the website's gallery as an album (small WebP files and
+ * little sharpening. From hundreds of shots it can keep only the good ones: blurry, too dark or
+ * blown out, and near-identical burst shots (all but the sharpest) are left out, each one can be
+ * put back. Then either up to the website's gallery as an album (small WebP files and
  * thumbnails), or down as a ZIP.
  */
 import { useEffect, useRef, useState } from "react";
 import { BASE_PATH } from "@/lib/deploy";
-import { FRAME, applyTone, bestCrop, fitMode, measureTone, saliency, sharpen } from "@/lib/photo-frame";
+import { FRAME, applyTone, bestCrop, fitMode, look, measureTone, pickBest, saliency, sharpen, type Look, type Verdict } from "@/lib/photo-frame";
 import { zipStore } from "@/lib/zip-store";
 import { can, download, fmt, must, removeObjects, sb, today, uploadImage, type StaffRow } from "./core";
 import { Button, Card, Chip, Field, Icon, Input, Toggle, TopBar, toast } from "./ui";
@@ -89,6 +91,31 @@ export async function frameCanvas(file: Blob, o: Opts): Promise<{ canvas: HTMLCa
   }
 }
 
+/** What a photo looks like (sharpness, brightness, a fingerprint), from a 160px copy. */
+const looks = new WeakMap<File, Look | null>();
+async function lookAt(file: File): Promise<Look | null> {
+  if (looks.has(file)) return looks.get(file)!;
+  let out: Look | null = null;
+  try {
+    const bmp = await createImageBitmap(file, { resizeWidth: 160, resizeQuality: "medium" }).catch(() => createImageBitmap(file));
+    const w = 160,
+      h = Math.max(8, Math.round((160 * bmp.height) / bmp.width));
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const x = c.getContext("2d", { willReadFrequently: true })!;
+    x.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    out = look(x.getImageData(0, 0, w, h).data, w, h);
+  } catch {
+    /* unreadable: kept, and the run counts it */
+  }
+  looks.set(file, out);
+  return out;
+}
+
+const WHY: Record<Exclude<Verdict, "keep">, string> = { duplicate: "مكررة", blurry: "مهزوزة", dark: "ضلمة", bright: "محروقة" };
+
 const baseName = (f: File) => f.name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>|]+/g, "-").slice(0, 60) || "photo";
 
 export function PhotoFrameScreen({ me }: { me: StaffRow }) {
@@ -100,6 +127,30 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
   const [publish, setPublish] = useState(admin);
   const [job, setJob] = useState<{ what: "upload" | "zip"; done: number; failed: number; bytes: number } | null>(null);
   const stop = useRef(false);
+  // Picking the good ones: what each photo looks like, read as they're added.
+  const [cull, setCull] = useState(true);
+  const [seen, setSeen] = useState<(Look | null | undefined)[]>([]);
+  const [back, setBack] = useState<Set<File>>(new Set());
+  const [showOut, setShowOut] = useState(false);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const out: (Look | null | undefined)[] = files.map((f) => (looks.has(f) ? looks.get(f) : undefined));
+      setSeen([...out]);
+      for (let i = 0; i < files.length && live; i++) {
+        if (out[i] !== undefined) continue;
+        out[i] = await lookAt(files[i]);
+        if (i % 8 === 7 || i === files.length - 1) live && setSeen([...out]);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [files]);
+  const verdicts = pickBest(seen.map((l) => l ?? null));
+  const reading = seen.filter((l) => l === undefined).length;
+  const left = cull ? files.map((f, i) => ({ f, i, why: verdicts[i] })).filter((x) => x.why && x.why !== "keep" && !back.has(x.f)) : [];
+  const chosen = files.map((f, i) => i).filter((i) => !left.some((x) => x.i === i));
 
   // A look at the first few, redrawn when the options change.
   useEffect(() => {
@@ -143,7 +194,7 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
       failed = 0,
       bytes = 0;
     setJob({ what, done, failed, bytes });
-    const queue = files.map((f, i) => ({ f, i }));
+    const queue = chosen.map((i) => ({ f: files[i], i }));
     const worker = async () => {
       for (let x = queue.shift(); x && !stop.current; x = queue.shift()) {
         try {
@@ -262,6 +313,44 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
           </div>
         )}
 
+        {files.length > 1 && (
+          <Card className="grid gap-2" data-testid="frame-cull">
+            <Toggle checked={cull} onChange={setCull} label="اختار أحسن الصور تلقائي" hint="بيشيل المهزوزة والضلمة والمكررة (من كل لقطات ورا بعض بيسيب الأوضح)." />
+            {cull && (
+              <>
+                <p className="text-sm text-mist" data-testid="frame-cull-sum">
+                  {reading ? `بيبص على الصور… فاضل ${reading}` : `هيتعمل ${chosen.length} من ${files.length}`}
+                  {left.length
+                    ? ` · اتشال ${(Object.keys(WHY) as (keyof typeof WHY)[])
+                        .map((k) => [k, left.filter((x) => x.why === k).length] as const)
+                        .filter(([, n]) => n)
+                        .map(([k, n]) => `${n} ${WHY[k]}`)
+                        .join("، ")}`
+                    : ""}
+                </p>
+                {left.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setShowOut(!showOut)}>
+                    {showOut ? "خبّي اللي اتشال" : "شوف اللي اتشال"}
+                  </Button>
+                )}
+                {showOut && (
+                  <ul className="grid gap-1 text-sm" data-testid="frame-left-out">
+                    {left.map((x) => (
+                      <li key={x.i} className="flex items-center gap-2">
+                        <span className="min-w-0 flex-1 truncate text-mist">{x.f.name}</span>
+                        <span className="text-xs text-warn">{WHY[x.why as keyof typeof WHY]}</span>
+                        <Button size="sm" variant="ghost" onClick={() => setBack(new Set([...back, x.f]))}>
+                          رجّعها
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </Card>
+        )}
+
         {files.length > 0 && (
           <Card className="grid gap-3">
             <Field label="اسم الألبوم على الموقع">
@@ -275,9 +364,9 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
             {job ? (
               <div className="grid gap-2" data-testid="frame-progress">
                 <div className="h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full bg-cyan transition-all" style={{ width: `${Math.round((job.done / files.length) * 100)}%` }} />
+                  <div className="h-full bg-cyan transition-all" style={{ width: `${Math.round((job.done / Math.max(1, chosen.length)) * 100)}%` }} />
                 </div>
-                <p className="text-sm text-mist">{`${job.done} من ${files.length}${job.failed ? ` · ${job.failed} ما اتقرتش` : ""} · ${fmt.size(job.bytes)}`}</p>
+                <p className="text-sm text-mist">{`${job.done} من ${chosen.length}${job.failed ? ` · ${job.failed} ما اتقرتش` : ""} · ${fmt.size(job.bytes)}`}</p>
                 <Button size="sm" onClick={() => (stop.current = true)}>
                   وقّف
                 </Button>
@@ -285,12 +374,12 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
             ) : (
               <div className="flex flex-wrap gap-2">
                 <Button variant="primary" icon="upload" onClick={() => void toSite()} data-testid="frame-upload">
-                  {`ارفع ${files.length} على الموقع`}
+                  {`ارفع ${chosen.length} على الموقع`}
                 </Button>
                 <Button icon="download" onClick={() => void toZip()} data-testid="frame-zip">
                   نزّلهم ZIP
                 </Button>
-                <Button variant="ghost" onClick={() => setFiles([])}>
+                <Button variant="ghost" onClick={() => (setFiles([]), setBack(new Set()))}>
                   امسح الاختيار
                 </Button>
               </div>

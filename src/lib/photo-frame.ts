@@ -128,3 +128,81 @@ export function sharpen(px: Uint8ClampedArray, w: number, h: number, amount = 0.
       }
     }
 }
+
+/* ─── Picking the good ones (from hundreds) ─────────────────────────────── */
+
+export type Look = { sharp: number; mean: number; hash: string };
+
+/** Sharpness (variance of the Laplacian), brightness and a 64-bit difference hash, from a small copy. */
+export function look(px: Uint8ClampedArray, w: number, h: number): Look {
+  const lum = new Float32Array(w * h);
+  let sum = 0;
+  for (let i = 0; i < w * h; i++) sum += lum[i] = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+  let s1 = 0,
+    s2 = 0,
+    n = 0;
+  for (let y = 1; y < h - 1; y++)
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const l = lum[i - 1] + lum[i + 1] + lum[i - w] + lum[i + w] - 4 * lum[i];
+      s1 += l;
+      s2 += l * l;
+      n++;
+    }
+  const sharp = n ? s2 / n - (s1 / n) ** 2 : 0;
+  // dHash: a 9×8 grey thumbnail, one bit per "brighter than the pixel to its right".
+  const cell = (cx: number, cy: number) => {
+    const x0 = Math.floor((cx * w) / 9),
+      x1 = Math.max(x0 + 1, Math.floor(((cx + 1) * w) / 9));
+    const y0 = Math.floor((cy * h) / 8),
+      y1 = Math.max(y0 + 1, Math.floor(((cy + 1) * h) / 8));
+    let t = 0,
+      c = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) (t += lum[y * w + x]), c++;
+    return t / c;
+  };
+  let hash = "";
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) hash += cell(x, y) > cell(x + 1, y) ? "1" : "0";
+  return { sharp, mean: sum / (w * h), hash };
+}
+
+export const hamming = (a: string, b: string) => {
+  let d = 0;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++;
+  return d;
+};
+
+export type Verdict = "keep" | "blurry" | "dark" | "bright" | "duplicate";
+
+/**
+ * Which photos to keep, in the order given (the order they were taken). A burst of near-identical
+ * shots keeps its sharpest; blurry means much less sharp than the rest of this batch (so a whole
+ * soft-looking event isn't thrown away); too dark or blown out is judged on brightness alone.
+ */
+export function pickBest(looks: (Look | null)[]): Verdict[] {
+  const sharps = looks.filter((l): l is Look => !!l).map((l) => l.sharp).sort((a, b) => a - b);
+  const median = sharps.length ? sharps[Math.floor(sharps.length / 2)] : 0;
+  const out: Verdict[] = looks.map((l) => {
+    if (!l) return "keep";
+    if (l.mean < 28) return "dark";
+    if (l.mean > 235) return "bright";
+    if (sharps.length >= 5 && l.sharp < median * 0.25) return "blurry";
+    return "keep";
+  });
+  // Near-duplicates among the last few kept shots: only the sharpest stays.
+  const recent: number[] = [];
+  looks.forEach((l, i) => {
+    if (!l || out[i] !== "keep") return;
+    const twin = recent.find((j) => hamming(looks[j]!.hash, l.hash) <= 6);
+    if (twin == null) {
+      recent.push(i);
+      if (recent.length > 4) recent.shift();
+      return;
+    }
+    if (l.sharp > looks[twin]!.sharp) {
+      out[twin] = "duplicate";
+      recent[recent.indexOf(twin)] = i;
+    } else out[i] = "duplicate";
+  });
+  return out;
+}
