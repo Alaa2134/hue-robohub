@@ -1,6 +1,6 @@
 /* BuildX App service worker: the app opens offline, static files come from the cache,
  * pages are network-first. Supabase (another origin) is never cached. */
-const VERSION = "rh-app-mvwfobil";
+const VERSION = "rh-app-mvwq1k1x";
 const SCOPE = self.registration.scope;
 
 self.addEventListener("install", (event) => {
