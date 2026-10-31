@@ -121,6 +121,16 @@ export function Header({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
             <Icon name="search" size={19} />
             <kbd className="hidden rounded border border-[var(--line-2)] px-1.5 py-0.5 font-mono text-[0.6rem] tracking-wider text-fog 2xl:inline">⌘K</kbd>
           </button>
+          <button
+            type="button"
+            onClick={() => ui.set({ appearance: true, menu: false, search: false })}
+            className="flex size-10 items-center justify-center rounded-md text-mist transition-colors hover:text-chalk"
+            aria-label={t.appearance}
+            title={t.appearance}
+            data-testid="appearance-open"
+          >
+            <Icon name="palette" size={19} />
+          </button>
           <Link
             href={localePath(other, path)}
             hrefLang={other}

@@ -193,8 +193,8 @@ describe("studio API end to end", () => {
     const order = vids.flatMap((v, i) => [v, pics[i * 2], pics[i * 2 + 1]]).map(info);
     let t = quickAssemble(p.json.timeline, order, { seconds: 30, still: 2, maxShot: 2.5 });
     const song = assets.find((a) => a.kind === "audio")!;
-    t = addClip(t, "a1", { id: "music", type: "media", assetId: song.id, start: 0, duration: 30, in: 0, speed: 1, volume: 0.5, fadeIn: 1, fadeOut: 2, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null } as Clip);
-    t = addClip(t, "t1", { id: "title", type: "text", text: "روبوتكس 2026", start: 0.5, duration: 3, font: "Plex Arabic", size: 0.07, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: -0.5, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3 });
+    t = addClip(t, "a1", { id: "music", type: "media", assetId: song.id, start: 0, duration: 30, in: 0, speed: 1, volume: 0.5, fadeIn: 1, fadeOut: 2, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, color: null, duck: false } as Clip);
+    t = addClip(t, "t1", { id: "title", type: "text", text: "روبوتكس 2026", start: 0.5, duration: 3, font: "Plex Arabic", size: 0.07, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: -0.5, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3, style: "plain", subtitle: null, accent: "#45d0ff", animation: "none" });
     const saved = await call<{ version: number }>("PATCH", `/projects/${projectId}/timeline`, editor, { timeline: t, version: p.json.timelineVersion });
     expect(saved.status).toBe(200);
     version = saved.json.version;

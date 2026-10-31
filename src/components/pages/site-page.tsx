@@ -357,7 +357,7 @@ export function SitePageView({ page, locale, crumbs, preview }: { page: SitePage
     <>
       {hero && <Hero b={hero} locale={locale} accent={page.accent} crumbs={crumbs} />}
       {nav.length > 1 && (
-        <nav aria-label={tx(page.title, locale)} className="border-y border-[var(--line)] bg-[rgb(5_14_38/0.88)]" data-testid="page-nav">
+        <nav aria-label={tx(page.title, locale)} className="border-y border-[var(--line)] bg-[var(--surface-nav)]" data-testid="page-nav">
           <ul className="mx-auto flex max-w-[1680px] gap-2 overflow-x-auto px-5 py-2.5 [scrollbar-width:none] sm:px-8">
             {nav.map((b) => (
               <li key={b.id} className="shrink-0">

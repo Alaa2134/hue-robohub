@@ -99,7 +99,7 @@ function Workspace({ project, cfg, reload }: { project: Project; cfg: ServerConf
 
   const addText = useCallback(() => {
     const track = t.tracks.filter((x) => x.kind === "video").at(-1)!;
-    const c: TextClip = { id: newId("title"), type: "text", text: "عنوان", start: Math.round(time * 1000) / 1000, duration: 3, font: "Plex Arabic", size: 0.07, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3 };
+    const c: TextClip = { id: newId("title"), type: "text", text: "عنوان", start: Math.round(time * 1000) / 1000, duration: 3, font: "Plex Arabic", size: 0.07, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3, style: "plain", subtitle: null, accent: "#45d0ff", animation: "none" };
     store.apply(addClip(t, track.id, c));
     store.setSelected(c.id);
   }, [store, t, time]);

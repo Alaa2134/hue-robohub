@@ -25,7 +25,7 @@ export function clipFromAsset(a: Asset, start: number): Clip {
     fit: "cover",
     transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
     motion: a.kind === "image" ? { from: { scale: 1, x: 0, y: 0 }, to: { scale: 1.12, x: 0, y: 0 } } : null,
-    transitionIn: null,
+    transitionIn: null, color: null, duck: false,
   };
 }
 

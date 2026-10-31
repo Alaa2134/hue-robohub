@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { Hydrated, JS_GATE } from "@/components/motion/js-gate";
 import { FRAME_GUARD, HTTPS_UPGRADE, SW_REGISTER, AR_REDIRECT } from "@/lib/inline-scripts";
+import { APPEARANCE_BOOT } from "@/lib/appearance";
+import { AppearanceDialog } from "@/components/site/appearance-dialog";
 import { SmoothScroll } from "@/components/motion/smooth-scroll";
 import { Footer } from "@/components/site/footer";
 import { Header } from "@/components/site/header";
@@ -122,6 +124,8 @@ export default async function SiteLayout({ children, params }: { children: React
         <meta name="google" content="notranslate" />
         {STATIC_SITE && <script dangerouslySetInnerHTML={{ __html: FRAME_GUARD + HTTPS_UPGRADE + SW_REGISTER + AR_REDIRECT }} />}
         <script dangerouslySetInnerHTML={{ __html: JS_GATE }} />
+        {/* The visitor's theme, main color and icon style, before anything is drawn. */}
+        <script dangerouslySetInnerHTML={{ __html: APPEARANCE_BOOT }} />
         <JsonLd data={[org, website]} />
       </head>
       <body>
@@ -131,6 +135,7 @@ export default async function SiteLayout({ children, params }: { children: React
         <Header locale={locale} t={t.nav} />
         <MenuSheet locale={locale} t={t.nav} previews={previews} socials={config["site.socials"]} email={config["site.contact"].email} groups={groups} />
         <SearchDialog locale={locale} t={{ ...t.search, close: t.nav.close }} seeds={seeds} />
+        <AppearanceDialog t={{ ...t.appearance, close: t.nav.close }} />
         <main id="main" tabIndex={-1} className="outline-none">
           {children}
         </main>

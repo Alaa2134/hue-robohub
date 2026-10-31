@@ -148,7 +148,7 @@ export function FilmPlayer({ film, autoPlay = true, className }: { film: Film; a
 
   if (film.youtubeId) {
     return (
-      <div className={cn("relative aspect-video w-full overflow-hidden bg-black", className)}>
+      <div className={cn("scheme-dark relative aspect-video w-full overflow-hidden bg-black", className)}>
         <iframe
           title={film.title}
           src={`https://www.youtube-nocookie.com/embed/${film.youtubeId}?autoplay=1&rel=0&modestbranding=1`}
@@ -166,7 +166,7 @@ export function FilmPlayer({ film, autoPlay = true, className }: { film: Film; a
       ref={box}
       onPointerMove={wake}
       onPointerDown={wake}
-      className={cn("group/player relative aspect-video w-full overflow-hidden bg-black", idle && playing && "cursor-none", className)}
+      className={cn("scheme-dark group/player relative aspect-video w-full overflow-hidden bg-black", idle && playing && "cursor-none", className)}
     >
       <video
         ref={v}

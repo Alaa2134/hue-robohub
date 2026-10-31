@@ -765,7 +765,7 @@ function FormStage({ form, children }: { form: PublicForm; children: ReactNode }
   if (!form.background_path) return <>{children}</>;
   const src = `${SUPABASE_URL}/storage/v1/object/public/form-media/${form.background_path.split("/").map(encodeURIComponent).join("/")}`;
   return (
-    <div className="relative isolate overflow-clip rounded-[28px] p-4 sm:p-8" data-testid="form-stage">
+    <div className="scheme-dark relative isolate overflow-clip rounded-[28px] p-4 sm:p-8" data-testid="form-stage">
       {form.background_kind === "video" ? (
         <video src={src} autoPlay={!still} muted loop playsInline preload={still ? "metadata" : "auto"} aria-hidden className="absolute inset-0 -z-20 size-full object-cover" />
       ) : (
@@ -1241,7 +1241,7 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
           </p>
         )}
         {needed.length > 2 && (
-          <div className="sticky top-0 z-20 -mx-5 -mt-5 rounded-t-[inherit] border-b border-[var(--line)] bg-[rgb(6_11_24/0.88)] px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:-mt-8 sm:px-8" data-testid="form-progress">
+          <div className="sticky top-0 z-20 -mx-5 -mt-5 rounded-t-[inherit] border-b border-[var(--line)] bg-[var(--surface-nav)] px-5 py-3 backdrop-blur-xl sm:-mx-8 sm:-mt-8 sm:px-8" data-testid="form-progress">
             <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
               <span className="font-semibold text-frost">{t.progress(needed.length - missing.length, needed.length)}</span>
               <span className="font-mono text-fog" dir="ltr">
@@ -1586,7 +1586,7 @@ function AttendPass({ token, locale, page }: { token: string; locale: Locale; pa
     }
   };
   return (
-    <div data-testid="attend-pass" className="grid w-full max-w-md gap-4 rounded-3xl border border-cyan/40 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#06213a] p-5 text-white shadow-[0_30px_80px_-40px_rgb(56_189_248/0.6)] sm:p-6">
+    <div data-testid="attend-pass" className="scheme-dark grid w-full max-w-md gap-4 rounded-3xl border border-cyan/40 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#06213a] p-5 text-white shadow-[0_30px_80px_-40px_rgb(56_189_248/0.6)] sm:p-6">
       <div className="grid gap-1">
         <p className="text-xs font-semibold uppercase tracking-widest text-cyan">{t.qrTitle}</p>
         {title && <p className="text-lg font-bold leading-snug">{title}</p>}
@@ -1813,7 +1813,7 @@ function PassCard({ pass, locale, registered }: { pass: Pass; locale: Locale; re
     import("qrcode").then((Q) => Q.toDataURL(url, { margin: 1, width: 240, color: { dark: "#0b1f4d", light: "#ffffff" } })).then(setQr, () => setQr(""));
   }, [pass.ref]);
   return (
-    <div data-testid="delegation-pass" className="relative overflow-hidden rounded-3xl border border-[#ff7a45]/50 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#2a1407] p-6 text-white shadow-[0_30px_80px_-40px_rgb(255_122_69/0.8)]">
+    <div data-testid="delegation-pass" className="scheme-dark relative overflow-hidden rounded-3xl border border-[#ff7a45]/50 bg-gradient-to-br from-[#0b1f4d] via-[#0a1838] to-[#2a1407] p-6 text-white shadow-[0_30px_80px_-40px_rgb(255_122_69/0.8)]">
       <span aria-hidden className="absolute -end-16 -top-16 size-56 rounded-full bg-[#ff7a45]/20 blur-3xl" />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">

@@ -18,6 +18,16 @@ Art direction: **mission-grade cinematic engineering**. Deep navy-black field, e
 
 CSS vars: `--line` / `--line-2` hairlines, `--chrome` gradient, `--header-h`.
 
+## Appearance (visitor's choice)
+
+Visitors pick a **theme** (`auto` · `navy` default · `midnight` black · `light`), a **main color** (`blue` default · `cyan` · `violet` · `emerald` · `orange` · `rose` · `gold`) and an **icon style** (`engineered` default · `rounded` · `bold` · `thin` · `glow` · `duotone`) from «المظهر» in the header or the menu (`src/components/site/appearance-dialog.tsx`). The choice lives in `localStorage` (`bx-appearance`) and is put on `<html>` as `data-theme` / `data-accent` / `data-icons` by an inline script before the first paint (`src/lib/appearance.ts`); `globals.css` ("Appearance") redefines the tokens.
+
+Rules that keep every theme working:
+- Use the tokens (`void`…`chalk`, `volt`, `cyan`, `--line`, `--surface-1/2/glass/nav`). For a hard-coded dark surface, use `bg-[var(--surface-nav)]` instead of a fixed `rgb(…)`.
+- Anything that sits on a photo, video or a deliberately dark card gets `scheme-dark`: inside it the dark palette always applies (the carbon bands and the film player have it already).
+- Accent-coloured effects use `color-mix(in srgb, var(--color-volt) N%, transparent)`, not fixed blue.
+- Icons come from `<Icon>` (`bx-icon` class), so the icon style restyles them from CSS.
+
 ## Type
 
 - `t-display` — Saira expanded, uppercase, 0.92 line-height. Page titles, hero lines. Size with `text-[clamp(...)]`.

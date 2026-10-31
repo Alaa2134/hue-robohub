@@ -7,6 +7,7 @@
  */
 import { round3, type AssetInfo, type Clip, type MediaClip, type Timeline } from "./edl.ts";
 import { duration as timelineDuration, end } from "./timeline.ts";
+import { titleMotionExpr } from "./titles.ts";
 
 export type Quality = "draft" | "standard" | "high";
 
@@ -139,6 +140,15 @@ export function planRender(input: RenderInput): RenderPlan {
       }
     }
     const tail: string[] = ["setsar=1"];
+    // Color correction (eq: brightness/contrast/saturation; colorbalance: warm ↔ cool).
+    const col = c.type === "media" ? c.color : null;
+    if (col) {
+      if (col.brightness !== 0 || col.contrast !== 1 || col.saturation !== 1) tail.push(`eq=brightness=${col.brightness.toFixed(3)}:contrast=${col.contrast.toFixed(3)}:saturation=${col.saturation.toFixed(3)}`);
+      if (col.temperature !== 0) {
+        const k = col.temperature;
+        tail.push(`colorbalance=rs=${(0.06 * k).toFixed(3)}:bs=${(-0.06 * k).toFixed(3)}:rm=${(0.1 * k).toFixed(3)}:gm=${(0.02 * k).toFixed(3)}:bm=${(-0.1 * k).toFixed(3)}:rh=${(0.05 * k).toFixed(3)}:bh=${(-0.05 * k).toFixed(3)}`);
+      }
+    }
     if (tr.rotation) tail.push(`rotate=${((tr.rotation * Math.PI) / 180).toFixed(5)}:c=none:ow=rotw(${((tr.rotation * Math.PI) / 180).toFixed(5)}):oh=roth(${((tr.rotation * Math.PI) / 180).toFixed(5)})`);
     tail.push("format=yuva420p");
     if (tr.opacity < 1) tail.push(`colorchannelmixer=aa=${tr.opacity.toFixed(3)}`);
@@ -156,8 +166,14 @@ export function planRender(input: RenderInput): RenderPlan {
 
     // Where it sits: centered, plus the offset; slides animate in from the edge.
     // (a title's position is already drawn into its full-frame image)
-    let x = c.type === "text" ? "(W-w)/2" : `(W-w)/2+${f3(tr.x * (W / 2))}`;
-    let y = c.type === "text" ? "(H-h)/2" : `(H-h)/2+${f3(tr.y * (H / 2))}`;
+    let x = `(W-w)/2+${f3(tr.x * (W / 2))}`;
+    let y = `(H-h)/2+${f3(tr.y * (H / 2))}`;
+    if (c.type === "text") {
+      // Its in/out movement (the same curve as the preview's titleMotion()).
+      const m = titleMotionExpr(c, W, H);
+      x = m.x === "0" ? "(W-w)/2" : `(W-w)/2+${m.x}`;
+      y = m.y === "0" ? "(H-h)/2" : `(H-h)/2+${m.y}`;
+    }
     if (t?.kind === "slide-left" && t.duration > 0) x = `${x}+W*max(0,1-(t-${f3(c.start)})/${f3(t.duration)})`;
     if (t?.kind === "slide-up" && t.duration > 0) y = `${y}+H*max(0,1-(t-${f3(c.start)})/${f3(t.duration)})`;
     const until = round3(Math.min(DUR, c.start + c.duration + L.tail));
@@ -170,6 +186,7 @@ export function planRender(input: RenderInput): RenderPlan {
 
   // Sound.
   const sounds: string[] = [];
+  const ducked: string[] = [];
   let s = 0;
   timeline.tracks.forEach((track) => {
     if (track.muted) return;
@@ -192,12 +209,21 @@ export function planRender(input: RenderInput): RenderPlan {
         `adelay=${Math.round(c.start * 1000)}:all=1`,
       ];
       graph.push(`[${idx}:a]${chain.join(",")}[s${s}]`);
-      sounds.push(`[s${s}]`);
+      (c.duck ? ducked : sounds).push(`[s${s}]`);
       s++;
     }
   });
-  if (sounds.length) {
-    graph.push(`${sounds.join("")}amix=inputs=${sounds.length}:normalize=0:dropout_transition=0,alimiter=limit=0.95,apad,atrim=0:${f3(DUR)}[aout]`);
+  const mix = (ins: string[], out: string, extra = "") => graph.push(`${ins.join("")}${ins.length > 1 ? `amix=inputs=${ins.length}:normalize=0:dropout_transition=0` : "anull"}${extra}[${out}]`);
+  const finish = ",alimiter=limit=0.95,apad,atrim=0:" + f3(DUR);
+  if (ducked.length && sounds.length) {
+    // The other sound drives a compressor on the music (sidechain): the music dips while people talk.
+    mix(sounds, "voice0");
+    graph.push("[voice0]asplit=2[voice][sc]");
+    mix(ducked, "music0");
+    graph.push("[music0][sc]sidechaincompress=threshold=0.04:ratio=8:attack=40:release=600:makeup=1[music]");
+    mix(["[voice]", "[music]"], "aout", finish);
+  } else if (sounds.length || ducked.length) {
+    mix([...sounds, ...ducked], "aout", finish);
   } else {
     const idx = addInput(["-f", "lavfi", "-t", f3(DUR), "-i", "anullsrc=r=48000:cl=stereo"]);
     graph.push(`[${idx}:a]atrim=0:${f3(DUR)}[aout]`);
@@ -242,7 +268,7 @@ export function planRender(input: RenderInput): RenderPlan {
     "-nostats",
     output.path,
   );
-  return { args, duration: DUR, frames, layers: layers.length, sounds: sounds.length };
+  return { args, duration: DUR, frames, layers: layers.length, sounds: sounds.length + ducked.length };
 }
 
 /** Rough render time and cost before starting (CPU seconds per output second by size and quality). */

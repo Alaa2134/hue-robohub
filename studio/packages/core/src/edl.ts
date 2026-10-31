@@ -37,6 +37,30 @@ export const Motion = z.object({
 });
 export type Motion = z.infer<typeof Motion>;
 
+/** Color correction: the same numbers drive FFmpeg (eq + colorbalance) and the preview (canvas filters). */
+export const Color = z.object({
+  brightness: z.number().min(-0.5).max(0.5).default(0),
+  contrast: z.number().min(0.5).max(2).default(1),
+  saturation: z.number().min(0).max(3).default(1),
+  /** −1 cool … +1 warm. */
+  temperature: z.number().min(-1).max(1).default(0),
+});
+export type Color = z.infer<typeof Color>;
+
+/** Looks: starting points for the sliders. */
+export const LOOKS: Record<string, { label: string; color: Color | null }> = {
+  none: { label: "طبيعي", color: null },
+  vivid: { label: "ألوان زاهية", color: { brightness: 0.02, contrast: 1.12, saturation: 1.35, temperature: 0 } },
+  warm: { label: "دافي", color: { brightness: 0.02, contrast: 1.05, saturation: 1.1, temperature: 0.5 } },
+  cool: { label: "بارد", color: { brightness: 0, contrast: 1.05, saturation: 1, temperature: -0.5 } },
+  cinematic: { label: "سينمائي", color: { brightness: -0.04, contrast: 1.18, saturation: 0.85, temperature: 0.25 } },
+  bw: { label: "أبيض وأسود", color: { brightness: 0, contrast: 1.2, saturation: 0, temperature: 0 } },
+  faded: { label: "باهت ناعم", color: { brightness: 0.06, contrast: 0.85, saturation: 0.8, temperature: 0.1 } },
+};
+
+export const TITLE_STYLES = ["plain", "box", "lower-third", "headline", "caption"] as const;
+export const TITLE_ANIMATIONS = ["none", "rise", "slide"] as const;
+
 export const Transition = z.object({ kind: z.enum(TRANSITIONS), duration: z.number().min(0).max(5) });
 export type Transition = z.infer<typeof Transition>;
 
@@ -61,6 +85,9 @@ export const MediaClip = z.object({
   transform: Transform.default({ x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }),
   motion: Motion.nullable().default(null),
   transitionIn: Transition.nullable().default(null),
+  color: Color.nullable().default(null),
+  /** Music: lowered automatically while the videos' own sound is loud (people talking). */
+  duck: z.boolean().default(false),
 });
 export type MediaClip = z.infer<typeof MediaClip>;
 
@@ -78,6 +105,12 @@ export const TextClip = z.object({
   transform: Transform.default({ x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }),
   fadeIn: z.number().min(0).max(10).default(0.3),
   fadeOut: z.number().min(0).max(10).default(0.3),
+  /** Motion-graphics templates: a lower third (name + role), a headline, a caption bar. */
+  style: z.enum(TITLE_STYLES).default("plain"),
+  subtitle: z.string().max(200).nullable().default(null),
+  accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#45d0ff"),
+  /** How it comes in and goes out (over its fade-in / fade-out time). */
+  animation: z.enum(TITLE_ANIMATIONS).default("none"),
 });
 export type TextClip = z.infer<typeof TextClip>;
 

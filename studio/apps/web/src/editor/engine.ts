@@ -144,6 +144,18 @@ export class PreviewEngine {
     return i;
   }
 
+  /** Is a video with its own sound playing now (what ducked music dips under)? */
+  private talking(t: number): boolean {
+    for (const L of layersAt(this.timeline, t)) {
+      const c = L.clip;
+      if (c.type !== "media" || c.volume <= 0) continue;
+      const tr = this.timeline.tracks.find((x) => x.id === L.trackId);
+      const a = this.assets.get(c.assetId);
+      if (a?.kind === "video" && a.hasAudio && !tr?.muted) return true;
+    }
+    return false;
+  }
+
   /** Sound from the audio tracks (video clips play their own sound through their video element). */
   private syncAudio() {
     const t = this.time;
@@ -170,6 +182,7 @@ export class PreviewEngine {
         const want = c.in + local * c.speed;
         el.playbackRate = c.speed;
         let vol = c.volume;
+        if (c.duck && this.talking(t)) vol *= 0.3;
         if (c.fadeIn > 0 && local < c.fadeIn) vol *= local / c.fadeIn;
         if (c.fadeOut > 0 && local > c.duration - c.fadeOut) vol *= Math.max(0, (c.duration - local) / c.fadeOut);
         el.volume = Math.max(0, Math.min(1, vol));
@@ -195,6 +208,7 @@ export class PreviewEngine {
       if (c.type === "text") {
         ctx.save();
         ctx.globalAlpha = L.alpha;
+        ctx.translate(L.slideX, L.slideY);
         drawTitle(ctx as never, c as TextClip, W, H);
         ctx.restore();
         continue;
@@ -248,21 +262,32 @@ export class PreviewEngine {
     ctx.translate(W / 2 + tr.x * (W / 2) + L.slideX, H / 2 + tr.y * (H / 2) + L.slideY);
     if (tr.rotation) ctx.rotate((tr.rotation * Math.PI) / 180);
     let box = { x: -lw / 2, y: -lh / 2, w: lw, h: lh };
+    const col = c.color;
+    const grade = col ? `brightness(${(1 + col.brightness * 1.6).toFixed(3)}) contrast(${col.contrast.toFixed(3)}) saturate(${col.saturation.toFixed(3)})` : "none";
+    ctx.filter = grade;
     if (L.motion) {
       const cover = fitRect(sw, sh, lw, lh, "cover").src;
       const m = motionRect(cover, L.motion.zoom, L.motion.dx, L.motion.dy);
       ctx.drawImage(el, m.x, m.y, m.w, m.h, box.x, box.y, box.w, box.h);
     } else if (c.fit === "blur") {
       const bg = fitRect(sw, sh, lw, lh, "cover");
-      ctx.filter = `blur(${Math.round(24 * this.scale)}px) brightness(0.92)`;
+      ctx.filter = `${grade === "none" ? "" : `${grade} `}blur(${Math.round(24 * this.scale)}px) brightness(0.92)`;
       ctx.drawImage(el, bg.src.x, bg.src.y, bg.src.w, bg.src.h, bg.dst.x, bg.dst.y, bg.dst.w, bg.dst.h);
-      ctx.filter = "none";
+      ctx.filter = grade;
       const fg = fitRect(sw, sh, lw, lh, "contain");
       ctx.drawImage(el, fg.src.x, fg.src.y, fg.src.w, fg.src.h, fg.dst.x, fg.dst.y, fg.dst.w, fg.dst.h);
     } else {
       const r = fitRect(sw, sh, lw, lh, c.fit === "contain" ? "contain" : "cover");
       ctx.drawImage(el, r.src.x, r.src.y, r.src.w, r.src.h, r.dst.x, r.dst.y, r.dst.w, r.dst.h);
       box = r.dst;
+    }
+    ctx.filter = "none";
+    if (col && col.temperature !== 0) {
+      // Warm/cool, like the render's colorbalance: an orange or blue soft-light wash.
+      ctx.globalCompositeOperation = "soft-light";
+      ctx.fillStyle = col.temperature > 0 ? `rgba(255,140,40,${(col.temperature * 0.45).toFixed(3)})` : `rgba(50,130,255,${(-col.temperature * 0.45).toFixed(3)})`;
+      ctx.fillRect(box.x, box.y, box.w, box.h);
+      ctx.globalCompositeOperation = "source-over";
     }
     if (L.black > 0) {
       ctx.globalAlpha = L.alpha * L.black;

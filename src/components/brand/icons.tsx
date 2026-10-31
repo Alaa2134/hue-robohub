@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { ICON_EMOJI } from "@/lib/appearance";
 
 /**
  * BuildX HUE icon set — drawn on a 24px grid, 1.6px strokes, square caps, 45° chamfers to echo the mark.
@@ -6,15 +7,35 @@ import type { SVGProps } from "react";
  */
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
-function Svg({ size = 24, children, ...rest }: P & { children: React.ReactNode }) {
+function Svg({ size = 24, children, className, ...rest }: P & { children: React.ReactNode }) {
+  // "bx-icon": the visitor's icon style restyles it from CSS (rounded, bold, thin, glow, two-tone,
+  // in tiles or circles). For the emoji styles the drawing carries its emoji too, shown instead of the lines.
+  const emoji = (rest as { "data-emoji"?: string })["data-emoji"];
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="square" strokeLinejoin="miter" aria-hidden {...rest}>
-      {children}
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="square" strokeLinejoin="miter" aria-hidden className={className ? `bx-icon ${className}` : "bx-icon"} {...rest}>
+      {emoji ? (
+        <>
+          <g className="bx-glyph">{children}</g>
+          <text className="bx-emoji" x="12" y="13" textAnchor="middle" dominantBaseline="central" fontSize="19" stroke="none" fill="currentColor">
+            {emoji}
+          </text>
+        </>
+      ) : (
+        children
+      )}
     </svg>
   );
 }
 
 export const Icons = {
+  palette: (p: P) => (
+    <Svg {...p}>
+      <path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.1-.9-1.6-.9-2.6 0-1 .8-1.7 1.9-1.7H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z" />
+      <circle cx="7.5" cy="11" r="1.2" />
+      <circle cx="10.5" cy="7.2" r="1.2" />
+      <circle cx="15" cy="7.6" r="1.2" />
+    </Svg>
+  ),
   // Tracks
   embedded: (p: P) => (
     <Svg {...p}>
@@ -395,7 +416,8 @@ export const ICON_NAMES = Object.keys(Icons) as IconName[];
 
 export function Icon({ name, ...p }: P & { name: IconName }) {
   const C = Icons[name];
-  return <C {...p} />;
+  const emoji = ICON_EMOJI[name];
+  return <C {...p} {...(emoji ? { "data-emoji": emoji } : {})} />;
 }
 
 export const TRACK_ICON: Record<string, IconName> = {

@@ -247,7 +247,8 @@ export async function buildApp({ config, db, storage, queues }: Deps) {
       id: p.id,
       name: p.name,
       template: p.template,
-      timeline: p.timeline,
+      // Filled with the current defaults, so a project saved before a new setting existed opens fine.
+      timeline: parseTimeline(p.timeline),
       timelineVersion: p.timeline_version,
       createdAt: p.created_at,
       updatedAt: p.updated_at,
