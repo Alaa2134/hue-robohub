@@ -7451,6 +7451,24 @@ test("media desk: the news post and social posts of each event are written from 
   await summit.getByRole("button", { name: "لينكدإن" }).click();
   await expect(summit.getByTestId("desk-caption")).toHaveValue(/45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./);
 
+  // What the attendees said, summed up: stars, the words that keep coming up, a tip for next time.
+  await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
+    route.fulfill({
+      json: [
+        { rating: 5, comment: "الشرح ممتاز والتنظيم ممتاز" },
+        { rating: 5, comment: "تنظيم ممتاز" },
+        { rating: 2, comment: "الصوت مش واضح في القاعة" },
+        { rating: 3, comment: "الصوت وحش" },
+      ],
+    }),
+  );
+  await summit.getByTestId("feedback-open").click();
+  const fb = summit.getByTestId("feedback-summary");
+  await expect(fb).toContainText("رأي الحضور: 3.8 من 5 (4 تقييم)");
+  await expect(fb).toContainText("👍 اتكرر في الكلام الحلو: ممتاز");
+  await expect(fb).toContainText("👎 اتكرر في الشكاوى: صوت");
+  await expect(fb).toContainText("💡 للمرة الجاية: الصوت كان مشكلة");
+
   // The college's post: under its saved patronage lines, «يشاركون في» the summit, who represented it
   // (from who was scanned in), the tracks picked and the supervisor.
   const college = summit.getByTestId("desk-college");

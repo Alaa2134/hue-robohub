@@ -86,6 +86,8 @@ begin
   loop
     update public.staff_task_assignees
        set state = 'approved', submitted_at = coalesce(submitted_at, now()), reviewed_at = now(),
+           -- Done after the deadline counts as late (the founder's dashboard and the weekly report).
+           late = late or (submitted_at is null and now() > (select t2.due_at from public.staff_tasks t2 where t2.id = s.task_id)),
            note = coalesce(note, case when s.step = 'photos' then 'اتقفل لوحده: صور الفعالية اتنشرت على الموقع.' else 'اتقفل لوحده: خبر الفعالية اتحفظ.' end)
      where task_id = s.task_id and state <> 'approved';
     update public.staff_tasks set status = 'closed' where id = s.task_id;
