@@ -15,7 +15,8 @@ import { FRAME, applyTone, bestCrop, fitMode, look, measureTone, pickBest, salie
 import { batches } from "@/lib/share-files";
 import { zipStore } from "@/lib/zip-store";
 import { publicImageUrl } from "@/lib/site-content";
-import { can, download, fmt, must, prepareImage, removeObjects, rpc, sb, sharePhotos, today, uploadImage, type StaffRow } from "./core";
+import { shrinkOne, shrinking, HEAVY, type Heavy } from "./auto-shrink";
+import { can, download, fmt, must, removeObjects, rpc, sb, sharePhotos, today, uploadImage, type StaffRow } from "./core";
 import { Button, Card, Chip, Field, Icon, Input, Textarea, Toggle, TopBar, toast } from "./ui";
 
 const MAX = 500;
@@ -456,19 +457,16 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
   }
 }
 
-type Heavy = { id: string; path: string; size: number };
-
 /**
- * The site's old photos (heavy JPEGs from iPhones) made light: each one re-encoded on this device,
- * saved under a new name, its content item pointed at it, then the old file removed. One at a time,
- * so a stop halfway leaves every photo working.
+ * The site's heavy photos, in view: the same job the app runs by itself in the background
+ * (src/portal/auto-shrink.tsx), here with a progress bar for whoever wants it done now.
  */
 function ShrinkOld() {
   const [list, setList] = useState<Heavy[] | null>(null);
   const [run, setRun] = useState<{ done: number; saved: number; failed: number } | null>(null);
   const stop = useRef(false);
   useEffect(() => {
-    rpc<Heavy[]>("staff_heavy_site_images")
+    rpc<Heavy[]>("staff_heavy_site_images", { p_min: HEAVY })
       .then((l) => setList(l ?? []))
       .catch(() => setList([]));
   }, []);
@@ -476,7 +474,8 @@ function ShrinkOld() {
   const total = list.reduce((n, x) => n + x.size, 0);
 
   const go = async () => {
-    if (!confirm(`هتتصغّر ${list.length} صورة على الموقع (${fmt.size(total)}). الصورة بتفضل بنفس الشكل بس أخف، والملف القديم بيتمسح بعد ما الجديدة تتحفظ. نكمّل؟`)) return;
+    if (shrinking.now) return toast("بتتصغّر دلوقتي في الخلفية — استنى شوية", "info");
+    shrinking.now = true;
     stop.current = false;
     let done = 0,
       saved = 0,
@@ -489,25 +488,9 @@ function ShrinkOld() {
         continue;
       }
       try {
-        const res = await fetch(publicImageUrl("site", x.path));
-        if (!res.ok) throw new Error(String(res.status));
-        const blob = await res.blob();
-        const light = await prepareImage(blob);
-        // Not worth it (already light enough): leave it.
-        if (light.main.size > x.size * 0.8) {
-          left.push(x);
-        } else {
-          const up = await uploadImage("site", x.path.split("/").slice(0, -1).join("/") || "shrunk", blob);
-          const rows = await sb().from("site_content").update({ image_path: up.path }).eq("id", x.id).eq("image_path", x.path).select("id").then(must);
-          if (!rows?.length) {
-            // The item changed meanwhile: drop the new copy, keep the old.
-            await removeObjects([up.path], "site").catch(() => undefined);
-            left.push(x);
-          } else {
-            await removeObjects([x.path], "site").catch(() => undefined);
-            saved += x.size - up.after;
-          }
-        }
+        const s = await shrinkOne(x);
+        if (s) saved += s;
+        else left.push(x);
       } catch {
         failed++;
         left.push(x);
@@ -515,15 +498,16 @@ function ShrinkOld() {
       done++;
       setRun({ done, saved, failed });
     }
+    shrinking.now = false;
     toast(`اتصغّرت الصور: وفّرنا ${fmt.size(saved)}${failed ? ` · ${failed} ما اتعملتش` : ""}`, "ok");
-    setList(left.filter((x) => x.size >= 320000));
+    setList(left.filter((x) => x.size >= HEAVY * 1.25));
     setRun(null);
   };
 
   return (
     <Card className="mt-4 grid gap-2" data-testid="shrink-old">
       <p className="font-semibold text-chalk">{`${list.length} صورة على الموقع تقيلة (${fmt.size(total)})`}</p>
-      <p className="text-sm text-fog">اترفعت من الآيفون قبل التحديث. صغّرها بضغطة: بنفس الشكل والجودة اللي على الشاشة، وحجم أقل بكتير.</p>
+      <p className="text-sm text-fog">بتتصغّر لوحدها في الخلفية وإنت فاتح التطبيق. لو عايزها تخلص دلوقتي دوس «صغّرهم».</p>
       {run ? (
         <div className="grid gap-2">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">

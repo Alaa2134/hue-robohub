@@ -1,5 +1,6 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
+import { AutoShrink } from "./auto-shrink";
 import { useEffect, useMemo, useState } from "react";
 import {
   isFull,
@@ -487,6 +488,7 @@ export function StaffApp({
     <AppShell tabs={tabs} path={path} wide={path[0] === "forms" && path[2] === "responses"}>
       {viewOnly ? <ViewOnly areas={areas}>{screen}</ViewOnly> : screen}
       {section && section !== "more" && <BaqlozBuddy first={first} path={path.join("/")} />}
+      <AutoShrink me={me} here={section ?? ""} />
     </AppShell>
   );
 }

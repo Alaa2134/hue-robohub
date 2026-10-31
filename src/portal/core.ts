@@ -614,37 +614,46 @@ export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promis
   }
 }
 
+
+/**
+ * Squeezes a picture until it is light: the quality steps down, and if that isn't enough the size
+ * shrinks a little, until it fits `bytes` (or reaches the floor: quality 0.5, ¾ of the size, so a
+ * photo never turns to mush). Returns the encoded file and the long edge it ended at.
+ */
+async function squeeze(img: Decoded, maxEdge: number, type: string, bytes: number, flatten: boolean): Promise<{ blob: Blob; edge: number }> {
+  let out: Blob | null = null;
+  let edge = maxEdge;
+  for (const scale of [1, 0.87, 0.75]) {
+    edge = Math.round(maxEdge * scale);
+    for (const q of [0.8, 0.72, 0.64, 0.57, 0.5]) {
+      out = await encode(img, edge, type, q, flatten);
+      if (out.size <= bytes) return { blob: out, edge };
+    }
+  }
+  return { blob: out!, edge };
+}
+
 /** About `kb` for a `ref`-pixel edge, scaled by area for other sizes. */
 const budget = (edge: number, kb: number, ref = 1600) => Math.round(kb * 1024 * (edge / ref) ** 2);
-
-/** A JPEG at the best of a few qualities that fits `bytes` (the lowest one if none does). */
-async function lightJpeg(img: Decoded, maxEdge: number, bytes: number): Promise<Blob> {
-  let out: Blob | null = null;
-  for (const q of [0.8, 0.72, 0.64, 0.56]) {
-    out = await encode(img, maxEdge, "image/jpeg", q, true);
-    if (out.size <= bytes) break;
-  }
-  return out!;
-}
 
 export type PreparedImage = { main: Blob; thumb: Blob; ext: "webp" | "jpg"; type: string; before: number; after: number; width: number; height: number };
 
 /**
- * The upload pipeline for every photo: resized (main ≤ maxEdge, thumbnail ≤ thumbEdge), re-encoded as
- * WebP (JPEG where the browser can't write WebP) and stripped of metadata such as GPS location.
+ * The upload pipeline for every photo: resized (main ≤ maxEdge, thumbnail ≤ thumbEdge), squeezed
+ * until light (a 1600px photo ≈ 140 KB, its thumbnail ≈ 28 KB), as WebP (JPEG where the browser
+ * can't write WebP, as on iPhones) and stripped of metadata such as GPS location.
  */
-export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640, quality = 0.8 } = {}): Promise<PreparedImage> {
+export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640 } = {}): Promise<PreparedImage> {
   const img = await loadImage(file);
   try {
-    let main = await encode(img, maxEdge, "image/webp", quality, false);
-    const webp = main.type === "image/webp";
-    // Safari (every iPhone) can't write WebP: a JPEG, stepped down until it's about as light as the
-    // WebP would have been (a 1600px photo ≈ 250 KB, its thumbnail ≈ 50 KB).
-    if (!webp) main = await lightJpeg(img, maxEdge, budget(maxEdge, 250));
+    const probe = await encode(img, 16, "image/webp", 0.8, false);
+    const webp = probe.type === "image/webp";
     const type = webp ? "image/webp" : "image/jpeg";
-    const thumb = webp ? await encode(img, thumbEdge, type, 0.74, false) : await lightJpeg(img, thumbEdge, budget(thumbEdge, 50, 640));
-    const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
-    return { main, thumb, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.size, width: Math.round(img.width * scale), height: Math.round(img.height * scale) };
+    // JPEG needs a little more room than WebP for the same look.
+    const main = await squeeze(img, maxEdge, type, budget(maxEdge, webp ? 140 : 170), !webp);
+    const thumb = await squeeze(img, thumbEdge, type, budget(thumbEdge, webp ? 28 : 34, 640), !webp);
+    const scale = Math.min(1, main.edge / Math.max(img.width, img.height));
+    return { main: main.blob, thumb: thumb.blob, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.blob.size, width: Math.round(img.width * scale), height: Math.round(img.height * scale) };
   } finally {
     img.done();
   }
