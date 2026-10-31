@@ -1,6 +1,6 @@
-:HL["/_next/static/chunks/07a15yi-ynwd7.css","style"]
+:HL["/_next/static/chunks/0x2yg6by_46pi.css","style"]
 :HL["/_next/static/chunks/3nsrikqa1g4in.css","style"]
 :HL["/_next/static/media/inter_var-s.p.0gsaq8ukbf34m.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/_next/static/media/saira_var-s.p.3w92cxw311nh2.woff2","font",{"crossOrigin":"","type":"font/woff2"}]
 :HL["/brand/logo-badge-160.png","image"]
-0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"locale","param":{"type":"d","key":"en","siblings":["app","lab"]},"prefetchHints":4144,"slots":{"children":{"name":"achievements","param":null,"prefetchHints":4160,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"_IKNPrcip_k3eY-HqP54i"}
+0:{"tree":{"name":"","param":null,"prefetchHints":4176,"slots":{"children":{"name":"locale","param":{"type":"d","key":"en","siblings":["app","lab"]},"prefetchHints":4144,"slots":{"children":{"name":"achievements","param":null,"prefetchHints":4160,"slots":{"children":{"name":"__PAGE__","param":null,"prefetchHints":4256,"slots":null}}}}}}},"staleTime":300,"buildId":"z1DbGG5hENq-0XrwdgPkN"}
