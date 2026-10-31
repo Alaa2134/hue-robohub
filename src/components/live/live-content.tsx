@@ -302,7 +302,20 @@ export function LiveGallery({
 }) {
   const t = tr(locale);
   const s = useLive(() => fetchContent("photo", 500), [], initial?.length ? initial : undefined);
-  const [picked, setAlbum] = useState("");
+  // «?album=…» opens one event's photos (a link the team shares after an event).
+  const [picked, setPicked] = useState("");
+  useEffect(() => {
+    if (tag) return;
+    const a = new URLSearchParams(window.location.search).get("album");
+    if (a) setPicked(a.slice(0, 120));
+  }, [tag]);
+  const setAlbum = (a: string) => {
+    setPicked(a);
+    const u = new URL(window.location.href);
+    if (a) u.searchParams.set("album", a);
+    else u.searchParams.delete("album");
+    window.history.replaceState(null, "", u);
+  };
   const names = (Array.isArray(tag) ? tag : tag ? [tag] : [picked]).filter(Boolean);
   const [open, setOpen] = useState<number | null>(null);
   const photos = (s.data ?? []).filter((p) => p.image_path && (!names.length || p.tags.some((g) => names.includes(g))));

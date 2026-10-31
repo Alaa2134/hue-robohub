@@ -14,7 +14,7 @@ import { skinShare } from "@/lib/photo-pick";
 import { siteImageUrl } from "@/lib/site-content";
 import { zipStore } from "@/lib/zip-store";
 import { download, errorText, fmt, must, sb, sharePhotos, today } from "./core";
-import { renderCarousel, toPic, type Pic, type Slides } from "./carousel-draw";
+import { renderCarousel, renderSoon, toPic, type Pic, type Slides } from "./carousel-draw";
 import { Button, Field, Icon, Input, Select, toast } from "./ui";
 
 const KINDS: [CarouselKind, string][] = [
@@ -184,6 +184,86 @@ export function EventCarousel({ e, caption }: { e: { key: string; title: string;
               نزّلهم ZIP
             </Button>
           </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Before an event: three slides — «Coming Soon» with the days left, «Save the date» and «Register now»
+ * with the registration QR. One photo (optional) for the backdrop.
+ */
+export function SoonCarousel({ e, caption }: { e: { key: string; slug?: string | null; title: string; title_en?: string | null; at: string; place?: string | null; form?: boolean }; caption: string }) {
+  const kind = KINDS.find(([k]) => k === guessKind(e.title).kind)?.[0] ?? "event";
+  const when = new Date(e.at);
+  const fmtIn = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-GB", { ...o, timeZone: "Africa/Cairo" }).format(when);
+  const [title, setTitle] = useState(e.title_en?.trim() || e.title);
+  const [place, setPlace] = useState(e.place ?? "");
+  const [bg, setBg] = useState<Blob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [slides, setSlides] = useState<{ key: string; blob: Blob; url: string }[] | null>(null);
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), []);
+  const reg = e.form && e.slug ? `https://buildxhue.com/ar/form/?f=${encodeURIComponent(e.slug)}` : "https://buildxhue.com";
+
+  const make = async () => {
+    setBusy(true);
+    try {
+      const days = Math.max(0, Math.ceil((when.getTime() - Date.now()) / 86_400_000));
+      const pic = bg ? await toPic(bg).catch(() => undefined) : undefined;
+      const out = await renderSoon(
+        { title, kind: kind[0].toUpperCase() + kind.slice(1), date: enDate(e.at), day: fmtIn({ day: "numeric" }), month: fmtIn({ month: "long" }), place, days, url: reg },
+        e.key,
+        pic,
+      );
+      urls.current.forEach((u) => URL.revokeObjectURL(u));
+      const made = out.map((x) => ({ ...x, url: URL.createObjectURL(x.blob) }));
+      urls.current = made.map((x) => x.url);
+      setSlides(made);
+    } catch (err) {
+      toast(errorText(err), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const files = () => (slides ?? []).map((x, i) => new File([x.blob], `soon-${i + 1}-${x.key}.jpg`, { type: "image/jpeg" }));
+  const share = async () => {
+    const r = await sharePhotos(files(), caption);
+    if (r !== "cancelled") toast(r === "shared" ? "اتبعت ✓" : `اتحفظت ${slides?.length ?? 0} شريحة`, "ok");
+  };
+
+  return (
+    <div className="grid gap-3" data-testid="desk-soon">
+      <p className="text-sm font-semibold text-chalk">تصميم «قريبًا» (3 شرايح: العد التنازلي، احجز ميعادك، وكود التسجيل)</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="الاسم على التصميم">
+          <Input value={title} maxLength={60} onChange={(x) => (setTitle(x.target.value), setSlides(null))} data-testid="soon-title" />
+        </Field>
+        <Field label="المكان">
+          <Input value={place} maxLength={50} onChange={(x) => (setPlace(x.target.value), setSlides(null))} />
+        </Field>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="btn btn-sm cursor-pointer">
+          <Icon name="image" size={16} />
+          {bg ? "غيّر صورة الخلفية" : "صورة للخلفية (اختياري)"}
+          <input type="file" accept="image/*" className="sr-only" onChange={(x) => (setBg(x.target.files?.[0] ?? null), setSlides(null), (x.target.value = ""))} />
+        </label>
+        <Button variant="primary" icon="image" loading={busy} onClick={() => void make()} data-testid="soon-make">
+          اعمل التصميم
+        </Button>
+      </div>
+      {slides && (
+        <>
+          <div className="grid grid-cols-3 gap-2" data-testid="soon-slides">
+            {slides.map((x) => (
+              <img key={x.key} src={x.url} alt={x.key} className="w-full rounded-lg border border-[var(--line)]" data-testid={`soon-slide-${x.key}`} />
+            ))}
+          </div>
+          <Button variant="primary" icon="share" onClick={() => void share()} data-testid="soon-share">
+            احفظ / شارك
+          </Button>
         </>
       )}
     </div>

@@ -7272,9 +7272,11 @@ test("responses: who else a person is (other forms, member), groups set after th
     return route.fulfill({ json: rows });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_form_links/, (route) =>
-    route.fulfill({ json: { r2: { forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }], member: { code: "BX123", active: true } } } }),
+    route.fulfill({ json: { r2: { forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }], member: { code: "BX123", active: true }, shows: { missed: 2, came: 1 } } } }),
   );
   await page.goto("/app/#/staff/forms/f1/responses");
+  // He was accepted to three events before and missed two: flagged on his row.
+  await expect(page.getByTestId("noshow-badge")).toHaveText("⚠ غاب 2 من 3 فعالية اتقبل فيها");
 
   // Ali is a member and applied to another form: shown on his row and inside.
   await expect(page.getByText("مقدّم على 1 فورم تاني")).toBeVisible();
@@ -7282,6 +7284,7 @@ test("responses: who else a person is (other forms, member), groups set after th
   await page.getByText("علي حسن").click();
   await expect(page.getByTestId("person-links")).toContainText("اختبارات فريق السومو");
   await expect(page.getByTestId("person-links")).toContainText("BX123");
+  await expect(page.getByTestId("person-shows")).toContainText("حضر 1 وغاب 2");
   // Put him in the existing group from inside.
   await page.getByTestId("group-editor").locator("button", { hasText: "+ ورشة السبت" }).click();
   await expect.poll(() => patches.at(-1)).toEqual({ id: "r2", body: { tags: ["ورشة السبت"] } });
@@ -7486,6 +7489,10 @@ test("media desk: the news post and social posts of each event are written from 
       });
       writeFileSync(`${process.env.CAROUSEL_SHOT}-${i}.jpg`, Buffer.from(b64, "base64"));
     }
+  // The month's report for the college: a PDF.
+  const report = page.waitForEvent("download");
+  await page.getByTestId("month-report-pdf").click();
+  expect((await report).suggestedFilename()).toMatch(/^buildx-month-\d{4}-\d{2}-\d{4}-\d{2}-\d{2}\.pdf$/);
   const zipped = page.waitForEvent("download");
   await carousel.getByTestId("carousel-zip").click();
   expect((await zipped).suggestedFilename()).toMatch(/^carousel-\d{4}-\d{2}-\d{2}\.zip$/);
@@ -7505,6 +7512,10 @@ test("media desk: the news post and social posts of each event are written from 
   await expect(invite).toHaveValue(/فاضل يومين/);
   await expect(invite).toHaveValue(/https:\/\/buildxhue\.com\/ar\/form\/\?f=workshop-02/);
   await expect(invite).toHaveValue(/📍 قاعة A403/);
+  // Before it: the «coming soon» design, three slides with the days left and the registration QR.
+  await ws.getByTestId("soon-make").click();
+  await expect(ws.getByTestId("soon-slide-register")).toBeVisible({ timeout: 20_000 });
+  await expect(ws.getByTestId("soon-slides").locator("img")).toHaveCount(3);
   delete RPC.staff_media_desk;
   delete RPC.staff_college_setup;
   delete RPC.staff_event_people;

@@ -7,12 +7,13 @@
  * website, saved as a draft (or published) in one tap, with the event's first photo as its cover.
  */
 import { useMemo, useState } from "react";
-import { captions, hashtags, isPast, mergeSameDay, newsAfter, arDay, type Captions, type DeskEvent } from "@/lib/media-writer";
+import { captions, hashtags, isPast, mergeSameDay, newsAfter, arDay, SITE, type Captions, type DeskEvent } from "@/lib/media-writer";
 import { asJpeg, fileFromUrl } from "@/lib/share-files";
 import { siteImageUrl } from "@/lib/site-content";
 import type { CollegeSetup } from "@/lib/college-post";
 import { CollegePostPanel } from "./college-post";
-import { EventCarousel } from "./event-carousel";
+import { EventCarousel, SoonCarousel } from "./event-carousel";
+import { MonthReport } from "./month-report";
 import { can, errorText, must, rpc, sb, sharePhotos, shareWords, uid, type StaffRow } from "./core";
 import { firstLine } from "./quick-post";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, Loading, Textarea, Toggle, TopBar, copyText, go, toast, useAsync } from "./ui";
@@ -54,6 +55,7 @@ export function MediaDesk({ me }: { me: StaffRow }) {
             {waiting.length ? `${waiting.length} فعالية خلصت ومستنية خبرها على الموقع.` : "كل الفعاليات اللي خلصت ليها خبر ✓"}
             {coming.length ? ` · ${coming.length} جاية: بوست الدعوة جاهز.` : ""} الكلام كله من الأرقام الحقيقية (التسجيل، الحضور بالـ QR، التقييمات) — مفيش حاجة متألفة.
           </Card>
+          {!!data?.length && <MonthReport events={data} setup={collegeSetup} />}
           {!data?.length && <Empty icon="calendar" title="مفيش فعاليات قريبة" body="أي فورم ليه ميعاد فعالية أو اتسجّل فيه حضور بالـ QR بيظهر هنا." />}
           {coming.map((e) => (
             <EventCard key={e.key} e={e} me={me} onDone={reload} />
@@ -211,6 +213,11 @@ function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow
                     {`جهّز الصور للمشاركة (${Math.min(e.photos, PICS)})`}
                   </Button>
                 ))}
+              {e.photos > 0 && (
+                <Button size="sm" icon="link" onClick={() => copyText(`${SITE}/ar/gallery/?album=${encodeURIComponent(e.title)}`, "رابط صور الفعالية اتنسخ — ابعته لأي حد")} data-testid="desk-album-link">
+                  رابط صور الفعالية
+                </Button>
+              )}
               <Button size="sm" icon="share" onClick={() => void sendWords()} data-testid="desk-share-text">
                 شارك الكلام
               </Button>
@@ -228,11 +235,7 @@ function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow
               <CollegePostPanel e={e} setup={college} me={me} onSetup={onCollege} />
             </div>
           )}
-          {past && (
-            <div className="border-t border-[var(--line)] pt-3">
-              <EventCarousel e={e} caption={caps.instagram} />
-            </div>
-          )}
+          <div className="border-t border-[var(--line)] pt-3">{past ? <EventCarousel e={e} caption={caps.instagram} /> : <SoonCarousel e={e} caption={caps.instagram} />}</div>
         </div>
       )}
     </Card>

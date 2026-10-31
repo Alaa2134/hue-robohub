@@ -633,3 +633,145 @@ const DRAW: Record<SlideKey, (ctx: Ctx, a: Args) => void> = {
     icon(ctx, "gear", -40, H - 170, 170, "#1e2533");
   },
 };
+
+/* ─── Before the event: «coming soon» ─────────────────────────────────── */
+
+export type SoonText = { title: string; kind: string; date: string; day: string; month: string; place: string; days: number; url: string };
+
+async function qrImage(url: string): Promise<HTMLImageElement | null> {
+  try {
+    const QR = (await import("qrcode")).default;
+    const src = await QR.toDataURL(url, { margin: 1, width: 560, errorCorrectionLevel: "M", color: { dark: "#05070c", light: "#ffffff" } });
+    return await new Promise((ok) => {
+      const img = new Image();
+      img.onload = () => ok(img);
+      img.onerror = () => ok(null);
+      img.src = src;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Three slides before an event: the countdown, save the date, and register (with the QR). */
+export async function renderSoon(t: SoonText, seed: string, bg?: Pic): Promise<{ key: string; blob: Blob }[]> {
+  await loadFonts();
+  const logo = await loadLogo();
+  const qr = t.url ? await qrImage(t.url) : null;
+  const arabic = isArabic(t.title);
+  const draws: [string, (ctx: Ctx, rnd: Rnd) => void][] = [
+    [
+      "soon",
+      (ctx, rnd) => {
+        if (bg) backdrop(ctx, bg, 0, 700, W, H - 700, 0.7);
+        brush(ctx, W - 400, 0, 440, 110, rnd, 0.9);
+        drawLogo(ctx, logo, 80, 80, 70);
+        ctx.save();
+        ctx.translate(80, 330);
+        ctx.rotate(-0.05);
+        const s = fit(ctx, "Coming Soon", "400", 170, F.script(), W - 160);
+        ctx.fillStyle = BLUE;
+        ctx.fillText("Coming Soon", 0, 0);
+        ctx.restore();
+        brush(ctx, 70, 350, Math.min(W - 140, s * 5.2), 22, rnd, 0.95);
+        const lines = splitTitle(arabic ? t.title : t.title.toUpperCase(), 3, 13);
+        let y = 450;
+        ctx.save();
+        ctx.textAlign = arabic ? "right" : "left";
+        lines.forEach((l) => {
+          const z = fit(ctx, l, "800", 120, arabic ? F.arabic() : F.bold(), W - 160);
+          ctx.fillStyle = "#ffffff";
+          y += z * 1.05;
+          ctx.fillText(l, arabic ? W - 80 : 80, y);
+        });
+        ctx.restore();
+        if (t.days > 0) {
+          ctx.save();
+          ctx.fillStyle = BLUE;
+          ctx.fillRect(80, y + 60, 420, 150);
+          ctx.fillStyle = "#ffffff";
+          ctx.textBaseline = "middle";
+          ctx.font = `800 110px ${F.bold()}`;
+          ctx.fillText(String(t.days), 110, y + 140);
+          const nw = ctx.measureText(String(t.days)).width;
+          ctx.font = `700 46px ${F.note()}`;
+          ctx.fillText(t.days === 1 ? "day to go!" : "days to go!", 130 + nw, y + 140);
+          ctx.restore();
+        }
+        placeDate(ctx, { title: t.title, tagline: "", place: t.place, date: t.date, kind: "event", from: "" }, H - 70);
+      },
+    ],
+    [
+      "date",
+      (ctx, rnd) => {
+        brush(ctx, -60, 140, 520, 100, rnd, 0.85);
+        heading(ctx, "SAVE", "THE DATE", 80, 200, 760);
+        // A calendar page.
+        ctx.save();
+        ctx.translate(W / 2, 780);
+        ctx.rotate(-0.04);
+        ctx.shadowColor = "rgba(0,0,0,0.6)";
+        ctx.shadowBlur = 40;
+        ctx.fillStyle = PAPER;
+        ctx.fillRect(-300, -280, 600, 560);
+        ctx.shadowColor = "transparent";
+        ctx.fillStyle = BLUE;
+        ctx.fillRect(-300, -280, 600, 130);
+        ctx.fillStyle = "#ffffff";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        fit(ctx, t.month.toUpperCase(), "800", 70, F.bold(), 540);
+        ctx.fillText(t.month.toUpperCase(), 0, -215);
+        ctx.fillStyle = INK;
+        ctx.font = `800 300px ${F.bold()}`;
+        ctx.fillText(t.day, 0, 40);
+        ctx.restore();
+        tape(ctx, W / 2, 500, 170, 40, 0.03);
+        notes(ctx, [t.place ? `📍 ${t.place}` : "", t.kind].filter(Boolean), W / 2, 1190, 50, -0.03, "center");
+      },
+    ],
+    [
+      "register",
+      (ctx, rnd) => {
+        if (bg) backdrop(ctx, bg, 0, 0, W, 420, 0.3);
+        heading(ctx, "REGISTER", "NOW", 80, 200, 760);
+        brush(ctx, W - 360, 300, 400, 90, rnd, 0.8);
+        if (qr) {
+          ctx.save();
+          ctx.translate(W / 2, 760);
+          ctx.rotate(0.03);
+          ctx.shadowColor = "rgba(0,0,0,0.6)";
+          ctx.shadowBlur = 30;
+          ctx.fillStyle = PAPER;
+          ctx.fillRect(-300, -300, 600, 600);
+          ctx.shadowColor = "transparent";
+          ctx.drawImage(qr, -260, -260, 520, 520);
+          ctx.restore();
+          tape(ctx, W / 2 - 250, 470, 140, 36, -0.6);
+          tape(ctx, W / 2 + 250, 1050, 140, 36, -0.6);
+        }
+        notes(ctx, ["Scan to register"], W / 2, 1170, 56, -0.03, "center");
+        ctx.save();
+        ctx.font = `600 30px ${F.sans()}`;
+        ctx.fillStyle = "#9cb8ff";
+        ctx.textAlign = "center";
+        ctx.fillText(t.url.replace(/^https?:\/\//, ""), W / 2, H - 60);
+        ctx.restore();
+      },
+    ],
+  ];
+  const out: { key: string; blob: Blob }[] = [];
+  for (const [key, draw] of draws) {
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext("2d")!;
+    const rnd = seeded(`${seed}:${key}`);
+    background(ctx, rnd);
+    draw(ctx, rnd);
+    const blob = await new Promise<Blob | null>((ok) => c.toBlob(ok, "image/jpeg", 0.9));
+    c.width = c.height = 0;
+    if (blob) out.push({ key, blob });
+  }
+  return out;
+}
