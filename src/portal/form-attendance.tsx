@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormField } from "@/components/forms/site-forms";
 import { whatsappLink } from "@/lib/contact";
+import { attendancePeople, reviewed } from "@/lib/attendance-people";
 import { cn } from "@/lib/cn";
 import { can, errorText, fmt, must, rpc, sb, toLocalInput, fromLocalInput, today, type StaffRow } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
@@ -160,10 +161,16 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
   const byField = data?.form.fields.find((fl) => fl.id === attendance?.by);
   const marks = useMemo(() => new Map((data?.marks ?? []).map((m) => [`${m.response_id}:${m.session}`, m])), [data]);
   const here = (r: Resp, s: AttendSession) => !!marks.get(`${r.id}:${s.id}`)?.present;
-  // The waiting list isn't coming unless they're accepted: they aren't expected, absent or in the sheet.
-  const people = useMemo(() => (data?.responses ?? []).filter((r) => r.status !== "waiting"), [data]);
+  // Only the accepted are coming (on a form the team reviews, "new" isn't accepted yet; the waiting
+  // list isn't either) — plus anyone let in at the door anyway. See src/lib/attendance-people.ts.
+  // The sheet keeps whoever came to any session; a session expects whoever was let into that one.
+  const people = useMemo(() => {
+    const came = new Set((data?.marks ?? []).filter((m) => m.present).map((m) => m.response_id));
+    return attendancePeople(data?.responses ?? [], (r) => came.has(r.id));
+  }, [data]);
+  const forSession = useMemo(() => (cur ? attendancePeople(data?.responses ?? [], (r) => !!marks.get(`${r.id}:${cur.id}`)?.present) : []), [data, marks, cur]);
   const buses = useMemo(() => [...new Set(people.map(busOf).filter((b): b is string => !!b))].sort(), [people]);
-  const expected = useMemo(() => people.filter((r) => sessionFor(attendance, cur, r.answers) && (!bus || busOf(r) === bus)), [people, attendance, cur, bus]);
+  const expected = useMemo(() => forSession.filter((r) => sessionFor(attendance, cur, r.answers) && (!bus || busOf(r) === bus)), [forSession, attendance, cur, bus]);
   const inside = expected.filter((r) => here(r, cur));
   const shown = expected.filter((r) => {
     if (show === "in" && !here(r, cur)) return false;
@@ -231,12 +238,12 @@ export function FormAttendance({ id, me }: { id: string; me?: StaffRow }) {
         setFlash(
           out.already
             ? { tone: "warn", text: `${out.name ?? out.ref} متسجّل حاضر من قبل ${out.at ? fmt.time(out.at) : ""}${busNote}${unpaid}${wrongBus}` }
-            : { tone: unpaid || wrongBus ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "waiting" ? " (من قايمة الانتظار)" : out.status === "rejected" ? " (مش مقبول)" : ""}${busNote}${unpaid}${wrongBus}` },
+            : { tone: unpaid || wrongBus ? "warn" : "ok", text: `✓ ${out.name ?? out.ref} حاضر${out.status === "waiting" ? " (من قايمة الانتظار)" : out.status === "rejected" ? " (مش مقبول)" : out.status === "new" && reviewed(data?.responses ?? []) ? " (لسه متقبلش)" : ""}${busNote}${unpaid}${wrongBus}` },
         );
       } else if (out.error === "not_accepted" && args.code)
         setFlash({
           tone: "danger",
-          text: `⚠ ${out.name ?? out.ref} ${out.status === "waiting" ? "في قايمة الانتظار — لسه مش مقبول" : "مش مقبول في الفورم ده"}، ومتسجّلش حاضر`,
+          text: `⚠ ${out.name ?? out.ref} ${out.status === "waiting" ? "في قايمة الانتظار — لسه مش مقبول" : out.status === "new" ? "لسه متقبلش (طلبه جديد ومحدش راجعه)" : "مش مقبول في الفورم ده"}، ومتسجّلش حاضر`,
           force: { code: args.code, name: out.name ?? out.ref ?? "" },
         });
       else if (out.error === "not_this_session" && args.code)
