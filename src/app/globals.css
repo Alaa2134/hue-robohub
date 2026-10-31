@@ -1124,9 +1124,8 @@ html[data-theme="midnight"] {
   --surface-nav: rgb(14 17 23 / 0.92);
 }
 
-/* Light: paper backgrounds and ink text. Photos and the key-art heroes stay dark (.scheme-dark). */
+/* Light: paper backgrounds and ink text. Photos and dark cards stay dark (.scheme-dark). */
 html[data-theme="light"] {
-  color-scheme: light;
   --color-void: #f5f7fb;
   --color-abyss: #edf1f8;
   --color-deep: #e4eaf4;
@@ -1138,10 +1137,6 @@ html[data-theme="light"] {
   --color-mist: #34425c;
   --color-frost: #18233a;
   --color-chalk: #0b1222;
-  /* Labels and highlights a shade deeper, so they read on white. */
-  --color-cyan: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 55%, #0b1a3a);
-  --color-ice: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 40%, #0b1a3a);
-  --color-volt-hi: color-mix(in srgb, var(--color-volt) 80%, #0b1a3a);
   --line: rgb(30 50 100 / 0.13);
   --line-2: rgb(30 50 100 / 0.22);
   --edge-rgb: 60 90 160;
@@ -1161,9 +1156,76 @@ html[data-accent="rose"] { --accent-cyan: #ff8fb0; }
 html[data-accent="gold"] { --accent-cyan: #ffd98a; }
 html[data-theme="light"] ::selection { color: #fff; }
 
+/* Every light theme: labels and highlights a shade deeper, so they read on paper. */
+html[data-tone="light"] {
+  color-scheme: light;
+  --color-cyan: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 55%, #0b1a3a);
+  --color-ice: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 40%, #0b1a3a);
+  --color-volt-hi: color-mix(in srgb, var(--color-volt) 80%, #0b1a3a);
+}
+
+/* Warm paper. */
+html[data-theme="paper"] {
+  --color-void: #f8f4ec;
+  --color-abyss: #f1ebdf;
+  --color-deep: #eae2d3;
+  --color-panel: #fffdf8;
+  --color-panel-2: #f6f0e5;
+  --color-rim: #e2d7c3;
+  --color-steel: #b5a68b;
+  --color-fog: #6e6352;
+  --color-mist: #463d30;
+  --color-frost: #2a241b;
+  --color-chalk: #17130d;
+  --line: rgb(80 60 30 / 0.14);
+  --line-2: rgb(80 60 30 / 0.24);
+  --edge-rgb: 140 110 70;
+  --surface-1: rgb(255 253 248 / 0.86);
+  --surface-2: rgb(255 253 248 / 0.96);
+  --surface-glass: rgb(255 252 245 / 0.74);
+  --surface-nav: rgb(255 252 245 / 0.92);
+  --chrome: linear-gradient(180deg, #3a2f20 0%, #5b4a33 40%, #20190f 58%, #4a3c28 100%);
+}
+
+/* Deep dark worlds: ocean, forest, royal violet, warm sand. */
+html[data-theme="ocean"] {
+  --color-void: #021a1f; --color-abyss: #04232a; --color-deep: #062c35; --color-panel: #08343e; --color-panel-2: #0b3f4a;
+  --color-rim: #12525f; --color-steel: #2b7280; --color-fog: #86aab2; --color-mist: #b5d0d6; --color-frost: #e2f1f3; --color-chalk: #f3fbfc;
+  --line: rgb(120 210 225 / 0.16); --line-2: rgb(120 210 225 / 0.28); --edge-rgb: 110 200 215;
+  --surface-1: rgb(8 40 48 / 0.74); --surface-2: rgb(3 24 29 / 0.88); --surface-glass: rgb(2 20 24 / 0.58); --surface-nav: rgb(6 36 44 / 0.92);
+}
+html[data-theme="forest"] {
+  --color-void: #06140d; --color-abyss: #0a1d13; --color-deep: #0e2619; --color-panel: #12301f; --color-panel-2: #173a26;
+  --color-rim: #214c33; --color-steel: #3d6f52; --color-fog: #8eab98; --color-mist: #bcd2c3; --color-frost: #e5f1e8; --color-chalk: #f4faf6;
+  --line: rgb(140 210 165 / 0.15); --line-2: rgb(140 210 165 / 0.27); --edge-rgb: 130 200 155;
+  --surface-1: rgb(16 44 28 / 0.74); --surface-2: rgb(6 20 13 / 0.88); --surface-glass: rgb(5 16 10 / 0.58); --surface-nav: rgb(12 36 23 / 0.92);
+}
+html[data-theme="plum"] {
+  --color-void: #120a24; --color-abyss: #190f31; --color-deep: #20143e; --color-panel: #28194c; --color-panel-2: #311f5c;
+  --color-rim: #412a75; --color-steel: #6a4fa3; --color-fog: #a99bc8; --color-mist: #cfc4e6; --color-frost: #ede8f8; --color-chalk: #f8f6fd;
+  --line: rgb(190 160 250 / 0.16); --line-2: rgb(190 160 250 / 0.28); --edge-rgb: 180 150 240;
+  --surface-1: rgb(38 24 72 / 0.74); --surface-2: rgb(16 9 32 / 0.88); --surface-glass: rgb(14 8 28 / 0.58); --surface-nav: rgb(30 19 58 / 0.92);
+}
+html[data-theme="sand"] {
+  --color-void: #17110b; --color-abyss: #1e1610; --color-deep: #261c14; --color-panel: #2e2219; --color-panel-2: #382a1f;
+  --color-rim: #4a3828; --color-steel: #7a6045; --color-fog: #b3a089; --color-mist: #d6c8b5; --color-frost: #f1e9de; --color-chalk: #fbf7f1;
+  --line: rgb(230 190 140 / 0.15); --line-2: rgb(230 190 140 / 0.27); --edge-rgb: 220 180 130;
+  --surface-1: rgb(46 34 24 / 0.74); --surface-2: rgb(20 14 9 / 0.88); --surface-glass: rgb(18 12 8 / 0.58); --surface-nav: rgb(38 28 20 / 0.92);
+}
+
+/* High contrast: black and white, no dim text, strong lines, a thick yellow focus ring. */
+html[data-theme="contrast"] {
+  --color-void: #000000; --color-abyss: #000000; --color-deep: #0a0a0a; --color-panel: #0d0d0d; --color-panel-2: #161616;
+  --color-rim: #8a8a8a; --color-steel: #bdbdbd; --color-fog: #e6e6e6; --color-mist: #f2f2f2; --color-frost: #ffffff; --color-chalk: #ffffff;
+  --line: rgb(255 255 255 / 0.45); --line-2: rgb(255 255 255 / 0.7); --edge-rgb: 255 255 255;
+  --surface-1: rgb(10 10 10 / 0.96); --surface-2: rgb(0 0 0 / 0.97); --surface-glass: rgb(0 0 0 / 0.88); --surface-nav: rgb(0 0 0 / 0.96);
+}
+html[data-theme="contrast"] :focus-visible { outline: 3px solid #ffd400; outline-offset: 3px; }
+html[data-theme="contrast"] a:not(.btn) { text-underline-offset: 3px; }
+
 /* Anything that sits on a photo or the dark key art keeps the dark palette in every theme
    (also the carbon-fibre bands and the video player). */
-html[data-theme="light"] :is(.scheme-dark, .carbon) {
+html[data-tone="light"] :is(.scheme-dark, .carbon) {
   color-scheme: dark;
   --color-void: #050e26;
   --color-abyss: #081634;
@@ -1205,3 +1267,50 @@ html[data-icons="duotone"] .bx-icon :is(path, circle, rect, polygon, ellipse) { 
 [data-icon-preview="glow"] .bx-icon.bx-icon { stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 7px color-mix(in srgb, currentColor 55%, transparent)); }
 [data-icon-preview="duotone"] .bx-icon.bx-icon { stroke-linejoin: round; stroke-width: 1.7px; }
 [data-icon-preview="duotone"] .bx-icon.bx-icon :is(path, circle, rect, polygon, ellipse) { fill: color-mix(in srgb, currentColor 20%, transparent); }
+
+/* Icons in coloured squares or circles (like ①/1️⃣ keys), and emoji icons. Buttons keep plain icons. */
+.bx-icon .bx-emoji { display: none; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+html:is([data-icons="tile"], [data-icons="circle"]) .bx-icon:not(.btn .bx-icon, [data-icon-preview] .bx-icon),
+[data-icon-preview="tile"] .bx-icon.bx-icon,
+[data-icon-preview="circle"] .bx-icon.bx-icon {
+  border-radius: 28%;
+  overflow: visible;
+  color: #fff;
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  background: linear-gradient(145deg, var(--color-volt-hi), var(--color-volt-lo));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25), 0 3px 10px -4px color-mix(in srgb, var(--color-volt) 70%, transparent);
+}
+html[data-icons="circle"] .bx-icon:not(.btn .bx-icon, [data-icon-preview] .bx-icon),
+[data-icon-preview="circle"] .bx-icon.bx-icon { border-radius: 50%; }
+html:is([data-icons="emoji"], [data-icons="emoji-tile"]) .bx-icon[data-emoji]:not([data-icon-preview] .bx-icon) .bx-glyph,
+[data-icon-preview="emoji"] .bx-icon[data-emoji].bx-icon .bx-glyph,
+[data-icon-preview="emoji-tile"] .bx-icon[data-emoji].bx-icon .bx-glyph { display: none; }
+html:is([data-icons="emoji"], [data-icons="emoji-tile"]) .bx-icon[data-emoji]:not([data-icon-preview] .bx-icon) .bx-emoji,
+[data-icon-preview="emoji"] .bx-icon[data-emoji].bx-icon .bx-emoji,
+[data-icon-preview="emoji-tile"] .bx-icon[data-emoji].bx-icon .bx-emoji { display: inline; }
+html[data-icons="emoji-tile"] .bx-icon[data-emoji]:not(.btn .bx-icon, [data-icon-preview] .bx-icon),
+[data-icon-preview="emoji-tile"] .bx-icon[data-emoji].bx-icon {
+  border-radius: 28%;
+  background: color-mix(in srgb, var(--color-chalk) 10%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+/* Inside a tile or circle the drawing shrinks around its centre (the tile is the icon's own box). */
+html:is([data-icons="tile"], [data-icons="circle"]) .bx-icon:not(.btn .bx-icon, [data-icon-preview] .bx-icon) > *,
+[data-icon-preview="tile"] .bx-icon.bx-icon > *,
+[data-icon-preview="circle"] .bx-icon.bx-icon > * { transform: scale(0.62); transform-origin: 12px 12px; }
+html[data-icons="emoji-tile"] .bx-icon[data-emoji]:not(.btn .bx-icon, [data-icon-preview] .bx-icon) > *,
+[data-icon-preview="emoji-tile"] .bx-icon[data-emoji].bx-icon > * { transform: scale(0.74); transform-origin: 12px 12px; }
+
+/* Reading comfort: bigger text everywhere (everything is sized in rem), and calmer pages. */
+html[data-text="large"] { font-size: 112.5%; }
+html[data-text="xl"] { font-size: 125%; }
+html[data-motion="reduced"] *,
+html[data-motion="reduced"] *::before,
+html[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

@@ -15,6 +15,7 @@ import {
   ICON_STYLES,
   parseAppearance,
   THEME_SWATCH,
+  TEXT_SIZES,
   THEMES,
   type Appearance,
 } from "@/lib/appearance";
@@ -25,7 +26,7 @@ const PREVIEW_ICONS: IconName[] = ["robotics", "trophy", "calendar", "users", "s
 
 function save(a: Appearance) {
   try {
-    if (a.theme === DEFAULT_APPEARANCE.theme && a.accent === DEFAULT_APPEARANCE.accent && a.icons === DEFAULT_APPEARANCE.icons) localStorage.removeItem(APPEARANCE_KEY);
+    if (JSON.stringify(a) === JSON.stringify(DEFAULT_APPEARANCE)) localStorage.removeItem(APPEARANCE_KEY);
     else localStorage.setItem(APPEARANCE_KEY, JSON.stringify(a));
   } catch {
     /* private mode: it still applies for this visit */
@@ -95,7 +96,7 @@ export function AppearanceDialog({ t }: { t: Dictionary["appearance"] & { close:
         <p className="mb-5 text-sm text-fog">{t.intro}</p>
 
         <Group label={t.theme}>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
             {THEMES.map((k) => {
               const [bg, card, ink] = THEME_SWATCH[k];
               return (
@@ -136,6 +137,31 @@ export function AppearanceDialog({ t }: { t: Dictionary["appearance"] & { close:
                 <span className="block text-[0.82rem] text-chalk">{t.iconStyles[k]}</span>
               </Choice>
             ))}
+          </div>
+        </Group>
+
+        <Group label={t.comfort}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="mb-1.5 text-[0.8rem] text-mist">{t.text}</p>
+              <div className="flex gap-2">
+                {TEXT_SIZES.map((k, i) => (
+                  <Choice key={k} on={a.text === k} onPick={() => pick({ text: k })} testid={`text-${k}`} compact>
+                    <span aria-hidden className="font-display leading-none text-chalk" style={{ fontSize: `${1 + i * 0.22}rem` }}>
+                      أ
+                    </span>
+                    <span className="text-[0.8rem] text-chalk">{t.texts[k]}</span>
+                  </Choice>
+                ))}
+              </div>
+            </div>
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--line)] p-2.5" data-testid="motion">
+              <input type="checkbox" className="mt-1 size-4 accent-[var(--color-volt)]" checked={a.motion === "reduced"} onChange={(e) => pick({ motion: e.target.checked ? "reduced" : "full" })} />
+              <span>
+                <span className="block text-[0.85rem] text-chalk">{t.motion}</span>
+                <span className="block text-[0.75rem] text-fog">{t.motionHint}</span>
+              </span>
+            </label>
           </div>
         </Group>
 

@@ -81,3 +81,35 @@ test("on phones the menu opens the appearance picker", async ({ page, isMobile }
   expect(await html(page)).toMatchObject({ theme: "light", accent: "orange" });
   await expect(page.locator("body")).toHaveCSS("background-color", "rgb(245, 247, 251)");
 });
+
+test("more themes and icon styles: paper, emoji icons, icons in squares; bigger text and less motion", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop is enough for the styles");
+  await page.goto("/ar/");
+  await page.getByTestId("appearance-open").click();
+  const dlg = page.getByTestId("appearance");
+  await dlg.getByTestId("theme-paper").click();
+  await dlg.getByTestId("icons-emoji").click();
+  expect(await html(page)).toMatchObject({ theme: "paper", tone: "light", icons: "emoji" });
+  await expect(page.locator("body")).toHaveCSS("background-color", "rgb(248, 244, 236)");
+  // Emoji icons: the emoji shows, the line drawing hides (controls without an emoji keep their lines).
+  const search = page.locator('header [data-emoji="🔍"]').first();
+  await expect(search.locator(".bx-emoji")).toBeVisible();
+  await expect(search.locator(".bx-glyph")).toBeHidden();
+
+  await dlg.getByTestId("icons-tile").click();
+  const tile = page.locator("header .bx-icon").first();
+  await expect(tile).toHaveCSS("border-radius", "28%");
+  expect(await tile.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain("gradient");
+  // The tile stays the icon's own size (no padding growing it).
+  const box = await tile.boundingBox();
+  expect(box!.width).toBeLessThan(30);
+
+  await dlg.getByTestId("text-xl").click();
+  await expect(page.locator("html")).toHaveCSS("font-size", "20px");
+  await dlg.getByTestId("motion").locator("input").check();
+  expect((await html(page)).motion).toBe("reduced");
+  // After a reload the page's scripts see "reduced motion" too.
+  await page.reload();
+  expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
+  await expect(page.locator("html")).toHaveCSS("font-size", "20px");
+});
