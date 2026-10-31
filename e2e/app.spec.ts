@@ -7451,6 +7451,36 @@ test("media desk: the news post and social posts of each event are written from 
   await summit.getByRole("button", { name: "لينكدإن" }).click();
   await expect(summit.getByTestId("desk-caption")).toHaveValue(/45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./);
 
+  // What the attendees said, summed up: stars, the words that keep coming up, a tip for next time.
+  await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
+    route.fulfill({
+      json: [
+        { response_id: "r1", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "الشرح ممتاز والتنظيم ممتاز", form_responses: { name: "طالب أول", phone: "01000000001", ref: "A1" } },
+        { response_id: "r2", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "تنظيم ممتاز", form_responses: { name: "طالب تاني", phone: "01000000002", ref: "A2" } },
+        { response_id: "r3", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 2, comment: "الصوت مش واضح في القاعة", form_responses: { name: "طالب تالت", phone: "01000000003", ref: "A3" } },
+        { response_id: "r4", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 3, comment: "الصوت وحش", form_responses: { name: "طالب رابع", phone: null, ref: "A4" } },
+        { response_id: "r5", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 4, comment: null, form_responses: { name: "طالب خامس", phone: "01000000005", ref: "A5" } },
+      ],
+    }),
+  );
+  await summit.getByTestId("feedback-open").click();
+  const fb = summit.getByTestId("feedback-summary");
+  await expect(fb).toContainText("رأي الحضور: 3.8 من 5 (5 تقييم)");
+  await expect(fb).toContainText("👍 اتكرر في الكلام الحلو: ممتاز");
+  await expect(fb).toContainText("👎 اتكرر في الشكاوى: صوت");
+  await expect(fb).toContainText("💡 للمرة الجاية: الصوت كان مشكلة");
+  // Each person and their rating: everyone, the unhappy first under «3 stars or less», WhatsApp to get back to them.
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(5);
+  await expect(fb.getByTestId("feedback-people")).toContainText("طالب خامس");
+  await fb.getByRole("button", { name: "3 نجوم أو أقل (2)" }).click();
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(2);
+  await expect(fb.getByTestId("feedback-person").first()).toContainText("طالب تالت");
+  await expect(fb.getByTestId("feedback-person").first()).toContainText("الصوت مش واضح في القاعة");
+  await expect(fb.getByTestId("feedback-person").first().getByTestId("feedback-wa")).toHaveAttribute("href", /^https:\/\/wa\.me\/201000000003\?text=/);
+  await expect(fb.getByTestId("feedback-person").nth(1).getByTestId("feedback-wa")).toHaveCount(0);
+  await fb.getByRole("button", { name: "اللي كتبوا رأي (4)" }).click();
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(4);
+
   // The college's post: under its saved patronage lines, «يشاركون في» the summit, who represented it
   // (from who was scanned in), the tracks picked and the supervisor.
   const college = summit.getByTestId("desk-college");
@@ -8197,4 +8227,45 @@ test("partners: the team copies a partner's private link and issues a verified r
   await expect.poll(() => calls.find((c) => c.fn === "staff_impact_issue")?.body).toEqual({ p_partner: "p1", p_from: "2026-09-01", p_to: "2026-09-30" });
   delete RPC.staff_partners;
   delete RPC.staff_impact_issue;
+});
+
+test("smart montage: three event videos in, the best moments cut into a finished reel with the event's name", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  await page.goto(`/app/#/staff/montage?title=${encodeURIComponent("MENA Robotics Summit")}&sub=${encodeURIComponent("E-JUST")}`);
+  await expect(page.getByTestId("montage-title")).toHaveValue("MENA Robotics Summit");
+  await page.getByTestId("montage-videos").setInputFiles(
+    [1, 2, 3].map((i) => ({ name: `clip${i}.webm`, mimeType: "video/webm", buffer: readFileSync(`e2e/fixtures/clip${i}.webm`) })),
+  );
+  // Each video is watched, then the plan shows which moments it picked (the opening one marked).
+  await expect(page.getByTestId("montage-clip")).toHaveCount(3, { timeout: 30_000 });
+  await expect(page.getByTestId("montage-plan")).toContainText("لقطة");
+  await expect(page.getByTestId("montage-plan")).toContainText("البداية");
+  // The editing style: energetic by default, cinematic here (crossfades, film bars, a warm grade).
+  await expect(page.getByTestId("montage-styles")).toContainText("حماسي");
+  await page.getByRole("button", { name: "سينمائي 🎬" }).click();
+  await expect(page.getByText("سلو موشن في أقوى اللحظات")).toBeVisible();
+  await page.getByRole("button", { name: "15 ثانية" }).click();
+  await page.getByRole("button", { name: "بوست (4:5)" }).click();
+  await page.getByTestId("montage-make").click();
+  await expect(page.getByTestId("montage-progress")).toBeVisible();
+  await expect(page.getByTestId("montage-out")).toBeVisible({ timeout: 90_000 });
+  const v = await page.getByTestId("montage-video").evaluate(
+    (el: HTMLVideoElement) =>
+      new Promise<{ w: number; h: number }>((ok) => {
+        const done = () => ok({ w: el.videoWidth, h: el.videoHeight });
+        if (el.readyState >= 1) done();
+        else el.addEventListener("loadedmetadata", done, { once: true });
+      }),
+  );
+  expect(v).toEqual({ w: 1080, h: 1350 });
+  // Saved as a file (a browser without a share sheet downloads it).
+  const saved = page.waitForEvent("download");
+  await page.getByTestId("montage-share").click();
+  const file = await saved;
+  expect(file.suggestedFilename()).toMatch(/^buildx-reel-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/);
+  if (process.env.MONTAGE_SHOT) await file.saveAs(process.env.MONTAGE_SHOT);
+  expect(errors).toEqual([]);
 });

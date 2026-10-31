@@ -14,6 +14,7 @@ import type { CollegeSetup } from "@/lib/college-post";
 import { CollegePostPanel } from "./college-post";
 import { EventCarousel, SoonCarousel } from "./event-carousel";
 import { MonthReport } from "./month-report";
+import { FeedbackCard } from "./feedback-card";
 import { can, errorText, must, rpc, sb, sharePhotos, shareWords, uid, type StaffRow } from "./core";
 import { firstLine } from "./quick-post";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, Loading, Textarea, Toggle, TopBar, copyText, go, toast, useAsync } from "./ui";
@@ -230,12 +231,18 @@ function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow
               <span className="self-center text-xs text-fog">{hashtags(e).join(" ")}</span>
             </div>
           </div>
+          {past && <FeedbackCard eventKey={e.key} ratings={e.ratings} title={e.title} />}
           {past && college && onCollege && (
             <div className="border-t border-[var(--line)] pt-3">
               <CollegePostPanel e={e} setup={college} me={me} onSetup={onCollege} />
             </div>
           )}
           <div className="border-t border-[var(--line)] pt-3">{past ? <EventCarousel e={e} caption={caps.instagram} /> : <SoonCarousel e={e} caption={caps.instagram} />}</div>
+          {past && (
+            <Button icon="film" onClick={() => go(`/staff/montage?title=${encodeURIComponent(e.title_en?.trim() || e.title)}&sub=${encodeURIComponent([e.place, arDay(e.at)].filter(Boolean).join(" · "))}`)} data-testid="desk-montage">
+              مونتاج فيديو للفعالية
+            </Button>
+          )}
         </div>
       )}
     </Card>

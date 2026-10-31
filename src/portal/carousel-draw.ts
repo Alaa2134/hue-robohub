@@ -23,14 +23,14 @@ function fam(v: string, fallback: string) {
   const s = typeof document !== "undefined" ? getComputedStyle(document.documentElement).getPropertyValue(v).trim() : "";
   return s ? `${s}, ${fallback}` : fallback;
 }
-const F = {
+export const F = {
   bold: () => fam("--font-saira", "Arial Black, sans-serif"),
   script: () => fam("--font-script", "cursive"),
   note: () => fam("--font-note", "cursive"),
   sans: () => fam("--font-inter", "sans-serif"),
   arabic: () => fam("--font-kufi", "Tahoma, sans-serif"),
 };
-const isArabic = (s: string) => /[؀-ۿ]/.test(s);
+export const isArabic = (s: string) => /[؀-ۿ]/.test(s);
 
 /** Make sure the fonts are in before drawing (a canvas doesn't wait for them). */
 export async function loadFonts() {
@@ -50,7 +50,7 @@ export async function loadFonts() {
 }
 
 let logo: Promise<HTMLImageElement | null> | null = null;
-const loadLogo = () =>
+export const loadLogo = () =>
   (logo ??= new Promise((ok) => {
     const img = new Image();
     img.onload = () => ok(img);
@@ -106,7 +106,7 @@ function grain(ctx: Ctx, rnd: Rnd, alpha: number) {
 }
 
 /** A dry blue brush stroke across a band. */
-function brush(ctx: Ctx, x: number, y: number, w: number, h: number, rnd: Rnd, alpha = 1, color = BLUE) {
+export function brush(ctx: Ctx, x: number, y: number, w: number, h: number, rnd: Rnd, alpha = 1, color = BLUE) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineCap = "round";
@@ -439,7 +439,7 @@ function placeDate(ctx: Ctx, t: CarouselText, y: number, center = false) {
   ctx.restore();
 }
 
-function drawLogo(ctx: Ctx, img: HTMLImageElement | null, x: number, y: number, h: number) {
+export function drawLogo(ctx: Ctx, img: HTMLImageElement | null, x: number, y: number, h: number) {
   if (!img) return;
   const w = (img.naturalWidth / img.naturalHeight) * h;
   ctx.drawImage(img, x, y, w, h);
