@@ -8198,3 +8198,40 @@ test("partners: the team copies a partner's private link and issues a verified r
   delete RPC.staff_partners;
   delete RPC.staff_impact_issue;
 });
+
+test("smart montage: three event videos in, the best moments cut into a finished reel with the event's name", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  await page.goto(`/app/#/staff/montage?title=${encodeURIComponent("MENA Robotics Summit")}&sub=${encodeURIComponent("E-JUST")}`);
+  await expect(page.getByTestId("montage-title")).toHaveValue("MENA Robotics Summit");
+  await page.getByTestId("montage-videos").setInputFiles(
+    [1, 2, 3].map((i) => ({ name: `clip${i}.webm`, mimeType: "video/webm", buffer: readFileSync(`e2e/fixtures/clip${i}.webm`) })),
+  );
+  // Each video is watched, then the plan shows which moments it picked (the opening one marked).
+  await expect(page.getByTestId("montage-clip")).toHaveCount(3, { timeout: 30_000 });
+  await expect(page.getByTestId("montage-plan")).toContainText("لقطة");
+  await expect(page.getByTestId("montage-plan")).toContainText("البداية");
+  await page.getByRole("button", { name: "15 ثانية" }).click();
+  await page.getByRole("button", { name: "بوست (4:5)" }).click();
+  await page.getByTestId("montage-make").click();
+  await expect(page.getByTestId("montage-progress")).toBeVisible();
+  await expect(page.getByTestId("montage-out")).toBeVisible({ timeout: 90_000 });
+  const v = await page.getByTestId("montage-video").evaluate(
+    (el: HTMLVideoElement) =>
+      new Promise<{ w: number; h: number }>((ok) => {
+        const done = () => ok({ w: el.videoWidth, h: el.videoHeight });
+        if (el.readyState >= 1) done();
+        else el.addEventListener("loadedmetadata", done, { once: true });
+      }),
+  );
+  expect(v).toEqual({ w: 1080, h: 1350 });
+  // Saved as a file (a browser without a share sheet downloads it).
+  const saved = page.waitForEvent("download");
+  await page.getByTestId("montage-share").click();
+  const file = await saved;
+  expect(file.suggestedFilename()).toMatch(/^buildx-reel-\d{4}-\d{2}-\d{2}\.(mp4|webm)$/);
+  if (process.env.MONTAGE_SHOT) await file.saveAs(process.env.MONTAGE_SHOT);
+  expect(errors).toEqual([]);
+});

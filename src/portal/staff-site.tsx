@@ -78,12 +78,15 @@ export function SiteContentScreen({ me, query }: { me: StaffRow; query: URLSearc
       />
       {quick && <QuickPost me={me} prefill={quick} onClose={() => setQuick(null)} onDone={reload} />}
       {/* The automatic helpers: each event's post and captions, and photos in the frame. */}
-      <div className="mb-3 grid grid-cols-2 gap-2">
+      <div className="mb-3 grid grid-cols-3 gap-2">
         <Button icon="edit" onClick={() => go("/staff/media")} data-testid="media-open">
           مكتب الميديا
         </Button>
         <Button icon="image" onClick={() => go("/staff/photo-frame")} data-testid="frame-open">
           صور في البرواز
+        </Button>
+        <Button icon="film" onClick={() => go("/staff/montage")} data-testid="montage-open">
+          مونتاج ذكي
         </Button>
       </div>
       {waiting.length > 0 && (

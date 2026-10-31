@@ -47,6 +47,7 @@ import { StaffRules } from "./staff-rules";
 import { PartPrices } from "./part-prices";
 import { MediaDesk } from "./media-desk";
 import { PhotoFrameScreen } from "./photo-frame";
+import { MontageScreen } from "./montage";
 import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
@@ -119,6 +120,7 @@ const AREA_OF: Record<string, Area | Area[]> = {
   rules: "materials",
   "part-prices": "inventory",
   "photo-frame": "site",
+  montage: "site",
   media: "site",
   access: "roster",
   content: "materials",
@@ -361,6 +363,9 @@ export function StaffApp({
       break;
     case "photo-frame":
       screen = <PhotoFrameScreen me={me} />;
+      break;
+    case "montage":
+      screen = <MontageScreen me={me} query={query} />;
       break;
     case "media":
       screen = <MediaDesk me={me} />;
@@ -869,6 +874,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "bell", label: "إعلانات للطلاب (بتظهر في التطبيق)", to: "/staff/announcements" },
     { icon: "globe", label: "محتوى الموقع (فعاليات، أخبار، جاليري…)", to: "/staff/site" },
     { icon: "image", label: "صور في البرواز (لحد 500 صورة للجاليري)", to: "/staff/photo-frame" },
+    { icon: "film", label: "مونتاج ذكي (فيديو جاهز للسوشيال من فيديوهات الفعالية)", to: "/staff/montage" },
     { icon: "edit", label: "مكتب الميديا (خبر وبوستات كل فعالية جاهزة)", to: "/staff/media" },
     { icon: "layers", label: "صفحات الموقع (صفحة المعرض وصفحات جديدة بالسحب والإفلات)", to: "/staff/pages" },
     { icon: "star", label: "مشاريع الطلاب (للنشر على الموقع)", to: "/staff/projects" },

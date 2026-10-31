@@ -236,6 +236,11 @@ function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow
             </div>
           )}
           <div className="border-t border-[var(--line)] pt-3">{past ? <EventCarousel e={e} caption={caps.instagram} /> : <SoonCarousel e={e} caption={caps.instagram} />}</div>
+          {past && (
+            <Button icon="film" onClick={() => go(`/staff/montage?title=${encodeURIComponent(e.title_en?.trim() || e.title)}&sub=${encodeURIComponent([e.place, arDay(e.at)].filter(Boolean).join(" · "))}`)} data-testid="desk-montage">
+              مونتاج فيديو للفعالية
+            </Button>
+          )}
         </div>
       )}
     </Card>
