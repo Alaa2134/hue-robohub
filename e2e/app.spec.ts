@@ -8213,6 +8213,10 @@ test("smart montage: three event videos in, the best moments cut into a finished
   await expect(page.getByTestId("montage-clip")).toHaveCount(3, { timeout: 30_000 });
   await expect(page.getByTestId("montage-plan")).toContainText("لقطة");
   await expect(page.getByTestId("montage-plan")).toContainText("البداية");
+  // The editing style: energetic by default, cinematic here (crossfades, film bars, a warm grade).
+  await expect(page.getByTestId("montage-styles")).toContainText("حماسي");
+  await page.getByRole("button", { name: "سينمائي 🎬" }).click();
+  await expect(page.getByText("سلو موشن في أقوى اللحظات")).toBeVisible();
   await page.getByRole("button", { name: "15 ثانية" }).click();
   await page.getByRole("button", { name: "بوست (4:5)" }).click();
   await page.getByTestId("montage-make").click();

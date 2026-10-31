@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bestWindows, estimateBeat, norms, planMontage, shotLength, type Clip, type Sample } from "./montage";
+import { bestWindows, direct, estimateBeat, norms, planMontage, shotLength, type Clip, type Sample } from "./montage";
 
 /** A video `d` seconds long sampled every second; `hot` seconds are busy, sharp and full of people. */
 function clip(d: number, at: number, hot: number[] = [], base: Partial<Sample> = {}): Clip {
@@ -58,5 +58,43 @@ describe("music", () => {
   });
   it("no beat in silence", () => {
     expect(estimateBeat(new Float32Array(1200), 100)).toBeNull();
+  });
+});
+
+describe("direct", () => {
+  const clips = Array.from({ length: 8 }, (_, i) =>
+    clip(12, i, i === 5 ? [2, 3, 4] : [3], i === 6 ? { skin: 0.3, motion: 1 } : {}),
+  );
+  const plan = planMontage(clips, 20);
+  const sizes = clips.map(() => ({ w: 1920, h: 1080 }));
+
+  it("tells a story: hook first, the climax near the end, a calm people shot to close", () => {
+    const shots = direct(clips, plan, { style: "energetic", seed: "x", aspect: 9 / 16, sizes });
+    expect(shots[0].role).toBe("hook");
+    expect(shots.at(-1)!.role).toBe("close");
+    const roles = shots.map((s) => s.role);
+    expect(roles.lastIndexOf("build")).toBeLessThan(roles.indexOf("climax") === -1 ? Infinity : roles.indexOf("climax"));
+    expect(shots[0].transition).toBe("cut");
+    expect(shots.at(-1)!.transition).toBe("dip");
+  });
+
+  it("cinematic: crossfades and slow motion on the climax; clean: plain cuts", () => {
+    const cine = direct(clips, plan, { style: "cinematic", seed: "x", aspect: 9 / 16, sizes });
+    expect(cine.slice(1, -1).every((s) => s.transition === "fade")).toBe(true);
+    expect(cine.filter((s) => s.role === "climax").every((s) => s.speed < 1)).toBe(true);
+    const clean = direct(clips, plan, { style: "clean", seed: "x", aspect: 9 / 16, sizes });
+    expect(clean.slice(1, -1).every((s) => s.transition === "cut" && s.speed === 1)).toBe(true);
+  });
+
+  it("a wide group shot in a tall reel sits whole on a blur instead of losing people", () => {
+    const shots = direct(clips, plan, { style: "clean", seed: "x", aspect: 9 / 16, sizes });
+    expect(shots.find((s) => s.role === "close")!.fit).toBe("blur");
+    const square = direct(clips, plan, { style: "clean", seed: "x", aspect: 16 / 9, sizes });
+    expect(square.every((s) => s.fit === "fill")).toBe(true);
+  });
+
+  it("on the beat, shots last whole beats", () => {
+    const shots = direct(clips, planMontage(clips, 20, 0.5), { style: "energetic", seed: "x", aspect: 1, sizes, beat: 0.5 });
+    expect(shots.every((s) => Math.abs(s.len / 0.5 - Math.round(s.len / 0.5)) < 1e-9)).toBe(true);
   });
 });

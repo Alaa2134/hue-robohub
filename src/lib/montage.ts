@@ -123,3 +123,81 @@ export const FORMATS = {
   wide: { w: 1920, h: 1080, label: "يوتيوب / فيسبوك (16:9)" },
 } as const;
 export type FormatKey = keyof typeof FORMATS;
+
+/* ─── The editor's decisions: story, rhythm, transitions ─────────────── */
+
+export type Style = "energetic" | "cinematic" | "clean";
+export type Transition = "cut" | "flash" | "whip" | "zoom" | "glitch" | "fade" | "dip";
+export type Role = "hook" | "build" | "climax" | "close";
+export type Shot = Segment & { role: Role; transition: Transition; speed: number; fit: "fill" | "blur" };
+
+export const STYLES: Record<Style, { label: string; hint: string }> = {
+  energetic: { label: "حماسي ⚡", hint: "قطع سريع على الإيقاع، فلاش، ويب، وجليتش — للمسابقات والريلز" },
+  cinematic: { label: "سينمائي 🎬", hint: "أبطأ، سلو موشن في أقوى اللحظات، دمج ناعم، وشريطين سينما" },
+  clean: { label: "نظيف", hint: "قطع بسيط وواضح — للمحاضرات والورش" },
+};
+
+function rng(seed: string) {
+  let h = 2166136261;
+  for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296;
+}
+
+/** How much a moment moves (0–1 on the batch's scale). */
+function energy(c: Clip, s: Segment, n: Norm) {
+  const inside = c.samples.filter((x) => x.t >= s.start - 0.01 && x.t < s.start + s.len);
+  return inside.length ? Math.min(1, inside.reduce((a, x) => a + x.motion, 0) / inside.length / n.motion) : 0;
+}
+function people(c: Clip, s: Segment) {
+  const inside = c.samples.filter((x) => x.t >= s.start - 0.01 && x.t < s.start + s.len);
+  return inside.length ? inside.reduce((a, x) => a + x.skin, 0) / inside.length : 0;
+}
+
+/**
+ * Turns the picked moments into an edit, the way an editor would: the hook first, a build-up in
+ * filming order, the most energetic moments as the climax near the end, and a calm shot with people
+ * to close on. Then the rhythm (energetic moments short, people moments longer), a transition that
+ * suits each cut, slow motion where the style calls for it, and whole-frame on a blur for a wide
+ * group shot that would lose its people in a tall crop.
+ */
+export function direct(clips: Clip[], plan: Segment[], o: { style: Style; seed: string; aspect: number; sizes: { w: number; h: number }[]; beat?: number | null }): Shot[] {
+  if (!plan.length) return [];
+  const n = norms(clips);
+  const r = rng(o.seed + o.style);
+  const [hook, ...rest] = plan;
+  const e = (s: Segment) => energy(clips[s.clip], s, n);
+  // The close: people, little movement (a group, a smile) — only when there are enough shots.
+  let close: Segment | undefined;
+  if (rest.length >= 3) close = [...rest].sort((a, b) => people(clips[b.clip], b) - e(b) * 0.1 - (people(clips[a.clip], a) - e(a) * 0.1))[0];
+  const middle = rest.filter((s) => s !== close);
+  const climaxN = middle.length >= 4 ? Math.min(3, Math.floor(middle.length / 3)) : 0;
+  const climax = [...middle].sort((a, b) => e(b) - e(a)).slice(0, climaxN);
+  const build = middle.filter((s) => !climax.includes(s));
+  const ordered: [Segment, Role][] = [[hook, "hook"], ...build.map((s) => [s, "build"] as [Segment, Role]), ...climax.map((s) => [s, "climax"] as [Segment, Role]), ...(close ? [[close, "close"] as [Segment, Role]] : [])];
+
+  const beat = o.beat ?? null;
+  const snap = (x: number) => (beat ? Math.max(beat, Math.round(x / beat) * beat) : x);
+  let prevEnergy = 0;
+  return ordered.map(([s, role], i) => {
+    const en = e(s);
+    let len = s.len;
+    if (o.style === "energetic") len = role === "close" ? s.len : en > 0.5 ? s.len * 0.6 : s.len * 0.85;
+    if (o.style === "cinematic") len = role === "close" ? s.len * 1.5 : s.len * 1.25;
+    len = Math.max(0.9, Math.min(4.5, snap(len)));
+    let transition: Transition = "cut";
+    if (i > 0) {
+      if (o.style === "energetic") {
+        const x = r();
+        transition = role === "climax" && ordered[i - 1][1] !== "climax" ? "flash" : en > 0.55 && prevEnergy > 0.55 ? "whip" : x < 0.2 ? "glitch" : x < 0.55 ? "zoom" : "cut";
+        if (role === "close") transition = "dip";
+      } else if (o.style === "cinematic") transition = role === "close" ? "dip" : "fade";
+      else transition = role === "close" ? "fade" : "cut";
+    }
+    const speed = o.style === "cinematic" && (role === "climax" || role === "close") ? 0.6 : 1;
+    const size = o.sizes[s.clip] ?? { w: 16, h: 9 };
+    const mismatch = Math.max(size.w / size.h / o.aspect, o.aspect / (size.w / size.h));
+    const fit = mismatch > 1.5 && people(clips[s.clip], s) > 0.08 && en < 0.6 ? "blur" : "fill";
+    prevEnergy = en;
+    return { ...s, len, role, transition, speed, fit };
+  });
+}

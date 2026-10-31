@@ -6,7 +6,7 @@
  * uploaded and nothing is paid for. See src/lib/montage.ts and src/portal/montage-engine.ts.
  */
 import { useEffect, useRef, useState } from "react";
-import { FORMATS, planMontage, type FormatKey, type Segment } from "@/lib/montage";
+import { direct, FORMATS, planMontage, STYLES, type FormatKey, type Segment, type Shot, type Style } from "@/lib/montage";
 import { fmt, sharePhotos, today, type StaffRow } from "./core";
 import { analyse, musicBeat, recordType, renderMontage, type Analysed } from "./montage-engine";
 import { Button, Card, Chip, Field, Icon, Input, Toggle, TopBar, toast } from "./ui";
@@ -21,6 +21,7 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
   const [music, setMusic] = useState<File | null>(null);
   const [beat, setBeat] = useState<number | null>(null);
   const [format, setFormat] = useState<FormatKey>("reel");
+  const [style, setStyle] = useState<Style>("energetic");
   const [length, setLength] = useState<(typeof LENGTHS)[number]>(30);
   const [sound, setSound] = useState(true);
   const [title, setTitle] = useState(query?.get("title") ?? "");
@@ -60,15 +61,25 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
   const usable = seen.map((a, i) => ({ a, i })).filter((x): x is { a: Analysed; i: number } => !!x.a && !skip.has(x.i));
   const plan: Segment[] = reading ? [] : planMontage(usable.map((x) => x.a.clip), length, beat).map((s) => ({ ...s, clip: usable[s.clip].i }));
   const bad = seen.filter((a) => a === null).length;
+  // The editor's cut: story order, rhythm, transitions, slow motion, framing.
+  const f0 = FORMATS[format];
+  const shots: Shot[] = plan.length
+    ? direct(
+        seen.map((a) => a?.clip ?? { duration: 0, samples: [], at: 0 }),
+        plan,
+        { style, seed: `${title}:${files.length}`, aspect: f0.w / f0.h, sizes: seen.map((a) => ({ w: a?.w ?? 16, h: a?.h ?? 9 })), beat },
+      )
+    : [];
+  const ROLE: Record<Shot["role"], string> = { hook: "البداية", build: "", climax: "الذروة", close: "الختام" };
 
   const make = async () => {
-    if (!plan.length) return;
+    if (!shots.length) return;
     stop.current = { now: false };
     setProgress(0);
     setOut(null);
     try {
       const f = FORMATS[format];
-      const blob = await renderMontage(files, plan, { w: f.w, h: f.h, title: title.trim(), sub: sub.trim(), music, sound, seed: `${title}:${files.length}`, onProgress: setProgress, stop: stop.current });
+      const blob = await renderMontage(files, shots, { w: f.w, h: f.h, title: title.trim(), sub: sub.trim(), style, music, sound, seed: `${title}:${files.length}`, onProgress: setProgress, stop: stop.current });
       if (stop.current.now) return toast("اتوقف", "info");
       setOut({ blob, url: URL.createObjectURL(blob) });
       toast(`الفيديو جاهز · ${fmt.size(blob.size)}`, "ok");
@@ -125,6 +136,16 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
               </Chip>
             ))}
           </div>
+          <div className="grid gap-1">
+            <div className="flex flex-wrap gap-2" data-testid="montage-styles">
+              {(Object.keys(STYLES) as Style[]).map((k) => (
+                <Chip key={k} active={style === k} onClick={() => setStyle(k)}>
+                  {STYLES[k].label}
+                </Chip>
+              ))}
+            </div>
+            <p className="text-xs text-fog">{STYLES[style].hint}</p>
+          </div>
           <div className="flex flex-wrap gap-2">
             {LENGTHS.map((l) => (
               <Chip key={l} active={length === l} onClick={() => setLength(l)}>
@@ -161,8 +182,8 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
         {seen.length > 0 && !reading && (
           <Card className="grid gap-2" data-testid="montage-plan">
             <p className="text-sm text-mist">
-              {plan.length
-                ? `${plan.length} لقطة · حوالي ${Math.round(plan.reduce((a, s) => a + s.len, 0) + 4)} ثانية — أول لقطة هي أقواهم، والباقي بترتيب التصوير. اضغط على فيديو عشان تشيله.`
+              {shots.length
+                ? `${shots.length} لقطة · حوالي ${Math.round(shots.reduce((a, s) => a + s.len, 0) + 5)} ثانية — بداية تشد، بناء بترتيب التصوير، ذروة بأقوى اللحظات، وختام هادي. اضغط على فيديو عشان تشيله.`
                 : "مفيش لقطات تنفع — جرّب فيديوهات أوضح"}
               {bad ? ` · ${bad} فيديو ما اتقراش` : ""}
             </p>
@@ -173,12 +194,16 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
                     key={i}
                     type="button"
                     onClick={() => setSkip(new Set(skip.has(i) ? [...skip].filter((x) => x !== i) : [...skip, i]))}
-                    className={`relative overflow-hidden rounded-lg border-2 ${plan.some((s) => s.clip === i) ? "border-cyan" : skip.has(i) ? "border-danger opacity-40" : "border-transparent opacity-60"}`}
+                    className={`relative overflow-hidden rounded-lg border-2 ${shots.some((s) => s.clip === i) ? "border-cyan" : skip.has(i) ? "border-danger opacity-40" : "border-transparent opacity-60"}`}
                     aria-pressed={!skip.has(i)}
                     data-testid="montage-clip"
                   >
                     <img src={a.thumb} alt={files[i]?.name ?? ""} className="aspect-square w-full object-cover" />
-                    {plan[0]?.clip === i && <span className="absolute start-1 top-1 rounded bg-cyan px-1 text-[10px] font-bold text-void">البداية</span>}
+                    {shots.filter((x) => x.clip === i && ROLE[x.role]).slice(0, 1).map((x) => (
+                      <span key={x.role} className="absolute start-1 top-1 rounded bg-cyan px-1 text-[10px] font-bold text-void">
+                        {ROLE[x.role]}
+                      </span>
+                    ))}
                   </button>
                 ) : null,
               )}
@@ -197,7 +222,7 @@ export function MontageScreen({ query }: { me: StaffRow; query?: URLSearchParams
             </Button>
           </Card>
         ) : (
-          <Button variant="primary" icon="film" disabled={!plan.length || !!reading} onClick={() => void make()} data-testid="montage-make">
+          <Button variant="primary" icon="film" disabled={!shots.length || !!reading} onClick={() => void make()} data-testid="montage-make">
             اعمل الفيديو
           </Button>
         )}
