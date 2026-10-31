@@ -7,6 +7,7 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
+import { shareOrSave, shareText, type ShareResult } from "@/lib/share-files";
 
 export { SUPABASE_KEY, SUPABASE_URL };
 export const BASE_PATH = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -23,7 +24,7 @@ export const SITE_ORIGIN = "https://buildxhue.com";
 export const publicOrigin = () => (isNative() ? SITE_ORIGIN : window.location.origin);
 
 type FsPlugin = { writeFile(o: { path: string; data: string; directory: string; recursive?: boolean }): Promise<{ uri: string }> };
-type SharePlugin = { share(o: { title?: string; files?: string[]; dialogTitle?: string }): Promise<unknown> };
+type SharePlugin = { share(o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }): Promise<unknown> };
 const Filesystem = registerPlugin<FsPlugin>("Filesystem");
 const Share = registerPlugin<SharePlugin>("Share");
 
@@ -37,6 +38,41 @@ async function shareFile(blob: Blob, name: string) {
   });
   const { uri } = await Filesystem.writeFile({ path: `exports/${name}`, data, directory: "CACHE", recursive: true });
   await Share.share({ title: name, files: [uri], dialogTitle: name });
+}
+
+/**
+ * Photos and their words to the gallery or straight into WhatsApp/Instagram/Facebook: the share sheet
+ * (in the apps, the native one; in the browser, the system one or a save + copy where it can't).
+ */
+export async function sharePhotos(files: File[], text = ""): Promise<ShareResult> {
+  if (!isNative()) return shareOrSave(files, text);
+  const uris: string[] = [];
+  for (const f of files) {
+    const data = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(f);
+    });
+    uris.push((await Filesystem.writeFile({ path: `share/${f.name}`, data, directory: "CACHE", recursive: true })).uri);
+  }
+  try {
+    await Share.share({ files: uris, ...(text ? { text } : {}), dialogTitle: "شارك" });
+    return "shared";
+  } catch {
+    return "cancelled";
+  }
+}
+
+/** Just the words of a post: the native share sheet in the apps, the system one (or a copy) in the browser. */
+export async function shareWords(text: string): Promise<ShareResult> {
+  if (!isNative()) return shareText(text);
+  try {
+    await Share.share({ text, dialogTitle: "شارك" });
+    return "shared";
+  } catch {
+    return "cancelled";
+  }
 }
 
 /**
@@ -578,6 +614,19 @@ export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promis
   }
 }
 
+/** About `kb` for a `ref`-pixel edge, scaled by area for other sizes. */
+const budget = (edge: number, kb: number, ref = 1600) => Math.round(kb * 1024 * (edge / ref) ** 2);
+
+/** A JPEG at the best of a few qualities that fits `bytes` (the lowest one if none does). */
+async function lightJpeg(img: Decoded, maxEdge: number, bytes: number): Promise<Blob> {
+  let out: Blob | null = null;
+  for (const q of [0.8, 0.72, 0.64, 0.56]) {
+    out = await encode(img, maxEdge, "image/jpeg", q, true);
+    if (out.size <= bytes) break;
+  }
+  return out!;
+}
+
 export type PreparedImage = { main: Blob; thumb: Blob; ext: "webp" | "jpg"; type: string; before: number; after: number; width: number; height: number };
 
 /**
@@ -589,9 +638,11 @@ export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640
   try {
     let main = await encode(img, maxEdge, "image/webp", quality, false);
     const webp = main.type === "image/webp";
-    if (!webp) main = await encode(img, maxEdge, "image/jpeg", 0.84, true);
+    // Safari (every iPhone) can't write WebP: a JPEG, stepped down until it's about as light as the
+    // WebP would have been (a 1600px photo ≈ 250 KB, its thumbnail ≈ 50 KB).
+    if (!webp) main = await lightJpeg(img, maxEdge, budget(maxEdge, 250));
     const type = webp ? "image/webp" : "image/jpeg";
-    const thumb = await encode(img, thumbEdge, type, webp ? 0.74 : 0.8, !webp);
+    const thumb = webp ? await encode(img, thumbEdge, type, 0.74, false) : await lightJpeg(img, thumbEdge, budget(thumbEdge, 50, 640));
     const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
     return { main, thumb, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.size, width: Math.round(img.width * scale), height: Math.round(img.height * scale) };
   } finally {

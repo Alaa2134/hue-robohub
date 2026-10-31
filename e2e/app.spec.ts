@@ -1,4 +1,4 @@
-import { copyFileSync, readFileSync } from "node:fs";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { voiceLines } from "../src/lib/mascot/voice-lines";
 
@@ -7421,6 +7421,8 @@ test("media desk: the news post and social posts of each event are written from 
     // A workshop in two days: the invitation.
     { key: "form:f2", slug: "workshop-02", title: "Workshop 02 – Introduction to Embedded Systems", title_en: null, at: inDays(2), place: "قاعة A403", registered: 14, accepted: 0, attended: 0, sessions: 0, bus: false, rating: null, ratings: 0, photos: 0, cover: null, post: null },
   ];
+  RPC.staff_college_setup = { header: "تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية", students: "طلاب برنامج الروبوتات", college: "كلية الذكاء الاصطناعي", university: "جامعة حورس", field: "الروبوتات", supervisor: "م. مشرف القسم" };
+  RPC.staff_event_people = ["طالب أول", "طالب تاني"];
   await signInAsOwner(page);
   const posts: Record<string, unknown>[] = [];
   await page.route(/\/rest\/v1\/site_content/, (route) => {
@@ -7445,6 +7447,48 @@ test("media desk: the news post and social posts of each event are written from 
   await expect(summit.getByTestId("desk-caption")).toHaveValue(/👥 شارك من الفريق 45 طالب/);
   await summit.getByRole("button", { name: "لينكدإن" }).click();
   await expect(summit.getByTestId("desk-caption")).toHaveValue(/45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./);
+
+  // The college's post: under its saved patronage lines, «يشاركون في» the summit, who represented it
+  // (from who was scanned in), the tracks picked and the supervisor.
+  const college = summit.getByTestId("desk-college");
+  const post = college.getByTestId("college-text");
+  await expect(post).toHaveValue(/^تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية\n\nطلاب برنامج الروبوتات بكلية الذكاء الاصطناعي يشاركون في MENA ROBOTICS SUMMIT 2026 🤖🌍/);
+  await expect(post).toHaveValue(/ومثّل الكلية في القمة 45 من الطلاب\./);
+  await college.getByTestId("college-names-load").click();
+  await expect(post).toHaveValue(/ومثّل الكلية في القمة كل من:\n • طالب أول • طالب تاني/);
+  await college.getByRole("button", { name: "🥊 Robot Sumo" }).click();
+  await expect(post).toHaveValue(/وذلك من خلال مجال:\n\n🥊 Robot Sumo: مواجهة بين روبوتين/);
+  await expect(post).toHaveValue(/وجاءت مشاركة الطلاب تحت إشراف م\. مشرف القسم/);
+  await expect(college.getByTestId("college-suggest")).toBeDisabled();
+
+  // The carousel: 12 photos from the phone → the slides it can fill, in the BuildX style, 1080×1350.
+  const carousel = summit.getByTestId("desk-carousel");
+  await expect(carousel.getByTestId("carousel-title")).toHaveValue("MENA ROBOTICS SUMMIT 2026");
+  await carousel.getByTestId("carousel-photos").setInputFiles(
+    ["01", "02", "03", "05", "06", "07", "08", "10", "11", "12", "13", "14"].map((n) => ({ name: `${n}.webp`, mimeType: "image/webp", buffer: readFileSync(`public/media/workshops/embedded-systems-01/${n}.w.webp`) })),
+  );
+  await carousel.getByTestId("carousel-make").click();
+  await expect(carousel.getByTestId("carousel-slide-cover")).toBeVisible({ timeout: 30_000 });
+  await expect(carousel.getByTestId("carousel-slide-thanks")).toBeVisible();
+  const n = await carousel.getByTestId("carousel-slides").locator("figure").count();
+  expect(n).toBeGreaterThanOrEqual(5);
+  const size = await carousel.getByTestId("carousel-slide-cover").evaluate(async (img: HTMLImageElement) => (await img.decode(), [img.naturalWidth, img.naturalHeight]));
+  expect(size).toEqual([1080, 1350]);
+  if (process.env.CAROUSEL_SHOT)
+    for (const [i, f] of (await carousel.getByTestId("carousel-slides").locator("img").all()).entries()) {
+      const b64 = await f.evaluate(async (img: HTMLImageElement) => {
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        return c.toDataURL("image/jpeg", 0.9).split(",")[1];
+      });
+      writeFileSync(`${process.env.CAROUSEL_SHOT}-${i}.jpg`, Buffer.from(b64, "base64"));
+    }
+  const zipped = page.waitForEvent("download");
+  await carousel.getByTestId("carousel-zip").click();
+  expect((await zipped).suggestedFilename()).toMatch(/^carousel-\d{4}-\d{2}-\d{2}\.zip$/);
   await summit.getByTestId("desk-news-save").click();
   await expect(page.getByText("الخبر اتحفظ مسودة في «محتوى الموقع»")).toBeVisible();
   expect(posts).toHaveLength(1);
@@ -7462,6 +7506,8 @@ test("media desk: the news post and social posts of each event are written from 
   await expect(invite).toHaveValue(/https:\/\/buildxhue\.com\/ar\/form\/\?f=workshop-02/);
   await expect(invite).toHaveValue(/📍 قاعة A403/);
   delete RPC.staff_media_desk;
+  delete RPC.staff_college_setup;
+  delete RPC.staff_event_people;
   expect(errors).toEqual([]);
 });
 
@@ -7528,6 +7574,18 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   expect(names).toEqual(["001-team.jpg", "002-workshop.jpg", "003-summit.jpg"]);
   expect(bytes.length).toBeLessThan(3 * 700_000);
 
+  // To the gallery / straight into an app with words: framed first, then one tap per batch (a browser
+  // without a share sheet saves each photo as its own file).
+  await page.getByTestId("frame-share").click();
+  await expect(page.getByTestId("frame-ready")).toContainText("3 صورة في البرواز جاهزة");
+  await page.getByTestId("frame-words").fill("لقطات من الورشة 📸");
+  const saved: string[] = [];
+  page.on("download", (d) => saved.push(d.suggestedFilename()));
+  await page.getByTestId("frame-share-0").click();
+  await expect.poll(() => saved.length).toBe(3);
+  expect(saved.every((n) => /^buildx-00[123]\.jpg$/.test(n))).toBe(true);
+  await expect(page.getByTestId("frame-share-0")).toContainText("✓");
+
   // Up to the website: an album name first, then three small WebP photos (and thumbnails) in the gallery.
   await expect(page.getByTestId("frame-upload")).toHaveText("ارفع 3 على الموقع");
   await page.getByTestId("frame-upload").click();
@@ -7537,6 +7595,46 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   await expect(page.getByText("اترفع 3 صورة في ألبوم «ورشة Embedded Systems»")).toBeVisible();
   expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
   expect(posts.flat()).toEqual([1, 2, 3].map(() => expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems"], published: true })));
+  expect(errors).toEqual([]);
+});
+
+test("old heavy site photos are shrunk in one tap: a light copy replaces each one, then the old file goes", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("dialog", (d) => void d.accept());
+  await signInAsOwner(page);
+  const heavy = readFileSync("public/media/news/mena-robotics-summit-partnership.jpg");
+  RPC.staff_heavy_site_images = [{ id: "c1", path: "u1/old.w.jpg", size: heavy.length * 4 }];
+  const uploads: string[] = [];
+  const patches: { url: string; body: unknown }[] = [];
+  const removed: unknown[] = [];
+  await page.route(/\/storage\/v1\/object\/public\/site\//, (route) => route.fulfill({ body: heavy, contentType: "image/jpeg" }));
+  await page.route(/\/storage\/v1\/object\/site(\/|$)/, async (route) => {
+    if (route.request().method() === "DELETE") {
+      removed.push(route.request().postDataJSON());
+      return route.fulfill({ json: [] });
+    }
+    uploads.push(new URL(route.request().url()).pathname.split("/object/site/")[1]);
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/site_content/, (route) => {
+    if (route.request().method() === "PATCH") {
+      patches.push({ url: route.request().url(), body: route.request().postDataJSON() });
+      return route.fulfill({ json: [{ id: "c1" }] });
+    }
+    return route.fulfill({ json: [] });
+  });
+  await page.goto("/app/#/staff/photo-frame");
+  await expect(page.getByTestId("shrink-old")).toContainText("1 صورة على الموقع تقيلة");
+  await page.getByTestId("shrink-old-go").click();
+  await expect(page.getByText(/اتصغّرت الصور: وفّرنا/)).toBeVisible();
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.w.webp"]);
+  expect(patches).toHaveLength(1);
+  expect(patches[0].url).toContain("image_path=eq.u1%2Fold.w.jpg");
+  expect(patches[0].body).toMatchObject({ image_path: expect.stringMatching(/^u1\/[0-9a-f-]{36}\.w\.webp$/) });
+  expect(removed).toEqual([{ prefixes: ["u1/old.w.jpg", "u1/old.t.jpg"] }]);
+  await expect(page.getByTestId("shrink-old")).toHaveCount(0);
+  delete RPC.staff_heavy_site_images;
   expect(errors).toEqual([]);
 });
 

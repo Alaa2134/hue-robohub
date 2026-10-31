@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@/components/brand/icons";
+import { PhotoActions } from "@/components/pages/lightbox";
 import { trackName } from "@/components/team/team-directory";
 import { EventRsvp } from "./event-rsvp";
 import { localePath, type Locale } from "@/i18n/config";
@@ -344,7 +345,7 @@ export function LiveGallery({
       <ul className="columns-2 gap-3 sm:columns-3 lg:columns-4">
         {photos.map((p, idx) => (
           <li key={p.id} className="mb-3 break-inside-avoid">
-            <button type="button" onClick={() => setOpen(idx)} className="block w-full overflow-hidden rounded-2xl border border-[var(--line)] focus-visible:outline-2">
+            <button type="button" onClick={() => setOpen(idx)} className="block w-full overflow-hidden rounded-2xl border border-[var(--line)] focus-visible:outline-2" data-testid="wall-tile">
               <img src={siteImageUrl(p.image_path!, "thumb")} alt={titleOf(p, locale)} loading="lazy" decoding="async" className="w-full transition-transform duration-500 hover:scale-[1.03]" />
             </button>
           </li>
@@ -356,9 +357,12 @@ export function LiveGallery({
             <span>
               {open! + 1} / {photos.length}
             </span>
-            <button type="button" className="btn btn-sm" onClick={() => setOpen(null)}>
-              {t.close}
-            </button>
+            <span className="flex items-center gap-2">
+              <PhotoActions id={cur.id} src={siteImageUrl(cur.image_path!)} caption={titleOf(cur, locale)} />
+              <button type="button" className="btn btn-sm" onClick={() => setOpen(null)}>
+                {t.close}
+              </button>
+            </span>
           </div>
           <div className="flex min-h-0 flex-1 items-center justify-center gap-2 px-2 pb-6" onClick={(e) => e.stopPropagation()}>
             <button type="button" aria-label={t.prev} className="btn btn-sm shrink-0" onClick={() => setOpen((i) => (i! - 1 + photos.length) % photos.length)}>

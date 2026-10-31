@@ -12,9 +12,11 @@
 import { useEffect, useRef, useState } from "react";
 import { BASE_PATH } from "@/lib/deploy";
 import { FRAME, applyTone, bestCrop, fitMode, look, measureTone, pickBest, saliency, sharpen, type Look, type Verdict } from "@/lib/photo-frame";
+import { batches } from "@/lib/share-files";
 import { zipStore } from "@/lib/zip-store";
-import { can, download, fmt, must, removeObjects, sb, today, uploadImage, type StaffRow } from "./core";
-import { Button, Card, Chip, Field, Icon, Input, Toggle, TopBar, toast } from "./ui";
+import { publicImageUrl } from "@/lib/site-content";
+import { can, download, fmt, must, prepareImage, removeObjects, rpc, sb, sharePhotos, today, uploadImage, type StaffRow } from "./core";
+import { Button, Card, Chip, Field, Icon, Input, Textarea, Toggle, TopBar, toast } from "./ui";
 
 const MAX = 500;
 const PARALLEL = 2;
@@ -125,7 +127,11 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
   const [previews, setPreviews] = useState<{ url: string; mode: string }[]>([]);
   const [album, setAlbum] = useState("");
   const [publish, setPublish] = useState(admin);
-  const [job, setJob] = useState<{ what: "upload" | "zip"; done: number; failed: number; bytes: number } | null>(null);
+  const [job, setJob] = useState<{ what: "upload" | "zip" | "share"; done: number; failed: number; bytes: number } | null>(null);
+  // Framed photos ready for the gallery / share sheet, and the words that go with them.
+  const [ready, setReady] = useState<File[] | null>(null);
+  const [words, setWords] = useState("");
+  const [sent, setSent] = useState<Set<number>>(new Set());
   const stop = useRef(false);
   // Picking the good ones: what each photo looks like, read as they're added.
   const [cull, setCull] = useState(true);
@@ -188,7 +194,7 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
   };
 
   /** Each photo through the frame, two at a time; `each` gets each result as it's ready. */
-  const run = async (what: "upload" | "zip", each: (f: File, i: number, canvas: HTMLCanvasElement) => Promise<number>) => {
+  const run = async (what: "upload" | "zip" | "share", each: (f: File, i: number, canvas: HTMLCanvasElement) => Promise<number>) => {
     stop.current = false;
     let done = 0,
       failed = 0,
@@ -273,7 +279,45 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
     }
   };
 
+  /** Frame them on the device; then each batch goes to the gallery or an app from its own tap. */
+  const toShare = async () => {
+    const out: { i: number; file: File }[] = [];
+    const tag = (album.trim() || "buildx").replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40);
+    try {
+      const r = await run("share", async (_f, i, canvas) => {
+        const b = await blobOf(canvas, "image/jpeg", 0.88);
+        if (!b) throw new Error("encode");
+        out.push({ i, file: new File([b], `${tag}-${String(i + 1).padStart(3, "0")}.jpg`, { type: "image/jpeg" }) });
+        return b.size;
+      });
+      if (!out.length) return toast("مفيش صور اتعملت", "error");
+      out.sort((a, b) => a.i - b.i);
+      setReady(out.map((x) => x.file));
+      setSent(new Set());
+      toast(`${out.length} صورة جاهزة · ${fmt.size(r.bytes)}${r.failed ? ` · ${r.failed} ما اتقرتش` : ""}`, "ok");
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setJob(null);
+    }
+  };
+
+  const shareBatch = async (n: number, list: File[]) => {
+    const r = await sharePhotos(list, words.trim());
+    if (r === "cancelled") return;
+    setSent(new Set([...sent, n]));
+    toast(r === "shared" ? "اتبعتوا ✓ (والكلام اتنسخ لو التطبيق ما خدهوش)" : `اتحفظ ${list.length} صورة على الجهاز${words.trim() ? " والكلام اتنسخ" : ""}`, "ok");
+  };
+
   const total = files.reduce((n, f) => n + f.size, 0);
+  return (
+    <>
+      {inner()}
+      <ShrinkOld />
+    </>
+  );
+
+  function inner() {
   return (
     <>
       <TopBar title="صور في البرواز" sub="لحد 500 صورة مرة واحدة: البرواز، الجودة، والحجم الصغير" back="/staff/site" />
@@ -376,17 +420,125 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
                 <Button variant="primary" icon="upload" onClick={() => void toSite()} data-testid="frame-upload">
                   {`ارفع ${chosen.length} على الموقع`}
                 </Button>
+                <Button icon="share" onClick={() => void toShare()} data-testid="frame-share">
+                  للجاليري أو شارك على طول
+                </Button>
                 <Button icon="download" onClick={() => void toZip()} data-testid="frame-zip">
                   نزّلهم ZIP
                 </Button>
-                <Button variant="ghost" onClick={() => (setFiles([]), setBack(new Set()))}>
+                <Button variant="ghost" onClick={() => (setFiles([]), setBack(new Set()), setReady(null))}>
                   امسح الاختيار
                 </Button>
               </div>
             )}
           </Card>
         )}
+
+        {ready && (
+          <Card className="grid gap-3" data-testid="frame-ready">
+            <p className="font-semibold text-chalk">{`${ready.length} صورة في البرواز جاهزة`}</p>
+            <Field label="الكلام اللي مع الصور (اختياري)" hint="بيتبعت مع الصور، وبيتنسخ كمان عشان لو التطبيق ما خدهوش تلزقه.">
+              <Textarea rows={3} value={words} maxLength={2000} placeholder="مثلاً: لقطات من ورشة اليوم 📸 #BuildX" onChange={(e) => setWords(e.target.value)} data-testid="frame-words" />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              {batches(ready).map((list, n) => (
+                <Button key={n} variant={sent.has(n) ? "ghost" : "primary"} icon="share" onClick={() => void shareBatch(n, list)} data-testid={`frame-share-${n}`}>
+                  {`${sent.has(n) ? "✓ " : ""}احفظ / شارك ${batches(ready).length > 1 ? `${n * 30 + 1}–${n * 30 + list.length}` : `الـ ${list.length}`}`}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-fog">من الموبايل: اختار «حفظ الصور» عشان تنزل الجاليري، أو واتساب/إنستجرام/فيسبوك على طول. من الكمبيوتر: بتتحفظ كل صورة لوحدها.</p>
+          </Card>
+        )}
       </div>
     </>
+  );
+  }
+}
+
+type Heavy = { id: string; path: string; size: number };
+
+/**
+ * The site's old photos (heavy JPEGs from iPhones) made light: each one re-encoded on this device,
+ * saved under a new name, its content item pointed at it, then the old file removed. One at a time,
+ * so a stop halfway leaves every photo working.
+ */
+function ShrinkOld() {
+  const [list, setList] = useState<Heavy[] | null>(null);
+  const [run, setRun] = useState<{ done: number; saved: number; failed: number } | null>(null);
+  const stop = useRef(false);
+  useEffect(() => {
+    rpc<Heavy[]>("staff_heavy_site_images")
+      .then((l) => setList(l ?? []))
+      .catch(() => setList([]));
+  }, []);
+  if (!list?.length) return null;
+  const total = list.reduce((n, x) => n + x.size, 0);
+
+  const go = async () => {
+    if (!confirm(`هتتصغّر ${list.length} صورة على الموقع (${fmt.size(total)}). الصورة بتفضل بنفس الشكل بس أخف، والملف القديم بيتمسح بعد ما الجديدة تتحفظ. نكمّل؟`)) return;
+    stop.current = false;
+    let done = 0,
+      saved = 0,
+      failed = 0;
+    const left: Heavy[] = [];
+    setRun({ done, saved, failed });
+    for (const x of list) {
+      if (stop.current) {
+        left.push(x);
+        continue;
+      }
+      try {
+        const res = await fetch(publicImageUrl("site", x.path));
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        const light = await prepareImage(blob);
+        // Not worth it (already light enough): leave it.
+        if (light.main.size > x.size * 0.8) {
+          left.push(x);
+        } else {
+          const up = await uploadImage("site", x.path.split("/").slice(0, -1).join("/") || "shrunk", blob);
+          const rows = await sb().from("site_content").update({ image_path: up.path }).eq("id", x.id).eq("image_path", x.path).select("id").then(must);
+          if (!rows?.length) {
+            // The item changed meanwhile: drop the new copy, keep the old.
+            await removeObjects([up.path], "site").catch(() => undefined);
+            left.push(x);
+          } else {
+            await removeObjects([x.path], "site").catch(() => undefined);
+            saved += x.size - up.after;
+          }
+        }
+      } catch {
+        failed++;
+        left.push(x);
+      }
+      done++;
+      setRun({ done, saved, failed });
+    }
+    toast(`اتصغّرت الصور: وفّرنا ${fmt.size(saved)}${failed ? ` · ${failed} ما اتعملتش` : ""}`, "ok");
+    setList(left.filter((x) => x.size >= 320000));
+    setRun(null);
+  };
+
+  return (
+    <Card className="mt-4 grid gap-2" data-testid="shrink-old">
+      <p className="font-semibold text-chalk">{`${list.length} صورة على الموقع تقيلة (${fmt.size(total)})`}</p>
+      <p className="text-sm text-fog">اترفعت من الآيفون قبل التحديث. صغّرها بضغطة: بنفس الشكل والجودة اللي على الشاشة، وحجم أقل بكتير.</p>
+      {run ? (
+        <div className="grid gap-2">
+          <div className="h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full bg-cyan transition-all" style={{ width: `${Math.round((run.done / list.length) * 100)}%` }} />
+          </div>
+          <p className="text-sm text-mist">{`${run.done} من ${list.length} · وفّرنا ${fmt.size(run.saved)}${run.failed ? ` · ${run.failed} ما اتعملتش` : ""}`}</p>
+          <Button size="sm" onClick={() => (stop.current = true)}>
+            وقّف
+          </Button>
+        </div>
+      ) : (
+        <Button variant="primary" icon="image" onClick={() => void go()} data-testid="shrink-old-go">
+          صغّرهم
+        </Button>
+      )}
+    </Card>
   );
 }
