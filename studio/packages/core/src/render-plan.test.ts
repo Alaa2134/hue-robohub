@@ -13,15 +13,15 @@ const assets = new Map<string, AssetInfo>([
 ]);
 const files = new Map([["v", "/x/v.mp4"], ["m", "/x/m.mp4"], ["i", "/x/i.jpg"], ["s", "/x/s.mp3"], ["title", "/x/title.png"]]);
 const media = (id: string, assetId: string, start: number, duration: number, extra: object = {}): Clip =>
-  ({ id, type: "media", assetId, start, duration, in: 0, speed: 1, volume: 1, fadeIn: 0, fadeOut: 0, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, ...extra }) as Clip;
+  ({ id, type: "media", assetId, start, duration, in: 0, speed: 1, volume: 1, fadeIn: 0, fadeOut: 0, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, color: null, duck: false, ...extra }) as Clip;
 
 describe("planRender", () => {
   it("builds one command: inputs, layers, mixed sound, H.264/AAC", () => {
     let t = emptyTimeline(settings);
     t = addClip(t, "v1", media("a", "v", 0, 4, { in: 1 }));
-    t = addClip(t, "v1", media("b", "i", 4, 3, { motion: { from: { scale: 1, x: 0, y: 0 }, to: { scale: 1.2, x: 0.1, y: 0 } }, transitionIn: { kind: "crossfade", duration: 0.5 } }));
+    t = addClip(t, "v1", media("b", "i", 4, 3, { motion: { from: { scale: 1, x: 0, y: 0 }, to: { scale: 1.2, x: 0.1, y: 0 } }, transitionIn: { kind: "crossfade", duration: 0.5 }, color: null, duck: false }));
     t = addClip(t, "v2", media("c", "m", 1, 2, { fit: "contain", transform: { x: 0.5, y: -0.5, scale: 0.4, rotation: 0, opacity: 0.8 } }));
-    t = addClip(t, "t1", { id: "title", type: "text", text: "BuildX", start: 0, duration: 2, font: "Plex Arabic", size: 0.06, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3 });
+    t = addClip(t, "t1", { id: "title", type: "text", text: "BuildX", start: 0, duration: 2, font: "Plex Arabic", size: 0.06, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3, style: "plain", subtitle: null, accent: "#45d0ff", animation: "none" });
     t = addClip(t, "a1", media("music", "s", 0, 7, { volume: 0.5, fadeOut: 1 }));
     const p = planRender({ timeline: t, assets, files, output: { path: "/out.mp4", width: 1080, height: 1920, fps: 30, quality: "standard" } });
     expect(p.duration).toBe(7);
@@ -47,6 +47,22 @@ describe("planRender", () => {
     expect(p.duration).toBe(30);
     expect(p.frames).toBe(720);
     expect(p.args.join(" ")).toContain("anullsrc");
+  });
+
+  it("grades color, moves titles in and out, and ducks music under the other sound", () => {
+    let t = emptyTimeline(settings);
+    t = addClip(t, "v1", media("a", "v", 0, 4, { color: { brightness: 0.05, contrast: 1.2, saturation: 0, temperature: 0.5 } }));
+    t = addClip(t, "t1", { id: "lt", type: "text", text: "أحمد", start: 0, duration: 3, font: "Plex Arabic", size: 0.05, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0.6, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.5, fadeOut: 0.5, style: "lower-third", subtitle: "رئيس الفريق", accent: "#45d0ff", animation: "rise" });
+    t = addClip(t, "a1", media("music", "s", 0, 4, { duck: true }));
+    const p = planRender({ timeline: t, assets, files: new Map([...files, ["lt", "/x/lt.png"]]), output: { path: "/o.mp4", width: 1080, height: 1920, fps: 30, quality: "draft" } });
+    const g = p.args[p.args.indexOf("-filter_complex") + 1];
+    expect(g).toContain("eq=brightness=0.050:contrast=1.200:saturation=0.000");
+    expect(g).toContain("colorbalance=rs=0.030");
+    // Rises 5% of the height, eased, over the fade-in and back out over the fade-out.
+    expect(g).toContain("y='(H-h)/2+96.00*(pow(1-min(1,(t-0)/0.5),3)+pow(max(0,(t-2.5)/0.5),3))'");
+    expect(g).toContain("sidechaincompress");
+    expect(g).toMatch(/\[music0\]\[sc\]sidechaincompress/);
+    expect(p.sounds).toBe(2);
   });
 
   it("refuses an empty timeline and a missing file", () => {

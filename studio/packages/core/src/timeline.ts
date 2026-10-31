@@ -239,7 +239,7 @@ export function quickAssemble(
       fit: "cover",
       transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 },
       motion: a.kind === "image" ? (i % 2 ? { from: { scale: 1.15, x: 0.04, y: 0 }, to: { scale: 1, x: 0, y: 0 } } : { from: { scale: 1, x: 0, y: 0 }, to: { scale: 1.15, x: -0.04, y: 0 } }) : null,
-      transitionIn: clips.length ? { kind: "crossfade", duration: Math.min(0.4, d / 3) } : null,
+      transitionIn: clips.length ? { kind: "crossfade", duration: Math.min(0.4, d / 3) } : null, color: null, duck: false,
     });
     cursor += d;
     i++;

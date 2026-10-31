@@ -46,13 +46,22 @@ execFileSync("redis-cli", ["-p", new URL(svc.REDIS_URL).port, "flushall"]);
 
 const procs = [];
 const run = (name, cmd, args, opts = {}) => {
-  const p = spawn(cmd, args, { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], ...opts });
+  // Own process group, so stopping it stops npx's children too.
+  const p = spawn(cmd, args, { cwd: root, env, stdio: ["ignore", "pipe", "pipe"], detached: true, ...opts });
   p.stdout.on("data", (d) => process.env.E2E_VERBOSE && process.stdout.write(`[${name}] ${d}`));
   p.stderr.on("data", (d) => process.stderr.write(`[${name}] ${d}`));
   procs.push(p);
   return p;
 };
-const stopAll = () => procs.forEach((p) => p.kill("SIGTERM"));
+// Test servers are stopped outright: a graceful stop can outlive this script and take the next run's jobs.
+const stopAll = () =>
+  procs.forEach((p) => {
+    try {
+      process.kill(-p.pid, "SIGKILL");
+    } catch {
+      /* gone */
+    }
+  });
 process.on("exit", stopAll);
 
 const waitHttp = async (url, ms = 60000) => {
@@ -129,6 +138,10 @@ try {
   await page.getByTestId("ruler").click({ position: { x: 1 * 60, y: 10 } });
   await page.getByTestId("add-text").click();
   await page.getByTestId("text-input").fill("روبوتكس ٢٠٢٦");
+  // A title template: name + role, sliding up.
+  await page.getByTestId("title-style").selectOption("lower-third");
+  await page.getByTestId("title-subtitle").fill("BuildX HUE · جامعة حورس");
+  check((await page.getByTestId("title-animation").inputValue()) === "rise", "title template: lower third with a subtitle, rising in");
   // Drag the title 2 s later on its track.
   const title = page.locator('[data-clip^="title_"]');
   const box = await title.boundingBox();
@@ -138,6 +151,12 @@ try {
   await page.mouse.up();
   const moved = await title.boundingBox();
   check(Math.round(moved.x - box.x) >= 100, "dragged the title along the timeline");
+  // A look on the first shot, and the music ducking under the videos' own sound.
+  await page.locator('[data-testid="track-v1"] [data-testid="clip"]').first().click();
+  await page.getByTestId("looks").getByRole("button", { name: "سينمائي" }).click();
+  await page.locator('[data-testid="track-a1"] [data-testid="clip"]').first().click();
+  await page.getByTestId("duck").check();
+  check(true, "graded a shot (cinematic look) and set the music to duck");
   await page.waitForFunction(() => document.querySelector('[data-testid="save-state"]')?.textContent === "محفوظ", null, { timeout: 15000 });
   check(true, "autosaved");
 

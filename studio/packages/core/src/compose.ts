@@ -4,6 +4,7 @@
  */
 import type { Clip, Fit, MediaClip, Timeline } from "./edl.ts";
 import { end } from "./timeline.ts";
+import { titleMotion } from "./titles.ts";
 
 export type LayerState = {
   clip: Clip;
@@ -47,6 +48,11 @@ export function layersAt(t: Timeline, time: number, W = t.settings.width, H = t.
       let slideY = 0;
       if (tr?.kind === "slide-left" && tr.duration > 0) slideX = W * Math.max(0, 1 - local / tr.duration);
       if (tr?.kind === "slide-up" && tr.duration > 0) slideY = H * Math.max(0, 1 - local / tr.duration);
+      if (c.type === "text") {
+        const tm = titleMotion(c, local, W, H);
+        slideX += tm.dx;
+        slideY += tm.dy;
+      }
       let motion: LayerState["motion"] = null;
       const m = c.type === "media" ? c.motion : null;
       if (m) {

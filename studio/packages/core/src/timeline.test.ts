@@ -9,7 +9,7 @@ const assets = new Map<string, AssetInfo>([
   ["i", { id: "i", kind: "image", duration: null, width: 800, height: 600, hasAudio: false }],
 ]);
 const clip = (id: string, start: number, dur: number, assetId = "v", extra: Partial<MediaClip> = {}): Clip =>
-  ({ id, type: "media", assetId, start, duration: dur, in: 0, speed: 1, volume: 1, fadeIn: 0, fadeOut: 0, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, ...extra }) as Clip;
+  ({ id, type: "media", assetId, start, duration: dur, in: 0, speed: 1, volume: 1, fadeIn: 0, fadeOut: 0, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, color: null, duck: false, ...extra }) as Clip;
 const v1 = (t: Timeline) => t.tracks[0].clips;
 
 describe("presets", () => {

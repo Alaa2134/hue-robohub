@@ -47,8 +47,8 @@ describe("render", () => {
     let t = quickAssemble(emptyTimeline({ ...size, fps: 30, background: "#000000" }), order, { seconds: 30, still: 2, maxShot: 2.5 });
     assets.set("music", { id: "music", kind: "audio", duration: 40, width: null, height: null, hasAudio: true });
     files.set("music", fx.music);
-    t = addClip(t, "a1", { id: "m", type: "media", assetId: "music", start: 0, duration: 30, in: 0, speed: 1, volume: 0.4, fadeIn: 1, fadeOut: 2, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null } as Clip);
-    const title: Clip = { id: "title", type: "text", text: "BuildX HUE — روبوتات", start: 0.5, duration: 3, font: "Plex Arabic", size: 0.06, color: "#ffffff", box: "#00000088", weight: 700, align: "center", transform: { x: 0, y: 0.6, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3 };
+    t = addClip(t, "a1", { id: "m", type: "media", assetId: "music", start: 0, duration: 30, in: 0, speed: 1, volume: 0.4, fadeIn: 1, fadeOut: 2, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, color: null, duck: false } as Clip);
+    const title: Clip = { id: "title", type: "text", text: "BuildX HUE — روبوتات", start: 0.5, duration: 3, font: "Plex Arabic", size: 0.06, color: "#ffffff", box: "#00000088", weight: 700, align: "center", transform: { x: 0, y: 0.6, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.3, fadeOut: 0.3, style: "plain", subtitle: null, accent: "#45d0ff", animation: "none" };
     t = addClip(t, "t1", title);
     const png = path.join(dir, "title.png");
     renderTitle(title as never, size.width, size.height, png);
@@ -66,6 +66,39 @@ describe("render", () => {
     expect(Math.max(...seen)).toBeGreaterThan(25);
     // A frame from the title's time, kept for a look.
     await runFfmpeg(tools, ["-y", "-ss", "2", "-i", out, "-frames:v", "1", path.join(os.tmpdir(), "studio-frame-2s.jpg")]);
+  });
+
+  it("renders color grades, animated title templates and ducked music (a valid FFmpeg graph)", async () => {
+    const size = { width: 540, height: 960 };
+    const v = await probe(tools, fx.videos[0]);
+    const assets = new Map<string, AssetInfo>([
+      ["v", { id: "v", kind: "video", duration: v.duration, width: v.width, height: v.height, hasAudio: true }],
+      ["i", { id: "i", kind: "image", duration: null, width: 1600, height: 1200, hasAudio: false }],
+      ["m", { id: "m", kind: "audio", duration: 40, width: null, height: null, hasAudio: true }],
+    ]);
+    const files = new Map([["v", fx.videos[0]], ["i", fx.images[1]], ["m", fx.music]]);
+    const base = { in: 0, speed: 1, volume: 1, fadeIn: 0, fadeOut: 0, fit: "cover", transform: { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 }, motion: null, transitionIn: null, color: null, duck: false } as const;
+    let t = emptyTimeline({ ...size, fps: 25, background: "#000000" });
+    t = addClip(t, "v1", { ...base, id: "a", type: "media", assetId: "v", start: 0, duration: 3, color: { brightness: 0.05, contrast: 1.2, saturation: 1.4, temperature: 0.6 } } as Clip);
+    t = addClip(t, "v1", { ...base, id: "b", type: "media", assetId: "i", start: 3, duration: 3, color: { brightness: 0, contrast: 1.2, saturation: 0, temperature: 0 }, transitionIn: { kind: "dip", duration: 0.5 } } as Clip);
+    t = addClip(t, "a1", { ...base, id: "music", type: "media", assetId: "m", start: 0, duration: 6, volume: 0.8, duck: true } as Clip);
+    const titles: Clip[] = [
+      { id: "lt", type: "text", text: "أحمد علي", start: 0.3, duration: 2.5, font: "Plex Arabic", size: 0.05, color: "#ffffff", box: null, weight: 700, align: "center", transform: { x: 0, y: 0.6, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.4, fadeOut: 0.4, style: "lower-third", subtitle: "قائد فريق الروبوتات", accent: "#45d0ff", animation: "slide" },
+      { id: "hl", type: "text", text: "Robotex 2026", start: 3.2, duration: 2.5, font: "Saira", size: 0.07, color: "#ffffff", box: null, weight: 800, align: "center", transform: { x: 0, y: -0.2, scale: 1, rotation: 0, opacity: 1 }, fadeIn: 0.4, fadeOut: 0.4, style: "headline", subtitle: "BuildX HUE", accent: "#ff5d6c", animation: "rise" },
+    ];
+    for (const c of titles) {
+      t = addClip(t, "t1", c);
+      const png = path.join(dir, `${c.id}.png`);
+      renderTitle(c as never, size.width, size.height, png);
+      files.set(c.id, png);
+    }
+    const out = path.join(dir, "styled.mp4");
+    const plan = planRender({ timeline: t, assets, files, output: { path: out, ...size, fps: 25, quality: "draft" } });
+    await runFfmpeg(tools, plan.args);
+    const p = await probe(tools, out);
+    expect(p).toMatchObject({ kind: "video", codec: "h264", width: 540, height: 960, hasAudio: true });
+    expect(p.duration).toBeCloseTo(6, 1);
+    for (const s of [1.5, 4.5]) await runFfmpeg(tools, ["-y", "-ss", String(s), "-i", out, "-frames:v", "1", path.join(os.tmpdir(), `studio-styled-${s}.jpg`)]);
   });
 
   it("stops when cancelled", async () => {
