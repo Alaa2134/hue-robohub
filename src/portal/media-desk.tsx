@@ -231,7 +231,7 @@ function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow
               <span className="self-center text-xs text-fog">{hashtags(e).join(" ")}</span>
             </div>
           </div>
-          {past && <FeedbackCard eventKey={e.key} ratings={e.ratings} />}
+          {past && <FeedbackCard eventKey={e.key} ratings={e.ratings} title={e.title} />}
           {past && college && onCollege && (
             <div className="border-t border-[var(--line)] pt-3">
               <CollegePostPanel e={e} setup={college} me={me} onSetup={onCollege} />

@@ -7455,19 +7455,31 @@ test("media desk: the news post and social posts of each event are written from 
   await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
     route.fulfill({
       json: [
-        { rating: 5, comment: "الشرح ممتاز والتنظيم ممتاز" },
-        { rating: 5, comment: "تنظيم ممتاز" },
-        { rating: 2, comment: "الصوت مش واضح في القاعة" },
-        { rating: 3, comment: "الصوت وحش" },
+        { response_id: "r1", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "الشرح ممتاز والتنظيم ممتاز", form_responses: { name: "طالب أول", phone: "01000000001", ref: "A1" } },
+        { response_id: "r2", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "تنظيم ممتاز", form_responses: { name: "طالب تاني", phone: "01000000002", ref: "A2" } },
+        { response_id: "r3", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 2, comment: "الصوت مش واضح في القاعة", form_responses: { name: "طالب تالت", phone: "01000000003", ref: "A3" } },
+        { response_id: "r4", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 3, comment: "الصوت وحش", form_responses: { name: "طالب رابع", phone: null, ref: "A4" } },
+        { response_id: "r5", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 4, comment: null, form_responses: { name: "طالب خامس", phone: "01000000005", ref: "A5" } },
       ],
     }),
   );
   await summit.getByTestId("feedback-open").click();
   const fb = summit.getByTestId("feedback-summary");
-  await expect(fb).toContainText("رأي الحضور: 3.8 من 5 (4 تقييم)");
+  await expect(fb).toContainText("رأي الحضور: 3.8 من 5 (5 تقييم)");
   await expect(fb).toContainText("👍 اتكرر في الكلام الحلو: ممتاز");
   await expect(fb).toContainText("👎 اتكرر في الشكاوى: صوت");
   await expect(fb).toContainText("💡 للمرة الجاية: الصوت كان مشكلة");
+  // Each person and their rating: everyone, the unhappy first under «3 stars or less», WhatsApp to get back to them.
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(5);
+  await expect(fb.getByTestId("feedback-people")).toContainText("طالب خامس");
+  await fb.getByRole("button", { name: "3 نجوم أو أقل (2)" }).click();
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(2);
+  await expect(fb.getByTestId("feedback-person").first()).toContainText("طالب تالت");
+  await expect(fb.getByTestId("feedback-person").first()).toContainText("الصوت مش واضح في القاعة");
+  await expect(fb.getByTestId("feedback-person").first().getByTestId("feedback-wa")).toHaveAttribute("href", /^https:\/\/wa\.me\/201000000003\?text=/);
+  await expect(fb.getByTestId("feedback-person").nth(1).getByTestId("feedback-wa")).toHaveCount(0);
+  await fb.getByRole("button", { name: "اللي كتبوا رأي (4)" }).click();
+  await expect(fb.getByTestId("feedback-person")).toHaveCount(4);
 
   // The college's post: under its saved patronage lines, «يشاركون في» the summit, who represented it
   // (from who was scanned in), the tracks picked and the supervisor.
