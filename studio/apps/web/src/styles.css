@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@font-face { font-family: "StudioUI"; src: url("../../../fonts/plex-arabic-400.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "StudioUI"; src: url("../../../fonts/plex-arabic-700.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+
+@theme {
+  --font-sans: "StudioUI", "Inter", system-ui, sans-serif;
+  --color-ink: #0b0d12;
+  --color-panel: #121620;
+  --color-panel2: #181d29;
+  --color-line: #262d3d;
+  --color-mute: #8a93a6;
+  --color-text: #e7ebf3;
+  --color-accent: #45d0ff;
+  --color-accent2: #7c5cff;
+  --color-ok: #3ddc97;
+  --color-warn: #ffb547;
+  --color-bad: #ff5d6c;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--color-ink); color: var(--color-text); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+* { scrollbar-width: thin; scrollbar-color: #2b3345 transparent; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+input, select, textarea { color-scheme: dark; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; height: 2.25rem; padding: 0 .9rem; border-radius: .6rem; font-size: .875rem; font-weight: 700; background: var(--color-panel2); border: 1px solid var(--color-line); color: var(--color-text); white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: #3a4459; background: #1d2331; }
+.btn-primary { background: linear-gradient(180deg, #4fd6ff, #22a9e0); color: #04121a; border-color: transparent; }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, #6fe0ff, #2bb5ec); }
+.btn-danger { color: var(--color-bad); }
+.btn-sm { height: 1.9rem; padding: 0 .6rem; font-size: .8rem; }
+.btn-icon { width: 2.1rem; padding: 0; }
+.field { height: 2.25rem; border-radius: .55rem; background: #0e121a; border: 1px solid var(--color-line); padding: 0 .7rem; color: var(--color-text); font-size: .875rem; width: 100%; }
+.label { font-size: .75rem; color: var(--color-mute); margin-bottom: .25rem; display: block; }
+.card { background: var(--color-panel); border: 1px solid var(--color-line); border-radius: .9rem; }
+.kbd { font-family: ui-monospace, monospace; font-size: .7rem; padding: .05rem .35rem; border: 1px solid var(--color-line); border-radius: .3rem; color: var(--color-mute); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+input[type="range"] { accent-color: var(--color-accent); }

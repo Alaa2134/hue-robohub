@@ -47,6 +47,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund --prefix studio
       - run: npx tsc --noEmit
       - run: npm run lint
       # Chromium first: the build draws the share images with it, then the smoke tests use it.
@@ -68,6 +69,8 @@ jobs:
           GOOGLE_SITE_VERIFICATION: ${{ vars.GOOGLE_SITE_VERIFICATION }}
           ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          # The studio's render server (studio/README.md); empty until it's deployed.
+          STUDIO_API_URL: ${{ vars.STUDIO_API_URL }}
       # Baqloz's recorded voice (made by the "Baqloz voice" workflow) goes in /voice/.
       - name: Voice clips
         run: |

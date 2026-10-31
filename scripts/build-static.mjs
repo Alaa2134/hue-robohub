@@ -27,7 +27,7 @@ const version = await contentVersion().catch(() => "unknown");
 execSync("node scripts/app-assets.mjs", { cwd: root, stdio: "inherit" });
 
 // 1. Clean copy of the sources (node_modules is linked, render sources and local data stay behind).
-const SKIP = new Set([".git", "node_modules", "mobile", ".next", ".static-build", "out-static", "out", "art", "storage", "logs", "coverage", "playwright-report", "test-results", ".env"]);
+const SKIP = new Set([".git", "node_modules", "mobile", "studio", ".next", ".static-build", "out-static", "out", "art", "storage", "logs", "coverage", "playwright-report", "test-results", ".env"]);
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work);
 for (const f of readdirSync(root)) if (!SKIP.has(f)) cpSync(path.join(root, f), path.join(work, f), { recursive: true });
@@ -205,6 +205,16 @@ execSync(`npx tsx scripts/build-guide-knowledge.ts "${path.join(out, "guide-know
 
 // 11. A share image per page (needs Playwright's Chromium; skipped without it).
 execSync(`node scripts/build-share-images.mjs "${out}" "${site}"`, { cwd: root, stdio: "inherit" });
+
+// 12. BuildX AI Studio Pro (studio/apps/web) at /ar/studio/ — its own app, talking to the studio's
+// render server at STUDIO_API_URL (without one it says so instead of showing buttons that can't work).
+const studioWeb = path.join(root, "studio/apps/web");
+if (existsSync(path.join(root, "studio/node_modules"))) {
+  execSync("npx vite build --emptyOutDir", { cwd: studioWeb, stdio: "inherit", env: { ...process.env, STUDIO_BASE: `${base}/ar/studio/`, VITE_STUDIO_API_URL: process.env.STUDIO_API_URL ?? "" } });
+  rmSync(path.join(out, "ar/studio"), { recursive: true, force: true });
+  cpSync(path.join(studioWeb, "dist"), path.join(out, "ar/studio"), { recursive: true });
+  log(`studio → ar/studio (server: ${process.env.STUDIO_API_URL || "not connected"})`);
+} else log("studio skipped (run npm ci in studio/ to include it)");
 
 writeFileSync(path.join(out, ".nojekyll"), "");
 // What the scheduled deploy compares against to decide whether published content changed.

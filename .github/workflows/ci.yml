@@ -18,6 +18,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund --prefix studio
       - run: npx tsc --noEmit
       - run: npm run lint
       # Every Arabic text in the app has its English (src/portal/i18n/en.json).
@@ -42,3 +43,38 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         run: node scripts/lighthouse-mobile.mjs out-static
+
+  # BuildX AI Studio Pro: typecheck, unit tests, then the whole server flow against real Postgres,
+  # Redis and FFmpeg (upload → probe → timeline → MP4 render → download → ffprobe).
+  studio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    defaults:
+      run:
+        working-directory: studio
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: studio/package-lock.json
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npx vitest run
+        env:
+          STUDIO_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+          STUDIO_TEST_REDIS_URL: redis://localhost:6379
+      - run: npx vite build
+        working-directory: studio/apps/web

@@ -1,0 +1,34 @@
+{
+  "name": "buildx-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BuildX AI Studio Pro \u2014 browser video editor (web), API and FFmpeg render workers.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/server",
+    "apps/api",
+    "apps/worker",
+    "apps/web"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p packages/core && tsc -p packages/server && tsc -p apps/api && tsc -p apps/worker && tsc -p apps/web",
+    "test": "vitest run",
+    "test:unit": "vitest run --project core",
+    "test:services": "vitest run --project services",
+    "dev:api": "npm run dev -w @studio/api",
+    "dev:worker": "npm run dev -w @studio/worker",
+    "dev:web": "npm run dev -w @studio/web",
+    "build": "npm run build -w @studio/core && npm run build -w @studio/api && npm run build -w @studio/worker && npm run build -w @studio/web",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
+  }
+}
