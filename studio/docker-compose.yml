@@ -1,0 +1,46 @@
+# The studio's back end on one machine: API, render worker(s), Redis — and Postgres for a fully local
+# setup (with Supabase, point DATABASE_URL at Supabase and drop the postgres service).
+#   cp .env.example .env   # fill it in
+#   docker compose up -d --build
+#   docker compose up -d --scale worker=2   # more renders at once
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    ports: ["8787:8787"]
+    volumes: ["studio-data:/data"]
+    depends_on: [redis]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  worker:
+    build: .
+    command: ["node", "--import", "tsx", "apps/worker/src/main.ts"]
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes: ["studio-data:/data"]
+    depends_on: [redis]
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redis-data:/data"]
+    restart: unless-stopped
+  postgres:
+    image: postgres:16-alpine
+    profiles: ["local-db"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: studio
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    restart: unless-stopped
+volumes:
+  studio-data:
+  redis-data:
+  pg-data:

@@ -1,0 +1,18 @@
+{
+  "name": "@studio/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "build": "tsc -p . --noEmit"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.1.0",
+    "@studio/core": "*",
+    "@studio/server": "*",
+    "bullmq": "^6.5.3",
+    "tsx": "^4.23.15"
+  }
+}
