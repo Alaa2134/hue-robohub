@@ -361,3 +361,21 @@ test("the season plan follows the date: finished quarters say so, the one runnin
   await expect(roadmap.getByRole("heading", { name: "معسكرات التحضير للمسابقات" })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("gallery: a photo opened full screen can be saved, or shared with its words", async ({ page }) => {
+  const errors = collectErrors(page);
+  await mockSupabase(page);
+  const photo = { id: "0b8f6a2e-1111-4c4c-9999-000000000001", kind: "photo", slug: null, title: "", title_ar: "قمة مينا للروبوتات", summary: null, summary_ar: null, body: null, body_ar: null, image_path: "/media/news/mena-robotics-summit-partnership.jpg", tags: ["قمة"], starts_at: null, published: true, sort_order: 0, created_at: "2026-10-30T10:00:00Z" };
+  await page.route("**/rest/v1/site_content**", (route) => route.fulfill({ json: [photo] }));
+  await page.goto("/ar/gallery/");
+  const tile = page.getByTestId("wall-tile").first();
+  await tile.click();
+  const box = page.getByRole("dialog");
+  await expect(box.getByTestId("lightbox-save")).toHaveText("احفظ الصورة");
+  const dl = page.waitForEvent("download");
+  await box.getByTestId("lightbox-save").click();
+  expect((await dl).suggestedFilename()).toBe("buildx-0b8f6a2e.jpg");
+  await expect(box.getByRole("status")).toHaveText("اتحفظت ✓");
+  await expect(box.getByTestId("lightbox-share")).toBeVisible();
+  expect(errors).toEqual([]);
+});

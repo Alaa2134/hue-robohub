@@ -97,7 +97,13 @@ type Response = {
   created_at: string;
 };
 /** Who else this person is: their other forms, membership, and join application. */
-type Links = Record<string, { forms?: { title: string; status: Response["status"]; at: string }[]; member?: { code: string; active: boolean }; application?: { status: string; at: string } }>;
+type Links = Record<
+  string,
+  { forms?: { title: string; status: Response["status"]; at: string }[]; member?: { code: string; active: boolean }; application?: { status: string; at: string }; shows?: { missed: number; came: number } }
+>;
+
+/** Kept missing events they were accepted to: twice or more, or every time (with at least one). */
+export const noShow = (s?: { missed: number; came: number }) => !!s && (s.missed >= 2 || (s.missed >= 1 && s.came === 0));
 
 const TYPES: { k: FieldType; ar: string }[] = [
   { k: "name", ar: "الاسم" },
@@ -740,7 +746,8 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
 function LinkBadges({ r, links }: { r: Response; links?: Links[string] }) {
   const tags = r.tags ?? [];
   const others = links?.forms?.length ?? 0;
-  if (!tags.length && !others && !links?.member) return null;
+  const flaky = noShow(links?.shows);
+  if (!tags.length && !others && !links?.member && !flaky) return null;
   return (
     <div className="mt-1 flex flex-wrap gap-1" data-testid="link-badges">
       {tags.slice(0, 3).map((t) => (
@@ -751,6 +758,11 @@ function LinkBadges({ r, links }: { r: Response; links?: Links[string] }) {
       {tags.length > 3 && <span className="text-[11px] text-fog">+{tags.length - 3}</span>}
       {links?.member && <span className={`rounded-full px-2 py-0.5 text-[11px] ${links.member.active ? "bg-ok/20 text-ok" : "bg-white/10 text-fog"}`}>{links.member.active ? "عضو" : "عضو سابق"}</span>}
       {others > 0 && <span className="rounded-full bg-[#ff7a45]/20 px-2 py-0.5 text-[11px] text-[#ffb08a]">مقدّم على {others} فورم تاني</span>}
+      {flaky && (
+        <span className="rounded-full bg-danger/20 px-2 py-0.5 text-[11px] text-danger" data-testid="noshow-badge">
+          {`⚠ غاب ${links!.shows!.missed} من ${links!.shows!.missed + links!.shows!.came} فعالية اتقبل فيها`}
+        </span>
+      )}
     </div>
   );
 }
@@ -761,6 +773,12 @@ function PersonLinks({ info }: { info?: Links[string] }) {
   return (
     <Card className="grid gap-2 border-[#ff7a45]/30" data-testid="person-links">
       <p className="text-sm font-semibold text-chalk">نفس الشخص في حاجات تانية</p>
+      {info.shows && (
+        <p className={`text-sm ${noShow(info.shows) ? "text-danger" : "text-mist"}`} data-testid="person-shows">
+          {`في الفعاليات اللي اتقبل فيها قبل كده: حضر ${info.shows.came} وغاب ${info.shows.missed}`}
+          {noShow(info.shows) ? " — ممكن تحطه في قايمة الانتظار لحد ما يأكّد إنه جاي." : ""}
+        </p>
+      )}
       {info.member && (
         <p className="text-sm text-mist">
           {info.member.active ? "عضو في الكوميونيتي" : "كان عضو (العضوية خلصت)"} · كود <span dir="ltr" className="font-mono">{info.member.code}</span>

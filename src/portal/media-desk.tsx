@@ -7,12 +7,20 @@
  * website, saved as a draft (or published) in one tap, with the event's first photo as its cover.
  */
 import { useMemo, useState } from "react";
-import { captions, hashtags, isPast, mergeSameDay, newsAfter, arDay, type Captions, type DeskEvent } from "@/lib/media-writer";
-import { can, errorText, must, rpc, sb, uid, type StaffRow } from "./core";
+import { captions, hashtags, isPast, mergeSameDay, newsAfter, arDay, SITE, type Captions, type DeskEvent } from "@/lib/media-writer";
+import { asJpeg, fileFromUrl } from "@/lib/share-files";
+import { siteImageUrl } from "@/lib/site-content";
+import type { CollegeSetup } from "@/lib/college-post";
+import { CollegePostPanel } from "./college-post";
+import { EventCarousel, SoonCarousel } from "./event-carousel";
+import { MonthReport } from "./month-report";
+import { can, errorText, must, rpc, sb, sharePhotos, shareWords, uid, type StaffRow } from "./core";
 import { firstLine } from "./quick-post";
 import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Input, Loading, Textarea, Toggle, TopBar, copyText, go, toast, useAsync } from "./ui";
 
 type Row = DeskEvent & { cover: string | null; post: { id: string; published: boolean; slug: string | null } | null; keys: string[] };
+/** Photos per post: what Instagram takes in one carousel. */
+const PICS = 10;
 const NETS: [keyof Captions, string][] = [
   ["facebook", "فيسبوك"],
   ["instagram", "إنستجرام"],
@@ -26,6 +34,9 @@ export function MediaDesk({ me }: { me: StaffRow }) {
       mergeSameDay(((await rpc<(Omit<Row, "keys" | "form"> & { bus?: boolean })[]>("staff_media_desk")) ?? []).map((e) => ({ ...e, form: e.key.startsWith("form:") }))) as Row[],
     [],
   );
+  const college = useAsync(async () => ((await rpc<CollegeSetup>("staff_college_setup")) ?? {}) as CollegeSetup, []);
+  const [setup, setSetup] = useState<CollegeSetup | null>(null);
+  const collegeSetup: CollegeSetup = setup ?? { header: "", students: "", college: "", university: "", field: "", ...college.data };
   const now = Date.now();
   const coming = (data ?? []).filter((e) => !isPast(e, now)).sort((a, b) => a.at.localeCompare(b.at));
   const past = (data ?? []).filter((e) => isPast(e, now));
@@ -44,12 +55,13 @@ export function MediaDesk({ me }: { me: StaffRow }) {
             {waiting.length ? `${waiting.length} فعالية خلصت ومستنية خبرها على الموقع.` : "كل الفعاليات اللي خلصت ليها خبر ✓"}
             {coming.length ? ` · ${coming.length} جاية: بوست الدعوة جاهز.` : ""} الكلام كله من الأرقام الحقيقية (التسجيل، الحضور بالـ QR، التقييمات) — مفيش حاجة متألفة.
           </Card>
+          {!!data?.length && <MonthReport events={data} setup={collegeSetup} />}
           {!data?.length && <Empty icon="calendar" title="مفيش فعاليات قريبة" body="أي فورم ليه ميعاد فعالية أو اتسجّل فيه حضور بالـ QR بيظهر هنا." />}
           {coming.map((e) => (
             <EventCard key={e.key} e={e} me={me} onDone={reload} />
           ))}
           {past.map((e) => (
-            <EventCard key={e.key} e={e} me={me} onDone={reload} />
+            <EventCard key={e.key} e={e} me={me} onDone={reload} college={collegeSetup} onCollege={setSetup} />
           ))}
         </div>
       )}
@@ -57,7 +69,7 @@ export function MediaDesk({ me }: { me: StaffRow }) {
   );
 }
 
-function EventCard({ e, me, onDone }: { e: Row; me: StaffRow; onDone: () => void }) {
+function EventCard({ e, me, onDone, college, onCollege }: { e: Row; me: StaffRow; onDone: () => void; college?: CollegeSetup; onCollege?: (s: CollegeSetup) => void }) {
   const admin = can(me, "publish");
   const past = isPast(e);
   const news = useMemo(() => newsAfter(e), [e]);
@@ -68,6 +80,44 @@ function EventCard({ e, me, onDone }: { e: Row; me: StaffRow; onDone: () => void
   const [body, setBody] = useState(news.body);
   const [publish, setPublish] = useState(false);
   const [busy, setBusy] = useState(false);
+  // The event's photos, fetched once, ready for the share sheet with the post's words.
+  const [pics, setPics] = useState<File[] | null>(null);
+  const [getting, setGetting] = useState(false);
+
+  const getPics = async () => {
+    setGetting(true);
+    try {
+      const rows = ((await sb()
+        .from("site_content")
+        .select("image_path")
+        .eq("kind", "photo")
+        .eq("published", true)
+        .contains("tags", [e.title])
+        .not("image_path", "is", null)
+        .order("sort_order")
+        .order("created_at")
+        .limit(PICS)
+        .then(must)) ?? []) as { image_path: string }[];
+      const name = e.title.replace(/[^\p{L}\p{N}]+/gu, "-").slice(0, 40) || "buildx";
+      const files = (await Promise.allSettled(rows.map((r, i) => fileFromUrl(siteImageUrl(r.image_path), `${name}-${i + 1}`).then(asJpeg))))
+        .flatMap((x) => (x.status === "fulfilled" ? [x.value] : []));
+      if (!files.length) return toast("الصور ما اتحملتش — جرّب تاني", "error");
+      setPics(files);
+    } catch (err) {
+      toast(errorText(err), "error");
+    } finally {
+      setGetting(false);
+    }
+  };
+
+  const sharePics = async () => {
+    const r = await sharePhotos(pics ?? [], caps[net]);
+    if (r !== "cancelled") toast(r === "shared" ? "اتبعت ✓ (والكلام اتنسخ لو التطبيق ما خدهوش)" : "الصور اتحفظت والكلام اتنسخ", "ok");
+  };
+  const sendWords = async () => {
+    const r = await shareWords(caps[net]);
+    if (r === "saved") toast("اتنسخ — الصقه في البوست", "ok");
+  };
 
   const save = async () => {
     if (!title.trim() || !body.trim()) return toast("اكتب العنوان والخبر", "error");
@@ -153,6 +203,24 @@ function EventCard({ e, me, onDone }: { e: Row; me: StaffRow; onDone: () => void
             </div>
             <Textarea rows={8} readOnly value={caps[net]} dir={net === "linkedin" ? "auto" : "rtl"} data-testid="desk-caption" />
             <div className="flex flex-wrap gap-2">
+              {e.photos > 0 &&
+                (pics ? (
+                  <Button size="sm" variant="primary" icon="share" onClick={() => void sharePics()} data-testid="desk-share">
+                    {`شارك ${pics.length} صورة + الكلام`}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="primary" icon="image" loading={getting} onClick={() => void getPics()} data-testid="desk-share-prepare">
+                    {`جهّز الصور للمشاركة (${Math.min(e.photos, PICS)})`}
+                  </Button>
+                ))}
+              {e.photos > 0 && (
+                <Button size="sm" icon="link" onClick={() => copyText(`${SITE}/ar/gallery/?album=${encodeURIComponent(e.title)}`, "رابط صور الفعالية اتنسخ — ابعته لأي حد")} data-testid="desk-album-link">
+                  رابط صور الفعالية
+                </Button>
+              )}
+              <Button size="sm" icon="share" onClick={() => void sendWords()} data-testid="desk-share-text">
+                شارك الكلام
+              </Button>
               <Button size="sm" icon="copy" onClick={() => copyText(caps[net], "اتنسخ — الصقه في البوست")}>
                 انسخ
               </Button>
@@ -162,6 +230,12 @@ function EventCard({ e, me, onDone }: { e: Row; me: StaffRow; onDone: () => void
               <span className="self-center text-xs text-fog">{hashtags(e).join(" ")}</span>
             </div>
           </div>
+          {past && college && onCollege && (
+            <div className="border-t border-[var(--line)] pt-3">
+              <CollegePostPanel e={e} setup={college} me={me} onSetup={onCollege} />
+            </div>
+          )}
+          <div className="border-t border-[var(--line)] pt-3">{past ? <EventCarousel e={e} caption={caps.instagram} /> : <SoonCarousel e={e} caption={caps.instagram} />}</div>
         </div>
       )}
     </Card>

@@ -73,7 +73,24 @@ export const fontCertArabic = localFont({
   fallback: ["Times New Roman", "serif"],
 });
 
+/** Event carousels only (drawn on a canvas in the app): a brush script for titles, a hand for notes. */
+export const fontScript = localFont({
+  src: [{ path: "../fonts/kaushan-script-400.woff2", weight: "400", style: "normal" }],
+  variable: "--font-script",
+  display: "swap",
+  preload: false,
+  fallback: ["cursive"],
+});
+
+export const fontNote = localFont({
+  src: [{ path: "../fonts/caveat-700.woff2", weight: "700", style: "normal" }],
+  variable: "--font-note",
+  display: "swap",
+  preload: false,
+  fallback: ["cursive"],
+});
+
 export const fontVariables = [fontDisplay.variable, fontSans.variable, fontMono.variable, fontArabicDisplay.variable, fontArabic.variable].join(" ");
 
 /** The app also needs the certificate fonts. */
-export const portalFontVariables = [fontVariables, fontCertLatin.variable, fontCertArabic.variable].join(" ");
+export const portalFontVariables = [fontVariables, fontCertLatin.variable, fontCertArabic.variable, fontScript.variable, fontNote.variable].join(" ");
