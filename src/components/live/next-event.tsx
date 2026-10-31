@@ -93,7 +93,7 @@ export function NextEvent({ locale, eventsHref }: { locale: string; eventsHref: 
   const where = locationOf(e, locale);
 
   return (
-    <section aria-labelledby="next-event-title" className="relative overflow-hidden border-b border-[var(--line)] bg-gradient-to-b from-[#0b1d4a]/70 to-transparent">
+    <section aria-labelledby="next-event-title" className="relative overflow-hidden border-b border-[var(--line)] bg-gradient-to-b from-volt/15 to-transparent">
       <div className="mx-auto grid max-w-[1680px] items-center gap-8 px-5 py-12 sm:px-8 lg:grid-cols-[1.2fr_1fr] lg:py-16">
         <div className="flex flex-col gap-3">
           <p className="t-eyebrow flex items-center gap-2 text-cyan">

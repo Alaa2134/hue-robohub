@@ -20,7 +20,7 @@ export function TabBar({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
   return (
     <nav
       aria-label={t.menu}
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--line)] bg-[rgb(5_14_38/0.86)] backdrop-blur-2xl backdrop-saturate-150 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--line)] bg-[var(--surface-nav)] backdrop-blur-2xl backdrop-saturate-150 lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto grid h-[4.25rem] max-w-lg grid-cols-5 items-stretch px-1.5">
@@ -33,8 +33,8 @@ export function TabBar({ locale, t }: { locale: Locale; t: Dictionary["nav"] }) 
                   className="group relative -mt-5 flex size-[3.6rem] flex-col items-center justify-center text-white"
                   aria-label={t.join}
                 >
-                  <span aria-hidden className="chamfer absolute inset-0 bg-gradient-to-b from-[#8db4ff] via-volt to-volt-lo [--c:12px]" />
-                  <span aria-hidden className="chamfer absolute inset-px bg-gradient-to-b from-[#3d7dff] to-[#1b4fd6] [--c:11.6px]" />
+                  <span aria-hidden className="chamfer absolute inset-0 bg-gradient-to-b from-volt-hi via-volt to-volt-lo [--c:12px]" />
+                  <span aria-hidden className="chamfer absolute inset-px bg-gradient-to-b from-volt to-volt-lo [--c:11.6px]" />
                   <span aria-hidden className="absolute -inset-3 -z-10 rounded-full bg-volt/30 blur-xl" />
                   <Icon name="plus" size={22} className="relative transition-transform duration-500 group-active:rotate-90" />
                   <span className="relative mt-0.5 font-display text-[0.5rem] font-bold uppercase tracking-[0.18em] rtl:tracking-normal rtl:text-[0.6rem]">{locale === "ar" ? "انضم" : "Join"}</span>

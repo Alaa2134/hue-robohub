@@ -1,6 +1,7 @@
 const en = {
   meta: { skip: "Skip to content" },
   nav: {
+    appearance: "Appearance",
     signInShort: "Sign in",
     signIn: "Sign in",
     signInApp: "BuildX App",
@@ -258,6 +259,19 @@ const en = {
   bootcamp: { eyebrow: "Bootcamp", title: "BuildX Robotics Bootcamp", body: "Six weeks, one robot. A hands-on program that turns new members into builders — ending with the BuildX Internal Challenge.", week: "Week", final: "Final", outcomes: "Outcomes", lessons: "Sessions", sessions: "Upcoming sessions", apply: "Apply for the next cohort" },
   news: { eyebrow: "News", title: "Lab notes & announcements", body: "News and announcements from BuildX HUE — workshops, competitions, projects and what the team is building at Horus University.", empty: "No posts published yet.", by: "By" },
   resources: { eyebrow: "Resources", title: "Learning resources", body: "Curated guides, datasheets, repositories and courses recommended by our leads.", empty: "Resources will be published here." },
+  appearance: {
+    open: "Appearance",
+    title: "Appearance",
+    intro: "Make the site look the way you like. Saved on this device only.",
+    theme: "Theme",
+    accent: "Main color",
+    icons: "Icon style",
+    reset: "Back to the original look",
+    done: "Done",
+    themes: { auto: "Automatic (follows your device)", navy: "Navy (original)", midnight: "Black", light: "Light" },
+    accents: { blue: "Blue", cyan: "Turquoise", violet: "Violet", emerald: "Green", orange: "Orange", rose: "Red", gold: "Gold" },
+    iconStyles: { engineered: "Engineered (original)", rounded: "Rounded", bold: "Bold", thin: "Thin", glow: "Glowing", duotone: "Two-tone" },
+  },
   search: { title: "Search", placeholder: "Search pages, tracks, people, news, events…", hint: "Type at least two characters.", empty: "Nothing matched your search.", types: { member: "Member", project: "Project", event: "Event", article: "Article", resource: "Resource", achievement: "Achievement", page: "Page", track: "Track", team: "Team" } },
   footer: {
     tagline: "Student Innovation & Robotics Community at Horus University. Build • Innovate • Compete.",

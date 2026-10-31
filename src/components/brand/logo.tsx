@@ -39,12 +39,13 @@ export function Wordmark({ className, tone = "color" }: { className?: string; to
       </svg>
     );
   }
-  const main = tone === "black" ? "#05070A" : "#F2F5F8";
+  // The colour wordmark follows the theme's ink (white on dark themes, near-black on the light one).
+  const main = tone === "black" ? "#05070A" : tone === "color" ? "var(--color-chalk, #F2F5F8)" : "#F2F5F8";
   const x = tone === "color" ? "#2F7BFF" : main;
   const hue = tone === "color" ? "#38B6FF" : main;
   return (
     <svg viewBox={`0 0 ${Math.ceil(WORDMARK.width)} ${WORDMARK.height}`} className={cn("shrink-0", className)} role="img" aria-label="BuildX HUE">
-      <g fill={main}>
+      <g style={{ fill: main }}>
         {WORDMARK.build.map((g, i) => (
           <path key={i} fillRule="evenodd" transform={`translate(${g.x} 0)`} d={g.d} />
         ))}

@@ -195,6 +195,10 @@ export function MenuSheet({ locale, t, previews, socials, email, groups = MENU_G
                 <Icon name="globe" size={15} />
                 <span>{t.language}</span>
               </Link>
+              <button type="button" className="btn btn-sm" onClick={() => ui.set({ menu: false, appearance: true })} data-testid="menu-appearance">
+                <Icon name="palette" size={15} />
+                <span>{t.appearance}</span>
+              </button>
               <a href={APP_HREF} className="btn btn-sm">
                 <Icon name="lock" size={15} />
                 <span>{t.signIn}</span>

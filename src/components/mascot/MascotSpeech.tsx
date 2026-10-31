@@ -45,9 +45,9 @@ export function MascotSpeech({ locale, side, above, compact, onAction, onListen,
           key={speech.id}
           lang={locale}
           dir={locale === "ar" ? "rtl" : "ltr"}
-          className={cn("mascot-bubble-in pointer-events-auto relative rounded-2xl border border-[var(--line-2)] bg-[rgb(9_22_54/0.94)] px-4 py-3 leading-snug", compact ? "text-[0.88rem]" : "text-[0.95rem]", "text-chalk shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)] backdrop-blur-xl")}
+          className={cn("mascot-bubble-in pointer-events-auto relative rounded-2xl border border-[var(--line-2)] bg-[var(--surface-nav)] px-4 py-3 leading-snug", compact ? "text-[0.88rem]" : "text-[0.95rem]", "text-chalk shadow-[0_18px_50px_-18px_rgb(0_0_0/0.9)] backdrop-blur-xl")}
         >
-          <span aria-hidden className={cn("absolute size-3 rotate-45 border-[var(--line-2)] bg-[rgb(9_22_54/0.94)]", above ? "-bottom-1.5 border-b border-e" : "top-6", !above && (side === "left" ? "-right-1.5 border-r border-t" : "-left-1.5 border-b border-l"), above && (side === "left" ? "right-8" : "left-8"))} />
+          <span aria-hidden className={cn("absolute size-3 rotate-45 border-[var(--line-2)] bg-[var(--surface-nav)]", above ? "-bottom-1.5 border-b border-e" : "top-6", !above && (side === "left" ? "-right-1.5 border-r border-t" : "-left-1.5 border-b border-l"), above && (side === "left" ? "right-8" : "left-8"))} />
           <p className="mb-0.5 text-xs font-bold text-cyan">{GUIDE_NAME[locale]}</p>
           <p className={voice ? "pe-10" : "pe-4"}>{speech[locale]}</p>
           {voice && sound && silent && !speech.actions?.length && (

@@ -1765,7 +1765,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
         <span
           aria-hidden
           lang={voice}
-          className="pointer-events-none absolute inset-x-0 bottom-[1%] mx-auto w-max rounded-full border border-cyan/30 bg-[rgb(9_22_54/0.92)] px-2.5 py-0.5 text-xs font-semibold text-ice opacity-0 transition-opacity duration-300 peer-hover:opacity-100 peer-focus-visible:opacity-100"
+          className="pointer-events-none absolute inset-x-0 bottom-[1%] mx-auto w-max rounded-full border border-cyan/30 bg-[var(--surface-nav)] px-2.5 py-0.5 text-xs font-semibold text-ice opacity-0 transition-opacity duration-300 peer-hover:opacity-100 peer-focus-visible:opacity-100"
         >
           {name}
         </span>
@@ -1818,7 +1818,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
       )}
 
       {game && (
-        <div lang={voice} dir={voice === "ar" ? "rtl" : "ltr"} role="status" className="fixed inset-x-0 top-[calc(4.6rem+env(safe-area-inset-top))] z-40 mx-auto flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.94)] px-4 py-2 text-sm text-chalk shadow-lg backdrop-blur" data-mascot-game>
+        <div lang={voice} dir={voice === "ar" ? "rtl" : "ltr"} role="status" className="fixed inset-x-0 top-[calc(4.6rem+env(safe-area-inset-top))] z-40 mx-auto flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-full border border-[var(--line-2)] bg-[var(--surface-nav)] px-4 py-2 text-sm text-chalk shadow-lg backdrop-blur" data-mascot-game>
           {game.kind === "hoop" ? (
             <>
               <span>🏀 {game.score}</span>
@@ -1871,7 +1871,7 @@ export default function MascotController({ locale, mode }: { locale: Locale; mod
           onClick={show}
           lang={voice}
           dir={voice === "ar" ? "rtl" : "ltr"}
-          className="mascot-pill fixed bottom-[calc(5.4rem+env(safe-area-inset-bottom))] end-3 z-30 flex items-center gap-2 rounded-full border border-[var(--line-2)] bg-[rgb(9_22_54/0.9)] py-1 pe-3.5 ps-1 text-xs font-medium text-mist shadow-lg backdrop-blur transition hover:text-chalk lg:bottom-5 lg:end-5"
+          className="mascot-pill fixed bottom-[calc(5.4rem+env(safe-area-inset-bottom))] end-3 z-30 flex items-center gap-2 rounded-full border border-[var(--line-2)] bg-[var(--surface-nav)] py-1 pe-3.5 ps-1 text-xs font-medium text-mist shadow-lg backdrop-blur transition hover:text-chalk lg:bottom-5 lg:end-5"
         >
           <img src={POSTER} alt="" className="size-8 rounded-full bg-white/5 object-cover object-top" />
           {voice === "ar" ? `رجّع ${name}` : `Show ${name}`}

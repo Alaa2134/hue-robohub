@@ -217,7 +217,7 @@ export function MascotGuide({
       lang={locale}
       dir={locale === "ar" ? "rtl" : "ltr"}
       className={cn(
-        "mascot-menu-in pointer-events-auto fixed z-[45] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-[var(--line-2)] bg-[rgb(8_20_50/0.97)] text-chalk shadow-[0_30px_80px_-24px_rgb(0_0_0/0.9)] backdrop-blur-2xl",
+        "mascot-menu-in pointer-events-auto fixed z-[45] flex w-[min(24rem,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-[var(--line-2)] bg-[var(--surface-nav)] text-chalk shadow-[0_30px_80px_-24px_rgb(0_0_0/0.9)] backdrop-blur-2xl",
         anchor.phone && "inset-x-3 bottom-[calc(5.4rem+env(safe-area-inset-bottom))] mx-auto max-h-[calc(100dvh-7.5rem)]",
       )}
       style={style}

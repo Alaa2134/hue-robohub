@@ -6,15 +6,24 @@ import type { SVGProps } from "react";
  */
 type P = SVGProps<SVGSVGElement> & { size?: number };
 
-function Svg({ size = 24, children, ...rest }: P & { children: React.ReactNode }) {
+function Svg({ size = 24, children, className, ...rest }: P & { children: React.ReactNode }) {
+  // "bx-icon": the visitor's icon style (rounded, bold, thin, glow, two-tone) restyles it from CSS.
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="square" strokeLinejoin="miter" aria-hidden {...rest}>
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="square" strokeLinejoin="miter" aria-hidden className={className ? `bx-icon ${className}` : "bx-icon"} {...rest}>
       {children}
     </svg>
   );
 }
 
 export const Icons = {
+  palette: (p: P) => (
+    <Svg {...p}>
+      <path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.1-.9-1.6-.9-2.6 0-1 .8-1.7 1.9-1.7H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z" />
+      <circle cx="7.5" cy="11" r="1.2" />
+      <circle cx="10.5" cy="7.2" r="1.2" />
+      <circle cx="15" cy="7.6" r="1.2" />
+    </Svg>
+  ),
   // Tracks
   embedded: (p: P) => (
     <Svg {...p}>

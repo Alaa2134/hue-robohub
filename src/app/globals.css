@@ -77,7 +77,12 @@
   color-scheme: dark;
   --line: rgb(130 170 240 / 0.16);
   --line-2: rgb(130 170 240 / 0.28);
-  --glow-volt: 0 0 0 1px rgb(43 109 255 / 0.55), 0 8px 32px -6px rgb(43 109 255 / 0.65), 0 0 60px -10px rgb(43 109 255 / 0.5);
+  /* Surfaces and edges the theme can change (see "Appearance" at the end of this file). */
+  --edge-rgb: 120 160 230;
+  --surface-1: rgb(14 26 48 / 0.72);
+  --surface-2: rgb(6 12 24 / 0.86);
+  --surface-glass: rgb(6 12 24 / 0.55);
+  --glow-volt: 0 0 0 1px color-mix(in srgb, var(--color-volt) 55%, transparent), 0 8px 32px -6px color-mix(in srgb, var(--color-volt) 65%, transparent), 0 0 60px -10px color-mix(in srgb, var(--color-volt) 50%, transparent);
   --header-h: 4.5rem;
   --chrome: linear-gradient(180deg, #ffffff 0%, #c9d6e8 38%, #7d8ea8 52%, #e5edf8 68%, #a9b8cc 100%);
 }
@@ -103,7 +108,7 @@ body {
 }
 
 ::selection {
-  background: rgb(43 109 255 / 0.55);
+  background: color-mix(in srgb, var(--color-volt) 55%, transparent);
   color: #fff;
 }
 
@@ -186,7 +191,7 @@ body {
   color: transparent;
 }
 @utility text-volt {
-  background: linear-gradient(100deg, #63a0ff 0%, #2f7bff 45%, #3cc4ff 100%);
+  background: linear-gradient(100deg, var(--color-volt-hi) 0%, var(--color-volt) 45%, var(--color-cyan) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -208,7 +213,7 @@ body {
 @utility frame {
   position: relative;
   border-radius: 14px;
-  background: linear-gradient(180deg, rgb(14 26 48 / 0.72), rgb(6 12 24 / 0.86));
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-2));
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 0.05),
     0 30px 60px -30px rgb(0 0 0 / 0.9);
@@ -221,9 +226,9 @@ body {
     padding: 1px;
     background: linear-gradient(
       140deg,
-      rgb(120 160 230 / calc(0.24 + var(--edge, 0) * 0.5)),
-      rgb(120 160 230 / 0.06) 40%,
-      rgb(43 109 255 / calc(0.18 + var(--edge, 0) * 0.7))
+      rgb(var(--edge-rgb) / calc(0.24 + var(--edge, 0) * 0.5)),
+      rgb(var(--edge-rgb) / 0.06) 40%,
+      color-mix(in srgb, var(--color-volt) calc((0.18 + var(--edge, 0) * 0.7) * 100%), transparent)
     );
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -237,7 +242,7 @@ body {
 }
 
 @utility glass {
-  background: rgb(6 12 24 / 0.55);
+  background: var(--surface-glass);
   backdrop-filter: blur(16px) saturate(1.3);
   -webkit-backdrop-filter: blur(16px) saturate(1.3);
   border: 1px solid var(--line);
@@ -491,8 +496,8 @@ html.lenis body {
 @layer components {
   .btn {
     --c: 11px;
-    --b: rgb(120 160 230 / 0.32);
-    --f: rgb(6 12 24 / 0.55);
+    --b: rgb(var(--edge-rgb) / 0.32);
+    --f: var(--surface-glass);
     position: relative;
     isolation: isolate;
     display: inline-flex;
@@ -536,7 +541,7 @@ html.lenis body {
     -webkit-backdrop-filter: blur(14px);
   }
   .btn:hover {
-    --b: rgb(56 220 255 / 0.75);
+    --b: color-mix(in srgb, var(--color-cyan) 75%, transparent);
   }
   .btn:active {
     transform: translateY(1px) scale(0.985);
@@ -554,19 +559,19 @@ html.lenis body {
     transform: scaleX(-1) translateX(4px);
   }
   .btn-primary {
-    --b: linear-gradient(180deg, #8db4ff, #2b6dff 55%, #1d4fd0);
-    --f: linear-gradient(180deg, #3d7dff 0%, #2563f5 50%, #1b4fd6 100%);
+    --b: linear-gradient(180deg, color-mix(in srgb, var(--color-volt-hi) 70%, white), var(--color-volt) 55%, var(--color-volt-lo));
+    --f: linear-gradient(180deg, color-mix(in srgb, var(--color-volt) 88%, white) 0%, var(--color-volt) 50%, var(--color-volt-lo) 100%);
     color: #fff;
-    filter: drop-shadow(0 10px 26px rgb(43 109 255 / 0.38));
+    filter: drop-shadow(0 10px 26px color-mix(in srgb, var(--color-volt) 38%, transparent));
   }
   .btn-primary::after {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
   .btn-primary:hover {
-    --b: linear-gradient(180deg, #c4d8ff, #5a90ff 55%, #2b6dff);
-    --f: linear-gradient(180deg, #4d89ff 0%, #2f6dff 50%, #2157e0 100%);
-    filter: drop-shadow(0 12px 34px rgb(43 109 255 / 0.62));
+    --b: linear-gradient(180deg, color-mix(in srgb, var(--color-volt-hi) 45%, white), var(--color-volt-hi) 55%, var(--color-volt));
+    --f: linear-gradient(180deg, color-mix(in srgb, var(--color-volt-hi) 70%, var(--color-volt)) 0%, var(--color-volt) 50%, color-mix(in srgb, var(--color-volt) 70%, var(--color-volt-lo)) 100%);
+    filter: drop-shadow(0 12px 34px color-mix(in srgb, var(--color-volt) 62%, transparent));
   }
   .btn-primary .btn-sheen {
     position: absolute;
@@ -761,7 +766,7 @@ html[data-intro="exit"] .intro {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   animation: intro-draw 1.15s var(--ease-in-out-quint) 0.12s forwards;
-  filter: drop-shadow(0 0 4px rgb(56 220 255 / 0.9));
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-cyan) 90%, transparent));
 }
 .intro-fill {
   opacity: 0;
@@ -782,14 +787,14 @@ html[data-intro="exit"] .intro {
 }
 .intro-scan {
   top: -30vh;
-  background: linear-gradient(to bottom, transparent, rgb(56 220 255 / 0.07), transparent);
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--color-cyan) 7%, transparent), transparent);
   animation: intro-scan 2.4s linear 0.05s forwards;
 }
 .intro-bar {
   transform-origin: left;
   transform: scaleX(0);
   animation: intro-bar 2.75s cubic-bezier(0.3, 0.1, 0.3, 1) forwards;
-  box-shadow: 0 0 14px rgb(56 220 255 / 0.9);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--color-cyan) 90%, transparent);
 }
 @property --n {
   syntax: "<integer>";
@@ -811,8 +816,8 @@ html[data-intro="exit"] .intro {
 }
 @keyframes intro-axis {
   0% { opacity: 0; filter: brightness(1); }
-  25% { opacity: 1; filter: brightness(2.6) drop-shadow(0 0 16px #38dcff); }
-  100% { opacity: 1; filter: brightness(1.15) drop-shadow(0 0 7px rgb(43 109 255 / 0.85)); }
+  25% { opacity: 1; filter: brightness(2.6) drop-shadow(0 0 16px var(--color-cyan)); }
+  100% { opacity: 1; filter: brightness(1.15) drop-shadow(0 0 7px color-mix(in srgb, var(--color-volt) 85%, transparent)); }
 }
 @keyframes intro-wipe {
   to { clip-path: inset(0 0 0 0); }
@@ -876,7 +881,7 @@ html[data-locked] body {
 .hero-lock-ring {
   position: absolute;
   inset: -3.4rem;
-  --k: rgb(56 220 255 / 0.85);
+  --k: color-mix(in srgb, var(--color-cyan) 85%, transparent);
   background:
     linear-gradient(var(--k), var(--k)) top left / 16px 1.5px no-repeat,
     linear-gradient(var(--k), var(--k)) top left / 1.5px 16px no-repeat,
@@ -886,7 +891,7 @@ html[data-locked] body {
     linear-gradient(var(--k), var(--k)) bottom left / 1.5px 16px no-repeat,
     linear-gradient(var(--k), var(--k)) bottom right / 16px 1.5px no-repeat,
     linear-gradient(var(--k), var(--k)) bottom right / 1.5px 16px no-repeat;
-  filter: drop-shadow(0 0 6px rgb(56 220 255 / 0.7));
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-cyan) 70%, transparent));
   animation:
     lock-in 1.3s var(--ease-out-expo) 1.7s both,
     lock-pulse 3.2s ease-in-out 3.2s infinite;
@@ -900,7 +905,7 @@ html[data-locked] body {
   letter-spacing: 0.2em;
   color: var(--color-mist);
   padding-inline-start: 0.6rem;
-  border-inline-start: 1px solid rgb(56 220 255 / 0.6);
+  border-inline-start: 1px solid color-mix(in srgb, var(--color-cyan) 60%, transparent);
   animation: enter 0.9s var(--ease-out-expo) 2.3s both;
 }
 @keyframes lock-in {
@@ -1087,3 +1092,116 @@ html[data-intro="play"] .hero-lock-label {
   animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }
+
+/* ─── Appearance (chosen by the visitor: src/lib/appearance.ts) ─────────────────────────────────── */
+/* Main color: the "volt" (buttons, links, highlights) and "cyan" (labels, focus, live) families. */
+html[data-accent="cyan"] { --color-volt: #0fb5d6; --color-volt-hi: #4fd6ee; --color-volt-lo: #0a8aa6; --color-cyan: #5ef0d8; --color-ice: #b8fff2; }
+html[data-accent="violet"] { --color-volt: #7c5cff; --color-volt-hi: #a48cff; --color-volt-lo: #5a3ae0; --color-cyan: #c08cff; --color-ice: #e6d6ff; }
+html[data-accent="emerald"] { --color-volt: #14b87a; --color-volt-hi: #4fd6a0; --color-volt-lo: #0c8f5d; --color-cyan: #6ff0b8; --color-ice: #c8ffe6; }
+html[data-accent="orange"] { --color-volt: #ff7a1a; --color-volt-hi: #ffa05c; --color-volt-lo: #d65e08; --color-cyan: #ffc04d; --color-ice: #ffe2b0; }
+html[data-accent="rose"] { --color-volt: #ff3b5c; --color-volt-hi: #ff7088; --color-volt-lo: #d61f40; --color-cyan: #ff8fb0; --color-ice: #ffd0dc; }
+html[data-accent="gold"] { --color-volt: #d9a03a; --color-volt-hi: #f0c06a; --color-volt-lo: #a87724; --color-cyan: #ffd98a; --color-ice: #fff0c8; }
+
+/* Black (OLED): true black backgrounds, neutral greys. */
+html[data-theme="midnight"] {
+  --color-void: #000000;
+  --color-abyss: #05060a;
+  --color-deep: #090b11;
+  --color-panel: #0e1117;
+  --color-panel-2: #141822;
+  --color-rim: #1f2533;
+  --color-steel: #3a4356;
+  --color-fog: #8b95a8;
+  --color-mist: #b8c0cf;
+  --color-frost: #e8ebf1;
+  --color-chalk: #f6f7f9;
+  --line: rgb(160 175 210 / 0.14);
+  --line-2: rgb(160 175 210 / 0.24);
+  --edge-rgb: 150 165 200;
+  --surface-1: rgb(18 21 28 / 0.78);
+  --surface-2: rgb(6 7 10 / 0.9);
+  --surface-glass: rgb(0 0 0 / 0.6);
+  --surface-nav: rgb(14 17 23 / 0.92);
+}
+
+/* Light: paper backgrounds and ink text. Photos and the key-art heroes stay dark (.scheme-dark). */
+html[data-theme="light"] {
+  color-scheme: light;
+  --color-void: #f5f7fb;
+  --color-abyss: #edf1f8;
+  --color-deep: #e4eaf4;
+  --color-panel: #ffffff;
+  --color-panel-2: #f2f5fb;
+  --color-rim: #d6deeb;
+  --color-steel: #9aa9c2;
+  --color-fog: #5c6b85;
+  --color-mist: #34425c;
+  --color-frost: #18233a;
+  --color-chalk: #0b1222;
+  /* Labels and highlights a shade deeper, so they read on white. */
+  --color-cyan: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 55%, #0b1a3a);
+  --color-ice: color-mix(in srgb, var(--accent-cyan, #3cc4ff) 40%, #0b1a3a);
+  --color-volt-hi: color-mix(in srgb, var(--color-volt) 80%, #0b1a3a);
+  --line: rgb(30 50 100 / 0.13);
+  --line-2: rgb(30 50 100 / 0.22);
+  --edge-rgb: 60 90 160;
+  --surface-1: rgb(255 255 255 / 0.86);
+  --surface-2: rgb(255 255 255 / 0.96);
+  --surface-glass: rgb(255 255 255 / 0.74);
+  --surface-nav: rgb(255 255 255 / 0.92);
+  --chrome: linear-gradient(180deg, #24324f 0%, #3c4d6e 40%, #0f1a2e 58%, #33446a 100%);
+}
+/* (the light cyan mixes from the chosen accent's own cyan) */
+html { --accent-cyan: #3cc4ff; }
+html[data-accent="cyan"] { --accent-cyan: #5ef0d8; }
+html[data-accent="violet"] { --accent-cyan: #c08cff; }
+html[data-accent="emerald"] { --accent-cyan: #6ff0b8; }
+html[data-accent="orange"] { --accent-cyan: #ffc04d; }
+html[data-accent="rose"] { --accent-cyan: #ff8fb0; }
+html[data-accent="gold"] { --accent-cyan: #ffd98a; }
+html[data-theme="light"] ::selection { color: #fff; }
+
+/* Anything that sits on a photo or the dark key art keeps the dark palette in every theme
+   (also the carbon-fibre bands and the video player). */
+html[data-theme="light"] :is(.scheme-dark, .carbon) {
+  color-scheme: dark;
+  --color-void: #050e26;
+  --color-abyss: #081634;
+  --color-deep: #0b1b3f;
+  --color-panel: #0f2049;
+  --color-panel-2: #142857;
+  --color-rim: #1d3468;
+  --color-steel: #34508c;
+  --color-fog: #94a6c8;
+  --color-mist: #bfcce4;
+  --color-frost: #e6edf9;
+  --color-chalk: #f3f7fd;
+  --color-cyan: var(--accent-cyan);
+  --color-volt-hi: color-mix(in srgb, var(--color-volt) 70%, white);
+  --line: rgb(130 170 240 / 0.16);
+  --line-2: rgb(130 170 240 / 0.28);
+  --edge-rgb: 120 160 230;
+  --surface-1: rgb(14 26 48 / 0.72);
+  --surface-2: rgb(6 12 24 / 0.86);
+  --surface-glass: rgb(6 12 24 / 0.55);
+  --surface-nav: rgb(9 22 54 / 0.92);
+  --chrome: linear-gradient(180deg, #ffffff 0%, #c9d6e8 38%, #7d8ea8 52%, #e5edf8 68%, #a9b8cc 100%);
+  color: var(--color-frost);
+}
+
+/* Icon style: the same drawings, a different hand (CSS beats the SVG attributes). */
+html[data-icons="rounded"] .bx-icon { stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8px; }
+html[data-icons="bold"] .bx-icon { stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.4px; }
+html[data-icons="thin"] .bx-icon { stroke-width: 1.1px; }
+html[data-icons="glow"] .bx-icon { stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 7px color-mix(in srgb, currentColor 55%, transparent)); }
+html[data-icons="duotone"] .bx-icon { stroke-linejoin: round; stroke-width: 1.7px; }
+html[data-icons="duotone"] .bx-icon :is(path, circle, rect, polygon, ellipse) { fill: color-mix(in srgb, currentColor 20%, transparent); }
+/* The picker's previews: each sample shows its own style, whatever the page uses. */
+[data-icon-preview] .bx-icon.bx-icon { stroke-linecap: square; stroke-linejoin: miter; stroke-width: 1.6px; filter: none; }
+[data-icon-preview] .bx-icon.bx-icon :is(path, circle, rect, polygon, ellipse) { fill: none; }
+[data-icon-preview="rounded"] .bx-icon.bx-icon { stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8px; }
+[data-icon-preview="bold"] .bx-icon.bx-icon { stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.4px; }
+[data-icon-preview="thin"] .bx-icon.bx-icon { stroke-width: 1.1px; }
+[data-icon-preview="glow"] .bx-icon.bx-icon { stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 2px currentColor) drop-shadow(0 0 7px color-mix(in srgb, currentColor 55%, transparent)); }
+[data-icon-preview="duotone"] .bx-icon.bx-icon { stroke-linejoin: round; stroke-width: 1.7px; }
+[data-icon-preview="duotone"] .bx-icon.bx-icon :is(path, circle, rect, polygon, ellipse) { fill: color-mix(in srgb, currentColor 20%, transparent); }
