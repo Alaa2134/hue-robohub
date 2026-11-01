@@ -1,5 +1,6 @@
 "use client";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
+import { FirstRunGuide, GuideRow } from "./guides";
 import { AutoShrink } from "./auto-shrink";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -276,7 +277,14 @@ export function StaffApp({
       );
       break;
     case "applications":
-      screen = id === "form" ? <ApplyFormEditor /> : id ? <ApplicationDetail key={id} id={id} me={me} /> : <ApplicationsScreen me={me} />;
+      screen =
+        id === "form" ? (
+          <ApplyFormEditor />
+        ) : id ? (
+          <ApplicationDetail key={id} id={id} me={me} />
+        ) : (
+          <ApplicationsScreen me={me} />
+        );
       break;
     case "site":
       screen = <SiteContentScreen me={me} query={query} />;
@@ -300,7 +308,11 @@ export function StaffApp({
         ) : (
           <>
             <TopBar title="سجل الحركات" back="/staff/more" />
-            <Empty icon="lock" title="الصفحة دي للقائد بس" body="سجل كل الحركات بيشوفه صاحب الحساب الرئيسي (المالك) بس." />
+            <Empty
+              icon="lock"
+              title="الصفحة دي للقائد بس"
+              body="سجل كل الحركات بيشوفه صاحب الحساب الرئيسي (المالك) بس."
+            />
           </>
         );
       break;
@@ -601,6 +613,7 @@ function StaffHome({ me }: { me: StaffRow }) {
 
   return (
     <>
+      <FirstRunGuide kind="team" />
       <header className="flex items-center justify-between pb-2 pt-[calc(1rem+env(safe-area-inset-top))]">
         <BrandLine />
         <div className="flex">
@@ -935,7 +948,12 @@ function MoreScreen({ me }: { me: StaffRow }) {
       to: "/staff/permissions",
       show: isFull(me),
     },
-    { icon: "list", label: "سجل الحركات (كل تعديل وحذف من كل الناس)", to: "/staff/audit", show: me.role === "owner" },
+    {
+      icon: "list",
+      label: "سجل الحركات (كل تعديل وحذف من كل الناس)",
+      to: "/staff/audit",
+      show: me.role === "owner",
+    },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
@@ -952,6 +970,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
       <header className="flex items-center justify-between pb-2 pt-[calc(1rem+env(safe-area-inset-top))]">
         <BrandLine />
       </header>
+      <GuideRow kind="team" />
       <Card className="mt-4 flex items-center gap-3">
         <span className="flex size-12 items-center justify-center rounded-full bg-gradient-to-br from-volt/50 to-cyan/30 text-lg font-bold text-chalk">
           {(me.full_name || me.email)[0]}

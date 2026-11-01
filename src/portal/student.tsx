@@ -27,6 +27,7 @@ import { MemberCardScreen, MemberCardTile } from "./member-card";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
 import { AchievementsStrip } from "./achievements";
+import { FirstRunGuide, GuideRow } from "./guides";
 import { PushCard } from "./push";
 import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
@@ -191,6 +192,7 @@ export function StudentApp({
         </div>
       ) : null}
       {screen}
+      <FirstRunGuide kind="student" />
     </AppShell>
   );
 }
@@ -688,6 +690,8 @@ function Account({ session }: { session: StudentSession }) {
   return (
     <>
       <TopBar title="حسابي" back="/me" />
+      <GuideRow kind="student" />
+      <div className="mt-3" />
       <Card className="grid gap-1">
         <p className="text-lg font-bold text-chalk">{session.name}</p>
         <p className="text-sm text-fog">

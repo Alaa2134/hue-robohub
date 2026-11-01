@@ -2475,6 +2475,42 @@ test("a student signs in with their email and password too", async ({ page }) =>
   });
 });
 
+test("the owner's weekly report: this week's real numbers in the founder screen, and «send it now»", async ({
+  page,
+}) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_owner_weekly = {
+    applications: 13,
+    formReplies: 41,
+    overdueTasks: 0,
+    unanswered: 2,
+    lowRatings: 1,
+    noPostCount: 2,
+    attendance: 0,
+    activeStudents: 1,
+    newBadges: 0,
+    text: "…",
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/overview");
+  const card = page.getByTestId("owner-weekly");
+  await expect(card).toContainText("تقرير الأسبوع");
+  await expect(card.getByRole("link", { name: /13\s*طلبات انضمام/ })).toHaveAttribute(
+    "href",
+    "#/staff/applications",
+  );
+  await expect(card.getByRole("link", { name: /2\s*فعاليات من غير خبر/ })).toHaveAttribute(
+    "href",
+    "#/staff/media",
+  );
+  await expect(card).toContainText("الطلاب: 0 حضور · 1 دخلوا التطبيق · 0 شارة جديدة");
+  await card.getByTestId("owner-weekly-send").click();
+  await expect
+    .poll(() => calls.filter((c) => c.fn === "staff_owner_weekly").map((c) => c.body))
+    .toContainEqual({ p_send: true });
+  delete RPC.staff_owner_weekly;
+});
+
 test("the owner adds the phone notification keys from the app (write-only)", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   await signInAsOwner(page, calls);

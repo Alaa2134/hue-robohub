@@ -3,10 +3,40 @@
  * Student schedule (upcoming sessions for their group + published events, with "add to calendar")
  * and announcements from the coaches. See 20261008130000_schedule_announcements.sql.
  */
+import { feedUrl } from "@/components/site/calendar-subscribe";
 import { useMemo, useState, type FormEvent } from "react";
-import { can, download, errorText, fmt, must, sb, studentRpc, studentRpcOffline, type StaffRow } from "./core";
+import {
+  can,
+  download,
+  errorText,
+  fmt,
+  must,
+  sb,
+  studentRpc,
+  studentRpcOffline,
+  type StaffRow,
+} from "./core";
 import { GroupSelect, groupsOf, useStudents } from "./staff-data";
-import { Badge, Button, Card, Empty, ErrorBox, Field, Icon, IconButton, Input, List, Loading, Sheet, Textarea, Toggle, TopBar, confirmDialog, toast, useAsync } from "./ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Empty,
+  ErrorBox,
+  Field,
+  Icon,
+  IconButton,
+  Input,
+  List,
+  Loading,
+  Sheet,
+  Textarea,
+  Toggle,
+  TopBar,
+  confirmDialog,
+  toast,
+  useAsync,
+} from "./ui";
 
 /* ─── Announcements (student) ──────────────────────────────────────────── */
 
@@ -19,9 +49,16 @@ export function Announcements() {
   return (
     <div className="mt-4 grid gap-2">
       {data.slice(0, 3).map((n) => (
-        <Card key={n.id} className={n.pinned ? "border-gold/30 bg-gold/[0.05]" : "border-cyan/20 bg-cyan/[0.04]"}>
+        <Card
+          key={n.id}
+          className={n.pinned ? "border-gold/30 bg-gold/[0.05]" : "border-cyan/20 bg-cyan/[0.04]"}
+        >
           <p className="flex items-center gap-2 font-semibold text-chalk">
-            <Icon name={n.pinned ? "star" : "bell"} size={16} className={n.pinned ? "text-gold" : "text-cyan"} />
+            <Icon
+              name={n.pinned ? "star" : "bell"}
+              size={16}
+              className={n.pinned ? "text-gold" : "text-cyan"}
+            />
             <span className="min-w-0 flex-1">{n.title}</span>
             <span className="shrink-0 text-xs font-normal text-fog">{fmt.rel(n.at)}</span>
           </p>
@@ -34,15 +71,38 @@ export function Announcements() {
 
 /* ─── Schedule (student) ───────────────────────────────────────────────── */
 
-type Item = { kind: "session" | "event"; id: string; title: string; startsAt: string; endsAt: string | null; location: string | null; slug?: string };
+type Item = {
+  kind: "session" | "event";
+  id: string;
+  title: string;
+  startsAt: string;
+  endsAt: string | null;
+  location: string | null;
+  slug?: string;
+};
 
-const icsDate = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-const icsText = (s: string) => s.replace(/\\/g, "\\\\").replace(/([,;])/g, "\\$1").replace(/\r?\n/g, "\\n");
-const endOf = (it: Item) => (it.endsAt ? new Date(it.endsAt) : new Date(new Date(it.startsAt).getTime() + 2 * 3600_000));
+const icsDate = (d: Date) =>
+  d
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
+const icsText = (s: string) =>
+  s
+    .replace(/\\/g, "\\\\")
+    .replace(/([,;])/g, "\\$1")
+    .replace(/\r?\n/g, "\\n");
+const endOf = (it: Item) =>
+  it.endsAt ? new Date(it.endsAt) : new Date(new Date(it.startsAt).getTime() + 2 * 3600_000);
 
 /** One calendar file for the given items (opens in Calendar / Google Calendar). */
 export function toIcs(items: Item[]) {
-  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//BuildX HUE//App//AR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//BuildX HUE//App//AR",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+  ];
   const stamp = icsDate(new Date());
   for (const it of items) {
     lines.push(
@@ -78,9 +138,14 @@ export function NextUpCard() {
   const next = data?.find((i) => new Date(i.startsAt).getTime() > Date.now() - 3600_000);
   if (!next) return null;
   return (
-    <a href="#/me/schedule" className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
+    <a
+      href="#/me/schedule"
+      className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5"
+    >
       <span className="flex size-14 shrink-0 flex-col items-center justify-center rounded-2xl bg-volt/15 text-cyan">
-        <span className="text-[11px] leading-none">{new Intl.DateTimeFormat("ar-EG", { weekday: "short" }).format(new Date(next.startsAt))}</span>
+        <span className="text-[11px] leading-none">
+          {new Intl.DateTimeFormat("ar-EG", { weekday: "short" }).format(new Date(next.startsAt))}
+        </span>
         <span className="font-mono text-xl font-bold leading-tight">{new Date(next.startsAt).getDate()}</span>
       </span>
       <div className="min-w-0 flex-1">
@@ -106,22 +171,37 @@ export function StudentSchedule() {
         back="/me"
         actions={
           data.length > 1 ? (
-            <Button size="sm" icon="calendar" onClick={() => download(new Blob([toIcs(data)], { type: "text/calendar" }), "buildx-schedule.ics")}>
+            <Button
+              size="sm"
+              icon="calendar"
+              onClick={() =>
+                download(new Blob([toIcs(data)], { type: "text/calendar" }), "buildx-schedule.ics")
+              }
+            >
               الكل للتقويم
             </Button>
           ) : undefined
         }
       />
+      <SubscribeCard />
       {!data.length ? (
-        <Empty icon="calendar" title="مفيش مواعيد جاية" body="لما المدرب يحدد سيشن جاية أو تتنشر فعالية هتظهر هنا." />
+        <Empty
+          icon="calendar"
+          title="مفيش مواعيد جاية"
+          body="لما المدرب يحدد سيشن جاية أو تتنشر فعالية هتظهر هنا."
+        />
       ) : (
         <div className="grid gap-2">
           {data.map((it) => (
             <Card key={`${it.kind}-${it.id}`} className="grid gap-2">
               <div className="flex items-start gap-3">
                 <span className="flex size-12 shrink-0 flex-col items-center justify-center rounded-xl bg-white/[0.05] text-chalk">
-                  <span className="text-[10px] leading-none text-fog">{new Intl.DateTimeFormat("ar-EG", { month: "short" }).format(new Date(it.startsAt))}</span>
-                  <span className="font-mono text-lg font-bold leading-tight">{new Date(it.startsAt).getDate()}</span>
+                  <span className="text-[10px] leading-none text-fog">
+                    {new Intl.DateTimeFormat("ar-EG", { month: "short" }).format(new Date(it.startsAt))}
+                  </span>
+                  <span className="font-mono text-lg font-bold leading-tight">
+                    {new Date(it.startsAt).getDate()}
+                  </span>
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-chalk">{it.title}</p>
@@ -130,13 +210,25 @@ export function StudentSchedule() {
                     {it.location ? ` · ${it.location}` : ""}
                   </p>
                 </div>
-                <Badge tone={it.kind === "event" ? "volt" : "info"}>{it.kind === "event" ? "فعالية" : "سيشن"}</Badge>
+                <Badge tone={it.kind === "event" ? "volt" : "info"}>
+                  {it.kind === "event" ? "فعالية" : "سيشن"}
+                </Badge>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" icon="calendar" onClick={() => download(new Blob([toIcs([it])], { type: "text/calendar" }), `buildx-${it.kind}.ics`)}>
+                <Button
+                  size="sm"
+                  icon="calendar"
+                  onClick={() =>
+                    download(new Blob([toIcs([it])], { type: "text/calendar" }), `buildx-${it.kind}.ics`)
+                  }
+                >
                   أضف للتقويم
                 </Button>
-                <Button size="sm" icon="link" onClick={() => window.open(googleLink(it), "_blank", "noopener")}>
+                <Button
+                  size="sm"
+                  icon="link"
+                  onClick={() => window.open(googleLink(it), "_blank", "noopener")}
+                >
                   Google Calendar
                 </Button>
               </div>
@@ -150,11 +242,25 @@ export function StudentSchedule() {
 
 /* ─── Announcements (staff) ────────────────────────────────────────────── */
 
-type Announcement = { id: string; title: string; body: string; group_name: string; pinned: boolean; expires_at: string | null; created_at: string };
+type Announcement = {
+  id: string;
+  title: string;
+  body: string;
+  group_name: string;
+  pinned: boolean;
+  expires_at: string | null;
+  created_at: string;
+};
 
 /** /staff/announcements */
 export function AnnouncementsScreen({ me }: { me: StaffRow }) {
-  const { data, error, loading, reload } = useAsync(async () => must(await sb().from("announcements").select("*").order("created_at", { ascending: false }).limit(100)) as Announcement[], []);
+  const { data, error, loading, reload } = useAsync(
+    async () =>
+      must(
+        await sb().from("announcements").select("*").order("created_at", { ascending: false }).limit(100),
+      ) as Announcement[],
+    [],
+  );
   const [creating, setCreating] = useState(false);
   const remove = async (a: Announcement) => {
     if (!(await confirmDialog({ title: "مسح الإعلان؟", ok: "مسح", danger: true }))) return;
@@ -183,7 +289,16 @@ export function AnnouncementsScreen({ me }: { me: StaffRow }) {
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !data?.length ? (
-        <Empty icon="bell" title="مفيش إعلانات" body="مثلاً: «سيشن بكرة اتأجلت لـ 5 العصر» لمجموعة واحدة أو للكل." action={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>إعلان جديد</Button>} />
+        <Empty
+          icon="bell"
+          title="مفيش إعلانات"
+          body="مثلاً: «سيشن بكرة اتأجلت لـ 5 العصر» لمجموعة واحدة أو للكل."
+          action={
+            <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
+              إعلان جديد
+            </Button>
+          }
+        />
       ) : (
         <List>
           {data.map((a) => (
@@ -219,10 +334,25 @@ export function AnnouncementsScreen({ me }: { me: StaffRow }) {
   );
 }
 
-function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: () => void; onSaved: () => void }) {
+function AnnouncementSheet({
+  me,
+  onClose,
+  onSaved,
+}: {
+  me: StaffRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const students = useStudents();
   const groups = useMemo(() => groupsOf(students.list), [students.list]);
-  const [f, setF] = useState({ title: "", body: "", group_name: "", pinned: false, days: "7", push: can(me, "notify") });
+  const [f, setF] = useState({
+    title: "",
+    body: "",
+    group_name: "",
+    pinned: false,
+    days: "7",
+    push: can(me, "notify"),
+  });
   const [busy, setBusy] = useState(false);
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -232,10 +362,24 @@ function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: ()
     try {
       await sb()
         .from("announcements")
-        .insert({ title: f.title.trim(), body: f.body.trim(), group_name: f.group_name, pinned: f.pinned, expires_at: days > 0 ? new Date(Date.now() + days * 864e5).toISOString() : null })
+        .insert({
+          title: f.title.trim(),
+          body: f.body.trim(),
+          group_name: f.group_name,
+          pinned: f.pinned,
+          expires_at: days > 0 ? new Date(Date.now() + days * 864e5).toISOString() : null,
+        })
         .then(must);
       if (f.push && can(me, "notify")) {
-        const { error } = await sb().functions.invoke("send-push", { body: { title: f.title.trim(), body: f.body.trim().slice(0, 240), url: "/app/#/me", audience: f.group_name ? "group" : "students", group: f.group_name || null } });
+        const { error } = await sb().functions.invoke("send-push", {
+          body: {
+            title: f.title.trim(),
+            body: f.body.trim().slice(0, 240),
+            url: "/app/#/me",
+            audience: f.group_name ? "group" : "students",
+            group: f.group_name || null,
+          },
+        });
         if (error) toast("الإعلان اتنشر، بس الإشعار موصلش", "error");
       }
       toast("اتنشر الإعلان ✓");
@@ -250,23 +394,82 @@ function AnnouncementSheet({ me, onClose, onSaved }: { me: StaffRow; onClose: ()
     <Sheet open onClose={onClose} title="إعلان جديد">
       <form onSubmit={save} className="grid gap-3">
         <Field label="العنوان">
-          <Input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={140} placeholder="سيشن بكرة الساعة 5" />
+          <Input
+            value={f.title}
+            onChange={(e) => setF({ ...f, title: e.target.value })}
+            maxLength={140}
+            placeholder="سيشن بكرة الساعة 5"
+          />
         </Field>
         <Field label="التفاصيل (اختياري)">
-          <Textarea value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} maxLength={2000} className="min-h-24" />
+          <Textarea
+            value={f.body}
+            onChange={(e) => setF({ ...f, body: e.target.value })}
+            maxLength={2000}
+            className="min-h-24"
+          />
         </Field>
         <Field label="لمين">
-          <GroupSelect value={f.group_name} onChange={(v) => setF({ ...f, group_name: v })} groups={groups} allLabel="كل المجموعات" />
+          <GroupSelect
+            value={f.group_name}
+            onChange={(v) => setF({ ...f, group_name: v })}
+            groups={groups}
+            allLabel="كل المجموعات"
+          />
         </Field>
         <Field label="يفضل ظاهر كام يوم" hint="0 = لحد ما تمسحه">
-          <Input type="number" inputMode="numeric" min={0} max={365} value={f.days} onChange={(e) => setF({ ...f, days: e.target.value })} dir="ltr" />
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={365}
+            value={f.days}
+            onChange={(e) => setF({ ...f, days: e.target.value })}
+            dir="ltr"
+          />
         </Field>
         <Toggle checked={f.pinned} onChange={(v) => setF({ ...f, pinned: v })} label="مثبّت فوق" />
-        {can(me, "notify") && <Toggle checked={f.push} onChange={(v) => setF({ ...f, push: v })} label="ابعته إشعار كمان" hint="للي مفعّلين الإشعارات." />}
+        {can(me, "notify") && (
+          <Toggle
+            checked={f.push}
+            onChange={(v) => setF({ ...f, push: v })}
+            label="ابعته إشعار كمان"
+            hint="للي مفعّلين الإشعارات."
+          />
+        )}
         <Button type="submit" variant="primary" size="lg" block loading={busy}>
           نشر
         </Button>
       </form>
     </Sheet>
+  );
+}
+
+/** Subscribe once: every new public event shows up in the phone's calendar by itself. */
+function SubscribeCard() {
+  const webcal = feedUrl("ar").replace(/^https:\/\//, "webcal://");
+  return (
+    <Card className="mb-3 grid gap-2" data-testid="calendar-subscribe">
+      <p className="text-sm font-semibold text-chalk">خلّي فعاليات BuildX تظهر في تقويمك لوحدها</p>
+      <p className="text-xs text-fog">
+        اشترك مرة واحدة، وكل فعالية جديدة هتنزل في تقويم موبايلك ومعاها تذكير قبلها بساعتين.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <a
+          href={`https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--line-2)] text-sm font-semibold text-chalk"
+        >
+          Google Calendar
+        </a>
+        <a
+          href={webcal}
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-[var(--line-2)] text-sm font-semibold text-chalk"
+        >
+          Apple / Outlook
+        </a>
+      </div>
+    </Card>
   );
 }
