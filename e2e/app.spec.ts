@@ -827,6 +827,75 @@ test("a portfolio photo from the phone is compressed and uploaded with its thumb
   expect(errors).toEqual([]);
 });
 
+test("a photo refused because the sign-in token ran out is sent again with a fresh token", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  let refreshed = 0;
+  await page.route(/\/auth\/v1\/token\?grant_type=refresh_token/, (route) => {
+    refreshed += 1;
+    return route.fulfill({
+      json: {
+        access_token: jwt,
+        refresh_token: "r2",
+        token_type: "bearer",
+        expires_in: 3600,
+        expires_at: 4102444800,
+        user: { id: "u1", email: "owner@example.com", aud: "authenticated", role: "authenticated" },
+      },
+    });
+  });
+  const tries: string[] = [];
+  await page.route(/\/storage\/v1\/object\/team\//, async (route) => {
+    tries.push(new URL(route.request().url()).pathname);
+    // The first try is refused the way storage refuses an expired token.
+    if (tries.length === 1)
+      return route.fulfill({
+        status: 403,
+        json: {
+          statusCode: "403",
+          error: "Unauthorized",
+          message: "new row violates row-level security policy",
+        },
+      });
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => {
+    const row = {
+      id: "p1",
+      user_id: "u1",
+      slug: "owner-test",
+      full_name: "Owner Test",
+      full_name_ar: null,
+      headline: "",
+      headline_ar: null,
+      bio: "",
+      bio_ar: null,
+      group_kind: "founder",
+      track: null,
+      photo_path: null,
+      skills: [],
+      links: {},
+      external_url: null,
+      published: false,
+      sort_order: 0,
+    };
+    const single = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    return route.fulfill({ json: single ? row : [row] });
+  });
+  await page.route(/\/rest\/v1\/team_projects/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/portfolio");
+  await page.locator('input[type="file"]').first().setInputFiles("public/brand/icon-512.png");
+  await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
+  expect(refreshed).toBe(1);
+  // The photo was tried twice (refused, then sent with the new token), then its thumbnail once.
+  expect(tries).toHaveLength(3);
+  expect(tries[0]).toBe(tries[1]);
+  expect(errors).toEqual([]);
+});
+
 test("a photo the browser can't open gets a clear message and is reported", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   await signInAsOwner(page, calls);
