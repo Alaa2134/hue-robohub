@@ -1314,3 +1314,26 @@ html[data-motion="reduced"] *::after {
   transition-duration: 0.001ms !important;
   scroll-behavior: auto !important;
 }
+
+/* ─── Student achievement medals (src/portal/achievements.tsx) ─────────── */
+.bx-medal { overflow: visible; filter: drop-shadow(0 6px 10px rgb(0 0 0 / 0.35)); }
+.bx-medal-sweep { animation: bx-medal-sweep 2.8s ease-in-out infinite; }
+@keyframes bx-medal-sweep {
+  0%, 35% { transform: translateX(0) skewX(-20deg); }
+  75%, 100% { transform: translateX(190px) skewX(-20deg); }
+}
+.bx-medal-pop { animation: bx-medal-pop 0.9s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes bx-medal-pop {
+  0% { transform: scale(0.2) rotate(-25deg); opacity: 0; }
+  60% { transform: scale(1.08) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+.bx-confetti { animation: bx-confetti linear infinite; }
+@keyframes bx-confetti {
+  0% { transform: translateY(0) rotate(0); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bx-medal-sweep, .bx-medal-pop, .bx-confetti { animation: none; }
+  .bx-confetti { display: none; }
+}

@@ -26,6 +26,7 @@ import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { ReportSheet } from "./report";
 import { PersonCard } from "./person-card";
+import { StaffAchievements } from "./achievements";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -697,6 +698,7 @@ function StudentSheet({
       {!isNew && s && (
         <div className="mt-4">
           <PersonCard student={s.id} hide="student" />
+          <StaffAchievements id={s.id} />
         </div>
       )}
       {reporting && s && (

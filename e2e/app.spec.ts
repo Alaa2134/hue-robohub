@@ -662,6 +662,28 @@ test("a student sees their points, badges, group ranking and certificates", asyn
       me: null,
       players: 2,
     },
+    student_achievements: {
+      items: [
+        {
+          key: "attend",
+          value: 12,
+          tier: 2,
+          next: 25,
+          th: [1, 10, 25, 50],
+          earned: [
+            { tier: 1, at: at(9000) },
+            { tier: 2, at: at(60) },
+          ],
+        },
+        { key: "streak", value: 4, tier: 1, next: 5, th: [3, 5, 10, 20], earned: [{ tier: 1, at: at(60) }] },
+        { key: "quiz", value: 0, tier: 0, next: 1, th: [1, 5, 15, 30], earned: [] },
+        { key: "course", value: 100, tier: 1, next: null, th: [100], earned: [{ tier: 1, at: at(30) }] },
+      ],
+      fresh: [
+        { key: "attend", tier: 2 },
+        { key: "course", tier: 1 },
+      ],
+    },
     student_certificates: [
       {
         id: "c1",
@@ -679,19 +701,40 @@ test("a student sees their points, badges, group ranking and certificates", asyn
   };
   await page.route(/supabase\.co/, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
+    // Once celebrated, the database has nothing new to celebrate.
+    if (fn === "student_achievements_seen") (rpcs.student_achievements as { fresh: unknown[] }).fresh = [];
     return route.fulfill({ json: fn ? (rpcs[fn] ?? null) : [] });
   });
+  const seen: string[] = [];
+  page.on("request", (r) => r.url().includes("/rpc/student_achievements_seen") && seen.push(r.url()));
   await page.goto("/app/#/me");
-  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 3 وسام · 🔥 3 سيشن ورا بعض")).toBeVisible();
+  // New badges are celebrated once: silver attendance, then the course medal.
+  const party = page.getByTestId("badge-celebrate");
+  await expect(party).toContainText("خدت «الحضور» فضي");
+  await expect(party.locator('[data-look="2"]')).toBeVisible();
+  await party.getByTestId("badge-next").click();
+  await expect(party).toContainText("خدت «خلّص الكورس» ذهبي");
+  await party.getByTestId("badge-next").click();
+  await expect(party).toHaveCount(0);
+  await expect.poll(() => seen.length).toBe(1);
+  await expect(page.getByTestId("achievements-strip")).toContainText("3 شارة");
+  await expect(page.getByTestId("achievements-strip")).toContainText("الجاية: سلسلة الحضور (4 / 5)");
+  await expect(page.getByText("ترتيبك 1 من 2 في مجموعتك · 🔥 3 سيشن ورا بعض")).toBeVisible();
   // This week's contest: the top players and a way in for someone who hasn't played.
   await expect(page.getByText("Sensors sprint")).toBeVisible();
   await expect(page.getByText("Omar A.")).toBeVisible();
   await expect(page.getByRole("link", { name: "ادخل" })).toHaveAttribute("href", "#/me/quiz/wq1");
   await expect(page.getByText("بوتكامب الروبوتات")).toBeVisible();
   await page.getByText("ترتيبك 1 من 2").click();
-  await expect(page.getByText("الأوسمة (3 من 10)")).toBeVisible();
+  await expect(page.getByText("الشارات (4 من 13)")).toBeVisible();
   await expect(page.getByText("3 سيشن ورا بعض")).toBeVisible();
-  await expect(page.getByText("أطول سلسلة ليك: 4 · فاضلك 1 عشان وسام «نار»")).toBeVisible();
+  await expect(page.getByText("أطول سلسلة ليك: 4 · سلسلة الحضور بتديك شارة كمان")).toBeVisible();
+  // A medal opens its levels: silver reached, gold needs 25 sessions.
+  await page.getByTestId("medal-attend").click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet.getByText("فاضلك 13 للمستوى اللي بعده")).toBeVisible();
+  await expect(sheet.getByText("12 / 25")).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.getByText("Mona A. (انت)")).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -6466,13 +6509,11 @@ test("form builder: a file question that takes video, and a background video tha
   await page.goto("/app/#/staff/forms/f1");
   await expect(page.getByText("خلفية الفورم")).toBeVisible();
   // A 3-second 1080p clip (about 96 KB) stands in for a phone video; it is larger than the 720p-class size backgrounds are scaled to.
-  await page
-    .getByTestId("form-bg-input")
-    .setInputFiles({
-      name: "intro.webm",
-      mimeType: "video/webm",
-      buffer: readFileSync("e2e/fixtures/bg-1080p.webm"),
-    });
+  await page.getByTestId("form-bg-input").setInputFiles({
+    name: "intro.webm",
+    mimeType: "video/webm",
+    buffer: readFileSync("e2e/fixtures/bg-1080p.webm"),
+  });
   await expect(page.getByTestId("form-bg-status")).toContainText("اترفع", { timeout: 30_000 });
   expect(uploads).toHaveLength(1);
   expect(uploads[0].type).toMatch(/^video\/webm/);
@@ -8608,15 +8649,13 @@ test("media desk: the news post and social posts of each event are written from 
   // The carousel: 12 photos from the phone → the slides it can fill, in the BuildX style, 1080×1350.
   const carousel = summit.getByTestId("desk-carousel");
   await expect(carousel.getByTestId("carousel-title")).toHaveValue("MENA ROBOTICS SUMMIT 2026");
-  await carousel
-    .getByTestId("carousel-photos")
-    .setInputFiles(
-      ["01", "02", "03", "05", "06", "07", "08", "10", "11", "12", "13", "14"].map((n) => ({
-        name: `${n}.webp`,
-        mimeType: "image/webp",
-        buffer: readFileSync(`public/media/workshops/embedded-systems-01/${n}.w.webp`),
-      })),
-    );
+  await carousel.getByTestId("carousel-photos").setInputFiles(
+    ["01", "02", "03", "05", "06", "07", "08", "10", "11", "12", "13", "14"].map((n) => ({
+      name: `${n}.webp`,
+      mimeType: "image/webp",
+      buffer: readFileSync(`public/media/workshops/embedded-systems-01/${n}.w.webp`),
+    })),
+  );
   await carousel.getByTestId("carousel-make").click();
   await expect(carousel.getByTestId("carousel-slide-cover")).toBeVisible({ timeout: 30_000 });
   await expect(carousel.getByTestId("carousel-slide-thanks")).toBeVisible();
@@ -9939,15 +9978,13 @@ test("smart montage: three event videos in, the best moments cut into a finished
     `/app/#/staff/montage?title=${encodeURIComponent("MENA Robotics Summit")}&sub=${encodeURIComponent("E-JUST")}`,
   );
   await expect(page.getByTestId("montage-title")).toHaveValue("MENA Robotics Summit");
-  await page
-    .getByTestId("montage-videos")
-    .setInputFiles(
-      [1, 2, 3].map((i) => ({
-        name: `clip${i}.webm`,
-        mimeType: "video/webm",
-        buffer: readFileSync(`e2e/fixtures/clip${i}.webm`),
-      })),
-    );
+  await page.getByTestId("montage-videos").setInputFiles(
+    [1, 2, 3].map((i) => ({
+      name: `clip${i}.webm`,
+      mimeType: "video/webm",
+      buffer: readFileSync(`e2e/fixtures/clip${i}.webm`),
+    })),
+  );
   // Each video is watched, then the plan shows which moments it picked (the opening one marked).
   await expect(page.getByTestId("montage-clip")).toHaveCount(3, { timeout: 30_000 });
   await expect(page.getByTestId("montage-plan")).toContainText("لقطة");
