@@ -831,38 +831,59 @@ export async function uploadObject(
   onProgress?: (p: number) => void,
   bucket = "materials",
 ): Promise<void> {
-  const { data } = await sb().auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) throw new Error("session_invalid");
-  await new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(
-      "POST",
-      `${SUPABASE_URL}/storage/v1/object/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
-    );
-    xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-    xhr.setRequestHeader("apikey", SUPABASE_KEY);
-    xhr.setRequestHeader("x-upsert", "false");
-    xhr.setRequestHeader("cache-control", "max-age=31536000");
-    xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress?.(e.loaded / e.total);
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else {
-        let message = `upload_failed_${xhr.status}`;
-        try {
-          message = (JSON.parse(xhr.responseText) as { message?: string }).message ?? message;
-        } catch {
-          /* keep the status text */
+  // A fresh sign-in token: a long batch (hundreds of photos from a phone) can outlive the hour a token
+  // lasts, and an expired one reaches storage as "not signed in" (a row-level security refusal).
+  const fresh = async (force = false) => {
+    let { data } = await sb().auth.getSession();
+    const left = (data.session?.expires_at ?? 0) * 1000 - Date.now();
+    if (data.session && (force || left < 120_000)) ({ data } = await sb().auth.refreshSession());
+    const token = data.session?.access_token;
+    if (!token) throw new Error("session_invalid");
+    return token;
+  };
+  const send = (token: string) =>
+    new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        "POST",
+        `${SUPABASE_URL}/storage/v1/object/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
+      );
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("apikey", SUPABASE_KEY);
+      xhr.setRequestHeader("x-upsert", "false");
+      xhr.setRequestHeader("cache-control", "max-age=31536000");
+      xhr.setRequestHeader("Content-Type", contentType || "application/octet-stream");
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else {
+          let message = `upload_failed_${xhr.status}`;
+          try {
+            message = (JSON.parse(xhr.responseText) as { message?: string }).message ?? message;
+          } catch {
+            /* keep the status text */
+          }
+          reject(Object.assign(new Error(message), { status: xhr.status }));
         }
-        reject(new Error(message));
-      }
-    };
-    xhr.onerror = () => reject(new TypeError("Failed to fetch"));
-    xhr.send(body);
-  });
+      };
+      xhr.onerror = () => reject(new TypeError("Failed to fetch"));
+      xhr.send(body);
+    });
+  try {
+    await send(await fresh());
+  } catch (e) {
+    // Once more with a new token after a refusal that an expired token causes, or a dropped connection.
+    const status = (e as { status?: number }).status;
+    const authish =
+      status === 401 ||
+      status === 403 ||
+      /row-level security|jwt|token|unauthori/i.test(String((e as Error).message));
+    if (!(authish || e instanceof TypeError)) throw e;
+    await new Promise((r) => setTimeout(r, 800));
+    await send(await fresh(authish));
+  }
 }
 
 export async function removeObjects(paths: string[], bucket = "materials") {

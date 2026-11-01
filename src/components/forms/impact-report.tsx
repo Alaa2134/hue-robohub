@@ -19,8 +19,35 @@ type Data = {
   output: { certificates: number; projects: number; posts: number };
   lab?: { challenges_passed: number; lab_learners: number; prints_delivered: number };
 };
-type Report = { found: true; code: string; from: string; to: string; issued_at: string; partner: string | null; revoked_at: string | null; revoked_reason: string | null; data: Data | null; digest: string; intact: boolean };
-type Portal = { found: true; name: string; reports: { code: string; from: string; to: string; issued_at: string; revoked: boolean }[] };
+type Report = {
+  found: true;
+  code: string;
+  from: string;
+  to: string;
+  issued_at: string;
+  partner: string | null;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+  data: Data | null;
+  digest: string;
+  intact: boolean;
+};
+type Recap = {
+  title: string;
+  title_en: string;
+  at: string;
+  registered: number;
+  came: number;
+  rating: number | null;
+  ratings: number;
+  post: string | null;
+};
+type Portal = {
+  found: true;
+  name: string;
+  reports: { code: string; from: string; to: string; issued_at: string; revoked: boolean }[];
+  events?: Recap[];
+};
 
 const T = {
   en: {
@@ -41,6 +68,11 @@ const T = {
     noReports: "No reports yet.",
     open: "Open",
     withdrawn: "withdrawn",
+    recaps: "After every event",
+    recapsNote:
+      "Made by itself a few hours after each event, from the attendance scans and the attendees' ratings.",
+    rating: "rating",
+    news: "Read the news",
     events: "Events",
     registered: "registered",
     attended: "attended",
@@ -63,6 +95,10 @@ const T = {
     noReports: "لسه مفيش تقارير.",
     open: "افتح",
     withdrawn: "اتسحب",
+    recaps: "بعد كل فعالية",
+    recapsNote: "بيتعمل لوحده بعد كل فعالية بكام ساعة، من مسح الحضور وتقييمات اللي حضروا.",
+    rating: "تقييم",
+    news: "اقرا الخبر",
     events: "الفعاليات",
     registered: "سجّلوا",
     attended: "حضروا",
@@ -71,23 +107,101 @@ const T = {
 
 /** Every number in a report, what it means and how it's counted — in both languages. */
 const METRICS: { get: (d: Data) => number | undefined; en: [string, string]; ar: [string, string] }[] = [
-  { get: (d) => d.training.sessions, en: ["Training sessions", "Sessions held in the period (each one opened for attendance)."], ar: ["سيشنات تدريب", "السيشنات اللي اتعملت في الفترة (كل واحدة اتفتح لها حضور)."] },
-  { get: (d) => d.training.attendances, en: ["Attendances", "Students marked present or late at those sessions, by scan or by the trainer."], ar: ["مرات حضور", "طلاب اتسجلوا حاضرين أو متأخرين في السيشنات دي، بالمسح أو من المدرب."] },
-  { get: (d) => d.training.students, en: ["Students trained", "Different students with at least one attendance in the period."], ar: ["طلاب اتدربوا", "طلاب مختلفين ليهم حضور واحد على الأقل في الفترة."] },
-  { get: (d) => d.training.quizzes, en: ["Quizzes taken", "Quiz attempts submitted in the period."], ar: ["كويزات اتحلت", "محاولات كويز اتسلمت في الفترة."] },
-  { get: (d) => d.output.certificates, en: ["Certificates", "Certificates issued in the period and not revoked; each can be checked on /verify."], ar: ["شهادات", "شهادات اتصدرت في الفترة ومتلغتش؛ كل واحدة تتأكد منها على /verify."] },
-  { get: (d) => d.output.projects, en: ["Student projects published", "Projects students sent that the team reviewed and published on the site."], ar: ["مشاريع طلاب اتنشرت", "مشاريع بعتها الطلاب والفريق راجعها ونشرها على الموقع."] },
-  { get: (d) => d.lab?.challenges_passed, en: ["Lab challenges passed", "Challenges passed in BuildX Lab — each checked by running the student's program in the simulator."], ar: ["تحديات معمل اتعدّت", "تحديات اتعدّت في BuildX Lab — كل واحد اتحقق بتشغيل برنامج الطالب في المحاكي."] },
-  { get: (d) => d.lab?.lab_learners, en: ["Lab learners", "Different students who passed at least one Lab challenge in the period."], ar: ["متعلمين في المعمل", "طلاب مختلفين عدّوا تحدي واحد على الأقل في الفترة."] },
-  { get: (d) => d.lab?.prints_delivered, en: ["3D prints delivered", "Print Hub jobs handed to students in the period."], ar: ["طباعات 3D اتسلّمت", "طلبات طباعة اتسلّمت للطلبة في الفترة."] },
-  { get: (d) => d.community.applications, en: ["Applications", "People who applied to join in the period."], ar: ["طلبات انضمام", "ناس قدّموا ينضموا في الفترة."] },
-  { get: (d) => d.community.accepted, en: ["Accepted", "Applications accepted in the period."], ar: ["اتقبلوا", "طلبات اتقبلت في الفترة."] },
-  { get: (d) => d.reach.views, en: ["Website views", "Page views on buildxhue.com, counted by our own privacy-friendly analytics (no cookies)."], ar: ["مشاهدات الموقع", "مشاهدات صفحات buildxhue.com، بالعدّاد بتاعنا اللي بيحترم الخصوصية (من غير كوكيز)."] },
-  { get: (d) => d.reach.visitors, en: ["Website visitors", "Different visitors per day, added up over the period."], ar: ["زوار الموقع", "زوار مختلفين كل يوم، متجمّعين على الفترة."] },
+  {
+    get: (d) => d.training.sessions,
+    en: ["Training sessions", "Sessions held in the period (each one opened for attendance)."],
+    ar: ["سيشنات تدريب", "السيشنات اللي اتعملت في الفترة (كل واحدة اتفتح لها حضور)."],
+  },
+  {
+    get: (d) => d.training.attendances,
+    en: ["Attendances", "Students marked present or late at those sessions, by scan or by the trainer."],
+    ar: ["مرات حضور", "طلاب اتسجلوا حاضرين أو متأخرين في السيشنات دي، بالمسح أو من المدرب."],
+  },
+  {
+    get: (d) => d.training.students,
+    en: ["Students trained", "Different students with at least one attendance in the period."],
+    ar: ["طلاب اتدربوا", "طلاب مختلفين ليهم حضور واحد على الأقل في الفترة."],
+  },
+  {
+    get: (d) => d.training.quizzes,
+    en: ["Quizzes taken", "Quiz attempts submitted in the period."],
+    ar: ["كويزات اتحلت", "محاولات كويز اتسلمت في الفترة."],
+  },
+  {
+    get: (d) => d.output.certificates,
+    en: [
+      "Certificates",
+      "Certificates issued in the period and not revoked; each can be checked on /verify.",
+    ],
+    ar: ["شهادات", "شهادات اتصدرت في الفترة ومتلغتش؛ كل واحدة تتأكد منها على /verify."],
+  },
+  {
+    get: (d) => d.output.projects,
+    en: [
+      "Student projects published",
+      "Projects students sent that the team reviewed and published on the site.",
+    ],
+    ar: ["مشاريع طلاب اتنشرت", "مشاريع بعتها الطلاب والفريق راجعها ونشرها على الموقع."],
+  },
+  {
+    get: (d) => d.lab?.challenges_passed,
+    en: [
+      "Lab challenges passed",
+      "Challenges passed in BuildX Lab — each checked by running the student's program in the simulator.",
+    ],
+    ar: [
+      "تحديات معمل اتعدّت",
+      "تحديات اتعدّت في BuildX Lab — كل واحد اتحقق بتشغيل برنامج الطالب في المحاكي.",
+    ],
+  },
+  {
+    get: (d) => d.lab?.lab_learners,
+    en: ["Lab learners", "Different students who passed at least one Lab challenge in the period."],
+    ar: ["متعلمين في المعمل", "طلاب مختلفين عدّوا تحدي واحد على الأقل في الفترة."],
+  },
+  {
+    get: (d) => d.lab?.prints_delivered,
+    en: ["3D prints delivered", "Print Hub jobs handed to students in the period."],
+    ar: ["طباعات 3D اتسلّمت", "طلبات طباعة اتسلّمت للطلبة في الفترة."],
+  },
+  {
+    get: (d) => d.community.applications,
+    en: ["Applications", "People who applied to join in the period."],
+    ar: ["طلبات انضمام", "ناس قدّموا ينضموا في الفترة."],
+  },
+  {
+    get: (d) => d.community.accepted,
+    en: ["Accepted", "Applications accepted in the period."],
+    ar: ["اتقبلوا", "طلبات اتقبلت في الفترة."],
+  },
+  {
+    get: (d) => d.reach.views,
+    en: [
+      "Website views",
+      "Page views on buildxhue.com, counted by our own privacy-friendly analytics (no cookies).",
+    ],
+    ar: [
+      "مشاهدات الموقع",
+      "مشاهدات صفحات buildxhue.com، بالعدّاد بتاعنا اللي بيحترم الخصوصية (من غير كوكيز).",
+    ],
+  },
+  {
+    get: (d) => d.reach.visitors,
+    en: ["Website visitors", "Different visitors per day, added up over the period."],
+    ar: ["زوار الموقع", "زوار مختلفين كل يوم، متجمّعين على الفترة."],
+  },
 ];
 
-async function call<T>(fn: string, body: object): Promise<({ ok: true } & T) | { ok: true; found: false } | { ok: false; error: string } | null> {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" }, body: JSON.stringify(body), signal: timeoutSignal(10_000) });
+async function call<T>(
+  fn: string,
+  body: object,
+): Promise<({ ok: true } & T) | { ok: true; found: false } | { ok: false; error: string } | null> {
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: timeoutSignal(10_000),
+  });
   if (!r.ok) return null;
   return r.json().catch(() => null);
 }
@@ -99,7 +213,12 @@ export function ImpactVerify({ locale }: { locale: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [res, setRes] = useState<Report | null>(null);
-  const day = (iso: string) => new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
+  const day = (iso: string) =>
+    new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
   const num = (n: number) => new Intl.NumberFormat(l === "ar" ? "ar-EG" : "en-GB").format(n);
 
   const check = async (value: string) => {
@@ -186,9 +305,20 @@ export function ImpactVerify({ locale }: { locale: string }) {
       <form onSubmit={submit} className="frame flex flex-col gap-3 p-6 sm:flex-row sm:items-end">
         <label className="grid flex-1 gap-2">
           <span className="text-sm text-mist">{t.label}</span>
-          <input dir="ltr" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="BXR-…" maxLength={20} className="h-12 w-full rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 font-mono text-chalk placeholder:text-fog" />
+          <input
+            dir="ltr"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="BXR-…"
+            maxLength={20}
+            className="h-12 w-full rounded-xl border border-[var(--line-2)] bg-panel/60 px-4 font-mono text-chalk placeholder:text-fog"
+          />
         </label>
-        <button type="submit" disabled={busy || !code.trim()} className="btn btn-primary h-12 disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={busy || !code.trim()}
+          className="btn btn-primary h-12 disabled:opacity-50"
+        >
           {t.check}
         </button>
       </form>
@@ -207,7 +337,12 @@ export function PartnerPortal({ locale }: { locale: string }) {
   const [state, setState] = useState<"loading" | "none" | "limited" | "network" | "ok">("loading");
   const [p, setP] = useState<Portal | null>(null);
   const prefix = l === "ar" ? "/ar" : "";
-  const day = (iso: string) => new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
+  const day = (iso: string) =>
+    new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
   useEffect(() => {
     const token = new URLSearchParams(location.search).get("t") ?? "";
     if (!/^[0-9a-f]{48}$/.test(token)) return setState("none");
@@ -223,7 +358,11 @@ export function PartnerPortal({ locale }: { locale: string }) {
   }, []);
   if (state !== "ok" || !p)
     return (
-      <p role="status" className={cn("frame p-6 text-center", state === "loading" ? "text-mist" : "text-danger")} data-testid="partner-state">
+      <p
+        role="status"
+        className={cn("frame p-6 text-center", state === "loading" ? "text-mist" : "text-danger")}
+        data-testid="partner-state"
+      >
         {state === "loading" || state === "ok" ? "…" : state === "none" ? t.noPortal : t[state]}
       </p>
     );
@@ -234,7 +373,11 @@ export function PartnerPortal({ locale }: { locale: string }) {
         <p className="font-semibold text-chalk">{t.reports}</p>
         {p.reports.length ? (
           p.reports.map((r) => (
-            <a key={r.code} href={`${prefix}/verify/report/?c=${r.code}`} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] p-3 hover:border-cyan/40">
+            <a
+              key={r.code}
+              href={`${prefix}/verify/report/?c=${r.code}`}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[var(--line)] p-3 hover:border-cyan/40"
+            >
               <span className="text-sm text-chalk">{`${day(r.from)} – ${day(r.to)}`}</span>
               <span className="font-mono text-xs text-mist" dir="ltr">
                 {r.code}
@@ -246,6 +389,29 @@ export function PartnerPortal({ locale }: { locale: string }) {
           <p className="text-sm text-fog">{t.noReports}</p>
         )}
       </div>
+      {(p.events?.length ?? 0) > 0 && (
+        <div className="frame grid gap-2 p-6" data-testid="partner-recaps">
+          <p className="font-semibold text-chalk">{t.recaps}</p>
+          <p className="-mt-1 text-xs text-fog">{t.recapsNote}</p>
+          {p.events!.map((e) => (
+            <div key={`${e.title}-${e.at}`} className="grid gap-1 rounded-xl border border-[var(--line)] p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-medium text-chalk">{l === "ar" ? e.title : e.title_en}</span>
+                <span className="text-xs text-fog">{day(e.at)}</span>
+              </div>
+              <p className="text-sm text-mist">
+                {`${e.registered} ${t.registered} · ${e.came} ${t.attended}`}
+                {e.ratings > 0 ? ` · ★ ${e.rating} ${t.rating} (${e.ratings})` : ""}
+              </p>
+              {e.post && (
+                <a href={`${prefix}/news/${e.post}/`} className="text-xs text-cyan underline">
+                  {t.news}
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

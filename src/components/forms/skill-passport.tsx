@@ -5,6 +5,7 @@
  * simulator, Academy courses completed, published projects — and nothing private. Data:
  * passport_public (rate-limited; only passports their owner turned on).
  */
+import { lookOf, Medal, TIER_LABELS, TRACK_NAMES } from "@/components/brand/medal";
 import { useEffect, useState } from "react";
 import { Icon } from "@/components/brand/icons";
 import { cn } from "@/lib/cn";
@@ -12,7 +13,14 @@ import { CHALLENGE_INFO, type Skill } from "@/lab/academy/points";
 import { SUPABASE_KEY, SUPABASE_URL } from "@/lib/supabase-public";
 import { timeoutSignal } from "@/lib/timeout";
 
-type Cert = { code: string; kind: string; title: string; title_ar: string | null; hours: number | null; on: string };
+type Cert = {
+  code: string;
+  kind: string;
+  title: string;
+  title_ar: string | null;
+  hours: number | null;
+  on: string;
+};
 type Passport = {
   name: string;
   group: string | null;
@@ -23,6 +31,7 @@ type Passport = {
   courses: { title: string; title_en: string | null; lessons: number }[];
   projects: { title: string; description: string; url: string | null }[];
   numbers: { sessions: number; quizzes: number; tasks: number };
+  badges?: { key: string; tier: number; th: number[] }[];
 };
 
 const T = {
@@ -33,7 +42,10 @@ const T = {
     network: "Couldn't load it right now. Try again.",
     since: "Member since",
     verified: "Everything here comes from BuildX HUE's records — nothing is typed in by the student.",
-    skills: { programming: "Programming", electronics: "Electronics", robotics: "Robotics" } as Record<Skill, string>,
+    skills: { programming: "Programming", electronics: "Electronics", robotics: "Robotics" } as Record<
+      Skill,
+      string
+    >,
     certs: "Certificates",
     verify: "Verify",
     hours: "h",
@@ -43,6 +55,11 @@ const T = {
     lessons: "lessons",
     projects: "Projects published",
     numbers: "Activity",
+    badges: "Badges earned",
+    badgesNote: "Worked out by themselves from attendance, quizzes, tasks and work — four levels each.",
+    share: "Add to LinkedIn",
+    copy: "Copy link",
+    copied: "Copied ✓",
     sessions: "sessions attended",
     quizzes: "quizzes passed",
     tasks: "graded tasks",
@@ -65,6 +82,11 @@ const T = {
     lessons: "درس",
     projects: "مشاريع اتنشرت",
     numbers: "النشاط",
+    badges: "الشارات",
+    badgesNote: "بتتحسب لوحدها من الحضور والكويزات والتاسكات والشغل — كل شارة ليها ٤ مستويات.",
+    share: "ضيفه على LinkedIn",
+    copy: "انسخ اللينك",
+    copied: "اتنسخ ✓",
     sessions: "سيشن حضرها",
     quizzes: "كويز نجح فيه",
     tasks: "تاسك اتقيّم",
@@ -77,9 +99,21 @@ export function SkillPassport({ locale }: { locale: string }) {
   const t = T[l];
   const [state, setState] = useState<"loading" | "none" | "limited" | "network" | "ok">("loading");
   const [p, setP] = useState<Passport | null>(null);
+  const [copied, setCopied] = useState(false);
+  // The page's own address, read after it opens (the static HTML has no location).
+  const [here, setHere] = useState("");
+  useEffect(() => setHere(location.href), []);
   const prefix = l === "ar" ? "/ar" : "";
-  const day = (iso: string) => new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
-  const month = (ym: string) => new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { month: "long", year: "numeric" }).format(new Date(`${ym}-15T12:00:00`));
+  const day = (iso: string) =>
+    new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${iso.slice(0, 10)}T12:00:00`));
+  const month = (ym: string) =>
+    new Intl.DateTimeFormat(l === "ar" ? "ar-EG" : "en-GB", { month: "long", year: "numeric" }).format(
+      new Date(`${ym}-15T12:00:00`),
+    );
 
   useEffect(() => {
     const id = new URLSearchParams(location.search).get("id") ?? "";
@@ -91,7 +125,8 @@ export function SkillPassport({ locale }: { locale: string }) {
       signal: timeoutSignal(10_000),
     })
       .then(async (r) => {
-        const out = (await r.json().catch(() => null)) as ({ ok: true; found: boolean } & Passport) | { ok: false } | null;
+        const out = (await r.json().catch(() => null)) as
+          ({ ok: true; found: boolean } & Passport) | { ok: false } | null;
         if (!r.ok || !out) return setState("network");
         if (!out.ok) return setState("limited");
         if (!out.found) return setState("none");
@@ -103,13 +138,19 @@ export function SkillPassport({ locale }: { locale: string }) {
 
   if (state !== "ok" || !p)
     return (
-      <p role="status" className={cn("frame p-6 text-center", state === "loading" ? "text-mist" : "text-danger")} data-testid="passport-state">
+      <p
+        role="status"
+        className={cn("frame p-6 text-center", state === "loading" ? "text-mist" : "text-danger")}
+        data-testid="passport-state"
+      >
         {state === "loading" || state === "ok" ? t.loading : t[state]}
       </p>
     );
 
   const known = p.challenges.filter((c) => CHALLENGE_INFO[c.slug]);
-  const bySkill = (Object.keys(t.skills) as Skill[]).map((s) => ({ s, n: known.filter((c) => CHALLENGE_INFO[c.slug].skill === s).length })).filter((x) => x.n > 0);
+  const bySkill = (Object.keys(t.skills) as Skill[])
+    .map((s) => ({ s, n: known.filter((c) => CHALLENGE_INFO[c.slug].skill === s).length }))
+    .filter((x) => x.n > 0);
   const section = (title: string, children: React.ReactNode, note?: string) => (
     <section className="frame grid gap-3 p-6">
       <h2 className="text-lg font-bold text-chalk">{title}</h2>
@@ -130,7 +171,10 @@ export function SkillPassport({ locale }: { locale: string }) {
         {bySkill.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {bySkill.map((x) => (
-              <span key={x.s} className="rounded-full border border-cyan/40 bg-cyan/10 px-3 py-1 text-sm text-cyan">
+              <span
+                key={x.s}
+                className="rounded-full border border-cyan/40 bg-cyan/10 px-3 py-1 text-sm text-cyan"
+              >
                 {t.skills[x.s]} · {x.n}
               </span>
             ))}
@@ -139,21 +183,71 @@ export function SkillPassport({ locale }: { locale: string }) {
         <p className="flex items-center gap-2 text-xs text-fog">
           <Icon name="shield" size={14} /> {t.verified}
         </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(here)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#0a66c2] px-4 text-sm font-semibold text-white"
+            data-testid="passport-linkedin"
+          >
+            {t.share}
+          </a>
+          <button
+            type="button"
+            className="inline-flex h-10 items-center rounded-xl border border-[var(--line-2)] px-4 text-sm font-semibold text-chalk"
+            onClick={() =>
+              navigator.clipboard?.writeText(location.href).then(
+                () => setCopied(true),
+                () => undefined,
+              )
+            }
+          >
+            {copied ? t.copied : t.copy}
+          </button>
+        </div>
       </header>
+
+      {(p.badges?.length ?? 0) > 0 &&
+        section(
+          t.badges,
+          <ul className="flex flex-wrap gap-3" data-testid="passport-badges">
+            {p.badges!.map((b) => {
+              const look = lookOf(b);
+              return (
+                <li key={b.key} className="flex w-24 flex-col items-center gap-1 text-center">
+                  <Medal k={b.key} look={look} size={60} />
+                  <span className="text-xs font-semibold text-chalk">{TRACK_NAMES[b.key]?.[l] ?? b.key}</span>
+                  <span className="text-[11px] text-fog">{TIER_LABELS[l][look]}</span>
+                </li>
+              );
+            })}
+          </ul>,
+          t.badgesNote,
+        )}
 
       {section(
         t.certs,
         p.certificates.length ? (
           <ul className="grid gap-2">
             {p.certificates.map((c) => (
-              <li key={c.code} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[var(--line)] p-3">
+              <li
+                key={c.code}
+                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-[var(--line)] p-3"
+              >
                 <Icon name="award" size={18} className="text-gold" />
-                <span className="min-w-0 flex-1 font-medium text-chalk">{(l === "ar" && c.title_ar) || c.title}</span>
+                <span className="min-w-0 flex-1 font-medium text-chalk">
+                  {(l === "ar" && c.title_ar) || c.title}
+                </span>
                 <span className="text-sm text-fog">
                   {day(c.on)}
                   {c.hours ? ` · ${c.hours} ${t.hours}` : ""}
                 </span>
-                <a href={`${prefix}/verify/?c=${encodeURIComponent(c.code)}`} className="font-mono text-xs text-cyan underline" dir="ltr">
+                <a
+                  href={`${prefix}/verify/?c=${encodeURIComponent(c.code)}`}
+                  className="font-mono text-xs text-cyan underline"
+                  dir="ltr"
+                >
                   {t.verify} {c.code}
                 </a>
               </li>
@@ -169,7 +263,10 @@ export function SkillPassport({ locale }: { locale: string }) {
           t.challenges,
           <ul className="grid gap-2 sm:grid-cols-2" data-testid="passport-challenges">
             {known.map((c) => (
-              <li key={c.slug} className="flex items-center gap-2 rounded-xl border border-[var(--line)] p-3 text-sm">
+              <li
+                key={c.slug}
+                className="flex items-center gap-2 rounded-xl border border-[var(--line)] p-3 text-sm"
+              >
                 <Icon name="check" size={16} className="text-ok" />
                 <span className="min-w-0 flex-1 text-chalk">{CHALLENGE_INFO[c.slug].title[l]}</span>
                 <span className="text-fog">{day(c.on)}</span>
@@ -203,7 +300,12 @@ export function SkillPassport({ locale }: { locale: string }) {
               <li key={i} className="grid gap-1">
                 <span className="font-medium text-chalk">
                   {x.url ? (
-                    <a href={x.url} target="_blank" rel="noopener noreferrer nofollow" className="underline decoration-cyan/50">
+                    <a
+                      href={x.url}
+                      target="_blank"
+                      rel="noopener noreferrer nofollow"
+                      className="underline decoration-cyan/50"
+                    >
                       {x.title}
                     </a>
                   ) : (

@@ -122,8 +122,14 @@ test("home warns the owner about an attack and the security screen blocks an add
   await signInAsOwner(page, calls);
   await page.goto("/app/#/staff");
   await expect(page.getByText("هجوم محتمل دلوقتي")).toBeVisible();
+  RPC.staff_uptime_times = { median: 900, p90: 5200, slow: 4, checks: 140 };
   await page.goto("/app/#/staff/security");
   await expect(page.getByText("203.0.113.9").first()).toBeVisible();
+  // How fast the site answered (timed every 10 minutes).
+  await expect(page.getByTestId("speed-card")).toContainText(
+    "عادةً 0.9 ث، وأبطأ مرات 5.2 ث · 4 فحص بطيء من 140",
+  );
+  delete RPC.staff_uptime_times;
   await page.getByRole("button", { name: "احظر" }).first().click();
   await page.locator('[role="dialog"] button', { hasText: "احظر" }).last().click();
   await expect
@@ -824,6 +830,75 @@ test("a portfolio photo from the phone is compressed and uploaded with its thumb
   await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
   expect(uploads.map((u) => u.path.replace(/[0-9a-f-]{36}/, "ID"))).toEqual(["u1/ID.w.webp", "u1/ID.t.webp"]);
   expect(uploads.every((u) => u.type === "image/webp")).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test("a photo refused because the sign-in token ran out is sent again with a fresh token", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await signInAsOwner(page);
+  let refreshed = 0;
+  await page.route(/\/auth\/v1\/token\?grant_type=refresh_token/, (route) => {
+    refreshed += 1;
+    return route.fulfill({
+      json: {
+        access_token: jwt,
+        refresh_token: "r2",
+        token_type: "bearer",
+        expires_in: 3600,
+        expires_at: 4102444800,
+        user: { id: "u1", email: "owner@example.com", aud: "authenticated", role: "authenticated" },
+      },
+    });
+  });
+  const tries: string[] = [];
+  await page.route(/\/storage\/v1\/object\/team\//, async (route) => {
+    tries.push(new URL(route.request().url()).pathname);
+    // The first try is refused the way storage refuses an expired token.
+    if (tries.length === 1)
+      return route.fulfill({
+        status: 403,
+        json: {
+          statusCode: "403",
+          error: "Unauthorized",
+          message: "new row violates row-level security policy",
+        },
+      });
+    return route.fulfill({ json: { Key: "ok" } });
+  });
+  await page.route(/\/rest\/v1\/team_profiles/, (route) => {
+    const row = {
+      id: "p1",
+      user_id: "u1",
+      slug: "owner-test",
+      full_name: "Owner Test",
+      full_name_ar: null,
+      headline: "",
+      headline_ar: null,
+      bio: "",
+      bio_ar: null,
+      group_kind: "founder",
+      track: null,
+      photo_path: null,
+      skills: [],
+      links: {},
+      external_url: null,
+      published: false,
+      sort_order: 0,
+    };
+    const single = (route.request().headers().accept ?? "").includes("vnd.pgrst.object");
+    return route.fulfill({ json: single ? row : [row] });
+  });
+  await page.route(/\/rest\/v1\/team_projects/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/app/#/staff/portfolio");
+  await page.locator('input[type="file"]').first().setInputFiles("public/brand/icon-512.png");
+  await expect(page.getByText("اتغيّرت الصورة")).toBeVisible();
+  expect(refreshed).toBe(1);
+  // The photo was tried twice (refused, then sent with the new token), then its thumbnail once.
+  expect(tries).toHaveLength(3);
+  expect(tries[0]).toBe(tries[1]);
   expect(errors).toEqual([]);
 });
 
@@ -9605,6 +9680,10 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
     courses: [],
     projects: [],
     numbers: { sessions: 9, quizzes: 3, tasks: 2 },
+    badges: [
+      { key: "attend", tier: 1, th: [1, 10, 25, 50] },
+      { key: "course", tier: 1, th: [100] },
+    ],
   };
   let pass = { slug, visible: false, full_name: false, show_group: false, headline: "", preview: data };
   const saved: Record<string, unknown>[] = [];
@@ -9656,6 +9735,15 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
     "/verify/?c=BXC-1A2B3C4D",
   );
   await expect(page.getByTestId("passport-page")).not.toContainText("S1");
+  // The badges and the LinkedIn share.
+  await expect(page.getByTestId("passport-badges")).toContainText("Attendance");
+  await expect(page.getByTestId("passport-badges")).toContainText("Bronze");
+  await expect(page.getByTestId("passport-badges")).toContainText("Course finisher");
+  await expect(page.getByTestId("passport-badges")).toContainText("Gold");
+  await expect(page.getByTestId("passport-linkedin")).toHaveAttribute(
+    "href",
+    /linkedin\.com\/sharing\/share-offsite\/\?url=.*passport/,
+  );
   // Turned off: the page says so.
   pass = { ...pass, visible: false };
   await page.goto(`/ar/passport/?id=${slug}`);

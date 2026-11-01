@@ -2,16 +2,58 @@
 /** Staff dashboards for the website itself: security (attacks and responses), visits, and browser errors. */
 import { useState } from "react";
 import { can, errorText, fmt, rpc, type StaffRow } from "./core";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Icon, Input, List, Loading, Section, Sheet, Stat, TopBar, confirmDialog, copyText, go, toast, useAsync, type IconKey } from "./ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Empty,
+  ErrorBox,
+  Icon,
+  Input,
+  List,
+  Loading,
+  Section,
+  Sheet,
+  Stat,
+  TopBar,
+  confirmDialog,
+  copyText,
+  go,
+  toast,
+  useAsync,
+  type IconKey,
+} from "./ui";
 
 /* ─── Shared ───────────────────────────────────────────────────────────── */
 
 export type Pulse = { level: "ok" | "elevated" | "attack"; last_hour: Record<string, number>; at: string };
 
-export const PULSE_LOOK: Record<Pulse["level"], { title: string; body: string; tone: "ok" | "warn" | "danger"; icon: IconKey; cls: string }> = {
-  ok: { title: "كل حاجة هادية", body: "مفيش نشاط مريب في آخر ساعة.", tone: "ok", icon: "checkCircle", cls: "border-ok/30 bg-ok/[0.06] text-ok" },
-  elevated: { title: "نشاط مريب", body: "فيه محاولات اتمنعت في آخر ساعة. راجع الأحداث تحت.", tone: "warn", icon: "alert", cls: "border-warn/40 bg-warn/[0.07] text-warn" },
-  attack: { title: "هجوم محتمل دلوقتي", body: "عدد كبير من المحاولات المرفوضة. احظر العناوين اللي ورا الهجوم، ولو لزم اقفل التقديم مؤقتًا.", tone: "danger", icon: "alert", cls: "border-danger/50 bg-danger/[0.08] text-danger" },
+export const PULSE_LOOK: Record<
+  Pulse["level"],
+  { title: string; body: string; tone: "ok" | "warn" | "danger"; icon: IconKey; cls: string }
+> = {
+  ok: {
+    title: "كل حاجة هادية",
+    body: "مفيش نشاط مريب في آخر ساعة.",
+    tone: "ok",
+    icon: "checkCircle",
+    cls: "border-ok/30 bg-ok/[0.06] text-ok",
+  },
+  elevated: {
+    title: "نشاط مريب",
+    body: "فيه محاولات اتمنعت في آخر ساعة. راجع الأحداث تحت.",
+    tone: "warn",
+    icon: "alert",
+    cls: "border-warn/40 bg-warn/[0.07] text-warn",
+  },
+  attack: {
+    title: "هجوم محتمل دلوقتي",
+    body: "عدد كبير من المحاولات المرفوضة. احظر العناوين اللي ورا الهجوم، ولو لزم اقفل التقديم مؤقتًا.",
+    tone: "danger",
+    icon: "alert",
+    cls: "border-danger/50 bg-danger/[0.08] text-danger",
+  },
 };
 
 const KIND: Record<string, string> = {
@@ -24,10 +66,24 @@ const KIND: Record<string, string> = {
   pin_change_failed: "محاولة تغيير رمز بالرمز الغلط",
   auto_blocked: "عنوان اتحظر لوحده (هجوم متكرر)",
 };
-const BUCKET: Record<string, string> = { apply: "التقديم", login: "دخول الطلاب", pin_change: "تغيير الرمز", view: "زيارات الموقع", client_error: "تقارير الأخطاء" };
+const BUCKET: Record<string, string> = {
+  apply: "التقديم",
+  login: "دخول الطلاب",
+  pin_change: "تغيير الرمز",
+  view: "زيارات الموقع",
+  client_error: "تقارير الأخطاء",
+};
 const SEVERITY_TONE = { 1: "muted", 2: "warn", 3: "danger" } as const;
 
-function Period({ value, onChange, options }: { value: number; onChange: (v: number) => void; options: [number, string][] }) {
+function Period({
+  value,
+  onChange,
+  options,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  options: [number, string][];
+}) {
   return (
     <div className="mb-4 flex flex-wrap gap-2">
       {options.map(([v, l]) => (
@@ -41,7 +97,14 @@ function Period({ value, onChange, options }: { value: number; onChange: (v: num
 
 /* ─── Security ─────────────────────────────────────────────────────────── */
 
-type SecEvent = { id: number; at: string; kind: string; severity: 1 | 2 | 3; ip: string | null; detail: Record<string, unknown> };
+type SecEvent = {
+  id: number;
+  at: string;
+  kind: string;
+  severity: 1 | 2 | 3;
+  ip: string | null;
+  detail: Record<string, unknown>;
+};
 type Overview = {
   pulse: Pulse;
   counts: Record<string, number>;
@@ -53,8 +116,12 @@ type Overview = {
 
 function eventDetail(e: SecEvent) {
   const d = e.detail ?? {};
-  if (e.kind === "rate_limited" || e.kind === "blocked_ip") return BUCKET[String(d.bucket)] ?? String(d.bucket ?? "");
-  if (e.kind === "account_locked" || e.kind === "login_failed") return d.code ? `كود ${String(d.code)}${d.attempts ? ` · محاولة ${String(d.attempts)}` : ""}` : "كود مش موجود";
+  if (e.kind === "rate_limited" || e.kind === "blocked_ip")
+    return BUCKET[String(d.bucket)] ?? String(d.bucket ?? "");
+  if (e.kind === "account_locked" || e.kind === "login_failed")
+    return d.code
+      ? `كود ${String(d.code)}${d.attempts ? ` · محاولة ${String(d.attempts)}` : ""}`
+      : "كود مش موجود";
   if (e.kind === "apply_flood") return `${String(d.last_minute ?? "")} طلب في دقيقة`;
   if (e.kind === "auto_blocked") return `${String(d.hours ?? "")} ساعة`;
   return "";
@@ -63,7 +130,10 @@ function eventDetail(e: SecEvent) {
 export function SecurityScreen({ me }: { me: StaffRow }) {
   const [hours, setHours] = useState(24);
   const [blocking, setBlocking] = useState<string | null>(null);
-  const { data, error, loading, reload } = useAsync(() => rpc<Overview>("staff_security_overview", { p_hours: hours }), [hours]);
+  const { data, error, loading, reload } = useAsync(
+    () => rpc<Overview>("staff_security_overview", { p_hours: hours }),
+    [hours],
+  );
   const admin = can(me, "security");
 
   const unblock = async (ip: string) => {
@@ -97,8 +167,21 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
   const look = data ? PULSE_LOOK[data.pulse.level] : null;
   return (
     <>
-      <TopBar title="الأمان والهجمات" sub="مراقبة الموقع والتطبيق والرد على أي هجوم" back="/staff/more" actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />} />
-      <Period value={hours} onChange={setHours} options={[[24, "آخر 24 ساعة"], [24 * 7, "آخر أسبوع"], [24 * 30, "آخر شهر"]]} />
+      <TopBar
+        title="الأمان والهجمات"
+        sub="مراقبة الموقع والتطبيق والرد على أي هجوم"
+        back="/staff/more"
+        actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />}
+      />
+      <Period
+        value={hours}
+        onChange={setHours}
+        options={[
+          [24, "آخر 24 ساعة"],
+          [24 * 7, "آخر أسبوع"],
+          [24 * 30, "آخر شهر"],
+        ]}
+      />
       {loading && !data ? (
         <Loading />
       ) : error ? (
@@ -113,17 +196,34 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
             </div>
           </Card>
           {data.pulse.level === "attack" && (
-            <Button className="mt-3" block variant="danger" icon="lock" onClick={() => go("/staff/applications")}>
+            <Button
+              className="mt-3"
+              block
+              variant="danger"
+              icon="lock"
+              onClick={() => go("/staff/applications")}
+            >
               اقفل التقديم مؤقتًا
             </Button>
           )}
 
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Stat label="طلبات اتمنعت" value={data.counts.rate_limited ?? 0} tone={data.counts.rate_limited ? "warn" : undefined} icon="shield" />
+            <Stat
+              label="طلبات اتمنعت"
+              value={data.counts.rate_limited ?? 0}
+              tone={data.counts.rate_limited ? "warn" : undefined}
+              icon="shield"
+            />
             <Stat label="بوتات اتمسكت" value={data.counts.honeypot ?? 0} icon="alert" />
             <Stat label="دخول غلط" value={data.counts.login_failed ?? 0} icon="key" />
-            <Stat label="عناوين محظورة" value={data.blocked.length} tone={data.blocked.length ? "info" : undefined} icon="lock" />
+            <Stat
+              label="عناوين محظورة"
+              value={data.blocked.length}
+              tone={data.blocked.length ? "info" : undefined}
+              icon="lock"
+            />
           </div>
+          <SpeedCard />
 
           {data.locked_students.length > 0 && (
             <Section title="حسابات طلاب مقفولة مؤقتًا">
@@ -142,7 +242,9 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
                   </div>
                 ))}
               </List>
-              <p className="mt-2 text-xs text-fog">افتح الحساب بس لو اتأكدت إن الطالب نفسه هو اللي نسي الرمز.</p>
+              <p className="mt-2 text-xs text-fog">
+                افتح الحساب بس لو اتأكدت إن الطالب نفسه هو اللي نسي الرمز.
+              </p>
             </Section>
           )}
 
@@ -154,17 +256,27 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
                   return (
                     <div key={t.ip} className="flex items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
-                        <button type="button" className="font-mono text-sm text-chalk" dir="ltr" onClick={() => copyText(t.ip)}>
+                        <button
+                          type="button"
+                          className="font-mono text-sm text-chalk"
+                          dir="ltr"
+                          onClick={() => copyText(t.ip)}
+                        >
                           {t.ip}
                         </button>
                         <p className="truncate text-xs text-fog">
-                          {t.events} حدث · {t.kinds.map((k) => KIND[k]?.split(" (")[0] ?? k).join("، ")} · آخر مرة {fmt.dateTime(t.last)}
+                          {t.events} حدث · {t.kinds.map((k) => KIND[k]?.split(" (")[0] ?? k).join("، ")} · آخر
+                          مرة {fmt.dateTime(t.last)}
                         </p>
                       </div>
                       {blocked ? (
                         <Badge tone="info">محظور</Badge>
                       ) : (
-                        <Button size="sm" variant={t.worst >= 2 ? "danger" : "secondary"} onClick={() => setBlocking(t.ip)}>
+                        <Button
+                          size="sm"
+                          variant={t.worst >= 2 ? "danger" : "secondary"}
+                          onClick={() => setBlocking(t.ip)}
+                        >
                           احظر
                         </Button>
                       )}
@@ -177,7 +289,14 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
             )}
           </Section>
 
-          <Section title="العناوين المحظورة" action={<Button size="sm" variant="ghost" icon="plus" onClick={() => setBlocking("")}>حظر عنوان</Button>}>
+          <Section
+            title="العناوين المحظورة"
+            action={
+              <Button size="sm" variant="ghost" icon="plus" onClick={() => setBlocking("")}>
+                حظر عنوان
+              </Button>
+            }
+          >
             {data.blocked.length ? (
               <List>
                 {data.blocked.map((b) => (
@@ -207,7 +326,9 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
                 {data.events.slice(0, 100).map((e) => (
                   <div key={e.id} className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <Badge tone={SEVERITY_TONE[e.severity]}>{e.severity === 3 ? "خطير" : e.severity === 2 ? "تحذير" : "معلومة"}</Badge>
+                      <Badge tone={SEVERITY_TONE[e.severity]}>
+                        {e.severity === 3 ? "خطير" : e.severity === 2 ? "تحذير" : "معلومة"}
+                      </Badge>
                       <p className="min-w-0 flex-1 truncate text-sm text-chalk">{KIND[e.kind] ?? e.kind}</p>
                     </div>
                     <p className="mt-1 text-xs text-fog">
@@ -226,7 +347,11 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
                 ))}
               </List>
             ) : (
-              <Empty icon="checkCircle" title="مفيش أحداث في الفترة دي" body="أي محاولة تخمين أو سبام أو ضغط على الموقع هتظهر هنا." />
+              <Empty
+                icon="checkCircle"
+                title="مفيش أحداث في الفترة دي"
+                body="أي محاولة تخمين أو سبام أو ضغط على الموقع هتظهر هنا."
+              />
             )}
           </Section>
 
@@ -234,8 +359,12 @@ export function SecurityScreen({ me }: { me: StaffRow }) {
             <p className="mb-1 font-semibold text-chalk">الحماية اللي شغالة لوحدها</p>
             <ul className="list-disc ps-5">
               <li>استمارة التقديم: 5 طلبات في الساعة لكل شبكة، وفخ للبوتات، وحد أقصى للطلبات في الدقيقة.</li>
-              <li>دخول الطلاب: قفل الحساب بعد 5 محاولات غلط (والمدة بتزيد)، و30 محاولة كل ربع ساعة لكل شبكة.</li>
-              <li>الموقع: سياسة أمان بتمنع تشغيل سكريبتات من برّه، وكل البيانات محمية بصلاحيات على مستوى الصف.</li>
+              <li>
+                دخول الطلاب: قفل الحساب بعد 5 محاولات غلط (والمدة بتزيد)، و30 محاولة كل ربع ساعة لكل شبكة.
+              </li>
+              <li>
+                الموقع: سياسة أمان بتمنع تشغيل سكريبتات من برّه، وكل البيانات محمية بصلاحيات على مستوى الصف.
+              </li>
               <li>مراقبة كل ساعة من GitHub: لو حصل هجوم أو الموقع وقع بيتفتح تنبيه ويوصلك على الإيميل.</li>
             </ul>
           </Card>
@@ -276,17 +405,38 @@ function BlockSheet({ ip, onClose, onDone }: { ip: string | null; onClose: () =>
             {ip}
           </p>
         ) : (
-          <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="مثال: 203.0.113.9" dir="ltr" inputMode="decimal" />
+          <Input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="مثال: 203.0.113.9"
+            dir="ltr"
+            inputMode="decimal"
+          />
         )}
         <div className="flex flex-wrap gap-2">
-          {([[1, "ساعة"], [24, "يوم"], [24 * 7, "أسبوع"], [0, "دايم"]] as [number, string][]).map(([h, l]) => (
+          {(
+            [
+              [1, "ساعة"],
+              [24, "يوم"],
+              [24 * 7, "أسبوع"],
+              [0, "دايم"],
+            ] as [number, string][]
+          ).map(([h, l]) => (
             <Chip key={h} active={hours === h} onClick={() => setHours(h)}>
               {l}
             </Chip>
           ))}
         </div>
-        <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="السبب (اختياري)" maxLength={200} />
-        <p className="text-xs leading-relaxed text-fog">العنوان المحظور مش هيقدر يقدّم أو يدخل كطالب. خلي بالك: شبكة الجامعة أو الكافيه ممكن تجمع ناس كتير على نفس العنوان.</p>
+        <Input
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="السبب (اختياري)"
+          maxLength={200}
+        />
+        <p className="text-xs leading-relaxed text-fog">
+          العنوان المحظور مش هيقدر يقدّم أو يدخل كطالب. خلي بالك: شبكة الجامعة أو الكافيه ممكن تجمع ناس كتير
+          على نفس العنوان.
+        </p>
         <Button variant="danger" block loading={busy} disabled={!target.trim()} onClick={save}>
           احظر
         </Button>
@@ -326,7 +476,8 @@ function DailyBars({ daily, from, days }: { daily: SiteStats["daily"]; from: str
   });
   const max = Math.max(1, ...series.map((d) => d.views));
   const cur = hover !== null ? series[hover] : null;
-  const label = (d: { day: string; views: number; visitors: number }) => `${fmt.day(`${d.day}T12:00:00`)}: ${d.views} زيارة، ${d.visitors} زائر`;
+  const label = (d: { day: string; views: number; visitors: number }) =>
+    `${fmt.day(`${d.day}T12:00:00`)}: ${d.views} زيارة، ${d.visitors} زائر`;
   return (
     <Card>
       <div className="mb-3 flex items-baseline justify-between gap-3">
@@ -335,7 +486,11 @@ function DailyBars({ daily, from, days }: { daily: SiteStats["daily"]; from: str
           {cur ? label(cur) : `أعلى يوم: ${max} زيارة`}
         </p>
       </div>
-      <div className="flex h-36 items-end gap-[2px] border-b border-[var(--line)]" dir="ltr" onPointerLeave={() => setHover(null)}>
+      <div
+        className="flex h-36 items-end gap-[2px] border-b border-[var(--line)]"
+        dir="ltr"
+        onPointerLeave={() => setHover(null)}
+      >
         {series.map((d, i) => (
           <button
             key={d.day}
@@ -385,7 +540,10 @@ function Ranked({ title, rows, total }: { title: string; rows: [React.ReactNode,
                 <span className="min-w-0 flex-1 truncate text-mist">{k}</span>
                 <span className="font-mono text-chalk">{n}</span>
               </div>
-              <span className="h-1 rounded-full bg-volt/70" style={{ width: `${Math.max(3, (n / Math.max(1, total)) * 100)}%` }} />
+              <span
+                className="h-1 rounded-full bg-volt/70"
+                style={{ width: `${Math.max(3, (n / Math.max(1, total)) * 100)}%` }}
+              />
             </li>
           ))}
         </ul>
@@ -398,12 +556,28 @@ function Ranked({ title, rows, total }: { title: string; rows: [React.ReactNode,
 
 export function SiteStatsScreen() {
   const [days, setDays] = useState(30);
-  const { data, error, loading, reload } = useAsync(() => rpc<SiteStats>("staff_site_stats", { p_days: days }), [days]);
+  const { data, error, loading, reload } = useAsync(
+    () => rpc<SiteStats>("staff_site_stats", { p_days: days }),
+    [days],
+  );
   const entries = (o: Record<string, number>) => Object.entries(o).sort((a, b) => b[1] - a[1]);
   return (
     <>
-      <TopBar title="زيارات الموقع" sub="عدد من غير كوكيز ومن غير ما نحفظ بيانات الزوار" back="/staff/more" actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />} />
-      <Period value={days} onChange={setDays} options={[[7, "7 أيام"], [30, "30 يوم"], [90, "3 شهور"]]} />
+      <TopBar
+        title="زيارات الموقع"
+        sub="عدد من غير كوكيز ومن غير ما نحفظ بيانات الزوار"
+        back="/staff/more"
+        actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />}
+      />
+      <Period
+        value={days}
+        onChange={setDays}
+        options={[
+          [7, "7 أيام"],
+          [30, "30 يوم"],
+          [90, "3 شهور"],
+        ]}
+      />
       {loading && !data ? (
         <Loading />
       ) : error ? (
@@ -413,8 +587,16 @@ export function SiteStatsScreen() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat label="زيارة" value={data.totals.views} icon="chart" />
             <Stat label="زائر" value={data.totals.visitors} icon="users" />
-            <Stat label="موبايل" value={`${Math.round(((data.devices.mobile ?? 0) / Math.max(1, data.totals.views)) * 100)}%`} icon="install" />
-            <Stat label="بالعربي" value={`${Math.round(((data.locales.ar ?? 0) / Math.max(1, data.totals.views)) * 100)}%`} icon="globe" />
+            <Stat
+              label="موبايل"
+              value={`${Math.round(((data.devices.mobile ?? 0) / Math.max(1, data.totals.views)) * 100)}%`}
+              icon="install"
+            />
+            <Stat
+              label="بالعربي"
+              value={`${Math.round(((data.locales.ar ?? 0) / Math.max(1, data.totals.views)) * 100)}%`}
+              icon="globe"
+            />
           </div>
           <DailyBars daily={data.daily} from={data.from} days={days} />
           <div className="grid gap-3 sm:grid-cols-2">
@@ -432,11 +614,36 @@ export function SiteStatsScreen() {
                 ];
               })}
             />
-            <Ranked title="جايين منين" total={data.referrers[0]?.views ?? 1} rows={data.referrers.map((r) => [<span key={r.host} dir="ltr">{r.host}</span>, r.views])} />
-            <Ranked title="الأجهزة" total={data.totals.views} rows={entries(data.devices).map(([k, n]) => [DEVICE[k] ?? k, n])} />
-            <Ranked title="الدول" total={data.totals.views} rows={entries(data.countries).slice(0, 8).map(([k, n]) => [k === "??" ? "غير معروف" : (new Intl.DisplayNames(["ar"], { type: "region" }).of(k) ?? k), n])} />
+            <Ranked
+              title="جايين منين"
+              total={data.referrers[0]?.views ?? 1}
+              rows={data.referrers.map((r) => [
+                <span key={r.host} dir="ltr">
+                  {r.host}
+                </span>,
+                r.views,
+              ])}
+            />
+            <Ranked
+              title="الأجهزة"
+              total={data.totals.views}
+              rows={entries(data.devices).map(([k, n]) => [DEVICE[k] ?? k, n])}
+            />
+            <Ranked
+              title="الدول"
+              total={data.totals.views}
+              rows={entries(data.countries)
+                .slice(0, 8)
+                .map(([k, n]) => [
+                  k === "??" ? "غير معروف" : (new Intl.DisplayNames(["ar"], { type: "region" }).of(k) ?? k),
+                  n,
+                ])}
+            />
           </div>
-          <p className="text-xs leading-relaxed text-fog">الزوار بيتعدّوا بكود بيتغير كل يوم ومينفعش يرجع لأي شخص، ومحدش بيتعدّ لو مفعّل &quot;Do Not Track&quot;. البوتات ومحركات البحث مش محسوبة.</p>
+          <p className="text-xs leading-relaxed text-fog">
+            الزوار بيتعدّوا بكود بيتغير كل يوم ومينفعش يرجع لأي شخص، ومحدش بيتعدّ لو مفعّل &quot;Do Not
+            Track&quot;. البوتات ومحركات البحث مش محسوبة.
+          </p>
         </div>
       ) : null}
     </>
@@ -445,18 +652,44 @@ export function SiteStatsScreen() {
 
 /* ─── Browser errors ───────────────────────────────────────────────────── */
 
-type ClientError = { id: number; message: string; source: string | null; path: string | null; browser: string | null; count: number; first_at: string; last_at: string };
+type ClientError = {
+  id: number;
+  message: string;
+  source: string | null;
+  path: string | null;
+  browser: string | null;
+  count: number;
+  first_at: string;
+  last_at: string;
+};
 
 const browserName = (ua: string | null) => {
   if (!ua) return "";
   const m = ua.match(/(Edg|OPR|SamsungBrowser|Firefox|CriOS|Chrome|Version)\/[\d.]+/);
-  const os = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "macOS" : "";
-  const b = m ? m[1].replace("Version", "Safari").replace("CriOS", "Chrome").replace("Edg", "Edge").replace("OPR", "Opera") : "";
+  const os = /iPhone|iPad/.test(ua)
+    ? "iOS"
+    : /Android/.test(ua)
+      ? "Android"
+      : /Windows/.test(ua)
+        ? "Windows"
+        : /Mac OS/.test(ua)
+          ? "macOS"
+          : "";
+  const b = m
+    ? m[1]
+        .replace("Version", "Safari")
+        .replace("CriOS", "Chrome")
+        .replace("Edg", "Edge")
+        .replace("OPR", "Opera")
+    : "";
   return [b, os].filter(Boolean).join(" · ");
 };
 
 export function ErrorsScreen() {
-  const { data, error, loading, reload } = useAsync(() => rpc<ClientError[]>("staff_client_errors", { p_days: 30 }), []);
+  const { data, error, loading, reload } = useAsync(
+    () => rpc<ClientError[]>("staff_client_errors", { p_days: 30 }),
+    [],
+  );
   const resolve = async (id: number) => {
     try {
       await rpc("staff_resolve_client_error", { p_id: id });
@@ -468,13 +701,22 @@ export function ErrorsScreen() {
   };
   return (
     <>
-      <TopBar title="أخطاء الموقع" sub="أي خطأ بيحصل عند الزوار بيوصل هنا لوحده" back="/staff/more" actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />} />
+      <TopBar
+        title="أخطاء الموقع"
+        sub="أي خطأ بيحصل عند الزوار بيوصل هنا لوحده"
+        back="/staff/more"
+        actions={<Button size="sm" variant="ghost" icon="refresh" onClick={reload} aria-label="تحديث" />}
+      />
       {loading && !data ? (
         <Loading />
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !data?.length ? (
-        <Empty icon="checkCircle" title="مفيش أخطاء" body="آخر 30 يوم الموقع والتطبيق شغالين من غير أخطاء عند الزوار." />
+        <Empty
+          icon="checkCircle"
+          title="مفيش أخطاء"
+          body="آخر 30 يوم الموقع والتطبيق شغالين من غير أخطاء عند الزوار."
+        />
       ) : (
         <List>
           {data.map((e) => (
@@ -525,7 +767,11 @@ export function SecurityAlert() {
         <span className="font-bold">{look.title}</span>
         <span className="text-mist"> — {look.body}</span>
       </p>
-      <Button size="sm" variant={data.level === "attack" ? "danger" : "secondary"} onClick={() => go("/staff/security")}>
+      <Button
+        size="sm"
+        variant={data.level === "attack" ? "danger" : "secondary"}
+        onClick={() => go("/staff/security")}
+      >
         افتح
       </Button>
     </Card>
@@ -536,7 +782,13 @@ export function SecurityAlert() {
 
 type Usage = { db_bytes: number; buckets: { bucket: string; bytes: number; files: number }[] };
 const MB = 1024 * 1024;
-const BUCKET_LABEL: Record<string, string> = { materials: "ملفات الكورسات", submissions: "تسليمات الطلاب", site: "صور الموقع", team: "صور الفريق", backups: "النسخ الاحتياطية" };
+const BUCKET_LABEL: Record<string, string> = {
+  materials: "ملفات الكورسات",
+  submissions: "تسليمات الطلاب",
+  site: "صور الموقع",
+  team: "صور الفريق",
+  backups: "النسخ الاحتياطية",
+};
 
 function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
   const pct = Math.min(100, Math.round((used / limit) * 100));
@@ -549,7 +801,14 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
           {(used / MB).toFixed(used < 10 * MB ? 1 : 0)} / {Math.round(limit / MB)} MB · {pct}%
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-white/10" role="meter" aria-label={label} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-white/10"
+        role="meter"
+        aria-label={label}
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${Math.max(pct, 2)}%` }} />
       </div>
     </div>
@@ -569,10 +828,37 @@ export function UsageCard() {
       <Meter label="الملفات" used={files} limit={1024 * MB} />
       {data.buckets.length > 0 && (
         <p className="text-xs leading-relaxed text-fog">
-          {data.buckets.map((b) => `${BUCKET_LABEL[b.bucket] ?? b.bucket}: ${(b.bytes / MB).toFixed(1)} MB`).join(" · ")}
+          {data.buckets
+            .map((b) => `${BUCKET_LABEL[b.bucket] ?? b.bucket}: ${(b.bytes / MB).toFixed(1)} MB`)
+            .join(" · ")}
         </p>
       )}
-      {near && <p className="text-xs text-warn">قرّبت توصل للحد المجاني: امسح الملفات القديمة، وحط الفيديوهات على يوتيوب بدل ما ترفعها.</p>}
+      {near && (
+        <p className="text-xs text-warn">
+          قرّبت توصل للحد المجاني: امسح الملفات القديمة، وحط الفيديوهات على يوتيوب بدل ما ترفعها.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+type Speed = { median: number | null; p90: number | null; slow: number; checks: number };
+
+/** How fast the site answered in the last day (timed every 10 minutes; 3 slow answers in a row alert). */
+function SpeedCard() {
+  const { data } = useAsync(() => rpc<Speed>("staff_uptime_times"), []);
+  if (!data || !data.checks) return null;
+  const sec = (ms: number | null) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)} ث`);
+  const slowish = (data.p90 ?? 0) > 4000;
+  return (
+    <Card
+      className={`mt-3 flex items-center gap-3 ${slowish ? "border-warn/40" : ""}`}
+      data-testid="speed-card"
+    >
+      <Icon name={slowish ? "alert" : "check"} size={20} className={slowish ? "text-warn" : "text-ok"} />
+      <p className="min-w-0 flex-1 text-sm text-mist">
+        {`سرعة الموقع آخر 24 ساعة: عادةً ${sec(data.median)}، وأبطأ مرات ${sec(data.p90)} · ${data.slow} فحص بطيء من ${data.checks}`}
+      </p>
     </Card>
   );
 }
