@@ -27,6 +27,15 @@ const RPC: Record<string, unknown> = {
     },
   ],
   staff_set_pins: [{ id: "s1", code: "2024001", name: "Mona Adel", group: "Robotics A", pin: "482913" }],
+  staff_student_app_invite: {
+    id: "s1",
+    code: "BX1001",
+    name: "Ahmed Ali",
+    group: "G1",
+    pin: "482913",
+    email: null,
+    sent: { email: "no_email", whatsapp: "no_phone" },
+  },
   staff_push_keys_status: { web: true, android: true, ios: false, devices: { android: 7, ios: 0 } },
   staff_set_push_keys: { ok: true },
   staff_usage: {
@@ -379,7 +388,21 @@ test("a team role in the title picks its certificate design (Volunteer), and sta
 test("door check-in by a typed ticket code marks the attendee", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_check_in = { ok: true, name: "Mona Adel", status: "going", ticket: "BXT-1A2B3C4D" };
-  RPC.staff_event_hub = { event: { id: "e1", slug: "kickoff", title: "اجتماع البداية", starts_at: at(-60), ends_at: null, location: null, published: true, rsvp_open: true, capacity: 40 }, form: null, rsvp: { going: 1, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 } };
+  RPC.staff_event_hub = {
+    event: {
+      id: "e1",
+      slug: "kickoff",
+      title: "اجتماع البداية",
+      starts_at: at(-60),
+      ends_at: null,
+      location: null,
+      published: true,
+      rsvp_open: true,
+      capacity: 40,
+    },
+    form: null,
+    rsvp: { going: 1, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 },
+  };
   await signInAsOwner(page, calls);
   await page.route(/\/rest\/v1\/site_content/, (route) =>
     route.fulfill({
@@ -424,10 +447,36 @@ test("door check-in by a typed ticket code marks the attendee", async ({ page })
 
 test("an event on the quick RSVP moves to a registration form made from it", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
-  RPC.staff_event_hub = { event: { id: "e2", slug: "open-day", title: "اليوم المفتوح", starts_at: at(-600), ends_at: null, location: null, published: true, rsvp_open: true, capacity: 60 }, form: null, rsvp: { going: 0, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 } };
+  RPC.staff_event_hub = {
+    event: {
+      id: "e2",
+      slug: "open-day",
+      title: "اليوم المفتوح",
+      starts_at: at(-600),
+      ends_at: null,
+      location: null,
+      published: true,
+      rsvp_open: true,
+      capacity: 60,
+    },
+    form: null,
+    rsvp: { going: 0, waitlist: 0, cancelled: 0, inside: 0, rating: null, ratings: 0 },
+  };
   RPC.staff_event_make_form = "f9";
   await signInAsOwner(page, calls);
-  await page.route(/\/rest\/v1\/site_content/, (route) => route.fulfill({ json: { id: "e2", title: "Open day", title_ar: "اليوم المفتوح", starts_at: at(-600), capacity: 60, rsvp_open: true, published: true } }));
+  await page.route(/\/rest\/v1\/site_content/, (route) =>
+    route.fulfill({
+      json: {
+        id: "e2",
+        title: "Open day",
+        title_ar: "اليوم المفتوح",
+        starts_at: at(-600),
+        capacity: 60,
+        rsvp_open: true,
+        published: true,
+      },
+    }),
+  );
   await page.route(/\/rest\/v1\/event_registrations/, (route) => route.fulfill({ json: [] }));
   await page.goto("/app/#/staff/events/e2");
   await expect(page.getByTestId("use-form")).toBeVisible();
@@ -436,12 +485,24 @@ test("an event on the quick RSVP moves to a registration form made from it", asy
   expect(calls.find((c) => c.fn === "staff_event_make_form")?.body).toEqual({ p_event: "e2" });
 });
 
-test("an event that registers through a form: the organiser sees the funnel, payment, attendance and buses, and opens the tools from one page", async ({ page }) => {
+test("an event that registers through a form: the organiser sees the funnel, payment, attendance and buses, and opens the tools from one page", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_event_hub = {
-    event: { id: "e3", slug: "expo-trip", title: "رحلة المعرض", starts_at: at(-2000), ends_at: null, location: "القاهرة", published: true, rsvp_open: false, capacity: null },
+    event: {
+      id: "e3",
+      slug: "expo-trip",
+      title: "رحلة المعرض",
+      starts_at: at(-2000),
+      ends_at: null,
+      location: "القاهرة",
+      published: true,
+      rsvp_open: false,
+      capacity: null,
+    },
     form: {
       id: "f3",
       slug: "expo-trip",
@@ -2012,7 +2073,9 @@ test("drafts the team wrote wait at the top of the content screen for whoever pu
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
-test("content staff set the points of a lecture and the bonus a group earns for finishing the course", async ({ page }) => {
+test("content staff set the points of a lecture and the bonus a group earns for finishing the course", async ({
+  page,
+}) => {
   await signInAsOwner(page);
   const material = {
     id: "m1",
@@ -2272,6 +2335,101 @@ test("one sign-in: a student number goes to the student dashboard, an email to t
   await expect(page).toHaveURL(/#\/staff$/);
   expect(signedIn).toBe(true);
   expect(calls.filter((c) => c.fn === "student_login")).toHaveLength(1);
+});
+
+test("«add to the app» gives a student a password and sends it with their email; the WhatsApp button carries both", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const calls: { fn: string; body: unknown }[] = [];
+  RPC.staff_list_students = [
+    {
+      id: "s9",
+      code: "BX1009",
+      codeKey: "BX1009",
+      barcode: null,
+      barcodeKey: null,
+      name: "Test Student",
+      group: "G1",
+      phone: "01000000000",
+      email: null,
+      notes: null,
+      active: true,
+      createdAt: at(10),
+      hasPin: false,
+      locked: false,
+      lastLogin: null,
+    },
+  ];
+  const saved = RPC.staff_student_app_invite;
+  RPC.staff_student_app_invite = {
+    id: "s9",
+    code: "BX1009",
+    name: "Test Student",
+    group: "G1",
+    pin: "613507",
+    email: "student@example.com",
+    sent: { email: "sent", whatsapp: "template_pending" },
+  };
+  await signInAsOwner(page, calls);
+  await page.goto("/app/#/staff/students");
+  await expect(page.getByText("مش في التطبيق")).toBeVisible();
+  await page.getByText("Test Student").click();
+  await page.getByTestId("student-email").fill("Student@Example.com");
+  await page.getByTestId("app-invite").click();
+  expect(calls.find((c) => c.fn === "staff_student_app_invite")?.body).toEqual({
+    p_id: "s9",
+    p_email: "Student@Example.com",
+  });
+  const sent = page.getByTestId("invite-sent");
+  await expect(sent).toContainText("اتبعتله إيميل فيه الإيميل وكلمة السر");
+  await expect(sent).toContainText("مستنية موافقة Meta");
+  await expect(page.getByRole("dialog").getByText("613507")).toBeVisible();
+  const wa = decodeURIComponent(
+    (await page.getByRole("link", { name: "إرسال على واتساب" }).getAttribute("href")) ?? "",
+  );
+  expect(wa).toContain("الإيميل: student@example.com");
+  expect(wa).toContain("كلمة السر: 613507");
+  RPC.staff_student_app_invite = saved;
+  expect(errors).toEqual([]);
+});
+
+test("a student signs in with their email and password too", async ({ page }) => {
+  const calls: { fn: string; body: unknown }[] = [];
+  await page.route(/supabase\.co/, async (route) => {
+    const url = new URL(route.request().url());
+    const fn = url.pathname.split("/rpc/")[1];
+    if (fn) {
+      calls.push({ fn, body: route.request().postDataJSON() });
+      if (fn === "app_status") return route.fulfill({ json: { ready: true } });
+      if (fn === "student_login")
+        return route.fulfill({
+          json: { ok: true, token: "t", student: { name: "طالب تجربة", code: "BX1009", group: "تجريبي" } },
+        });
+      return route.fulfill({ json: null });
+    }
+    // Not a team account: Supabase Auth says the credentials are wrong.
+    if (url.pathname.endsWith("/auth/v1/token"))
+      return route.fulfill({
+        status: 400,
+        json: {
+          code: "invalid_credentials",
+          error_code: "invalid_credentials",
+          msg: "Invalid login credentials",
+        },
+      });
+    return route.fulfill({ json: [], headers: { "content-range": "0-0/0" } });
+  });
+  await page.goto("/app/#/login");
+  await page.getByLabel("رقم الطالب أو البريد الإلكتروني").fill("student@example.com");
+  await page.getByLabel("كلمة المرور").fill("613507");
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
+  await expect(page).toHaveURL(/#\/me$/);
+  expect(calls.find((c) => c.fn === "student_login")?.body).toEqual({
+    p_code: "student@example.com",
+    p_pin: "613507",
+  });
 });
 
 test("the owner adds the phone notification keys from the app (write-only)", async ({ page }) => {
@@ -2974,7 +3132,9 @@ test("a head gives the sector an urgent task, approves a hand-in and gives a war
   await page.getByRole("checkbox", { name: "Omar Design" }).check();
   await page.getByRole("button", { name: "ابعت التاسك" }).click();
   // The supervisor's points are saved with the task.
-  await expect.poll(() => calls.find((c) => c.fn === "staff_task_points")?.body).toEqual({ p_task: "t1", p_points: 50 });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_task_points")?.body)
+    .toEqual({ p_task: "t1", p_points: 50 });
   await expect
     .poll(() => calls.find((c) => c.fn === "staff_task_save")?.body)
     .toMatchObject({
@@ -4637,9 +4797,23 @@ test("after the visit: who didn't come gets a warning (a block if they had one),
   // The warnings, with "remove".
   let unwarned: unknown = null;
   await page.route(/\/rest\/v1\/community_strikes/, (route) =>
-    route.fulfill({ json: [{ id: "k1", name: "منى عادل", phone: "+201088888888", reason: "اتسجل في «ورشة Arduino» ومجاش", created_at: at(60), outcome: "warning" }] }),
+    route.fulfill({
+      json: [
+        {
+          id: "k1",
+          name: "منى عادل",
+          phone: "+201088888888",
+          reason: "اتسجل في «ورشة Arduino» ومجاش",
+          created_at: at(60),
+          outcome: "warning",
+        },
+      ],
+    }),
   );
-  await page.route(/\/rpc\/staff_lift_strike/, (route) => ((unwarned = route.request().postDataJSON()), route.fulfill({ json: null })));
+  await page.route(
+    /\/rpc\/staff_lift_strike/,
+    (route) => ((unwarned = route.request().postDataJSON()), route.fulfill({ json: null })),
+  );
   await page.reload();
   await page.getByRole("button", { name: /عليهم إنذار/ }).click();
   await expect(page.getByTestId("strike-row")).toContainText("اتسجل في «ورشة Arduino» ومجاش");
@@ -4822,24 +4996,102 @@ test("the owner connects WhatsApp (the token is sent once, never shown) and send
   expect(errors).toEqual([]);
 });
 
-test("WhatsApp says why messages fail (templates Meta won't give, the last refused message) and the automatic messages pick an approved template", async ({ page }) => {
+test("WhatsApp says why messages fail (templates Meta won't give, the last refused message) and the automatic messages pick an approved template", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
   const rules = [
-    { key: "application_received", section: "join", label_ar: "استلام طلب الانضمام", hint_ar: "أول ما حد يبعت فورم الانضمام", vars_ar: "{{1}} الاسم الأول · {{2}} كود الطلب", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false, sent: 3 },
-    { key: "application_review", section: "join", label_ar: "الطلب تحت المراجعة", template: "bx_application_received_v4", lang: "ar", enabled: true, ok: true, waiting: "bx_join_review_v5", bulk: false },
-    { key: "family_joined", section: "family", label_ar: "استلام تسجيل الأسرة", template: "bx_join_received", lang: "ar", enabled: true, ok: false, bulk: false },
-    { key: "form_received", section: "forms", label_ar: "استلام رد على فورم", template: "bx_form_received_v5", lang: "ar", enabled: true, ok: false, waiting: "bx_form_received_v5", bulk: false },
-    { key: "event_published", section: "events", label_ar: "فعالية جديدة لكل الطلاب", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: true, audience: 42 },
-    { key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false },
-    { key: "send_failed_alert", section: "team", label_ar: "تنبيه لما رسالة تفشل", template: "bx_application_received_v4", lang: "ar", enabled: false, ok: true, bulk: false, to_phone: null },
+    {
+      key: "application_received",
+      section: "join",
+      label_ar: "استلام طلب الانضمام",
+      hint_ar: "أول ما حد يبعت فورم الانضمام",
+      vars_ar: "{{1}} الاسم الأول · {{2}} كود الطلب",
+      template: "bx_join_received",
+      lang: "ar",
+      enabled: true,
+      ok: false,
+      bulk: false,
+      sent: 3,
+    },
+    {
+      key: "application_review",
+      section: "join",
+      label_ar: "الطلب تحت المراجعة",
+      template: "bx_application_received_v4",
+      lang: "ar",
+      enabled: true,
+      ok: true,
+      waiting: "bx_join_review_v5",
+      bulk: false,
+    },
+    {
+      key: "family_joined",
+      section: "family",
+      label_ar: "استلام تسجيل الأسرة",
+      template: "bx_join_received",
+      lang: "ar",
+      enabled: true,
+      ok: false,
+      bulk: false,
+    },
+    {
+      key: "form_received",
+      section: "forms",
+      label_ar: "استلام رد على فورم",
+      template: "bx_form_received_v5",
+      lang: "ar",
+      enabled: true,
+      ok: false,
+      waiting: "bx_form_received_v5",
+      bulk: false,
+    },
+    {
+      key: "event_published",
+      section: "events",
+      label_ar: "فعالية جديدة لكل الطلاب",
+      template: "bx_application_received_v4",
+      lang: "ar",
+      enabled: false,
+      ok: true,
+      bulk: true,
+      audience: 42,
+    },
+    {
+      key: "certificate_issued",
+      section: "students",
+      label_ar: "شهادة جديدة",
+      template: null,
+      lang: "ar",
+      enabled: false,
+      ok: false,
+      bulk: false,
+    },
+    {
+      key: "send_failed_alert",
+      section: "team",
+      label_ar: "تنبيه لما رسالة تفشل",
+      template: "bx_application_received_v4",
+      lang: "ar",
+      enabled: false,
+      ok: true,
+      bulk: false,
+      to_phone: null,
+    },
   ] as Record<string, unknown>[];
   const sets: unknown[] = [];
   await page.route(/\/rest\/v1\/rpc\/staff_wa_auto_(rules|set|template|phone)$/, (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     if (fn === "staff_wa_auto_rules") return route.fulfill({ json: rules });
-    const b = route.request().postDataJSON() as { p_key: string; p_template?: string; p_lang?: string; p_enabled?: boolean; p_phone?: string };
+    const b = route.request().postDataJSON() as {
+      p_key: string;
+      p_template?: string;
+      p_lang?: string;
+      p_enabled?: boolean;
+      p_phone?: string;
+    };
     sets.push({ fn, ...b });
     const r = rules.find((x) => x.key === b.p_key)!;
     if (b.p_template) Object.assign(r, { template: b.p_template, lang: b.p_lang, ok: true });
@@ -4848,11 +5100,57 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
     return route.fulfill({ status: 204, body: "" });
   });
   const ours = [
-    { name: "bx_join_received_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، استلمنا طلب انضمامك لأسرة BuildX HUE ✅", moments: ["application_received"], status: "APPROVED", error: null, submitted_at: at(60) },
-    { name: "bx_join_review_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، طلبك تحت المراجعة.", moments: ["application_review"], status: "PENDING", error: null, submitted_at: at(60) },
-    { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: [], status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
-    { name: "bx_loan_overdue_v5", lang: "ar", category: "UTILITY", body: "أهلًا {{1}}، ميعاد رجوع «{{2}}» عدّى.", moments: ["loan_overdue"], status: "NEW", error: null, submitted_at: null },
-    { name: "bx_form_pass_v5", lang: "ar", category: "UTILITY", body: "مبروك 🎉 تم قبولك في «{{1}}».", moments: ["form_accepted"], button: "الـ QR بتاعي", status: "PENDING", error: null, submitted_at: at(5) },
+    {
+      name: "bx_join_received_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "أهلًا {{1}}، استلمنا طلب انضمامك لأسرة BuildX HUE ✅",
+      moments: ["application_received"],
+      status: "APPROVED",
+      error: null,
+      submitted_at: at(60),
+    },
+    {
+      name: "bx_join_review_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "أهلًا {{1}}، طلبك تحت المراجعة.",
+      moments: ["application_review"],
+      status: "PENDING",
+      error: null,
+      submitted_at: at(60),
+    },
+    {
+      name: "bx_certificate_ready_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.",
+      moments: [],
+      status: "REJECTED",
+      error: "INCORRECT_CATEGORY",
+      submitted_at: at(60),
+    },
+    {
+      name: "bx_loan_overdue_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "أهلًا {{1}}، ميعاد رجوع «{{2}}» عدّى.",
+      moments: ["loan_overdue"],
+      status: "NEW",
+      error: null,
+      submitted_at: null,
+    },
+    {
+      name: "bx_form_pass_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "مبروك 🎉 تم قبولك في «{{1}}».",
+      moments: ["form_accepted"],
+      button: "الـ QR بتاعي",
+      status: "PENDING",
+      error: null,
+      submitted_at: at(5),
+    },
   ] as Record<string, unknown>[];
   let submitted = 0;
   await page.route(/\/rest\/v1\/rpc\/staff_wa_templates(_submit)?$/, (route) => {
@@ -4875,12 +5173,23 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
         quality: "GREEN",
         error: null,
         checked_at: null,
-        templates: [{ name: "bx_application_received_v4", language: "ar", body: "مرحبًا، نؤكد استلام طلب انضمامك إلى أسرة BuildX HUE." }],
+        templates: [
+          {
+            name: "bx_application_received_v4",
+            language: "ar",
+            body: "مرحبًا، نؤكد استلام طلب انضمامك إلى أسرة BuildX HUE.",
+          },
+        ],
         templates_error: "(#100) Tried accessing nonexisting field (message_templates)",
         has_token: true,
         sent_today: 0,
         failed_today: 3,
-        last_failed: { error: "(#132001) Template name does not exist in the translation", template: "bx_join_received", at: at(30), count: 7 },
+        last_failed: {
+          error: "(#132001) Template name does not exist in the translation",
+          template: "bx_join_received",
+          at: at(30),
+          count: 7,
+        },
         can_send: true,
         can_connect: true,
       },
@@ -4901,20 +5210,42 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   const received = page.getByTestId("wa-auto-rule").filter({ hasText: "استلام طلب الانضمام" });
   await expect(received).toContainText("مش هتتبعت");
   await received.getByLabel("القالب").selectOption("bx_application_received_v4|ar");
-  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_template", p_key: "application_received", p_template: "bx_application_received_v4", p_lang: "ar" });
+  await expect
+    .poll(() => sets)
+    .toContainEqual({
+      fn: "staff_wa_auto_template",
+      p_key: "application_received",
+      p_template: "bx_application_received_v4",
+      p_lang: "ar",
+    });
   await expect(received).toContainText("نؤكد استلام طلب انضمامك");
   await expect(received).toContainText("المتغيرات: {{1}} الاسم الأول · {{2}} كود الطلب · اتبعتت 3 مرات");
-  await page.getByTestId("wa-auto-family").getByTestId("wa-auto-rule").filter({ hasText: "استلام تسجيل الأسرة" }).getByRole("switch").click();
-  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "family_joined", p_enabled: false });
+  await page
+    .getByTestId("wa-auto-family")
+    .getByTestId("wa-auto-rule")
+    .filter({ hasText: "استلام تسجيل الأسرة" })
+    .getByRole("switch")
+    .click();
+  await expect
+    .poll(() => sets)
+    .toContainEqual({ fn: "staff_wa_auto_set", p_key: "family_joined", p_enabled: false });
 
   // One that reaches many people asks first, with how many; a moment without a template can't be turned on.
-  const bulk = page.getByTestId("wa-auto-events").getByTestId("wa-auto-rule").filter({ hasText: "فعالية جديدة لكل الطلاب" });
+  const bulk = page
+    .getByTestId("wa-auto-events")
+    .getByTestId("wa-auto-rule")
+    .filter({ hasText: "فعالية جديدة لكل الطلاب" });
   await expect(bulk).toContainText("لناس كتير");
   await bulk.getByRole("switch").click();
   await expect(page.getByRole("dialog")).toContainText("42 شخص");
   await page.getByRole("dialog").getByRole("button", { name: "شغّلها" }).click();
-  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "event_published", p_enabled: true });
-  const none = page.getByTestId("wa-auto-students").getByTestId("wa-auto-rule").filter({ hasText: "شهادة جديدة" });
+  await expect
+    .poll(() => sets)
+    .toContainEqual({ fn: "staff_wa_auto_set", p_key: "event_published", p_enabled: true });
+  const none = page
+    .getByTestId("wa-auto-students")
+    .getByTestId("wa-auto-rule")
+    .filter({ hasText: "شهادة جديدة" });
   await expect(none).toContainText("مفيش قالب للحظة دي لسه");
   await none.getByRole("switch").click();
   await expect(page.getByText("اختار قالب للرسالة دي الأول")).toBeVisible();
@@ -4924,12 +5255,18 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   const alert = page.getByTestId("wa-auto-team").getByTestId("wa-auto-rule");
   await alert.getByLabel("رقمك للتنبيهات").fill("01065316500");
   await alert.getByRole("button", { name: "حفظ الرقم" }).click();
-  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_phone", p_key: "send_failed_alert", p_phone: "01065316500" });
+  await expect
+    .poll(() => sets)
+    .toContainEqual({ fn: "staff_wa_auto_phone", p_key: "send_failed_alert", p_phone: "01065316500" });
   await alert.getByRole("switch").click();
-  await expect.poll(() => sets).toContainEqual({ fn: "staff_wa_auto_set", p_key: "send_failed_alert", p_enabled: true });
+  await expect
+    .poll(() => sets)
+    .toContainEqual({ fn: "staff_wa_auto_set", p_key: "send_failed_alert", p_enabled: true });
 
   // A moment whose new template Meta is reviewing: it keeps the approved one meanwhile, or waits if it has none.
-  await expect(page.getByTestId("wa-auto-rule").filter({ hasText: "الطلب تحت المراجعة" })).toContainText("قالب أحسن ليها (bx_join_review_v5) عند ميتا للمراجعة");
+  await expect(page.getByTestId("wa-auto-rule").filter({ hasText: "الطلب تحت المراجعة" })).toContainText(
+    "قالب أحسن ليها (bx_join_review_v5) عند ميتا للمراجعة",
+  );
   const waiting = page.getByTestId("wa-auto-forms").getByTestId("wa-auto-rule");
   await expect(waiting).toContainText("قالبها عند ميتا للمراجعة");
   await expect(waiting).not.toContainText("مش هتتبعت");
@@ -4942,7 +5279,9 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   await ourCard.getByRole("button", { name: "اعرض القوالب (5)" }).click();
   const items = page.getByTestId("wa-templates-list").locator("li");
   await expect(items.filter({ hasText: "bx_certificate_ready_v5" })).toContainText("INCORRECT_CATEGORY");
-  await expect(items.filter({ hasText: "bx_form_pass_v5" })).toContainText("زرار «الـ QR بتاعي» بيفتح الـ QR بتاع الشخص نفسه");
+  await expect(items.filter({ hasText: "bx_form_pass_v5" })).toContainText(
+    "زرار «الـ QR بتاعي» بيفتح الـ QR بتاع الشخص نفسه",
+  );
   await ourCard.getByRole("button", { name: "ابعت الناقص لميتا (1)" }).click();
   await expect(page.getByText("اتبعت 1 لميتا")).toBeVisible();
   expect(submitted).toBe(1);
@@ -4950,16 +5289,47 @@ test("WhatsApp says why messages fail (templates Meta won't give, the last refus
   expect(errors).toEqual([]);
 });
 
-test("an interview date on an application: set it, the status moves to interview, and it can be changed or removed", async ({ page }) => {
+test("an interview date on an application: set it, the status moves to interview, and it can be changed or removed", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
   const app: Record<string, unknown> = {
-    id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
-    national_id: null, governorate: null, address: null, repeats: 0, last_repeat_at: null,
-    faculty: null, academic_year: null, student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: null,
-    skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
-    answers: [], status: "contacted", staff_notes: "", public_note: "", reviewed_at: null, student_id: null, interview_at: null,
+    id: "a1",
+    ref: "BX-AB12CD",
+    created_at: at(60),
+    locale: "ar",
+    full_name: "Mona Adel",
+    phone: "+201012345678",
+    email: "m@example.com",
+    national_id: null,
+    governorate: null,
+    address: null,
+    repeats: 0,
+    last_repeat_at: null,
+    faculty: null,
+    academic_year: null,
+    student_number: null,
+    track_first: "ai-ml",
+    track_second: null,
+    team_roles: [],
+    experience_level: null,
+    skills: null,
+    experience: null,
+    portfolio_url: null,
+    motivation: null,
+    goals: null,
+    hours_per_week: null,
+    days: [],
+    heard_from: null,
+    answers: [],
+    status: "contacted",
+    staff_notes: "",
+    public_note: "",
+    reviewed_at: null,
+    student_id: null,
+    interview_at: null,
   };
   const patches: Record<string, unknown>[] = [];
   await page.route(/\/rest\/v1\/applications/, async (route) => {
@@ -5131,7 +5501,11 @@ test("the owner connects email (the Resend key is sent once, never shown), sends
       p_context: null,
     });
   await expect(page.getByText("اتبعت 2 · 1 إيميل غلط أو مكرر")).toBeVisible();
-  if (process.env.SHOT) await page.screenshot({ path: `${process.env.SHOT}/email-app-${page.viewportSize()?.width}.png`, fullPage: true });
+  if (process.env.SHOT)
+    await page.screenshot({
+      path: `${process.env.SHOT}/email-app-${page.viewportSize()?.width}.png`,
+      fullPage: true,
+    });
 
   // An automatic email: turned on and reworded; the preview leaves out a line with nothing to fill in.
   await page.getByTestId("auto-application_rejected").click();
@@ -6035,7 +6409,9 @@ test("staff home says what the website is missing, and a line can be put aside",
   expect(errors).toEqual([]);
 });
 
-test("form builder: a file question that takes video, and a background video that is compressed before it is uploaded", async ({ page }) => {
+test("form builder: a file question that takes video, and a background video that is compressed before it is uploaded", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -6070,19 +6446,33 @@ test("form builder: a file question that takes video, and a background video tha
       patches.push(route.request().postDataJSON());
       return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
     }
-    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+    return route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    });
   });
-  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: [], headers: { "content-range": "*/0" } }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) =>
+    route.fulfill({ json: [], headers: { "content-range": "*/0" } }),
+  );
   const uploads: { url: string; type: string | undefined; size: number }[] = [];
   await page.route(/\/storage\/v1\/object\/form-media\//, (route) => {
     const req = route.request();
-    uploads.push({ url: req.url(), type: req.headers()["content-type"], size: req.postDataBuffer()?.length ?? 0 });
+    uploads.push({
+      url: req.url(),
+      type: req.headers()["content-type"],
+      size: req.postDataBuffer()?.length ?? 0,
+    });
     return route.fulfill({ json: { Key: "ok" } });
   });
   await page.goto("/app/#/staff/forms/f1");
   await expect(page.getByText("خلفية الفورم")).toBeVisible();
   // A 3-second 1080p clip (about 96 KB) stands in for a phone video; it is larger than the 720p-class size backgrounds are scaled to.
-  await page.getByTestId("form-bg-input").setInputFiles({ name: "intro.webm", mimeType: "video/webm", buffer: readFileSync("e2e/fixtures/bg-1080p.webm") });
+  await page
+    .getByTestId("form-bg-input")
+    .setInputFiles({
+      name: "intro.webm",
+      mimeType: "video/webm",
+      buffer: readFileSync("e2e/fixtures/bg-1080p.webm"),
+    });
   await expect(page.getByTestId("form-bg-status")).toContainText("اترفع", { timeout: 30_000 });
   expect(uploads).toHaveLength(1);
   expect(uploads[0].type).toMatch(/^video\/webm/);
@@ -6147,17 +6537,52 @@ test("the join form editor: hide a question, rename one, add a question with cho
   expect(p.fields.academic_year.options.at(-1).key).toMatch(/^o_[a-z0-9]{6,}$/);
   expect(p.fields.track_second).toEqual({ required: true });
   expect(p.extra).toEqual([
-    { id: expect.stringMatching(/^q_[a-z0-9]{4,16}$/), step: 1, type: "select", label_ar: "بتعرف تلحم؟", required: true, options: [{ ar: "أيوه" }, { ar: "لأ" }, { ar: "شوية" }] },
+    {
+      id: expect.stringMatching(/^q_[a-z0-9]{4,16}$/),
+      step: 1,
+      type: "select",
+      label_ar: "بتعرف تلحم؟",
+      required: true,
+      options: [{ ar: "أيوه" }, { ar: "لأ" }, { ar: "شوية" }],
+    },
   ]);
   // An application shows the answers to added questions, with the question as it was asked.
   await page.route(/\/rest\/v1\/applications/, (route) =>
     route.fulfill({
       json: {
-        id: "a1", ref: "BX-AB12CD", created_at: at(60), locale: "ar", full_name: "Mona Adel", phone: "+201012345678", email: "m@example.com",
-        national_id: "30601121100035", governorate: "دمياط", address: "دمياط الجديدة - الحي الخامس", repeats: 2, last_repeat_at: at(5),
-        faculty: null, academic_year: "o_x", student_number: null, track_first: "ai-ml", track_second: null, team_roles: [], experience_level: "beginner",
-        skills: null, experience: null, portfolio_url: null, motivation: null, goals: null, hours_per_week: null, days: [], heard_from: null,
-        answers: [{ id: "q_weld01", q: "بتعرف تلحم؟", a: "شوية" }], status: "new", staff_notes: "", public_note: "", reviewed_at: null, student_id: null,
+        id: "a1",
+        ref: "BX-AB12CD",
+        created_at: at(60),
+        locale: "ar",
+        full_name: "Mona Adel",
+        phone: "+201012345678",
+        email: "m@example.com",
+        national_id: "30601121100035",
+        governorate: "دمياط",
+        address: "دمياط الجديدة - الحي الخامس",
+        repeats: 2,
+        last_repeat_at: at(5),
+        faculty: null,
+        academic_year: "o_x",
+        student_number: null,
+        track_first: "ai-ml",
+        track_second: null,
+        team_roles: [],
+        experience_level: "beginner",
+        skills: null,
+        experience: null,
+        portfolio_url: null,
+        motivation: null,
+        goals: null,
+        hours_per_week: null,
+        days: [],
+        heard_from: null,
+        answers: [{ id: "q_weld01", q: "بتعرف تلحم؟", a: "شوية" }],
+        status: "new",
+        staff_notes: "",
+        public_note: "",
+        reviewed_at: null,
+        student_id: null,
       },
     }),
   );
@@ -6202,7 +6627,11 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
       action: "update",
       entity: "applications",
       entity_id: "a2",
-      detail: { t: "منى عادل", an: "محمد النجار", ch: { status: ["new", "interview"], staff_notes: [null, "مقابلة يوم الأحد"] } },
+      detail: {
+        t: "منى عادل",
+        an: "محمد النجار",
+        ch: { status: ["new", "interview"], staff_notes: [null, "مقابلة يوم الأحد"] },
+      },
     },
     ...[11, 11.5, 12].map((m, i) => ({
       id: 8 - i,
@@ -6214,8 +6643,26 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
       entity_id: null,
       detail: { an: "Coach Admin", st: `طالب ${i + 1}`, of: "جلسة الروبوتكس 1" },
     })),
-    { id: 5, at: t(20), actor: null, actor_email: null, action: "insert", entity: "applications", entity_id: "a3", detail: { t: "زائر جديد", by: "visitor" } },
-    { id: 4, at: t(30), actor: "u2", actor_email: "m@example.com", action: "login", entity: "staff", entity_id: "u2", detail: { t: "محمد النجار", an: "محمد النجار" } },
+    {
+      id: 5,
+      at: t(20),
+      actor: null,
+      actor_email: null,
+      action: "insert",
+      entity: "applications",
+      entity_id: "a3",
+      detail: { t: "زائر جديد", by: "visitor" },
+    },
+    {
+      id: 4,
+      at: t(30),
+      actor: "u2",
+      actor_email: "m@example.com",
+      action: "login",
+      entity: "staff",
+      entity_id: "u2",
+      detail: { t: "محمد النجار", an: "محمد النجار" },
+    },
   ];
   const lists: Record<string, unknown>[] = [];
   const restores: unknown[] = [];
@@ -6247,7 +6694,14 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
     }
     if (fn === "staff_audit_get") {
       const e = rows.find((r) => r.id === body.p_id)!;
-      const row = { id: "a1", ref: "BX-C649FF", full_name: "محمد اسامه منصور", phone: "01000000000", status: "new", created_at: t(600) };
+      const row = {
+        id: "a1",
+        ref: "BX-C649FF",
+        full_name: "محمد اسامه منصور",
+        phone: "01000000000",
+        status: "new",
+        created_at: t(600),
+      };
       return route.fulfill({
         json: {
           ...e,
@@ -6281,7 +6735,9 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
   const group = page.getByTestId("activity-group");
   await expect(group).toContainText("Coach Admin أضاف 3 في الحضور");
   await group.click();
-  await expect(page.getByTestId("activity-row").filter({ hasText: "أضاف حضور في «جلسة الروبوتكس 1» للطالب طالب 1" })).toHaveCount(1);
+  await expect(
+    page.getByTestId("activity-row").filter({ hasText: "أضاف حضور في «جلسة الروبوتكس 1» للطالب طالب 1" }),
+  ).toHaveCount(1);
   expect(lists[0]).toMatchObject({ limit: 80 });
   expect(typeof lists[0].from).toBe("string");
 
@@ -6311,7 +6767,10 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
   await page.getByRole("button", { name: "إغلاق" }).last().click();
 
   // A person from the list of the most active, and the Excel of what's shown.
-  await page.getByRole("button", { name: /محمد النجار/ }).first().click();
+  await page
+    .getByRole("button", { name: /محمد النجار/ })
+    .first()
+    .click();
   await expect.poll(() => lists.at(-1)?.who).toBe("u2");
   const file = page.waitForEvent("download");
   await page.getByTestId("activity-xlsx").click();
@@ -6319,11 +6778,24 @@ test("the owner's activity log: who did what, grouped and filtered, old → new,
   expect(errors).toEqual([]);
 });
 
-test("the activity log is the owner's alone: a full admin sees neither the menu item nor the page", async ({ page }) => {
+test("the activity log is the owner's alone: a full admin sees neither the menu item nor the page", async ({
+  page,
+}) => {
   await signInAsOwner(page);
-  const me = { user_id: "u1", email: "admin@example.com", full_name: "Full Admin", role: "admin", active: true, created_at: at(9999), title: null, permissions: null };
+  const me = {
+    user_id: "u1",
+    email: "admin@example.com",
+    full_name: "Full Admin",
+    role: "admin",
+    active: true,
+    created_at: at(9999),
+    title: null,
+    permissions: null,
+  };
   await page.route(/\/rest\/v1\/staff/, (route) =>
-    route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? me : [me] }),
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? me : [me],
+    }),
   );
   await page.goto("/app/#/staff/more");
   await expect(page.getByText("الأمان والهجمات")).toBeVisible();
@@ -6378,31 +6850,112 @@ test("QR attendance from a form: turned on in the editor with a session for one 
       Object.assign(form, body);
       return route.fulfill({ json: [form] });
     }
-    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+    return route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    });
   });
   const people = [
-    { id: "r1", ref: "F-AAAA0001", name: "أحمد سامي", phone: "01011111111", status: "accepted", answers: { n: "أحمد سامي", g: "A" }, pass: "AAAAAAAAAAAAAAA1" },
-    { id: "r2", ref: "F-BBBB0002", name: "بسمة علي", phone: "01022222222", status: "accepted", answers: { n: "بسمة علي", g: "B" }, pass: "BBBBBBBBBBBBBBB2" },
-    { id: "r3", ref: "F-CCCC0003", name: "كريم حسن", phone: "01033333333", status: "accepted", answers: { n: "كريم حسن", g: "A" }, pass: "CCCCCCCCCCCCCCC3" },
-    { id: "r4", ref: "F-DDDD0004", name: "دينا فؤاد", phone: "01044444444", status: "waiting", answers: { n: "دينا فؤاد", g: "A" }, pass: "DDDDDDDDDDDDDDD4" },
+    {
+      id: "r1",
+      ref: "F-AAAA0001",
+      name: "أحمد سامي",
+      phone: "01011111111",
+      status: "accepted",
+      answers: { n: "أحمد سامي", g: "A" },
+      pass: "AAAAAAAAAAAAAAA1",
+    },
+    {
+      id: "r2",
+      ref: "F-BBBB0002",
+      name: "بسمة علي",
+      phone: "01022222222",
+      status: "accepted",
+      answers: { n: "بسمة علي", g: "B" },
+      pass: "BBBBBBBBBBBBBBB2",
+    },
+    {
+      id: "r3",
+      ref: "F-CCCC0003",
+      name: "كريم حسن",
+      phone: "01033333333",
+      status: "accepted",
+      answers: { n: "كريم حسن", g: "A" },
+      pass: "CCCCCCCCCCCCCCC3",
+    },
+    {
+      id: "r4",
+      ref: "F-DDDD0004",
+      name: "دينا فؤاد",
+      phone: "01044444444",
+      status: "waiting",
+      answers: { n: "دينا فؤاد", g: "A" },
+      pass: "DDDDDDDDDDDDDDD4",
+    },
     // Nobody reviewed this one yet: on a form the team reviews, "new" isn't accepted.
-    { id: "r5", ref: "F-EEEE0005", name: "عمر نبيل", phone: "01055555555", status: "new", answers: { n: "عمر نبيل", g: "A" }, pass: "EEEEEEEEEEEEEEE5" },
+    {
+      id: "r5",
+      ref: "F-EEEE0005",
+      name: "عمر نبيل",
+      phone: "01055555555",
+      status: "new",
+      answers: { n: "عمر نبيل", g: "A" },
+      pass: "EEEEEEEEEEEEEEE5",
+    },
   ];
   await page.route(/\/rest\/v1\/form_responses\?select=id%2Cref/, (route) => route.fulfill({ json: people }));
   await page.route(/\/rest\/v1\/form_attendance/, (route) =>
-    route.fulfill({ json: [{ response_id: "r3", session: (form.attendance as { sessions: { id: string }[] }).sessions[0].id, present: true, at: at(20), method: "qr" }] }),
+    route.fulfill({
+      json: [
+        {
+          response_id: "r3",
+          session: (form.attendance as { sessions: { id: string }[] }).sessions[0].id,
+          present: true,
+          at: at(20),
+          method: "qr",
+        },
+      ],
+    }),
   );
   await page.route(/\/rest\/v1\/rpc\/staff_form_mark/, (route) => {
-    const b = route.request().postDataJSON() as { p_code: string | null; p_response: string | null; p_present: boolean; p_force: boolean; p_session: string };
+    const b = route.request().postDataJSON() as {
+      p_code: string | null;
+      p_response: string | null;
+      p_present: boolean;
+      p_force: boolean;
+      p_session: string;
+    };
     marks.push(b);
-    const who = people.find((p) => p.id === b.p_response || (b.p_code && b.p_code.toUpperCase().includes(p.ref)));
+    const who = people.find(
+      (p) => p.id === b.p_response || (b.p_code && b.p_code.toUpperCase().includes(p.ref)),
+    );
     if (!who) return route.fulfill({ json: { ok: false, error: "not_found" } });
     if ((who.status === "waiting" || who.status === "new") && b.p_present && !b.p_force)
-      return route.fulfill({ json: { ok: false, error: "not_accepted", id: who.id, name: who.name, ref: who.ref, status: who.status } });
+      return route.fulfill({
+        json: {
+          ok: false,
+          error: "not_accepted",
+          id: who.id,
+          name: who.name,
+          ref: who.ref,
+          status: who.status,
+        },
+      });
     const s2 = (form.attendance as { sessions: { id: string }[] }).sessions[1].id;
     if (who.id === "r2" && b.p_session === s2 && !b.p_force)
-      return route.fulfill({ json: { ok: false, error: "not_this_session", id: "r2", name: who.name, ref: who.ref, answer: "B" } });
-    return route.fulfill({ json: { ok: true, id: who.id, name: who.name, ref: who.ref, status: who.status, present: b.p_present, at: new Date().toISOString() } });
+      return route.fulfill({
+        json: { ok: false, error: "not_this_session", id: "r2", name: who.name, ref: who.ref, answer: "B" },
+      });
+    return route.fulfill({
+      json: {
+        ok: true,
+        id: who.id,
+        name: who.name,
+        ref: who.ref,
+        status: who.status,
+        present: b.p_present,
+        at: new Date().toISOString(),
+      },
+    });
   });
 
   // The editor: QR on, split by «المجموعة», two lectures, the second only for group A.
@@ -6419,7 +6972,11 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   await page.getByRole("button", { name: "حفظ" }).first().click();
   await expect.poll(() => patches.length).toBe(1);
   expect(patches[0].event_at).toBe(new Date("2026-01-02T12:30").toISOString());
-  const att = patches[0].attendance as { on: boolean; by: string; sessions: { id: string; name: string; only: string | null }[] };
+  const att = patches[0].attendance as {
+    on: boolean;
+    by: string;
+    sessions: { id: string; name: string; only: string | null }[];
+  };
   expect(att).toMatchObject({ on: true, by: "g" });
   expect(att.sessions.map((x) => [x.name, x.only])).toEqual([
     ["محاضرة 1", null],
@@ -6445,7 +7002,9 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   await expect(page.getByTestId("attendance-row").filter({ hasText: "دينا فؤاد" })).toHaveCount(0);
   await page.getByLabel("كود الطلب").fill("F-DDDD0004");
   await page.getByRole("button", { name: "سجّل", exact: true }).click();
-  await expect(page.getByTestId("attendance-flash")).toContainText("دينا فؤاد في قايمة الانتظار — لسه مش مقبول، ومتسجّلش حاضر");
+  await expect(page.getByTestId("attendance-flash")).toContainText(
+    "دينا فؤاد في قايمة الانتظار — لسه مش مقبول، ومتسجّلش حاضر",
+  );
   await expect(page.getByTestId("attendance-stats")).toContainText("حضروا2");
   await page.getByRole("button", { name: "سجّله حاضر برضه" }).click();
   await expect(page.getByTestId("attendance-flash")).toContainText("✓ دينا فؤاد حاضر (من قايمة الانتظار)");
@@ -6454,10 +7013,15 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   await expect(page.getByTestId("attendance-row").filter({ hasText: "عمر نبيل" })).toHaveCount(0);
   await page.getByLabel("كود الطلب").fill("F-EEEE0005");
   await page.getByRole("button", { name: "سجّل", exact: true }).click();
-  await expect(page.getByTestId("attendance-flash")).toContainText("عمر نبيل لسه متقبلش (طلبه جديد ومحدش راجعه)، ومتسجّلش حاضر");
+  await expect(page.getByTestId("attendance-flash")).toContainText(
+    "عمر نبيل لسه متقبلش (طلبه جديد ومحدش راجعه)، ومتسجّلش حاضر",
+  );
 
   // The second lecture is group A's: Basma (B) is flagged, and can still be let in.
-  await page.getByTestId("attendance-sessions").getByRole("button", { name: /محاضرة 2/ }).click();
+  await page
+    .getByTestId("attendance-sessions")
+    .getByRole("button", { name: /محاضرة 2/ })
+    .click();
   await expect(page.getByTestId("attendance-stats")).toContainText("المتوقعين2");
   await page.getByLabel("كود الطلب").fill("f-bbbb0002");
   await page.getByRole("button", { name: "سجّل", exact: true }).click();
@@ -6467,8 +7031,17 @@ test("QR attendance from a form: turned on in the editor with a session for one 
   expect(marks.at(-1)).toMatchObject({ p_force: true });
   // By hand from the list.
   await page.getByRole("button", { name: /^الكل/ }).click();
-  await page.getByTestId("attendance-row").filter({ hasText: "كريم حسن" }).getByRole("button", { name: "غايب" }).click();
-  await expect(page.getByTestId("attendance-row").filter({ hasText: "كريم حسن" }).getByRole("button", { name: "حاضر ✓" })).toBeVisible();
+  await page
+    .getByTestId("attendance-row")
+    .filter({ hasText: "كريم حسن" })
+    .getByRole("button", { name: "غايب" })
+    .click();
+  await expect(
+    page
+      .getByTestId("attendance-row")
+      .filter({ hasText: "كريم حسن" })
+      .getByRole("button", { name: "حاضر ✓" }),
+  ).toBeVisible();
   expect(marks.at(-1)).toMatchObject({ p_response: "r3", p_present: true });
 
   const file = page.waitForEvent("download");
@@ -6485,8 +7058,32 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   const calls: { fn: string; body: unknown }[] = [];
   await signInAsOwner(page);
   const ours = [
-    { name: "bx_form_pass_v5", lang: "ar", category: "UTILITY", body: "مبروك 🎉 تم قبولك في «{{1}}».", moments: ["form_accepted"], example: ["Workshop"], button: "الـ QR بتاعي", button_kind: "pass", status: "APPROVED", error: null, submitted_at: at(60) },
-    { name: "bx_certificate_ready_v5", lang: "ar", category: "UTILITY", body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.", moments: ["certificate_issued"], example: ["أحمد"], button: null, button_kind: null, status: "REJECTED", error: "INCORRECT_CATEGORY", submitted_at: at(60) },
+    {
+      name: "bx_form_pass_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "مبروك 🎉 تم قبولك في «{{1}}».",
+      moments: ["form_accepted"],
+      example: ["Workshop"],
+      button: "الـ QR بتاعي",
+      button_kind: "pass",
+      status: "APPROVED",
+      error: null,
+      submitted_at: at(60),
+    },
+    {
+      name: "bx_certificate_ready_v5",
+      lang: "ar",
+      category: "UTILITY",
+      body: "مبروك يا {{1}} 🎓 شهادتك جاهزة.",
+      moments: ["certificate_issued"],
+      example: ["أحمد"],
+      button: null,
+      button_kind: null,
+      status: "REJECTED",
+      error: "INCORRECT_CATEGORY",
+      submitted_at: at(60),
+    },
   ];
   await mockRpc(page, calls, {
     staff_whatsapp_status: {
@@ -6499,14 +7096,32 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
       quality: "GREEN",
       error: null,
       checked_at: null,
-      templates: [{ name: "bx_form_pass_v5", language: "ar", body: "مبروك 🎉 تم قبولك في «{{1}}».", button: "الـ QR بتاعي" }],
+      templates: [
+        {
+          name: "bx_form_pass_v5",
+          language: "ar",
+          body: "مبروك 🎉 تم قبولك في «{{1}}».",
+          button: "الـ QR بتاعي",
+        },
+      ],
       has_token: true,
       sent_today: 0,
       failed_today: 0,
       can_send: true,
       can_connect: true,
     },
-    staff_wa_auto_rules: [{ key: "certificate_issued", section: "students", label_ar: "شهادة جديدة", template: null, lang: "ar", enabled: false, ok: false, bulk: false }],
+    staff_wa_auto_rules: [
+      {
+        key: "certificate_issued",
+        section: "students",
+        label_ar: "شهادة جديدة",
+        template: null,
+        lang: "ar",
+        enabled: false,
+        ok: false,
+        bulk: false,
+      },
+    ],
     staff_wa_templates: ours,
     staff_whatsapp_send: { queued: 1, skipped: 1 },
   });
@@ -6514,25 +7129,69 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   let saved = 0;
   await page.route(/\/rest\/v1\/rpc\/staff_wa_template_save$/, (route) => {
     calls.push({ fn: "staff_wa_template_save", body: route.request().postDataJSON() });
-    return route.fulfill({ json: ++saved === 1 ? "bx_certificate_ready_261018150000" : "bx_custom_261018150100" });
+    return route.fulfill({
+      json: ++saved === 1 ? "bx_certificate_ready_261018150000" : "bx_custom_261018150100",
+    });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_form_send_passes$/, (route) => {
     const b = route.request().postDataJSON() as { p_form: string; p_dry: boolean };
     calls.push({ fn: "staff_form_send_passes", body: b });
-    return route.fulfill({ json: { ready: 1, sent: b.p_dry ? 0 : 1, already: 1, no_phone: 0, no_template: 0 } });
+    return route.fulfill({
+      json: { ready: 1, sent: b.p_dry ? 0 : 1, already: 1, no_phone: 0, no_template: 0 },
+    });
   });
   const form = {
-    id: "f1", slug: "ros-course", title_ar: "كورس ROS", title_en: null, intro_ar: null, intro_en: null, success_ar: null, success_en: null,
-    fields: [{ id: "n", type: "name", label_ar: "الاسم", required: true }], team: null, open: true, opens_at: null, closes_at: null, max_responses: null,
-    listed: true, archived: false, accepted_ar: null, accepted_url: null, delegation: null, attendance: { on: true, sessions: [{ id: "s_1", name: "محاضرة 1" }] },
-    capacity: null, background_path: null, background_kind: null, created_at: at(600),
+    id: "f1",
+    slug: "ros-course",
+    title_ar: "كورس ROS",
+    title_en: null,
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    fields: [{ id: "n", type: "name", label_ar: "الاسم", required: true }],
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: { on: true, sessions: [{ id: "s_1", name: "محاضرة 1" }] },
+    capacity: null,
+    background_path: null,
+    background_kind: null,
+    created_at: at(600),
   };
-  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   const resp = (id: string, name: string, phone: string | null, pass: string) => ({
-    id, form_id: "f1", ref: `F-${id.toUpperCase()}0000`, answers: { n: name }, name, phone, email: null, locale: "ar", status: "accepted", note: null, created_at: at(30), pass,
+    id,
+    form_id: "f1",
+    ref: `F-${id.toUpperCase()}0000`,
+    answers: { n: name },
+    name,
+    phone,
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    created_at: at(30),
+    pass,
   });
   await page.route(/\/rest\/v1\/form_responses\?select=\*/, (route) =>
-    route.fulfill({ json: [resp("r1", "أحمد سامي", "01011111111", "AAAAAAAAAAAAAAA1"), resp("r2", "بسمة علي", null, "BBBBBBBBBBBBBBB2")] }),
+    route.fulfill({
+      json: [
+        resp("r1", "أحمد سامي", "01011111111", "AAAAAAAAAAAAAAA1"),
+        resp("r2", "بسمة علي", null, "BBBBBBBBBBBBBBB2"),
+      ],
+    }),
   );
 
   // One tap: it says how many first (and who already has theirs), then sends.
@@ -6561,7 +7220,16 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
     .poll(() => calls.find((c) => c.fn === "staff_whatsapp_send")?.body)
     .toEqual({
       p_people: [
-        { phone: "01011111111", name: "أحمد سامي", vars: { code: "F-R10000", link: "https://buildxhue.com/ar/form/?pass=aaaaaaaaaaaaaaa1", pass: "aaaaaaaaaaaaaaa1" }, button: "{pass}" },
+        {
+          phone: "01011111111",
+          name: "أحمد سامي",
+          vars: {
+            code: "F-R10000",
+            link: "https://buildxhue.com/ar/form/?pass=aaaaaaaaaaaaaaa1",
+            pass: "aaaaaaaaaaaaaaa1",
+          },
+          button: "{pass}",
+        },
       ],
       p_text: null,
       p_template: "bx_form_pass_v5",
@@ -6574,16 +7242,35 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   // Templates: try an approved one on my phone, fix the refused one, write a new one.
   const card = page.getByTestId("wa-templates");
   await card.getByRole("button", { name: "اعرض القوالب (2)" }).click();
-  await card.getByTestId("wa-template").filter({ hasText: "bx_form_pass_v5" }).getByTestId("wa-template-test").click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_wa_template_test")?.body).toEqual({ p_name: "bx_form_pass_v5" });
-  await card.getByTestId("wa-template").filter({ hasText: "bx_certificate_ready_v5" }).getByTestId("wa-template-fix").click();
+  await card
+    .getByTestId("wa-template")
+    .filter({ hasText: "bx_form_pass_v5" })
+    .getByTestId("wa-template-test")
+    .click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_wa_template_test")?.body)
+    .toEqual({ p_name: "bx_form_pass_v5" });
+  await card
+    .getByTestId("wa-template")
+    .filter({ hasText: "bx_certificate_ready_v5" })
+    .getByTestId("wa-template-fix")
+    .click();
   const composer = page.getByTestId("wa-template-composer");
   await expect(composer.getByTestId("wa-template-body")).toHaveValue("مبروك يا {{1}} 🎓 شهادتك جاهزة.");
-  await composer.getByTestId("wa-template-body").fill("مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.");
+  await composer
+    .getByTestId("wa-template-body")
+    .fill("مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.");
   await composer.getByTestId("wa-template-save").click();
   await expect
     .poll(() => calls.find((c) => c.fn === "staff_wa_template_save")?.body)
-    .toEqual({ p_body: "مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.", p_category: "UTILITY", p_examples: ["أحمد"], p_button: "none", p_moment: null, p_replaces: "bx_certificate_ready_v5" });
+    .toEqual({
+      p_body: "مبروك يا {{1}} 🎓 شهادتك من BuildX HUE جاهزة، تقدر تحمّلها من التطبيق.",
+      p_category: "UTILITY",
+      p_examples: ["أحمد"],
+      p_button: "none",
+      p_moment: null,
+      p_replaces: "bx_certificate_ready_v5",
+    });
   await expect(composer).toBeHidden();
 
   await card.getByTestId("wa-template-new").click();
@@ -6591,7 +7278,9 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   await composer.getByTestId("wa-template-body").fill("{{1}} شهادتك جاهزة");
   await expect(composer).toContainText("مش بتقبل قالب يبدأ أو يخلص بمتغير");
   await expect(composer.getByTestId("wa-template-save")).toBeDisabled();
-  await composer.getByTestId("wa-template-body").fill("أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.");
+  await composer
+    .getByTestId("wa-template-body")
+    .fill("أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.");
   await composer.getByTestId("wa-template-example").fill("منى");
   await expect(composer).toContainText("أهلًا منى، شهادتك");
   await composer.getByLabel("زرار تحت الرسالة").selectOption("pass");
@@ -6599,29 +7288,61 @@ test("WhatsApp without a developer: one tap sends each accepted person their QR,
   await composer.getByTestId("wa-template-save").click();
   await expect
     .poll(() => calls.filter((c) => c.fn === "staff_wa_template_save").at(-1)?.body)
-    .toEqual({ p_body: "أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.", p_category: "UTILITY", p_examples: ["منى"], p_button: "pass", p_moment: "certificate_issued", p_replaces: null });
+    .toEqual({
+      p_body: "أهلًا {{1}}، شهادتك من BuildX HUE جاهزة ✅ افتحها من الزرار تحت.",
+      p_category: "UTILITY",
+      p_examples: ["منى"],
+      p_button: "pass",
+      p_moment: "certificate_issued",
+      p_replaces: null,
+    });
   await expect(page.getByText("اتبعت لميتا باسم bx_custom_261018150100")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("WhatsApp to people from any form: pick the form and who in it, each with their own link", async ({ page }) => {
+test("WhatsApp to people from any form: pick the form and who in it, each with their own link", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
   await signInAsOwner(page);
   await mockRpc(page, calls, {
-    staff_whatsapp_status: { connected: false, status: "none", templates: [], has_token: false, sent_today: 0, failed_today: 0, can_send: true, can_connect: true },
+    staff_whatsapp_status: {
+      connected: false,
+      status: "none",
+      templates: [],
+      has_token: false,
+      sent_today: 0,
+      failed_today: 0,
+      can_send: true,
+      can_connect: true,
+    },
   });
   await page.route(/\/rest\/v1\/forms\?select=id%2Ctitle_ar/, (route) =>
-    route.fulfill({ json: [{ id: "f1", title_ar: "ورشة 01", slug: "workshop", delegation: null, attendance: { on: true } }] }),
+    route.fulfill({
+      json: [{ id: "f1", title_ar: "ورشة 01", slug: "workshop", delegation: null, attendance: { on: true } }],
+    }),
   );
   const asked: string[] = [];
   await page.route(/\/rest\/v1\/form_responses\?select=name%2Cphone%2Cemail%2Cref%2Cpass/, (route) => {
     asked.push(decodeURIComponent(route.request().url()));
     return route.fulfill({
       json: [
-        { name: "أحمد سامي", phone: "01011111111", email: "a@example.com", ref: "F-AAAA0001", pass: "AAAAAAAAAAAAAAA1" },
-        { name: "بسمة علي", phone: null, email: "b@example.com", ref: "F-BBBB0002", pass: "BBBBBBBBBBBBBBB2" },
+        {
+          name: "أحمد سامي",
+          phone: "01011111111",
+          email: "a@example.com",
+          ref: "F-AAAA0001",
+          pass: "AAAAAAAAAAAAAAA1",
+        },
+        {
+          name: "بسمة علي",
+          phone: null,
+          email: "b@example.com",
+          ref: "F-BBBB0002",
+          pass: "BBBBBBBBBBBBBBB2",
+        },
       ],
     });
   });
@@ -6638,7 +7359,9 @@ test("WhatsApp to people from any form: pick the form and who in it, each with t
   expect(errors).toEqual([]);
 });
 
-test("form payments: who paid and who didn't, the receipt photo shown in place, and the team edits or adds someone", async ({ page }) => {
+test("form payments: who paid and who didn't, the receipt photo shown in place, and the team edits or adds someone", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
@@ -6669,7 +7392,14 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "r", type: "file", accept: "image", receipt: true, label_ar: "صورة إيصال الدفع", required: false },
+      {
+        id: "r",
+        type: "file",
+        accept: "image",
+        receipt: true,
+        label_ar: "صورة إيصال الدفع",
+        required: false,
+      },
     ],
   };
   const resp = (id: string, name: string, paid: boolean, receipt?: string) => ({
@@ -6694,12 +7424,27 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
     paid_method: paid ? "vodafone_cash" : null,
     created_at: at(50),
   });
-  const rows = [resp("r1", "منى عادل", true), resp("r2", "علي حسن", false, "f/f1/abc.jpg"), resp("r3", "سارة محمود", false)];
+  const rows = [
+    resp("r1", "منى عادل", true),
+    resp("r2", "علي حسن", false, "f/f1/abc.jpg"),
+    resp("r3", "سارة محمود", false),
+  ];
   const patches: Record<string, unknown>[] = [];
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-  await page.route(/\/storage\/v1\/object\/sign\/form-files\//, (route) => route.fulfill({ json: { signedURL: "/object/sign/form-files/f/f1/abc.jpg?token=t" } }));
-  await page.route(/\/storage\/v1\/object\/sign\/form-files\/.*token=t/, (route) => route.fulfill({ body: png, contentType: "image/png" }));
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\//, (route) =>
+    route.fulfill({ json: { signedURL: "/object/sign/form-files/f/f1/abc.jpg?token=t" } }),
+  );
+  await page.route(/\/storage\/v1\/object\/sign\/form-files\/.*token=t/, (route) =>
+    route.fulfill({ body: png, contentType: "image/png" }),
+  );
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => {
     if (route.request().method() === "PATCH") {
       const body = route.request().postDataJSON() as Record<string, unknown>;
@@ -6709,10 +7454,15 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
     return route.fulfill({ json: rows });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_form_response_save/, (route) => {
-    const body = route.request().postDataJSON() as { p_response: string | null; p_answers: Record<string, string> };
+    const body = route.request().postDataJSON() as {
+      p_response: string | null;
+      p_answers: Record<string, string>;
+    };
     calls.push({ fn: "staff_form_response_save", body });
     const base = body.p_response ? rows.find((r) => r.id === body.p_response)! : resp("r9", "", false);
-    return route.fulfill({ json: { ok: true, response: { ...base, answers: body.p_answers, name: body.p_answers.n } } });
+    return route.fulfill({
+      json: { ok: true, response: { ...base, answers: body.p_answers, name: body.p_answers.n } },
+    });
   });
 
   await page.goto("/app/#/staff/forms/f1/responses");
@@ -6727,7 +7477,14 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   // The receipt photo shows right in the response.
   await page.getByText("علي حسن").click();
   await expect(page.getByTestId("file-image").locator("img")).toBeVisible();
-  await expect.poll(() => page.getByTestId("file-image").locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("file-image")
+        .locator("img")
+        .evaluate((i: HTMLImageElement) => i.naturalWidth),
+    )
+    .toBe(1);
 
   // Mark it paid: cash, the form's amount.
   await page.getByTestId("paid-control").getByRole("switch").click();
@@ -6740,7 +7497,11 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await page.getByTestId("response-editor").getByLabel("الاسم بالكامل").fill("علي حسن محمد");
   await page.getByTestId("response-save").click();
   await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(1);
-  expect(calls.find((c) => c.fn === "staff_form_response_save")!.body).toMatchObject({ p_form: "f1", p_response: "r2", p_answers: { n: "علي حسن محمد", r: "f/f1/abc.jpg" } });
+  expect(calls.find((c) => c.fn === "staff_form_response_save")!.body).toMatchObject({
+    p_form: "f1",
+    p_response: "r2",
+    p_answers: { n: "علي حسن محمد", r: "f/f1/abc.jpg" },
+  });
   await expect(page.getByTestId("response-editor")).toHaveCount(0);
   await expect(page.getByRole("dialog")).toContainText("علي حسن محمد");
   await page.keyboard.press("Escape");
@@ -6753,7 +7514,12 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await ed.getByLabel("رقم الموبايل").fill("01112223334");
   await page.getByTestId("response-save").click();
   await expect.poll(() => calls.filter((c) => c.fn === "staff_form_response_save").length).toBe(2);
-  expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({ p_form: "f1", p_response: null, p_status: "accepted", p_answers: { n: "يوسف خالد", p: "01112223334" } });
+  expect(calls.filter((c) => c.fn === "staff_form_response_save")[1].body).toMatchObject({
+    p_form: "f1",
+    p_response: null,
+    p_status: "accepted",
+    p_answers: { n: "يوسف خالد", p: "01112223334" },
+  });
 
   // One WhatsApp reminder to everyone who hasn't paid yet: the fee, how to pay and their code.
   await page.addInitScript(() => {
@@ -6767,14 +7533,19 @@ test("form payments: who paid and who didn't, the receipt photo shown in place, 
   await expect(page.getByTestId("remind-unpaid")).toContainText("(2)");
   await page.getByTestId("remind-unpaid").click();
   await expect(page).toHaveURL(/#\/staff\/whatsapp/);
-  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { name: string }[]; context: string; text: string };
+  const handoff = JSON.parse(
+    await page.evaluate(() => (window as unknown as { handoff: string }).handoff),
+  ) as { people: { name: string }[]; context: string; text: string };
   expect(handoff.people.map((p) => p.name).sort()).toEqual(["سارة محمود", "علي حسن"].sort());
   expect(handoff.context).toBe("form:f1:unpaid");
-  for (const s of ["كورس الدرون", "150", "فودافون كاش", "{code}", "{link}"]) expect(handoff.text).toContain(s);
+  for (const s of ["كورس الدرون", "150", "فودافون كاش", "{code}", "{link}"])
+    expect(handoff.text).toContain(s);
   expect(errors).toEqual([]);
 });
 
-test("forms on a phone: the list goes straight to each form's responses with what's new, and the long editor has jumps, copies and a save bar", async ({ page }) => {
+test("forms on a phone: the list goes straight to each form's responses with what's new, and the long editor has jumps, copies and a save bar", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -6800,12 +7571,34 @@ test("forms on a phone: the list goes straight to each form's responses with wha
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "y", type: "select", label_ar: "السنة الدراسية", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }] },
+      {
+        id: "y",
+        type: "select",
+        label_ar: "السنة الدراسية",
+        required: true,
+        options: [{ ar: "أولى" }, { ar: "تانية" }],
+      },
     ],
   };
   const forms = [
-    { ...base, id: "f1", slug: "summit", title_ar: "MENA ROBOTICS SUMMIT 2026 — Cairo Edition", created_at: at(100), form_responses: [{ count: 4 }] },
-    { ...base, id: "f2", slug: "old", title_ar: "ورشة قديمة", payment: null, closes_at: at(60 * 24 * 3), created_at: at(200), form_responses: [{ count: 0 }] },
+    {
+      ...base,
+      id: "f1",
+      slug: "summit",
+      title_ar: "MENA ROBOTICS SUMMIT 2026 — Cairo Edition",
+      created_at: at(100),
+      form_responses: [{ count: 4 }],
+    },
+    {
+      ...base,
+      id: "f2",
+      slug: "old",
+      title_ar: "ورشة قديمة",
+      payment: null,
+      closes_at: at(60 * 24 * 3),
+      created_at: at(200),
+      form_responses: [{ count: 0 }],
+    },
   ];
   const resp = (id: string, name: string, status: string, paid: boolean) => ({
     id,
@@ -6830,14 +7623,21 @@ test("forms on a phone: the list goes straight to each form's responses with wha
     paid_method: paid ? "cash" : null,
     created_at: at(50),
   });
-  const rows = [resp("r1", "منى عادل", "accepted", true), resp("r2", "علي حسن", "accepted", false), resp("r3", "سارة محمود", "new", false), resp("r4", "هاجر سامي", "waiting", true)];
+  const rows = [
+    resp("r1", "منى عادل", "accepted", true),
+    resp("r2", "علي حسن", "accepted", false),
+    resp("r3", "سارة محمود", "new", false),
+    resp("r4", "هاجر سامي", "waiting", true),
+  ];
   const patches: Record<string, unknown>[] = [];
   await page.route(/\/rest\/v1\/forms/, (route) => {
     if (route.request().method() === "PATCH") {
       patches.push(route.request().postDataJSON());
       return route.fulfill({ json: [{ ...forms[0], ...(route.request().postDataJSON() as object) }] });
     }
-    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? forms[0] : forms });
+    return route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? forms[0] : forms,
+    });
   });
   await page.route(/\/rest\/v1\/form_responses/, (route) => {
     const url = route.request().url();
@@ -6859,7 +7659,9 @@ test("forms on a phone: the list goes straight to each form's responses with wha
 
   // Responses: the name has the header to itself, the downloads sit in their own row, and "not paid" is only on the accepted.
   await expect(page.locator("header h1")).toContainText("MENA ROBOTICS SUMMIT");
-  await expect(page.getByTestId("responses-tools").getByRole("button", { name: "Excel المقبولين" })).toBeVisible();
+  await expect(
+    page.getByTestId("responses-tools").getByRole("button", { name: "Excel المقبولين" }),
+  ).toBeVisible();
   const row = (name: string) => page.locator("button", { hasText: name });
   await expect(row("منى عادل")).toContainText("دفع");
   await expect(row("علي حسن")).toContainText("مدفعش");
@@ -6894,13 +7696,19 @@ test("forms on a phone: the list goes straight to each form's responses with wha
   await expect.poll(() => patches.length).toBe(1);
   const saved = patches[0] as { fields: { id: string; label_ar: string; options?: { ar: string }[] }[] };
   expect(saved.fields).toHaveLength(4);
-  expect(saved.fields[3]).toMatchObject({ type: "select", label_ar: "السنة الدراسية", options: [{ ar: "أولى" }, { ar: "تانية" }] });
+  expect(saved.fields[3]).toMatchObject({
+    type: "select",
+    label_ar: "السنة الدراسية",
+    options: [{ ar: "أولى" }, { ar: "تانية" }],
+  });
   expect(new Set(saved.fields.map((x) => x.id)).size).toBe(4);
   await expect(page.getByTestId("form-unsaved")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("coming with a friend: the editor adds the question, and each person shows who they came with (and who came with them)", async ({ page }) => {
+test("coming with a friend: the editor adds the question, and each person shows who they came with (and who came with them)", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -6963,9 +7771,13 @@ test("coming with a friend: the editor adds the question, and each person shows 
       patches.push(route.request().postDataJSON());
       return route.fulfill({ json: [{ ...form, ...(route.request().postDataJSON() as object) }] });
     }
-    return route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] });
+    return route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    });
   });
-  await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows, headers: { "content-range": `0-1/${rows.length}` } }));
+  await page.route(/\/rest\/v1\/form_responses/, (route) =>
+    route.fulfill({ json: rows, headers: { "content-range": `0-1/${rows.length}` } }),
+  );
 
   await page.goto("/app/#/staff/forms/f1/responses");
   // The list shows the friend's name, not their code.
@@ -7001,7 +7813,9 @@ test("coming with a friend: the editor adds the question, and each person shows 
   expect(errors).toEqual([]);
 });
 
-test("session ratings: the attendance screen shows each session's stars, how many rated out of who came, and the comments", async ({ page }) => {
+test("session ratings: the attendance screen shows each session's stars, how many rated out of who came, and the comments", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -7010,23 +7824,69 @@ test("session ratings: the attendance screen shows each session's stars, how man
     slug: "workshop",
     title_ar: "ورشة Embedded",
     fields: [{ id: "n", type: "name", label_ar: "الاسم", required: true }],
-    attendance: { on: true, sessions: [{ id: "s1", name: "اليوم الأول" }, { id: "s2", name: "اليوم التاني" }] },
+    attendance: {
+      on: true,
+      sessions: [
+        { id: "s1", name: "اليوم الأول" },
+        { id: "s2", name: "اليوم التاني" },
+      ],
+    },
     payment: null,
   };
-  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
-  const people = [1, 2, 3].map((i) => ({ id: `r${i}`, ref: `F-0000000${i}`, name: ["منى عادل", "علي حسن", "سارة محمود"][i - 1], phone: null, status: "accepted", answers: {}, pass: `P${i}`, tags: [] }));
+  await page.route(/\/rest\/v1\/forms(\?|$)/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
+  const people = [1, 2, 3].map((i) => ({
+    id: `r${i}`,
+    ref: `F-0000000${i}`,
+    name: ["منى عادل", "علي حسن", "سارة محمود"][i - 1],
+    phone: null,
+    status: "accepted",
+    answers: {},
+    pass: `P${i}`,
+    tags: [],
+  }));
   await page.route(/\/rest\/v1\/form_responses\?select=id%2Cref/, (route) => route.fulfill({ json: people }));
-  await page.route(/\/rest\/v1\/form_attendance/, (route) => route.fulfill({ json: people.map((p) => ({ response_id: p.id, session: "s1", present: true, at: at(120), method: "qr" })) }));
+  await page.route(/\/rest\/v1\/form_attendance/, (route) =>
+    route.fulfill({
+      json: people.map((p) => ({
+        response_id: p.id,
+        session: "s1",
+        present: true,
+        at: at(120),
+        method: "qr",
+      })),
+    }),
+  );
   await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
     route.fulfill({
       json: [
-        { response_id: "r1", session: "s1", rating: 5, comment: "الشرح كان ممتاز", updated_at: at(30), form_responses: { name: "منى عادل", ref: "F-00000001" } },
-        { response_id: "r2", session: "s1", rating: 4, comment: null, updated_at: at(20), form_responses: { name: "علي حسن", ref: "F-00000002" } },
+        {
+          response_id: "r1",
+          session: "s1",
+          rating: 5,
+          comment: "الشرح كان ممتاز",
+          updated_at: at(30),
+          form_responses: { name: "منى عادل", ref: "F-00000001" },
+        },
+        {
+          response_id: "r2",
+          session: "s1",
+          rating: 4,
+          comment: null,
+          updated_at: at(20),
+          form_responses: { name: "علي حسن", ref: "F-00000002" },
+        },
       ],
     }),
   );
   await page.goto("/app/#/staff/forms/f1/attendance");
-  await page.getByTestId("attendance-sessions").getByRole("button", { name: /اليوم الأول/ }).click();
+  await page
+    .getByTestId("attendance-sessions")
+    .getByRole("button", { name: /اليوم الأول/ })
+    .click();
   const card = page.getByTestId("session-ratings");
   await expect(card).toContainText("4.5");
   await expect(card).toContainText("2 قيّموا من 3 حضروا");
@@ -7034,21 +7894,50 @@ test("session ratings: the attendance screen shows each session's stars, how man
   await expect(page.getByTestId("session-comments")).toContainText("الشرح كان ممتاز");
   await expect(page.getByTestId("session-comments")).not.toContainText("علي حسن");
   // A session nobody rated yet shows no card.
-  await page.getByTestId("attendance-sessions").getByRole("button", { name: /اليوم التاني/ }).click();
+  await page
+    .getByTestId("attendance-sessions")
+    .getByRole("button", { name: /اليوم التاني/ })
+    .click();
   await expect(page.getByTestId("session-ratings")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("WhatsApp inbox: conversations with what's new, a thread with our messages' ticks, a reply within 24 hours, a template after, and the owner connects receiving", async ({ page }) => {
+test("WhatsApp inbox: conversations with what's new, a thread with our messages' ticks, a reply within 24 hours, a template after, and the owner connects receiving", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
   await signInAsOwner(page, calls);
   const convos = [
-    { phone: "201011111111", name: "منى عادل", profile: "Mona", last_at: at(30), last: { kind: "text", body: "هو الباص بيتحرك إمتى؟" }, unread: 2, total: 3 },
-    { phone: "201022222222", name: null, profile: "Ali", last_at: at(60 * 50), last: { kind: "image", body: null }, unread: 0, total: 1 },
+    {
+      phone: "201011111111",
+      name: "منى عادل",
+      profile: "Mona",
+      last_at: at(30),
+      last: { kind: "text", body: "هو الباص بيتحرك إمتى؟" },
+      unread: 2,
+      total: 3,
+    },
+    {
+      phone: "201022222222",
+      name: null,
+      profile: "Ali",
+      last_at: at(60 * 50),
+      last: { kind: "image", body: null },
+      unread: 0,
+      total: 1,
+    },
   ];
-  let setup = { url: "https://x.supabase.co/functions/v1/wa-webhook?k=abc", token: "abc", connecting: false, connected_at: null as string | null, error: null, last_hit_at: null, received: 0 };
+  let setup = {
+    url: "https://x.supabase.co/functions/v1/wa-webhook?k=abc",
+    token: "abc",
+    connecting: false,
+    connected_at: null as string | null,
+    error: null,
+    last_hit_at: null,
+    received: 0,
+  };
   await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox$/, (route) => route.fulfill({ json: convos }));
   await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox_setup$/, (route) => route.fulfill({ json: setup }));
   await page.route(/\/rest\/v1\/rpc\/staff_wa_inbox_connect$/, (route) => {
@@ -7064,13 +7953,29 @@ test("WhatsApp inbox: conversations with what's new, a thread with our messages'
           phone,
           last_in: at(30),
           items: [
-            { dir: "out", id: 9, kind: "template", template: "bx_form_pass_date_v5", body: "MENA Robotics Summit · السبت", at: at(600), status: "sent", delivered: true, read: true },
+            {
+              dir: "out",
+              id: 9,
+              kind: "template",
+              template: "bx_form_pass_date_v5",
+              body: "MENA Robotics Summit · السبت",
+              at: at(600),
+              status: "sent",
+              delivered: true,
+              read: true,
+            },
             { dir: "in", id: 1, kind: "text", body: "شكرًا، استلمت", at: at(90) },
             { dir: "in", id: 2, kind: "text", body: "هو الباص بيتحرك إمتى؟", at: at(30) },
           ],
         },
       });
-    return route.fulfill({ json: { phone, last_in: at(60 * 50), items: [{ dir: "in", id: 3, kind: "image", body: null, media: true, at: at(60 * 50) }] } });
+    return route.fulfill({
+      json: {
+        phone,
+        last_in: at(60 * 50),
+        items: [{ dir: "in", id: 3, kind: "image", body: null, media: true, at: at(60 * 50) }],
+      },
+    });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_whatsapp_send$/, (route) => {
     calls.push({ fn: "staff_whatsapp_send", body: route.request().postDataJSON() });
@@ -7113,7 +8018,9 @@ test("WhatsApp inbox: conversations with what's new, a thread with our messages'
   expect(errors).toEqual([]);
 });
 
-test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({ page }) => {
+test("responses: an admin deletes an applicant, and a PDF with the picked columns and both logos downloads", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -7143,16 +8050,53 @@ test("responses: an admin deletes an applicant, and a PDF with the picked column
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "y", type: "select", label_ar: "السنة الدراسية", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }] },
+      {
+        id: "y",
+        type: "select",
+        label_ar: "السنة الدراسية",
+        required: true,
+        options: [{ ar: "أولى" }, { ar: "تانية" }],
+      },
       { id: "w", type: "textarea", label_ar: "ليه عايز تحضر؟", required: false },
     ],
   };
-  const names = ["منى عادل", "علي حسن", "سارة محمود", "يوسف خالد", "مريم أحمد", "عمر طارق", "نور الدين", "هنا سمير", "كريم وائل", "ليلى مصطفى", "آدم شريف", "فرح ياسر", "زياد أشرف", "جنى عمرو", "مالك هاني", "رنا إبراهيم", "سيف محمد", "حبيبة علاء", "بلال ماجد", "تقى حسام", "أنس سامح", "دينا رامي", "حمزة عصام", "ملك وليد", "ياسين خالد"];
+  const names = [
+    "منى عادل",
+    "علي حسن",
+    "سارة محمود",
+    "يوسف خالد",
+    "مريم أحمد",
+    "عمر طارق",
+    "نور الدين",
+    "هنا سمير",
+    "كريم وائل",
+    "ليلى مصطفى",
+    "آدم شريف",
+    "فرح ياسر",
+    "زياد أشرف",
+    "جنى عمرو",
+    "مالك هاني",
+    "رنا إبراهيم",
+    "سيف محمد",
+    "حبيبة علاء",
+    "بلال ماجد",
+    "تقى حسام",
+    "أنس سامح",
+    "دينا رامي",
+    "حمزة عصام",
+    "ملك وليد",
+    "ياسين خالد",
+  ];
   const rows = names.map((name, i) => ({
     id: `r${i}`,
     form_id: "f1",
     ref: `F-${String(i).padStart(8, "0")}`,
-    answers: { n: name, p: `+2010${String(10000000 + i)}`, y: i % 2 ? "تانية" : "أولى", w: "عايز أتعلم أبني نماذج وأشارك في المسابقات" },
+    answers: {
+      n: name,
+      p: `+2010${String(10000000 + i)}`,
+      y: i % 2 ? "تانية" : "أولى",
+      w: "عايز أتعلم أبني نماذج وأشارك في المسابقات",
+    },
     name,
     phone: `+2010${String(10000000 + i)}`,
     email: null,
@@ -7171,10 +8115,16 @@ test("responses: an admin deletes an applicant, and a PDF with the picked column
     created_at: at(500 - i),
   }));
   const deleted: string[] = [];
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => {
     if (route.request().method() === "DELETE") {
-      const ids = decodeURIComponent(new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^in\.\(|\)$/g, "").split(",");
+      const ids = decodeURIComponent(new URL(route.request().url()).searchParams.get("id") ?? "")
+        .replace(/^in\.\(|\)$/g, "")
+        .split(",");
       deleted.push(...ids);
       return route.fulfill({ json: ids.map((id) => ({ id })) });
     }
@@ -7203,7 +8153,9 @@ test("responses: an admin deletes an applicant, and a PDF with the picked column
   expect(errors).toEqual([]);
 });
 
-test("responses: who else a person is (other forms, member), groups set after the form, search, and a group's own PDF", async ({ page }) => {
+test("responses: who else a person is (other forms, member), groups set after the form, search, and a group's own PDF", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
@@ -7261,7 +8213,11 @@ test("responses: who else a person is (other forms, member), groups set after th
   });
   const rows = [row("r1", "منى عادل", ["ورشة السبت"]), row("r2", "علي حسن"), row("r3", "سارة محمود")];
   const patches: { id: string; body: Record<string, unknown> }[] = [];
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => {
     if (route.request().method() === "PATCH") {
       const id = (new URL(route.request().url()).searchParams.get("id") ?? "").replace(/^eq\./, "");
@@ -7272,7 +8228,15 @@ test("responses: who else a person is (other forms, member), groups set after th
     return route.fulfill({ json: rows });
   });
   await page.route(/\/rest\/v1\/rpc\/staff_form_links/, (route) =>
-    route.fulfill({ json: { r2: { forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }], member: { code: "BX123", active: true }, shows: { missed: 2, came: 1 } } } }),
+    route.fulfill({
+      json: {
+        r2: {
+          forms: [{ title: "اختبارات فريق السومو", status: "accepted", at: at(900) }],
+          member: { code: "BX123", active: true },
+          shows: { missed: 2, came: 1 },
+        },
+      },
+    }),
   );
   await page.goto("/app/#/staff/forms/f1/responses");
   // He was accepted to three events before and missed two: flagged on his row.
@@ -7299,10 +8263,16 @@ test("responses: who else a person is (other forms, member), groups set after th
   await expect.poll(() => patches.at(-1)).toEqual({ id: "r3", body: { tags: ["الباص"] } });
 
   // Filter by a group, then search.
-  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await page
+    .getByTestId("group-chips")
+    .getByRole("button", { name: /ورشة السبت/ })
+    .click();
   await expect(page.getByText("سارة محمود")).toHaveCount(0);
   await expect(page.getByText("منى عادل")).toBeVisible();
-  await page.getByTestId("group-chips").getByRole("button", { name: /ورشة السبت/ }).click();
+  await page
+    .getByTestId("group-chips")
+    .getByRole("button", { name: /ورشة السبت/ })
+    .click();
   await page.getByTestId("responses-search").fill("سارة");
   await expect(page.getByText("منى عادل")).toHaveCount(0);
   await page.getByTestId("responses-search").fill("");
@@ -7315,18 +8285,62 @@ test("responses: who else a person is (other forms, member), groups set after th
   await expect(sheet).toContainText("2 شخص");
   const file = page.waitForEvent("download");
   await page.getByTestId("form-pdf-make").click();
-  expect(readFileSync((await (await file).path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  expect(
+    readFileSync((await (await file).path())!)
+      .subarray(0, 5)
+      .toString(),
+  ).toBe("%PDF-");
   expect(errors).toEqual([]);
 });
 
-test("gallery upload: from an event, pick photos, drop one, and save them in one request under the event's album", async ({ page }) => {
+test("gallery upload: from an event, pick photos, drop one, and save them in one request under the event's album", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
-  const base = { slug: null, title: "", summary: null, summary_ar: null, body: null, body_ar: null, result: null, result_ar: null, image_path: null, url: null, ends_at: null, location: null, location_ar: null, track: null, pinned: false, sort_order: 100, publish_at: null, created_by: "u1" };
+  const base = {
+    slug: null,
+    title: "",
+    summary: null,
+    summary_ar: null,
+    body: null,
+    body_ar: null,
+    result: null,
+    result_ar: null,
+    image_path: null,
+    url: null,
+    ends_at: null,
+    location: null,
+    location_ar: null,
+    track: null,
+    pinned: false,
+    sort_order: 100,
+    publish_at: null,
+    created_by: "u1",
+  };
   const rows = [
-    { ...base, id: "e1", kind: "event", slug: "embedded-01", title: "Embedded Systems Workshop 01", title_ar: "ورشة Embedded Systems 01", starts_at: at(60 * 24 * 5), tags: [], published: true, created_at: at(60) },
-    { ...base, id: "p1", kind: "photo", starts_at: null, tags: ["يوم التعريف"], published: true, created_at: at(120) },
+    {
+      ...base,
+      id: "e1",
+      kind: "event",
+      slug: "embedded-01",
+      title: "Embedded Systems Workshop 01",
+      title_ar: "ورشة Embedded Systems 01",
+      starts_at: at(60 * 24 * 5),
+      tags: [],
+      published: true,
+      created_at: at(60),
+    },
+    {
+      ...base,
+      id: "p1",
+      kind: "photo",
+      starts_at: null,
+      tags: ["يوم التعريف"],
+      published: true,
+      created_at: at(120),
+    },
   ];
   const uploads: string[] = [];
   const posts: unknown[] = [];
@@ -7360,7 +8374,12 @@ test("gallery upload: from an event, pick photos, drop one, and save them in one
   await page.getByRole("button", { name: "رفع 2", exact: true }).click();
   await expect(page.getByText("اترفع 2 صورة واتنشروا")).toBeVisible();
   // Two compressed photos (main + thumbnail each), and one database request for both rows.
-  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual([
+    "u1/ID.t.webp",
+    "u1/ID.t.webp",
+    "u1/ID.w.webp",
+    "u1/ID.w.webp",
+  ]);
   expect(posts).toHaveLength(1);
   expect(posts[0]).toEqual([
     expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems 01"], published: true }),
@@ -7369,7 +8388,9 @@ test("gallery upload: from an event, pick photos, drop one, and save them in one
   expect(errors).toEqual([]);
 });
 
-test("quick post: from the home screen, a news post with photos in one screen (cover first, the rest in its album)", async ({ page }) => {
+test("quick post: from the home screen, a news post with photos in one screen (cover first, the rest in its album)", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -7407,24 +8428,72 @@ test("quick post: from the home screen, a news post with photos in one screen (c
   expect(uploads).toHaveLength(4);
   expect(posts).toHaveLength(1);
   const [post, photo] = posts[0] as Record<string, unknown>[];
-  expect(post).toMatchObject({ kind: "post", title_ar: "ورشة Arduino الأولى", summary_ar: "اتعلمنا نوصّل حساسات ونبرمجها.", published: true });
+  expect(post).toMatchObject({
+    kind: "post",
+    title_ar: "ورشة Arduino الأولى",
+    summary_ar: "اتعلمنا نوصّل حساسات ونبرمجها.",
+    published: true,
+  });
   expect(String(post.slug)).toMatch(/^news-[0-9a-f]{8}$/);
   expect(String(post.image_path)).toMatch(/^u1\/[0-9a-f-]{36}\.w\.webp$/);
   expect(photo).toMatchObject({ kind: "photo", tags: ["ورشة Arduino الأولى"], published: true });
   expect(errors).toEqual([]);
 });
 
-test("media desk: the news post and social posts of each event are written from its real numbers, saved as a draft in one tap", async ({ page }) => {
+test("media desk: the news post and social posts of each event are written from its real numbers, saved as a draft in one tap", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
   RPC.staff_media_desk = [
     // A summit the team went to by bus, two days ago.
-    { key: "form:f1", slug: "summit", title: "MENA ROBOTICS SUMMIT 2026", title_en: "MENA ROBOTICS SUMMIT 2026", at: inDays(-2), place: null, registered: 78, accepted: 47, attended: 45, sessions: 1, bus: true, rating: 4.5, ratings: 12, photos: 0, cover: null, post: null },
+    {
+      key: "form:f1",
+      slug: "summit",
+      title: "MENA ROBOTICS SUMMIT 2026",
+      title_en: "MENA ROBOTICS SUMMIT 2026",
+      at: inDays(-2),
+      place: null,
+      registered: 78,
+      accepted: 47,
+      attended: 45,
+      sessions: 1,
+      bus: true,
+      rating: 4.5,
+      ratings: 12,
+      photos: 0,
+      cover: null,
+      post: null,
+    },
     // A workshop in two days: the invitation.
-    { key: "form:f2", slug: "workshop-02", title: "Workshop 02 – Introduction to Embedded Systems", title_en: null, at: inDays(2), place: "قاعة A403", registered: 14, accepted: 0, attended: 0, sessions: 0, bus: false, rating: null, ratings: 0, photos: 0, cover: null, post: null },
+    {
+      key: "form:f2",
+      slug: "workshop-02",
+      title: "Workshop 02 – Introduction to Embedded Systems",
+      title_en: null,
+      at: inDays(2),
+      place: "قاعة A403",
+      registered: 14,
+      accepted: 0,
+      attended: 0,
+      sessions: 0,
+      bus: false,
+      rating: null,
+      ratings: 0,
+      photos: 0,
+      cover: null,
+      post: null,
+    },
   ];
-  RPC.staff_college_setup = { header: "تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية", students: "طلاب برنامج الروبوتات", college: "كلية الذكاء الاصطناعي", university: "جامعة حورس", field: "الروبوتات", supervisor: "م. مشرف القسم" };
+  RPC.staff_college_setup = {
+    header: "تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية",
+    students: "طلاب برنامج الروبوتات",
+    college: "كلية الذكاء الاصطناعي",
+    university: "جامعة حورس",
+    field: "الروبوتات",
+    supervisor: "م. مشرف القسم",
+  };
   RPC.staff_event_people = ["طالب أول", "طالب تاني"];
   await signInAsOwner(page);
   const posts: Record<string, unknown>[] = [];
@@ -7449,17 +8518,54 @@ test("media desk: the news post and social posts of each event are written from 
   await expect(body).not.toHaveValue(/نظّم/);
   await expect(summit.getByTestId("desk-caption")).toHaveValue(/👥 شارك من الفريق 45 طالب/);
   await summit.getByRole("button", { name: "لينكدإن" }).click();
-  await expect(summit.getByTestId("desk-caption")).toHaveValue(/45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./);
+  await expect(summit.getByTestId("desk-caption")).toHaveValue(
+    /45 BuildX HUE students took part in MENA ROBOTICS SUMMIT 2026\./,
+  );
 
   // What the attendees said, summed up: stars, the words that keep coming up, a tip for next time.
   await page.route(/\/rest\/v1\/form_session_feedback/, (route) =>
     route.fulfill({
       json: [
-        { response_id: "r1", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "الشرح ممتاز والتنظيم ممتاز", form_responses: { name: "طالب أول", phone: "01000000001", ref: "A1" } },
-        { response_id: "r2", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 5, comment: "تنظيم ممتاز", form_responses: { name: "طالب تاني", phone: "01000000002", ref: "A2" } },
-        { response_id: "r3", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 2, comment: "الصوت مش واضح في القاعة", form_responses: { name: "طالب تالت", phone: "01000000003", ref: "A3" } },
-        { response_id: "r4", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 3, comment: "الصوت وحش", form_responses: { name: "طالب رابع", phone: null, ref: "A4" } },
-        { response_id: "r5", session: "main", updated_at: "2026-10-30T10:00:00Z", rating: 4, comment: null, form_responses: { name: "طالب خامس", phone: "01000000005", ref: "A5" } },
+        {
+          response_id: "r1",
+          session: "main",
+          updated_at: "2026-10-30T10:00:00Z",
+          rating: 5,
+          comment: "الشرح ممتاز والتنظيم ممتاز",
+          form_responses: { name: "طالب أول", phone: "01000000001", ref: "A1" },
+        },
+        {
+          response_id: "r2",
+          session: "main",
+          updated_at: "2026-10-30T10:00:00Z",
+          rating: 5,
+          comment: "تنظيم ممتاز",
+          form_responses: { name: "طالب تاني", phone: "01000000002", ref: "A2" },
+        },
+        {
+          response_id: "r3",
+          session: "main",
+          updated_at: "2026-10-30T10:00:00Z",
+          rating: 2,
+          comment: "الصوت مش واضح في القاعة",
+          form_responses: { name: "طالب تالت", phone: "01000000003", ref: "A3" },
+        },
+        {
+          response_id: "r4",
+          session: "main",
+          updated_at: "2026-10-30T10:00:00Z",
+          rating: 3,
+          comment: "الصوت وحش",
+          form_responses: { name: "طالب رابع", phone: null, ref: "A4" },
+        },
+        {
+          response_id: "r5",
+          session: "main",
+          updated_at: "2026-10-30T10:00:00Z",
+          rating: 4,
+          comment: null,
+          form_responses: { name: "طالب خامس", phone: "01000000005", ref: "A5" },
+        },
       ],
     }),
   );
@@ -7476,7 +8582,10 @@ test("media desk: the news post and social posts of each event are written from 
   await expect(fb.getByTestId("feedback-person")).toHaveCount(2);
   await expect(fb.getByTestId("feedback-person").first()).toContainText("طالب تالت");
   await expect(fb.getByTestId("feedback-person").first()).toContainText("الصوت مش واضح في القاعة");
-  await expect(fb.getByTestId("feedback-person").first().getByTestId("feedback-wa")).toHaveAttribute("href", /^https:\/\/wa\.me\/201000000003\?text=/);
+  await expect(fb.getByTestId("feedback-person").first().getByTestId("feedback-wa")).toHaveAttribute(
+    "href",
+    /^https:\/\/wa\.me\/201000000003\?text=/,
+  );
   await expect(fb.getByTestId("feedback-person").nth(1).getByTestId("feedback-wa")).toHaveCount(0);
   await fb.getByRole("button", { name: "اللي كتبوا رأي (4)" }).click();
   await expect(fb.getByTestId("feedback-person")).toHaveCount(4);
@@ -7485,7 +8594,9 @@ test("media desk: the news post and social posts of each event are written from 
   // (from who was scanned in), the tracks picked and the supervisor.
   const college = summit.getByTestId("desk-college");
   const post = college.getByTestId("college-text");
-  await expect(post).toHaveValue(/^تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية\n\nطلاب برنامج الروبوتات بكلية الذكاء الاصطناعي يشاركون في MENA ROBOTICS SUMMIT 2026 🤖🌍/);
+  await expect(post).toHaveValue(
+    /^تحت رعاية رئيس الجامعة\n\nوتحت إشراف عميد الكلية\n\nطلاب برنامج الروبوتات بكلية الذكاء الاصطناعي يشاركون في MENA ROBOTICS SUMMIT 2026 🤖🌍/,
+  );
   await expect(post).toHaveValue(/ومثّل الكلية في القمة 45 من الطلاب\./);
   await college.getByTestId("college-names-load").click();
   await expect(post).toHaveValue(/ومثّل الكلية في القمة كل من:\n • طالب أول • طالب تاني/);
@@ -7497,15 +8608,23 @@ test("media desk: the news post and social posts of each event are written from 
   // The carousel: 12 photos from the phone → the slides it can fill, in the BuildX style, 1080×1350.
   const carousel = summit.getByTestId("desk-carousel");
   await expect(carousel.getByTestId("carousel-title")).toHaveValue("MENA ROBOTICS SUMMIT 2026");
-  await carousel.getByTestId("carousel-photos").setInputFiles(
-    ["01", "02", "03", "05", "06", "07", "08", "10", "11", "12", "13", "14"].map((n) => ({ name: `${n}.webp`, mimeType: "image/webp", buffer: readFileSync(`public/media/workshops/embedded-systems-01/${n}.w.webp`) })),
-  );
+  await carousel
+    .getByTestId("carousel-photos")
+    .setInputFiles(
+      ["01", "02", "03", "05", "06", "07", "08", "10", "11", "12", "13", "14"].map((n) => ({
+        name: `${n}.webp`,
+        mimeType: "image/webp",
+        buffer: readFileSync(`public/media/workshops/embedded-systems-01/${n}.w.webp`),
+      })),
+    );
   await carousel.getByTestId("carousel-make").click();
   await expect(carousel.getByTestId("carousel-slide-cover")).toBeVisible({ timeout: 30_000 });
   await expect(carousel.getByTestId("carousel-slide-thanks")).toBeVisible();
   const n = await carousel.getByTestId("carousel-slides").locator("figure").count();
   expect(n).toBeGreaterThanOrEqual(5);
-  const size = await carousel.getByTestId("carousel-slide-cover").evaluate(async (img: HTMLImageElement) => (await img.decode(), [img.naturalWidth, img.naturalHeight]));
+  const size = await carousel
+    .getByTestId("carousel-slide-cover")
+    .evaluate(async (img: HTMLImageElement) => (await img.decode(), [img.naturalWidth, img.naturalHeight]));
   expect(size).toEqual([1080, 1350]);
   if (process.env.CAROUSEL_SHOT)
     for (const [i, f] of (await carousel.getByTestId("carousel-slides").locator("img").all()).entries()) {
@@ -7529,7 +8648,12 @@ test("media desk: the news post and social posts of each event are written from 
   await summit.getByTestId("desk-news-save").click();
   await expect(page.getByText("الخبر اتحفظ مسودة في «محتوى الموقع»")).toBeVisible();
   expect(posts).toHaveLength(1);
-  expect(posts[0]).toMatchObject({ kind: "post", tags: ["event:form:f1"], published: false, image_path: null });
+  expect(posts[0]).toMatchObject({
+    kind: "post",
+    tags: ["event:form:f1"],
+    published: false,
+    image_path: null,
+  });
   expect(String(posts[0].title_ar)).toContain("MENA ROBOTICS SUMMIT 2026");
   expect(String(posts[0].slug)).toMatch(/^news-[0-9a-f]{8}$/);
 
@@ -7552,7 +8676,9 @@ test("media desk: the news post and social posts of each event are written from 
   expect(errors).toEqual([]);
 });
 
-test("photos in the frame: wide ones fill it, tall and square ones sit whole; a ZIP to download and an album on the website", async ({ page }) => {
+test("photos in the frame: wide ones fill it, tall and square ones sit whole; a ZIP to download and an album on the website", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
@@ -7574,11 +8700,27 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   await expect(page.getByTestId("photo-frame")).toBeVisible();
   // Real photos: a wide team photo, a tall workshop photo, a square one.
   await page.getByTestId("frame-photos").setInputFiles([
-    { name: "team.webp", mimeType: "image/webp", buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp") },
-    { name: "workshop.webp", mimeType: "image/webp", buffer: readFileSync("public/media/workshops/embedded-systems-01/01.w.webp") },
-    { name: "summit.jpg", mimeType: "image/jpeg", buffer: readFileSync("public/media/news/mena-robotics-summit-partnership.jpg") },
+    {
+      name: "team.webp",
+      mimeType: "image/webp",
+      buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp"),
+    },
+    {
+      name: "workshop.webp",
+      mimeType: "image/webp",
+      buffer: readFileSync("public/media/workshops/embedded-systems-01/01.w.webp"),
+    },
+    {
+      name: "summit.jpg",
+      mimeType: "image/jpeg",
+      buffer: readFileSync("public/media/news/mena-robotics-summit-partnership.jpg"),
+    },
     // The same shot twice (a burst): only one of them is kept.
-    { name: "team-again.webp", mimeType: "image/webp", buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp") },
+    {
+      name: "team-again.webp",
+      mimeType: "image/webp",
+      buffer: readFileSync("public/media/library/team_autonomous/team_autonomous-b5d0842e-1920.webp"),
+    },
   ]);
   await expect(page.getByTestId("frame-cull-sum")).toHaveText("هيتعمل 3 من 4 · اتشال 1 مكررة");
   await page.getByRole("button", { name: "شوف اللي اتشال" }).click();
@@ -7589,20 +8731,28 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   await expect(previews.nth(1)).toContainText("كاملة على خلفية");
   await expect(previews.nth(2)).toContainText("كاملة على خلفية");
   // Every result is the frame's size, with the frame drawn on top (its blue bar at the top middle).
-  const look = await previews.nth(0).locator("img").evaluate(async (img: HTMLImageElement) => {
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = img.naturalWidth;
-    c.height = img.naturalHeight;
-    const x = c.getContext("2d")!;
-    x.drawImage(img, 0, 0);
-    const [r, g, b] = x.getImageData(836, 48, 1, 1).data;
-    return { w: img.naturalWidth, h: img.naturalHeight, r, g, b };
-  });
+  const look = await previews
+    .nth(0)
+    .locator("img")
+    .evaluate(async (img: HTMLImageElement) => {
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const x = c.getContext("2d")!;
+      x.drawImage(img, 0, 0);
+      const [r, g, b] = x.getImageData(836, 48, 1, 1).data;
+      return { w: img.naturalWidth, h: img.naturalHeight, r, g, b };
+    });
   expect(look).toMatchObject({ w: 1672, h: 941 });
   expect(look.b).toBeGreaterThan(180);
   expect(look.r).toBeLessThan(80);
-  if (process.env.FRAME_SHOT) for (let i = 0; i < 3; i++) await previews.nth(i).locator("img").screenshot({ path: `${process.env.FRAME_SHOT}-${i}.png` });
+  if (process.env.FRAME_SHOT)
+    for (let i = 0; i < 3; i++)
+      await previews
+        .nth(i)
+        .locator("img")
+        .screenshot({ path: `${process.env.FRAME_SHOT}-${i}.png` });
 
   // All of them as a ZIP of JPEGs, numbered in the order picked.
   const zip = page.waitForEvent("download");
@@ -7611,7 +8761,9 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   expect(z.suggestedFilename()).toMatch(/^buildx-framed-\d{4}-\d{2}-\d{2}\.zip$/);
   const bytes = readFileSync((await z.path())!);
   expect(bytes.subarray(0, 2).toString()).toBe("PK");
-  const names = [...bytes.toString("latin1").matchAll(/PK\x01\x02[\s\S]{42}([\x20-\x7e]+?\.jpg)/g)].map((m) => m[1]);
+  const names = [...bytes.toString("latin1").matchAll(/PK\x01\x02[\s\S]{42}([\x20-\x7e]+?\.jpg)/g)].map(
+    (m) => m[1],
+  );
   expect(names).toEqual(["001-team.jpg", "002-workshop.jpg", "003-summit.jpg"]);
   expect(bytes.length).toBeLessThan(3 * 700_000);
 
@@ -7634,12 +8786,25 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   await page.getByTestId("frame-album").fill("ورشة Embedded Systems");
   await page.getByTestId("frame-upload").click();
   await expect(page.getByText("اترفع 3 صورة في ألبوم «ورشة Embedded Systems»")).toBeVisible();
-  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.t.webp", "u1/ID.w.webp", "u1/ID.w.webp", "u1/ID.w.webp"]);
-  expect(posts.flat()).toEqual([1, 2, 3].map(() => expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems"], published: true })));
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual([
+    "u1/ID.t.webp",
+    "u1/ID.t.webp",
+    "u1/ID.t.webp",
+    "u1/ID.w.webp",
+    "u1/ID.w.webp",
+    "u1/ID.w.webp",
+  ]);
+  expect(posts.flat()).toEqual(
+    [1, 2, 3].map(() =>
+      expect.objectContaining({ kind: "photo", tags: ["ورشة Embedded Systems"], published: true }),
+    ),
+  );
   expect(errors).toEqual([]);
 });
 
-test("old heavy site photos are shrunk in one tap: a light copy replaces each one, then the old file goes", async ({ page }) => {
+test("old heavy site photos are shrunk in one tap: a light copy replaces each one, then the old file goes", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("dialog", (d) => void d.accept());
@@ -7649,7 +8814,9 @@ test("old heavy site photos are shrunk in one tap: a light copy replaces each on
   const uploads: string[] = [];
   const patches: { url: string; body: unknown }[] = [];
   const removed: unknown[] = [];
-  await page.route(/\/storage\/v1\/object\/public\/site\//, (route) => route.fulfill({ body: heavy, contentType: "image/jpeg" }));
+  await page.route(/\/storage\/v1\/object\/public\/site\//, (route) =>
+    route.fulfill({ body: heavy, contentType: "image/jpeg" }),
+  );
   await page.route(/\/storage\/v1\/object\/site(\/|$)/, async (route) => {
     if (route.request().method() === "DELETE") {
       removed.push(route.request().postDataJSON());
@@ -7669,17 +8836,24 @@ test("old heavy site photos are shrunk in one tap: a light copy replaces each on
   await expect(page.getByTestId("shrink-old")).toContainText("1 صورة على الموقع تقيلة");
   await page.getByTestId("shrink-old-go").click();
   await expect(page.getByText(/اتصغّرت الصور: وفّرنا/)).toBeVisible();
-  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual(["u1/ID.t.webp", "u1/ID.w.webp"]);
+  expect(uploads.map((u) => u.replace(/[0-9a-f-]{36}/, "ID")).sort()).toEqual([
+    "u1/ID.t.webp",
+    "u1/ID.w.webp",
+  ]);
   expect(patches).toHaveLength(1);
   expect(patches[0].url).toContain("image_path=eq.u1%2Fold.w.jpg");
-  expect(patches[0].body).toMatchObject({ image_path: expect.stringMatching(/^u1\/[0-9a-f-]{36}\.w\.webp$/) });
+  expect(patches[0].body).toMatchObject({
+    image_path: expect.stringMatching(/^u1\/[0-9a-f-]{36}\.w\.webp$/),
+  });
   expect(removed).toEqual([{ prefixes: ["u1/old.w.jpg", "u1/old.t.jpg"] }]);
   await expect(page.getByTestId("shrink-old")).toHaveCount(0);
   delete RPC.staff_heavy_site_images;
   expect(errors).toEqual([]);
 });
 
-test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({ page }) => {
+test("responses: an English PDF for a conference, with every name in English and checked before it goes out", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
@@ -7710,16 +8884,73 @@ test("responses: an English PDF for a conference, with every name in English and
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "y", type: "select", label_ar: "السنة الدراسية", label_en: "Year", required: true, options: [{ ar: "أولى", en: "First year" }, { ar: "تانية", en: "Second year" }] },
+      {
+        id: "y",
+        type: "select",
+        label_ar: "السنة الدراسية",
+        label_en: "Year",
+        required: true,
+        options: [
+          { ar: "أولى", en: "First year" },
+          { ar: "تانية", en: "Second year" },
+        ],
+      },
     ],
   };
-  const base = { form_id: "f1", email: null, locale: "ar", status: "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null, paid_at: null, paid_amount: null, paid_method: null, tags: [] };
+  const base = {
+    form_id: "f1",
+    email: null,
+    locale: "ar",
+    status: "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    tags: [],
+  };
   const rows = [
-    { ...base, id: "r0", ref: "F-00000000", name: "محمد عبد الرحمن", name_en: null, phone: "+201001234567", answers: { n: "محمد عبد الرحمن", p: "+201001234567", y: "أولى" }, created_at: at(300) },
-    { ...base, id: "r1", ref: "F-00000001", name: "حازم البرلسي", name_en: null, phone: "+201101234567", answers: { n: "حازم البرلسي", p: "+201101234567", y: "تانية" }, created_at: at(200) },
-    { ...base, id: "r2", ref: "F-00000002", name: "منى عادل", name_en: "Mona Adel", phone: "+201201234567", answers: { n: "منى عادل", p: "+201201234567", y: "أولى" }, created_at: at(100) },
+    {
+      ...base,
+      id: "r0",
+      ref: "F-00000000",
+      name: "محمد عبد الرحمن",
+      name_en: null,
+      phone: "+201001234567",
+      answers: { n: "محمد عبد الرحمن", p: "+201001234567", y: "أولى" },
+      created_at: at(300),
+    },
+    {
+      ...base,
+      id: "r1",
+      ref: "F-00000001",
+      name: "حازم البرلسي",
+      name_en: null,
+      phone: "+201101234567",
+      answers: { n: "حازم البرلسي", p: "+201101234567", y: "تانية" },
+      created_at: at(200),
+    },
+    {
+      ...base,
+      id: "r2",
+      ref: "F-00000002",
+      name: "منى عادل",
+      name_en: "Mona Adel",
+      phone: "+201201234567",
+      answers: { n: "منى عادل", p: "+201201234567", y: "أولى" },
+      created_at: at(100),
+    },
   ];
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
   await page.goto("/app/#/staff/forms/f1/responses");
   await page.getByTestId("form-pdf-open").click();
@@ -7739,34 +8970,89 @@ test("responses: an English PDF for a conference, with every name in English and
   await page.evaluate(() => {
     const w = window as unknown as { pdfText: string[] };
     w.pdfText = [];
-    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="form-pdf-page"]').forEach((p) => w.pdfText.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(() =>
+      document
+        .querySelectorAll<HTMLElement>('[data-testid="form-pdf-page"]')
+        .forEach((p) => w.pdfText.push(p.innerText)),
+    ).observe(document.body, { childList: true, subtree: true });
   });
   const file = page.waitForEvent("download");
   await page.getByTestId("form-pdf-make").click();
   const pdf = await file;
   expect(pdf.suggestedFilename()).toMatch(/^buildx-ai-day-en-.*\.pdf$/);
   if (process.env.SAVE_PDF_EN) copyFileSync((await pdf.path())!, process.env.SAVE_PDF_EN);
-  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  expect(
+    readFileSync((await pdf.path())!)
+      .subarray(0, 5)
+      .toString(),
+  ).toBe("%PDF-");
   // Only the names that changed are saved, in one request.
-  expect(calls.filter((c) => c.fn === "staff_form_names_en")).toEqual([{ fn: "staff_form_names_en", body: { p_form: "f1", p_names: { r0: "Mohamed Abdelrahman", r1: "Hazem El-Borollosy" } } }]);
-  const text = (await page.evaluate(() => (window as unknown as { pdfText: string[] }).pdfText.join("\n"))) as string;
-  for (const s of ["AI Day 2026", "PARTICIPANTS", "Full name", "Mobile", "Year", "Mohamed Abdelrahman", "Hazem El-Borollosy", "Mona Adel", "+20 100 123 4567", "First year", "Page 1 of 1"]) expect(text).toContain(s);
+  expect(calls.filter((c) => c.fn === "staff_form_names_en")).toEqual([
+    {
+      fn: "staff_form_names_en",
+      body: { p_form: "f1", p_names: { r0: "Mohamed Abdelrahman", r1: "Hazem El-Borollosy" } },
+    },
+  ]);
+  const text = (await page.evaluate(() =>
+    (window as unknown as { pdfText: string[] }).pdfText.join("\n"),
+  )) as string;
+  for (const s of [
+    "AI Day 2026",
+    "PARTICIPANTS",
+    "Full name",
+    "Mobile",
+    "Year",
+    "Mohamed Abdelrahman",
+    "Hazem El-Borollosy",
+    "Mona Adel",
+    "+20 100 123 4567",
+    "First year",
+    "Page 1 of 1",
+  ])
+    expect(text).toContain(s);
   expect(text).not.toMatch(/[؀-ۿ]/);
   expect(errors).toEqual([]);
 });
 
-test("bus letter: from a form's people, the dean's letter with the count and buses, and the names list after it", async ({ page }) => {
+test("bus letter: from a form's people, the dean's letter with the count and buses, and the names list after it", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_trip_letter = {
     settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", sign2_name: "م/ مشرف", seats: 50 },
-    letter: { event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", venue: "جامعة مصر اليابانية للعلوم والتكنولوجيا (E-JUST)", city: "الإسكندرية" },
+    letter: {
+      event: "MENA ROBOTICS SUMMIT 2026",
+      date: "2026-10-30",
+      venue: "جامعة مصر اليابانية للعلوم والتكنولوجيا (E-JUST)",
+      city: "الإسكندرية",
+    },
   };
   await signInAsOwner(page, calls);
   const form = {
-    id: "f1", slug: "summit", title_ar: "قمة", title_en: "MENA ROBOTICS SUMMIT 2026", intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null, open: true, opens_at: null, closes_at: null,
-    max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, delegation: null, attendance: null, capacity: null, payment: null,
+    id: "f1",
+    slug: "summit",
+    title_ar: "قمة",
+    title_en: "MENA ROBOTICS SUMMIT 2026",
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    payment: null,
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
@@ -7774,11 +9060,33 @@ test("bus letter: from a form's people, the dean's letter with the count and bus
     ],
   };
   const rows = Array.from({ length: 53 }, (_, i) => ({
-    id: `r${i}`, form_id: "f1", ref: `F-${String(i).padStart(8, "0")}`, answers: { n: `طالب ${i + 1}`, p: `+2010${String(10000000 + i)}`, c: "الذكاء الاصطناعي" }, name: `طالب ${i + 1}`, phone: `+2010${String(10000000 + i)}`,
-    email: null, locale: "ar", status: i === 52 ? "rejected" : "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null,
-    paid_at: null, paid_amount: null, paid_method: null, tags: [], created_at: at(500 - i),
+    id: `r${i}`,
+    form_id: "f1",
+    ref: `F-${String(i).padStart(8, "0")}`,
+    answers: { n: `طالب ${i + 1}`, p: `+2010${String(10000000 + i)}`, c: "الذكاء الاصطناعي" },
+    name: `طالب ${i + 1}`,
+    phone: `+2010${String(10000000 + i)}`,
+    email: null,
+    locale: "ar",
+    status: i === 52 ? "rejected" : "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: null,
+    paid_amount: null,
+    paid_method: null,
+    tags: [],
+    created_at: at(500 - i),
   }));
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
   await page.goto("/app/#/staff/forms/f1/responses");
   await page.getByTestId("trip-letter-open").click();
@@ -7790,37 +9098,78 @@ test("bus letter: from a form's people, the dean's letter with the count and bus
   await expect(page.getByTestId("trip-letter-count")).toContainText("أتوبيسين");
   await sheet.locator("button", { hasText: "الكل ماعدا المرفوضين" }).click();
   // The sheet fits the screen (on a phone too), and the page doesn't scroll sideways.
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+    page.viewportSize()!.width,
+  );
   const box = (await page.getByTestId("trip-letter-make").boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.evaluate(() => {
     const w = window as unknown as { letter: string[] };
     w.letter = [];
-    new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]').forEach((p) => w.letter.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(() =>
+      document
+        .querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]')
+        .forEach((p) => w.letter.push(p.innerText)),
+    ).observe(document.body, { childList: true, subtree: true });
   });
   const file = page.waitForEvent("download");
   await page.getByTestId("trip-letter-make").click();
   const pdf = await file;
   expect(pdf.suggestedFilename()).toMatch(/^buildx-bus-request-summit-.*\.pdf$/);
-  expect(readFileSync((await pdf.path())!).subarray(0, 5).toString()).toBe("%PDF-");
+  expect(
+    readFileSync((await pdf.path())!)
+      .subarray(0, 5)
+      .toString(),
+  ).toBe("%PDF-");
   if (process.env.SAVE_LETTER) copyFileSync((await pdf.path())!, process.env.SAVE_LETTER);
-  const saved = calls.find((c) => c.fn === "staff_trip_letter_save")?.body as { p_key: string; p_letter: Record<string, unknown>; p_settings: Record<string, unknown> };
+  const saved = calls.find((c) => c.fn === "staff_trip_letter_save")?.body as {
+    p_key: string;
+    p_letter: Record<string, unknown>;
+    p_settings: Record<string, unknown>;
+  };
   expect(saved.p_key).toBe("form:f1");
-  expect(saved.p_letter).toMatchObject({ event: "MENA ROBOTICS SUMMIT 2026", date: "2026-10-30", supervisors: 2 });
+  expect(saved.p_letter).toMatchObject({
+    event: "MENA ROBOTICS SUMMIT 2026",
+    date: "2026-10-30",
+    supervisors: 2,
+  });
   expect(saved.p_settings).toMatchObject({ to_name: "د. عميد الكلية", seats: 50 });
-  const text = (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
-  for (const s of ["طلب توفير أتوبيسات", "د. عميد الكلية", "MENA ROBOTICS SUMMIT 2026", "الجمعة", "30 أكتوبر 2026", "E-JUST", "الإسكندرية", "(52)", "(54)", "أتوبيسين", "كشف بأسماء الطلاب المشاركين", "طالب 52", "01010000051", "صفحة 2 من 3"]) expect(text).toContain(s);
+  const text = (await page.evaluate(() =>
+    (window as unknown as { letter: string[] }).letter.join("\n"),
+  )) as string;
+  for (const s of [
+    "طلب توفير أتوبيسات",
+    "د. عميد الكلية",
+    "MENA ROBOTICS SUMMIT 2026",
+    "الجمعة",
+    "30 أكتوبر 2026",
+    "E-JUST",
+    "الإسكندرية",
+    "(52)",
+    "(54)",
+    "أتوبيسين",
+    "كشف بأسماء الطلاب المشاركين",
+    "طالب 52",
+    "01010000051",
+    "صفحة 2 من 3",
+  ])
+    expect(text).toContain(s);
   expect(text).not.toContain("طالب 53");
   delete RPC.staff_trip_letter;
   expect(errors).toEqual([]);
 });
 
-test("event file: split into buses with a list per bus, the lecture excuse letter, the report, the accounts and certificates for who came", async ({ page }) => {
+test("event file: split into buses with a list per bus, the lecture excuse letter, the report, the accounts and certificates for who came", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
-  RPC.staff_trip_letter = { settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", seats: 10 }, letter: { supervisors: 6 } };
+  RPC.staff_trip_letter = {
+    settings: { to_name: "د. عميد الكلية", sign1_name: "أ.د/ عميد الكلية", seats: 10 },
+    letter: { supervisors: 6 },
+  };
   await signInAsOwner(page, calls);
   await page.addInitScript(() => {
     const set = Storage.prototype.setItem;
@@ -7830,9 +9179,29 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
     };
   });
   const form = {
-    id: "f1", slug: "drone-day", title_ar: "يوم الدرون", title_en: "Drone Day", intro_ar: null, intro_en: null, success_ar: null, success_en: null, team: null, open: true, opens_at: null, closes_at: null,
-    max_responses: null, listed: true, archived: false, created_at: at(100), accepted_ar: null, accepted_url: null, delegation: null, attendance: null, capacity: null,
-    event_at: "2026-11-05T08:00:00Z", payment: { on: true, amount: 100 },
+    id: "f1",
+    slug: "drone-day",
+    title_ar: "يوم الدرون",
+    title_en: "Drone Day",
+    intro_ar: null,
+    intro_en: null,
+    success_ar: null,
+    success_en: null,
+    team: null,
+    open: true,
+    opens_at: null,
+    closes_at: null,
+    max_responses: null,
+    listed: true,
+    archived: false,
+    created_at: at(100),
+    accepted_ar: null,
+    accepted_url: null,
+    delegation: null,
+    attendance: null,
+    capacity: null,
+    event_at: "2026-11-05T08:00:00Z",
+    payment: { on: true, amount: 100 },
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
@@ -7840,21 +9209,51 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   };
   // Five accepted (four paid), and one refused who was on a bus before.
   const rows = Array.from({ length: 6 }, (_, i) => ({
-    id: `r${i}`, form_id: "f1", ref: `F-0000000${i}`, answers: { n: `طالب ${i + 1}`, p: `+20101000000${i}` }, name: `طالب ${i + 1}`, phone: `+20101000000${i}`,
-    email: null, locale: "ar", status: i === 5 ? "rejected" : "accepted", note: null, external_done_at: null, member_no: null, accepted_at: null, checked_in_at: null, messaged_at: null, pass: null,
-    paid_at: i < 4 ? at(10) : null, paid_amount: i < 4 ? 100 : null, paid_method: i < 4 ? "cash" : null, tags: i === 5 ? ["أتوبيس 1"] : [], created_at: at(500 - i),
+    id: `r${i}`,
+    form_id: "f1",
+    ref: `F-0000000${i}`,
+    answers: { n: `طالب ${i + 1}`, p: `+20101000000${i}` },
+    name: `طالب ${i + 1}`,
+    phone: `+20101000000${i}`,
+    email: null,
+    locale: "ar",
+    status: i === 5 ? "rejected" : "accepted",
+    note: null,
+    external_done_at: null,
+    member_no: null,
+    accepted_at: null,
+    checked_in_at: null,
+    messaged_at: null,
+    pass: null,
+    paid_at: i < 4 ? at(10) : null,
+    paid_amount: i < 4 ? 100 : null,
+    paid_method: i < 4 ? "cash" : null,
+    tags: i === 5 ? ["أتوبيس 1"] : [],
+    created_at: at(500 - i),
   }));
   const certPosts: { recipient_name: string; title: string; kind: string }[][] = [];
-  await page.route(/\/rest\/v1\/forms/, (route) => route.fulfill({ json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form] }));
+  await page.route(/\/rest\/v1\/forms/, (route) =>
+    route.fulfill({
+      json: (route.request().headers().accept ?? "").includes("vnd.pgrst.object") ? form : [form],
+    }),
+  );
   await page.route(/\/rest\/v1\/form_responses/, (route) => route.fulfill({ json: rows }));
   // The first two were scanned at the door.
-  await page.route(/\/rest\/v1\/form_attendance/, (route) => route.fulfill({ json: [{ response_id: "r0" }, { response_id: "r1" }] }));
+  await page.route(/\/rest\/v1\/form_attendance/, (route) =>
+    route.fulfill({ json: [{ response_id: "r0" }, { response_id: "r1" }] }),
+  );
   // The first one already has this event's certificate.
   await page.route(/\/rest\/v1\/certificates/, (route) => {
     if (route.request().method() === "POST") {
-      const body = route.request().postDataJSON() as { recipient_name: string; title: string; kind: string }[];
+      const body = route.request().postDataJSON() as {
+        recipient_name: string;
+        title: string;
+        kind: string;
+      }[];
       certPosts.push(body);
-      return route.fulfill({ json: body.map((c, i) => ({ code: `BXC-0000000${i + 1}`, recipient_name: c.recipient_name })) });
+      return route.fulfill({
+        json: body.map((c, i) => ({ code: `BXC-0000000${i + 1}`, recipient_name: c.recipient_name })),
+      });
     }
     return route.fulfill({ json: [{ code: "BXC-AAAAAAAA", recipient_name: "طالب 1" }] });
   });
@@ -7862,9 +9261,14 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
     await page.evaluate(() => {
       const w = window as unknown as { letter: string[] };
       w.letter = [];
-      new MutationObserver(() => document.querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]').forEach((p) => w.letter.push(p.innerText))).observe(document.body, { childList: true, subtree: true });
+      new MutationObserver(() =>
+        document
+          .querySelectorAll<HTMLElement>('[data-testid="trip-letter-page"]')
+          .forEach((p) => w.letter.push(p.innerText)),
+      ).observe(document.body, { childList: true, subtree: true });
     });
-    return async () => (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
+    return async () =>
+      (await page.evaluate(() => (window as unknown as { letter: string[] }).letter.join("\n"))) as string;
   };
 
   await page.goto("/app/#/staff/forms/f1/responses");
@@ -7879,7 +9283,10 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   await expect(page.getByTestId("trip-bus-counts")).toContainText("لسه متقسموش");
   await page.getByTestId("trip-split").click();
   await expect(page.getByTestId("trip-bus-counts")).toContainText("أتوبيس 1: 3 · أتوبيس 2: 2");
-  expect(calls.find((c) => c.fn === "staff_form_set_buses")?.body).toEqual({ p_form: "f1", p_buses: { r0: 1, r1: 1, r2: 1, r3: 2, r4: 2, r5: 0 } });
+  expect(calls.find((c) => c.fn === "staff_form_set_buses")?.body).toEqual({
+    p_form: "f1",
+    p_buses: { r0: 1, r1: 1, r2: 1, r3: 2, r4: 2, r5: 0 },
+  });
 
   // Bus 1's seat map: the bus from above, seated in the order they registered, then moved by hand.
   await page.getByTestId("bus-seats-open-1").click();
@@ -7899,7 +9306,9 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   await expect(page.getByTestId("seat-2")).toContainText("طالب 3");
   await expect(page.getByTestId("seat-1")).toHaveAccessibleName("كرسي 1 فاضي");
   await page.getByTestId("bus-save").click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_form_set_seats")?.body).toEqual({ p_form: "f1", p_seats: { r0: 6, r1: 3, r2: 2 } });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_form_set_seats")?.body)
+    .toEqual({ p_form: "f1", p_seats: { r0: 6, r1: 3, r2: 2 } });
   const seatPdf = page.waitForEvent("download");
   await page.getByTestId("bus-pdf").click();
   expect((await seatPdf).suggestedFilename()).toMatch(/^buildx-bus-1-seats-.*\.pdf$/);
@@ -7921,7 +9330,8 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   const excuse = await file;
   expect(excuse.suggestedFilename()).toMatch(/^buildx-lecture-excuse-drone-day-.*\.pdf$/);
   if (process.env.SAVE_TRIP) copyFileSync((await excuse.path())!, `${process.env.SAVE_TRIP}/excuse.pdf`);
-  for (const s of ["طلب احتساب غياب بعذر", "Drone Day", "طالب 1", "طالب 2"]) expect(await text()).toContain(s);
+  for (const s of ["طلب احتساب غياب بعذر", "Drone Day", "طالب 1", "طالب 2"])
+    expect(await text()).toContain(s);
   expect(await text()).not.toContain("طالب 3");
 
   // The report: what happened and the numbers.
@@ -7952,31 +9362,95 @@ test("event file: split into buses with a list per bus, the lecture excuse lette
   await page.getByTestId("trip-certs-issue").click();
   await expect(page).toHaveURL(/#\/staff\/whatsapp/);
   expect(certPosts).toHaveLength(1);
-  expect(certPosts[0]).toMatchObject([{ recipient_name: "طالب 2", title: "Drone Day", kind: "participation" }]);
-  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { name: string; vars: { code: string; link: string } }[]; context: string };
+  expect(certPosts[0]).toMatchObject([
+    { recipient_name: "طالب 2", title: "Drone Day", kind: "participation" },
+  ]);
+  const handoff = JSON.parse(
+    await page.evaluate(() => (window as unknown as { handoff: string }).handoff),
+  ) as { people: { name: string; vars: { code: string; link: string } }[]; context: string };
   expect(handoff.context).toBe("form:f1:certs");
-  expect(handoff.people.map((p) => [p.name, p.vars.code])).toEqual([["طالب 1", "BXC-AAAAAAAA"], ["طالب 2", "BXC-00000001"]]);
+  expect(handoff.people.map((p) => [p.name, p.vars.code])).toEqual([
+    ["طالب 1", "BXC-AAAAAAAA"],
+    ["طالب 2", "BXC-00000001"],
+  ]);
   expect(handoff.people[1].vars.link).toContain("BXC-00000001");
   delete RPC.staff_trip_letter;
   expect(errors).toEqual([]);
 });
 
-test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), and save prices and how to pay", async ({ page }) => {
+test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), and save prices and how to pay", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_ai3d_overview = {
-    settings: { enabled: false, key_set: true, ai_model: null, cost_text: 1, cost_image: 1, textured: true, packages: [{ credits: 1, price: 60 }, { credits: 5, price: 250 }], pay_ar: null, pay_en: null, free_credits: 0 },
+    settings: {
+      enabled: false,
+      key_set: true,
+      ai_model: null,
+      cost_text: 1,
+      cost_image: 1,
+      textured: true,
+      packages: [
+        { credits: 1, price: 60 },
+        { credits: 5, price: 250 },
+      ],
+      pay_ar: null,
+      pay_en: null,
+      free_credits: 0,
+    },
     stats: { wallets: 1, done: 0, failed: 0, active: 0, income: 0, pending: 1 },
-    topups: [{ id: "t1", wallet: "w1", code: "X3D-1A2B3C4D", name: "Mona Adel", phone: "+201012345678", credits: 5, amount: 250, method: "vodafone_cash", sender: "01099999999", receipt: "r/w1/x.jpg", status: "pending", note: null, created_at: at(30) }],
+    topups: [
+      {
+        id: "t1",
+        wallet: "w1",
+        code: "X3D-1A2B3C4D",
+        name: "Mona Adel",
+        phone: "+201012345678",
+        credits: 5,
+        amount: 250,
+        method: "vodafone_cash",
+        sender: "01099999999",
+        receipt: "r/w1/x.jpg",
+        status: "pending",
+        note: null,
+        created_at: at(30),
+      },
+    ],
     jobs: [],
-    wallets: [{ id: "w1", code: "X3D-1A2B3C4D", name: "Mona Adel", phone: "+201012345678", credits: 0, blocked: false, created_at: at(60), seen_at: at(10), models: 0 }],
+    wallets: [
+      {
+        id: "w1",
+        code: "X3D-1A2B3C4D",
+        name: "Mona Adel",
+        phone: "+201012345678",
+        credits: 0,
+        blocked: false,
+        created_at: at(60),
+        seen_at: at(10),
+        models: 0,
+      },
+    ],
   };
-  RPC.staff_ai3d_topup_review = { ok: true, name: "Mona Adel", phone: "+201012345678", code: "X3D-1A2B3C4D", credits: 5 };
+  RPC.staff_ai3d_topup_review = {
+    ok: true,
+    name: "Mona Adel",
+    phone: "+201012345678",
+    code: "X3D-1A2B3C4D",
+    credits: 5,
+  };
   await signInAsOwner(page, calls);
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
-  await page.route(/\/storage\/v1\/object\/sign\/ai3d\//, (route) => route.fulfill({ json: { signedURL: "/object/sign/ai3d/r/w1/x.jpg?token=t" } }));
-  await page.route(/\/storage\/v1\/object\/sign\/ai3d\/.*token=t/, (route) => route.fulfill({ body: png, contentType: "image/png" }));
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page.route(/\/storage\/v1\/object\/sign\/ai3d\//, (route) =>
+    route.fulfill({ json: { signedURL: "/object/sign/ai3d/r/w1/x.jpg?token=t" } }),
+  );
+  await page.route(/\/storage\/v1\/object\/sign\/ai3d\/.*token=t/, (route) =>
+    route.fulfill({ body: png, contentType: "image/png" }),
+  );
   await page.addInitScript(() => {
     const set = Storage.prototype.setItem;
     Storage.prototype.setItem = function (k: string, v: string) {
@@ -7990,9 +9464,13 @@ test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), 
   await expect(card).toContainText("5 كريدت");
   await expect(page.getByTestId("ai3d-receipt-img")).toBeVisible();
   await page.getByTestId("ai3d-approve").click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_ai3d_topup_review")?.body).toEqual({ p_id: "t1", p_approve: true, p_note: null });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_ai3d_topup_review")?.body)
+    .toEqual({ p_id: "t1", p_approve: true, p_note: null });
   await expect(page).toHaveURL(/#\/staff\/whatsapp/);
-  const handoff = JSON.parse(await page.evaluate(() => (window as unknown as { handoff: string }).handoff)) as { people: { phone: string }[]; text: string };
+  const handoff = JSON.parse(
+    await page.evaluate(() => (window as unknown as { handoff: string }).handoff),
+  ) as { people: { phone: string }[]; text: string };
   expect(handoff.people[0].phone).toBe("+201012345678");
   expect(handoff.text).toContain("اتضاف 5 كريدت");
 
@@ -8002,15 +9480,25 @@ test("3D AI in the app: approve a top-up from its receipt (then WhatsApp them), 
   await page.getByLabel("طريقة الدفع (بالعربي)").fill("فودافون كاش: 01000000000");
   await page.getByLabel("السعر").first().fill("70");
   await page.getByTestId("ai3d-settings-save").click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_ai3d_settings_save")?.body).toMatchObject({
-    p: { pay_ar: "فودافون كاش: 01000000000", packages: [{ credits: 1, price: 70 }, { credits: 5, price: 250 }] },
-  });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_ai3d_settings_save")?.body)
+    .toMatchObject({
+      p: {
+        pay_ar: "فودافون كاش: 01000000000",
+        packages: [
+          { credits: 1, price: 70 },
+          { credits: 5, price: 250 },
+        ],
+      },
+    });
   delete RPC.staff_ai3d_overview;
   delete RPC.staff_ai3d_topup_review;
   expect(errors).toEqual([]);
 });
 
-test("a student turns on their Skill Passport, sees the link, and the public page shows only the records", async ({ page }) => {
+test("a student turns on their Skill Passport, sees the link, and the public page shows only the records", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() =>
@@ -8025,8 +9513,20 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
     group: null,
     headline: null,
     since: "2026-02",
-    certificates: [{ code: "BXC-1A2B3C4D", kind: "completion", title: "Arduino Basics", title_ar: "أساسيات الأردوينو", hours: 12, on: "2026-09-01" }],
-    challenges: [{ slug: "robot-oval", on: "2026-10-26" }, { slug: "blink-2hz", on: "2026-10-20" }],
+    certificates: [
+      {
+        code: "BXC-1A2B3C4D",
+        kind: "completion",
+        title: "Arduino Basics",
+        title_ar: "أساسيات الأردوينو",
+        hours: 12,
+        on: "2026-09-01",
+      },
+    ],
+    challenges: [
+      { slug: "robot-oval", on: "2026-10-26" },
+      { slug: "blink-2hz", on: "2026-10-20" },
+    ],
     courses: [],
     projects: [],
     numbers: { sessions: 9, quizzes: 3, tasks: 2 },
@@ -8036,15 +9536,32 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
   await page.route(/supabase\.co/, async (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     if (fn === "student_home")
-      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+      return route.fulfill({
+        json: {
+          now: new Date().toISOString(),
+          student: { name: "Mona Adel", code: "S1", group: "G1" },
+          materials: [],
+          quizzes: [],
+          attendance: [],
+        },
+      });
     if (fn === "student_passport") return route.fulfill({ json: pass });
     if (fn === "student_passport_save") {
       const b = route.request().postDataJSON();
       saved.push(b);
-      pass = { ...pass, visible: b.p_visible, full_name: b.p_full_name, show_group: b.p_show_group, headline: b.p_headline };
+      pass = {
+        ...pass,
+        visible: b.p_visible,
+        full_name: b.p_full_name,
+        show_group: b.p_show_group,
+        headline: b.p_headline,
+      };
       return route.fulfill({ json: { ...pass, ok: true } });
     }
-    if (fn === "passport_public") return route.fulfill({ json: pass.visible ? { ok: true, found: true, ...data } : { ok: true, found: false } });
+    if (fn === "passport_public")
+      return route.fulfill({
+        json: pass.visible ? { ok: true, found: true, ...data } : { ok: true, found: false },
+      });
     return route.fulfill({ json: fn ? null : [] });
   });
   await page.goto("/app/#/me/account");
@@ -8059,7 +9576,10 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
   await expect(page.getByTestId("passport-name")).toHaveText("Mona A.");
   await expect(page.getByTestId("passport-challenges")).toContainText("Robot lap — Oval");
   await expect(page.getByTestId("passport-page")).toContainText("Robotics · 1");
-  await expect(page.getByRole("link", { name: /Verify BXC-1A2B3C4D/ })).toHaveAttribute("href", "/verify/?c=BXC-1A2B3C4D");
+  await expect(page.getByRole("link", { name: /Verify BXC-1A2B3C4D/ })).toHaveAttribute(
+    "href",
+    "/verify/?c=BXC-1A2B3C4D",
+  );
   await expect(page.getByTestId("passport-page")).not.toContainText("S1");
   // Turned off: the page says so.
   pass = { ...pass, visible: false };
@@ -8068,7 +9588,9 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
   expect(errors).toEqual([]);
 });
 
-test("team matching: open teams that need the student's verified Lab skills come first, they ask to join, and the owner accepts", async ({ page }) => {
+test("team matching: open teams that need the student's verified Lab skills come first, they ask to join, and the owner accepts", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() =>
@@ -8082,21 +9604,69 @@ test("team matching: open teams that need the student's verified Lab skills come
     skills: { robotics: 2 },
     mine: [
       {
-        id: "m1", title: "Smart greenhouse", idea: "Sensors + pump", needs: ["electronics"], size_max: 3, status: "open", closed_reason: null, owner: true,
-        contact: "https://chat.whatsapp.com/xyz", members: [{ name: "Mona A.", owner: true, me: true }],
-        requests: [{ id: "r1", name: "Omar K.", message: "I can wire it", skills: ["electronics", "cad"], verified: { electronics: 3 }, passport: "0123456789abcdef", at: "2026-10-26T10:00:00Z" }],
+        id: "m1",
+        title: "Smart greenhouse",
+        idea: "Sensors + pump",
+        needs: ["electronics"],
+        size_max: 3,
+        status: "open",
+        closed_reason: null,
+        owner: true,
+        contact: "https://chat.whatsapp.com/xyz",
+        members: [{ name: "Mona A.", owner: true, me: true }],
+        requests: [
+          {
+            id: "r1",
+            name: "Omar K.",
+            message: "I can wire it",
+            skills: ["electronics", "cad"],
+            verified: { electronics: 3 },
+            passport: "0123456789abcdef",
+            at: "2026-10-26T10:00:00Z",
+          },
+        ],
       },
     ],
     open: [
-      { id: "o1", title: "Robotex line follower", idea: "PID", needs: ["robotics", "cad"], size_max: 4, owner: "Sara M.", group: "G2", members: 2, match: ["robotics"], request: null as string | null },
-      { id: "o2", title: "Chat bot", idea: "", needs: ["ai"], size_max: 3, owner: "Ali H.", group: null, members: 1, match: [], request: null as string | null },
+      {
+        id: "o1",
+        title: "Robotex line follower",
+        idea: "PID",
+        needs: ["robotics", "cad"],
+        size_max: 4,
+        owner: "Sara M.",
+        group: "G2",
+        members: 2,
+        match: ["robotics"],
+        request: null as string | null,
+      },
+      {
+        id: "o2",
+        title: "Chat bot",
+        idea: "",
+        needs: ["ai"],
+        size_max: 3,
+        owner: "Ali H.",
+        group: null,
+        members: 1,
+        match: [],
+        request: null as string | null,
+      },
     ],
   };
   await page.route(/supabase\.co/, async (route) => {
     const fn = new URL(route.request().url()).pathname.split("/rpc/")[1];
     if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
     if (fn === "student_home")
-      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+      return route.fulfill({
+        json: {
+          now: new Date().toISOString(),
+          student: { name: "Mona Adel", code: "S1", group: "G1" },
+          materials: [],
+          quizzes: [],
+          attendance: [],
+        },
+      });
     if (fn === "student_projects_mine") return route.fulfill({ json: [] });
     if (fn === "public_forms") return route.fulfill({ json: [] });
     if (fn === "student_teams") return route.fulfill({ json: state });
@@ -8127,30 +9697,73 @@ test("team matching: open teams that need the student's verified Lab skills come
   await page.getByTestId("team-ask").getByRole("textbox").fill("I passed all the robot laps");
   await page.getByTestId("team-ask").getByRole("button", { name: "ابعت الطلب" }).click();
   await expect(page.getByTestId("open-team-o1")).toContainText("طلبك مستني رد");
-  expect(calls.find((c) => c.fn === "student_team_request")?.body).toMatchObject({ p_team: "o1", p_message: "I passed all the robot laps", p_skills: ["robotics"] });
+  expect(calls.find((c) => c.fn === "student_team_request")?.body).toMatchObject({
+    p_team: "o1",
+    p_message: "I passed all the robot laps",
+    p_skills: ["robotics"],
+  });
   await req.getByRole("button", { name: "اقبل" }).click();
   await expect(page.getByTestId("my-team-m1")).toContainText("Omar K.");
-  expect(calls.find((c) => c.fn === "student_team_answer")?.body).toMatchObject({ p_request: "r1", p_accept: true });
+  expect(calls.find((c) => c.fn === "student_team_answer")?.body).toMatchObject({
+    p_request: "r1",
+    p_accept: true,
+  });
   expect(errors).toEqual([]);
 });
 
 /** A 20 × 10 × 5 mm box as a binary STL (12 triangles). */
 function boxStl() {
-  const V = [[0, 0, 0], [20, 0, 0], [20, 10, 0], [0, 10, 0], [0, 0, 5], [20, 0, 5], [20, 10, 5], [0, 10, 5]];
-  const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+  const V = [
+    [0, 0, 0],
+    [20, 0, 0],
+    [20, 10, 0],
+    [0, 10, 0],
+    [0, 0, 5],
+    [20, 0, 5],
+    [20, 10, 5],
+    [0, 10, 5],
+  ];
+  const F = [
+    [0, 2, 1],
+    [0, 3, 2],
+    [4, 5, 6],
+    [4, 6, 7],
+    [0, 1, 5],
+    [0, 5, 4],
+    [1, 2, 6],
+    [1, 6, 5],
+    [2, 3, 7],
+    [2, 7, 6],
+    [3, 0, 4],
+    [3, 4, 7],
+  ];
   const buf = Buffer.alloc(84 + F.length * 50);
   buf.writeUInt32LE(F.length, 80);
-  F.forEach((f, i) => f.forEach((vi, k) => V[vi].forEach((c, j) => buf.writeFloatLE(c, 84 + i * 50 + 12 + k * 12 + j * 4))));
+  F.forEach((f, i) =>
+    f.forEach((vi, k) => V[vi].forEach((c, j) => buf.writeFloatLE(c, 84 + i * 50 + 12 + k * 12 + j * 4))),
+  );
   return buf;
 }
 
-test("print hub: the student sees the size and a rough estimate (not a price), sends the file, then accepts the slicer price", async ({ page }) => {
+test("print hub: the student sees the size and a rough estimate (not a price), sends the file, then accepts the slicer price", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() =>
-    localStorage.setItem("rh-app-student", JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" })),
+    localStorage.setItem(
+      "rh-app-student",
+      JSON.stringify({ token: "a".repeat(64), name: "Mona Adel", code: "S1", group: "G1" }),
+    ),
   );
-  const info = { open: true, note: "", price_per_hour: 10, min_fee: 20, priced: true, materials: [{ key: "pla", name: "PLA", colors: ["أسود", "أبيض"], density: 1.24, price_per_gram: 1.5 }] };
+  const info = {
+    open: true,
+    note: "",
+    price_per_hour: 10,
+    min_fee: 20,
+    priced: true,
+    materials: [{ key: "pla", name: "PLA", colors: ["أسود", "أبيض"], density: 1.24, price_per_gram: 1.5 }],
+  };
   const jobs: Record<string, unknown>[] = [];
   const calls: { fn: string; body: Record<string, unknown> }[] = [];
   let uploaded = false;
@@ -8159,17 +9772,50 @@ test("print hub: the student sees the size and a rough estimate (not a price), s
     const fn = url.pathname.split("/rpc/")[1];
     if (fn) calls.push({ fn, body: route.request().postDataJSON() ?? {} });
     if (url.pathname.endsWith("/functions/v1/student-upload"))
-      return route.fulfill({ json: { ok: true, path: "prints/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002.stl", token: "t" } });
+      return route.fulfill({
+        json: {
+          ok: true,
+          path: "prints/00000000-0000-4000-8000-000000000001/00000000-0000-4000-8000-000000000002.stl",
+          token: "t",
+        },
+      });
     if (url.pathname.includes("/storage/v1/object/upload/sign/")) {
       uploaded = true;
       return route.fulfill({ json: { Key: "submissions/prints/x.stl" } });
     }
     if (fn === "student_home")
-      return route.fulfill({ json: { now: new Date().toISOString(), student: { name: "Mona Adel", code: "S1", group: "G1" }, materials: [], quizzes: [], attendance: [] } });
+      return route.fulfill({
+        json: {
+          now: new Date().toISOString(),
+          student: { name: "Mona Adel", code: "S1", group: "G1" },
+          materials: [],
+          quizzes: [],
+          attendance: [],
+        },
+      });
     if (fn === "print_hub_info") return route.fulfill({ json: info });
     if (fn === "student_print_jobs") return route.fulfill({ json: jobs });
     if (fn === "student_print_submit") {
-      jobs.unshift({ id: "j1", code: "BXP-1A2B3C", file_name: "box.stl", material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 1, est_volume: 1, status: "quoted", slicer: "OrcaSlicer", grams: 4.2, minutes: 18, price: 20, quote_note: null, reason: null, paid: false, created_at: new Date().toISOString() });
+      jobs.unshift({
+        id: "j1",
+        code: "BXP-1A2B3C",
+        file_name: "box.stl",
+        material: "pla",
+        color: "أسود",
+        quality: "normal",
+        infill: 20,
+        quantity: 1,
+        est_volume: 1,
+        status: "quoted",
+        slicer: "OrcaSlicer",
+        grams: 4.2,
+        minutes: 18,
+        price: 20,
+        quote_note: null,
+        reason: null,
+        paid: false,
+        created_at: new Date().toISOString(),
+      });
       return route.fulfill({ json: { ok: true, code: "BXP-1A2B3C" } });
     }
     if (fn === "student_print_answer") {
@@ -8180,13 +9826,21 @@ test("print hub: the student sees the size and a rough estimate (not a price), s
   });
   await page.goto("/app/#/me/account");
   await page.getByTestId("print-entry").click();
-  await page.getByTestId("print-file").setInputFiles({ name: "box.stl", mimeType: "model/stl", buffer: boxStl() });
+  await page
+    .getByTestId("print-file")
+    .setInputFiles({ name: "box.stl", mimeType: "model/stl", buffer: boxStl() });
   await expect(page.getByTestId("print-size")).toHaveText("20.0 × 10.0 × 5.0 mm · 1.00 cm³");
   await expect(page.getByTestId("print-estimate")).toContainText("تقدير مبدئي — مش السعر");
   await page.getByRole("button", { name: "ابعت للطباعة" }).click();
   await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("20 ج");
   expect(uploaded).toBe(true);
-  expect(calls.find((c) => c.fn === "student_print_submit")?.body).toMatchObject({ p_name: "box.stl", p_volume: 1, p_bbox: [20, 10, 5], p_material: "pla", p_infill: 20 });
+  expect(calls.find((c) => c.fn === "student_print_submit")?.body).toMatchObject({
+    p_name: "box.stl",
+    p_volume: 1,
+    p_bbox: [20, 10, 5],
+    p_material: "pla",
+    p_infill: 20,
+  });
   await page.getByRole("button", { name: "موافق على السعر" }).click();
   await expect(page.getByTestId("print-job-BXP-1A2B3C")).toContainText("وافقت — في الطابور");
   expect(errors).toEqual([]);
@@ -8195,8 +9849,42 @@ test("print hub: the student sees the size and a rough estimate (not a price), s
 test("print hub (team): the price comes from what the slicer reported and the rates", async ({ page }) => {
   const calls: { fn: string; body: unknown }[] = [];
   RPC.staff_print_jobs = {
-    settings: { open: true, note: "", price_per_hour: 10, min_fee: 20, materials: [{ key: "pla", name: "PLA", colors: ["أسود"], density: 1.24, price_per_gram: 1.5 }] },
-    jobs: [{ id: "j1", code: "BXP-1A2B3C", file_name: "bracket.stl", file_path: "prints/a/b.stl", file_size: 1000, material: "pla", color: "أسود", quality: "normal", infill: 20, quantity: 2, est_volume: 12.5, bbox: [40, 30, 20], notes: "", status: "submitted", slicer: null, slicer_grams: null, slicer_minutes: null, price: null, quote_note: null, reason: null, paid: false, created_at: at(30), student: "Mona Adel", student_code: "S1", group: "G1" }],
+    settings: {
+      open: true,
+      note: "",
+      price_per_hour: 10,
+      min_fee: 20,
+      materials: [{ key: "pla", name: "PLA", colors: ["أسود"], density: 1.24, price_per_gram: 1.5 }],
+    },
+    jobs: [
+      {
+        id: "j1",
+        code: "BXP-1A2B3C",
+        file_name: "bracket.stl",
+        file_path: "prints/a/b.stl",
+        file_size: 1000,
+        material: "pla",
+        color: "أسود",
+        quality: "normal",
+        infill: 20,
+        quantity: 2,
+        est_volume: 12.5,
+        bbox: [40, 30, 20],
+        notes: "",
+        status: "submitted",
+        slicer: null,
+        slicer_grams: null,
+        slicer_minutes: null,
+        price: null,
+        quote_note: null,
+        reason: null,
+        paid: false,
+        created_at: at(30),
+        student: "Mona Adel",
+        student_code: "S1",
+        group: "G1",
+      },
+    ],
   };
   RPC.staff_print_quote = { ok: true, price: 74 };
   await signInAsOwner(page, calls);
@@ -8209,14 +9897,23 @@ test("print hub (team): the price comes from what the slicer reported and the ra
   await sheet.getByRole("spinbutton").nth(1).fill("95");
   await expect(page.getByTestId("print-quote-preview")).toHaveText("السعر: 74 ج");
   await sheet.getByRole("button", { name: "ابعت السعر للطالب" }).click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_print_quote")?.body).toMatchObject({ p_job: "j1", p_slicer: "OrcaSlicer", p_grams: 38.4, p_minutes: 95 });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_print_quote")?.body)
+    .toMatchObject({ p_job: "j1", p_slicer: "OrcaSlicer", p_grams: 38.4, p_minutes: 95 });
   delete RPC.staff_print_jobs;
   delete RPC.staff_print_quote;
 });
 
-test("partners: the team copies a partner's private link and issues a verified report for a finished month", async ({ page }) => {
+test("partners: the team copies a partner's private link and issues a verified report for a finished month", async ({
+  page,
+}) => {
   const calls: { fn: string; body: unknown }[] = [];
-  RPC.staff_partners = { partners: [{ id: "p1", name: "Acme Robotics", contact: "Mr. A", token: "c".repeat(48), active: true, reports: 0 }], reports: [] };
+  RPC.staff_partners = {
+    partners: [
+      { id: "p1", name: "Acme Robotics", contact: "Mr. A", token: "c".repeat(48), active: true, reports: 0 },
+    ],
+    reports: [],
+  };
   RPC.staff_impact_issue = { ok: true, code: "BXR-1A2B3C4D5E" };
   await signInAsOwner(page, calls);
   await page.goto("/app/#/staff/sponsor-report");
@@ -8224,21 +9921,33 @@ test("partners: the team copies a partner's private link and issues a verified r
   await page.getByTestId("partners-panel").locator('input[type="month"]').fill("2026-09");
   await page.getByTestId("partners-panel").locator("select").selectOption("p1");
   await page.getByRole("button", { name: "أصدر التقرير" }).click();
-  await expect.poll(() => calls.find((c) => c.fn === "staff_impact_issue")?.body).toEqual({ p_partner: "p1", p_from: "2026-09-01", p_to: "2026-09-30" });
+  await expect
+    .poll(() => calls.find((c) => c.fn === "staff_impact_issue")?.body)
+    .toEqual({ p_partner: "p1", p_from: "2026-09-01", p_to: "2026-09-30" });
   delete RPC.staff_partners;
   delete RPC.staff_impact_issue;
 });
 
-test("smart montage: three event videos in, the best moments cut into a finished reel with the event's name", async ({ page }) => {
+test("smart montage: three event videos in, the best moments cut into a finished reel with the event's name", async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await signInAsOwner(page);
-  await page.goto(`/app/#/staff/montage?title=${encodeURIComponent("MENA Robotics Summit")}&sub=${encodeURIComponent("E-JUST")}`);
-  await expect(page.getByTestId("montage-title")).toHaveValue("MENA Robotics Summit");
-  await page.getByTestId("montage-videos").setInputFiles(
-    [1, 2, 3].map((i) => ({ name: `clip${i}.webm`, mimeType: "video/webm", buffer: readFileSync(`e2e/fixtures/clip${i}.webm`) })),
+  await page.goto(
+    `/app/#/staff/montage?title=${encodeURIComponent("MENA Robotics Summit")}&sub=${encodeURIComponent("E-JUST")}`,
   );
+  await expect(page.getByTestId("montage-title")).toHaveValue("MENA Robotics Summit");
+  await page
+    .getByTestId("montage-videos")
+    .setInputFiles(
+      [1, 2, 3].map((i) => ({
+        name: `clip${i}.webm`,
+        mimeType: "video/webm",
+        buffer: readFileSync(`e2e/fixtures/clip${i}.webm`),
+      })),
+    );
   // Each video is watched, then the plan shows which moments it picked (the opening one marked).
   await expect(page.getByTestId("montage-clip")).toHaveCount(3, { timeout: 30_000 });
   await expect(page.getByTestId("montage-plan")).toContainText("لقطة");

@@ -2,7 +2,17 @@
 /** BuildX App root: who is using the app (staff / student / nobody) and the hash route. */
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { APP_PATH, asciiDigits, isNative, errorText, rpc, sb, studentStore, type StaffRow, type StudentSession } from "./core";
+import {
+  APP_PATH,
+  asciiDigits,
+  isNative,
+  errorText,
+  rpc,
+  sb,
+  studentStore,
+  type StaffRow,
+  type StudentSession,
+} from "./core";
 import { BrandLine, InstallCard } from "./shell";
 import { StaffApp } from "./staff";
 import { MfaGate, mfaNeeded, type MfaGateMode } from "./staff-2fa";
@@ -18,7 +28,9 @@ import { LangSwitch } from "./language";
 import { isNoise } from "@/lib/error-noise";
 import { reloadIfStale } from "@/lib/stale-chunk";
 
-const AppPlugin = registerPlugin<{ addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle> }>("App");
+const AppPlugin = registerPlugin<{
+  addListener(e: "appUrlOpen", cb: (d: { url: string }) => void): Promise<PluginListenerHandle>;
+}>("App");
 const STAFF_CACHE = "rh-app-staff-row";
 
 function readStaffCache(): StaffRow | null {
@@ -48,7 +60,8 @@ export default function PortalApp() {
 
   useEffect(() => {
     setMounted(true);
-    if (appLang() === "en") startEnglish().catch(() => document.documentElement.classList.remove("bx-en-pending"));
+    if (appLang() === "en")
+      startEnglish().catch(() => document.documentElement.classList.remove("bx-en-pending"));
     setOnboarding(needsOnboarding());
     const sync = () => setStudent(studentStore.get());
     sync();
@@ -71,13 +84,29 @@ export default function PortalApp() {
     // Uncaught errors reach the dashboard's error list (production domain and the store apps, five per load).
     let sent = 0;
     const report = (message: string, source?: string) => {
-      if (!message || isNoise(message, source) || !(isNative() || /^(www\.)?buildxhue\.com$/.test(location.hostname))) return;
+      if (
+        !message ||
+        isNoise(message, source) ||
+        !(isNative() || /^(www\.)?buildxhue\.com$/.test(location.hostname))
+      )
+        return;
       // A tab left open across a deploy reloads for the new files (the store apps carry their own).
       if ((!isNative() && reloadIfStale(message)) || sent++ >= 5) return;
-      rpc("log_client_error", { p: { message: message.slice(0, 500), source: source?.slice(0, 300), path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
+      rpc("log_client_error", {
+        p: {
+          message: message.slice(0, 500),
+          source: source?.slice(0, 300),
+          path: `${location.pathname}${location.hash.split("?")[0]}`,
+        },
+      }).catch(() => undefined);
     };
-    const onError = (e: ErrorEvent) => report(e.message, e.filename ? `${e.filename.replace(location.origin, "")}:${e.lineno}:${e.colno}` : undefined);
-    const onRejection = (e: PromiseRejectionEvent) => report(e.reason instanceof Error ? e.reason.message : String(e.reason), "unhandledrejection");
+    const onError = (e: ErrorEvent) =>
+      report(
+        e.message,
+        e.filename ? `${e.filename.replace(location.origin, "")}:${e.lineno}:${e.colno}` : undefined,
+      );
+    const onRejection = (e: PromiseRejectionEvent) =>
+      report(e.reason instanceof Error ? e.reason.message : String(e.reason), "unhandledrejection");
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     return () => {
@@ -155,9 +184,20 @@ export default function PortalApp() {
   const [head, ...rest] = route.path;
   // One sign-in for everyone: students land on their dashboard (/me), the team on theirs (/staff).
   let screen: ReactNode;
-  if (head === "staff" && staff && gate) screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
-  else if (head === "staff") screen = staff ? <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} /> : <Redirect to="/login" />;
-  else if (head === "me") screen = student ? <StudentApp session={student} path={rest} query={route.query} /> : <Redirect to="/login" />;
+  if (head === "staff" && staff && gate)
+    screen = <MfaGate mode={gate} email={staff.email} onDone={() => setGate(null)} />;
+  else if (head === "staff")
+    screen = staff ? (
+      <StaffApp me={staff} path={rest} query={route.query} onProfile={setStaff} />
+    ) : (
+      <Redirect to="/login" />
+    );
+  else if (head === "me")
+    screen = student ? (
+      <StudentApp session={student} path={rest} query={route.query} />
+    ) : (
+      <Redirect to="/login" />
+    );
   else if (head === "setup") screen = staff ? <Redirect to="/staff" /> : <Setup />;
   else if (staff) screen = <Redirect to="/staff" />;
   else if (student) screen = <Redirect to="/me" />;
@@ -211,7 +251,10 @@ function AuthFrame({ children, back }: { children: ReactNode; back?: boolean }) 
 function FormError({ text }: { text: string | null }) {
   if (!text) return null;
   return (
-    <p role="alert" className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-[#ffb3bb]">
+    <p
+      role="alert"
+      className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/10 px-3 py-2.5 text-sm text-[#ffb3bb]"
+    >
       <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
       {text}
     </p>
@@ -244,10 +287,26 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
     setBusy(true);
     setErr(null);
     if (team) {
-      const { error } = await sb().auth.signInWithPassword({ email: id.trim().toLowerCase(), password: secret });
+      const { error } = await sb().auth.signInWithPassword({
+        email: id.trim().toLowerCase(),
+        password: secret,
+      });
+      // A student's email with their password (the login code) signs them in as a student.
+      if (
+        error &&
+        /invalid login credentials/i.test(error.message) &&
+        /^[0-9]{4,12}$/.test(asciiDigits(secret.trim()))
+      ) {
+        await studentSignIn();
+        return;
+      }
       if (error) {
         setBusy(false);
-        setErr(/invalid login credentials/i.test(error.message) ? "البريد الإلكتروني أو كلمة المرور غير صحيحة." : errorText(error));
+        setErr(
+          /invalid login credentials/i.test(error.message)
+            ? "البريد الإلكتروني أو كلمة المرور غير صحيحة."
+            : errorText(error),
+        );
       } else {
         // Shows in the owner's activity log.
         rpc("staff_log_login").catch(() => {});
@@ -255,24 +314,37 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
       // On success the root loads the staff profile and moves on.
       return;
     }
+    await studentSignIn();
+  };
+
+  /** Student number (or the student's email) + password. True when signed in; otherwise shows why. */
+  async function studentSignIn(): Promise<boolean> {
     try {
-      const r = await rpc<{ ok: boolean; error?: string; until?: string; token?: string; student?: { name: string; code: string; group: string } }>("student_login", {
+      const r = await rpc<{
+        ok: boolean;
+        error?: string;
+        until?: string;
+        token?: string;
+        student?: { name: string; code: string; group: string };
+      }>("student_login", {
         p_code: id.trim(),
         p_pin: asciiDigits(secret.trim()),
       });
       if (r.ok && r.token && r.student) {
         studentStore.set({ token: r.token, ...r.student });
         go("/me", true);
-        return;
+        return true;
       }
       setErr(
-        r.error === "no_pin"
-          ? "لم يُصدَر لك رمز دخول بعد. اطلبه من المدرّب."
-          : r.error === "locked"
-            ? `توقف الدخول مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد ${r.until ? new Date(r.until).toLocaleTimeString("ar-EG-u-nu-latn", { hour: "numeric", minute: "2-digit" }) : "قليل"}.`
-            : r.error === "rate_limited"
-              ? "محاولات دخول كتير من نفس الشبكة. استنى ربع ساعة وجرّب تاني."
-              : "رقم الطالب أو رمز الدخول غير صحيح.",
+        team && r.error === "invalid"
+          ? "الإيميل أو كلمة السر غير صحيحة."
+          : r.error === "no_pin"
+            ? "لم يُصدَر لك رمز دخول بعد. اطلبه من المدرّب."
+            : r.error === "locked"
+              ? `توقف الدخول مؤقتًا بسبب محاولات خاطئة كثيرة. حاول بعد ${r.until ? new Date(r.until).toLocaleTimeString("ar-EG-u-nu-latn", { hour: "numeric", minute: "2-digit" }) : "قليل"}.`
+              : r.error === "rate_limited"
+                ? "محاولات دخول كتير من نفس الشبكة. استنى ربع ساعة وجرّب تاني."
+                : "رقم الطالب أو رمز الدخول غير صحيح.",
       );
       setSecret("");
     } catch (e2) {
@@ -280,7 +352,8 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
     } finally {
       setBusy(false);
     }
-  };
+    return false;
+  }
 
   if (noAccess !== null)
     return (
@@ -288,7 +361,11 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
         <Card className="grid gap-4 text-center">
           <Icon name="lock" size={30} className="mx-auto text-warn" />
           <p className="text-[15px] leading-relaxed text-mist">
-            الحساب <span dir="ltr" className="font-mono text-chalk">{noAccess}</span> ليس عضوًا نشطًا في فريق التدريب. اطلب من المالك إضافتك.
+            الحساب{" "}
+            <span dir="ltr" className="font-mono text-chalk">
+              {noAccess}
+            </span>{" "}
+            ليس عضوًا نشطًا في فريق التدريب. اطلب من المالك إضافتك.
           </p>
           <Button onClick={() => sb().auth.signOut()}>تسجيل الخروج</Button>
         </Card>
@@ -298,10 +375,22 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
   return (
     <AuthFrame>
       <h1 className="text-2xl font-bold text-chalk">تسجيل الدخول</h1>
-      <p className="mt-1.5 text-sm leading-relaxed text-fog">الطلاب: رقم الكارنيه ورمز الدخول اللي أخدته من المدرّب. فريق التدريب: الإيميل وكلمة المرور.</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-fog">
+        الطلاب: رقم الكارنيه ورمز الدخول اللي أخدته من المدرّب. فريق التدريب: الإيميل وكلمة المرور.
+      </p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <Field label="رقم الطالب أو البريد الإلكتروني">
-          <Input value={id} onChange={(e) => setId(e.target.value)} inputMode={team ? "email" : "text"} autoComplete="username" autoCapitalize="off" spellCheck={false} dir="ltr" className="text-center font-mono text-lg" required />
+          <Input
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            inputMode={team ? "email" : "text"}
+            autoComplete="username"
+            autoCapitalize="off"
+            spellCheck={false}
+            dir="ltr"
+            className="text-center font-mono text-lg"
+            required
+          />
         </Field>
         <Field label={team ? "كلمة المرور" : student ? "رمز الدخول (PIN)" : "رمز الدخول أو كلمة المرور"}>
           <Input
@@ -320,7 +409,11 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
           دخول
         </Button>
         {!forgot && (
-          <button type="button" onClick={() => setForgot(true)} className="text-center text-sm text-cyan hover:underline">
+          <button
+            type="button"
+            onClick={() => setForgot(true)}
+            className="text-center text-sm text-cyan hover:underline"
+          >
             نسيت رمز الدخول أو كلمة المرور؟
           </button>
         )}
@@ -329,7 +422,9 @@ function Login({ initialCode, noAccess }: { initialCode: string; noAccess: strin
       {ready === false && (
         <Card className="mt-6 flex items-center gap-3 border-warn/30 bg-warn/[0.06]">
           <Icon name="key" size={22} className="shrink-0 text-warn" />
-          <p className="flex-1 text-sm text-mist">التطبيق لم يُجهَّز بعد. صاحب الحساب يبدأ من هنا مرة واحدة فقط.</p>
+          <p className="flex-1 text-sm text-mist">
+            التطبيق لم يُجهَّز بعد. صاحب الحساب يبدأ من هنا مرة واحدة فقط.
+          </p>
           <Button size="sm" onClick={() => go("/setup")}>
             إعداد أول مرة
           </Button>
@@ -346,7 +441,8 @@ function Setup() {
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "", code: "" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -356,20 +452,36 @@ function Setup() {
     setBusy(true);
     try {
       const { error } = await sb().functions.invoke("staff-admin", {
-        body: { action: "bootstrap", code: form.code, email: form.email.trim().toLowerCase(), password: form.password, name: form.name.trim() },
+        body: {
+          action: "bootstrap",
+          code: form.code,
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          name: form.name.trim(),
+        },
       });
       if (error) {
         let code = "";
         try {
-          code = ((await (error as { context?: Response }).context?.json()) as { error?: string })?.error ?? "";
+          code =
+            ((await (error as { context?: Response }).context?.json()) as { error?: string })?.error ?? "";
         } catch {
           /* no JSON body */
         }
-        setErr(code === "bad_code" ? "كود الإعداد غير صحيح أو التطبيق مُعَدّ بالفعل." : code === "invalid" ? "راجع البيانات: بريد صحيح وكلمة مرور 10 حروف على الأقل." : errorText(error));
+        setErr(
+          code === "bad_code"
+            ? "كود الإعداد غير صحيح أو التطبيق مُعَدّ بالفعل."
+            : code === "invalid"
+              ? "راجع البيانات: بريد صحيح وكلمة مرور 10 حروف على الأقل."
+              : errorText(error),
+        );
         setBusy(false);
         return;
       }
-      const { error: signInError } = await sb().auth.signInWithPassword({ email: form.email.trim().toLowerCase(), password: form.password });
+      const { error: signInError } = await sb().auth.signInWithPassword({
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+      });
       if (signInError) throw signInError;
       go("/staff", true);
     } catch (e2) {
@@ -381,22 +493,53 @@ function Setup() {
   return (
     <AuthFrame back>
       <h1 className="text-2xl font-bold text-chalk">إعداد أول مرة</h1>
-      <p className="mt-1.5 text-sm leading-relaxed text-fog">أنشئ حساب المالك. كود الإعداد يُستخدم مرة واحدة فقط.</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-fog">
+        أنشئ حساب المالك. كود الإعداد يُستخدم مرة واحدة فقط.
+      </p>
       <form onSubmit={submit} className="mt-6 grid gap-4">
         <Field label="اسمك">
           <Input value={form.name} onChange={set("name")} autoComplete="name" required />
         </Field>
         <Field label="البريد الإلكتروني">
-          <Input type="email" value={form.email} onChange={set("email")} autoComplete="email" dir="ltr" required />
+          <Input
+            type="email"
+            value={form.email}
+            onChange={set("email")}
+            autoComplete="email"
+            dir="ltr"
+            required
+          />
         </Field>
         <Field label="كلمة المرور" hint="10 حروف على الأقل. احفظها في مكان آمن.">
-          <Input type="password" value={form.password} onChange={set("password")} autoComplete="new-password" dir="ltr" minLength={10} required />
+          <Input
+            type="password"
+            value={form.password}
+            onChange={set("password")}
+            autoComplete="new-password"
+            dir="ltr"
+            minLength={10}
+            required
+          />
         </Field>
         <Field label="تأكيد كلمة المرور">
-          <Input type="password" value={form.confirm} onChange={set("confirm")} autoComplete="new-password" dir="ltr" required />
+          <Input
+            type="password"
+            value={form.confirm}
+            onChange={set("confirm")}
+            autoComplete="new-password"
+            dir="ltr"
+            required
+          />
         </Field>
         <Field label="كود الإعداد">
-          <Input value={form.code} onChange={set("code")} dir="ltr" autoComplete="off" className="font-mono uppercase tracking-widest" required />
+          <Input
+            value={form.code}
+            onChange={set("code")}
+            dir="ltr"
+            autoComplete="off"
+            className="font-mono uppercase tracking-widest"
+            required
+          />
         </Field>
         <FormError text={err} />
         <Button type="submit" variant="primary" size="lg" loading={busy} block>

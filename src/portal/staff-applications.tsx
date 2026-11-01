@@ -6,14 +6,51 @@ import { choiceLabel, type ApplyConfig, type ExtraAnswer } from "@/content/apply
 import { nationalIdCheckOk, readNationalId } from "@/content/family";
 import { coreTracks } from "@/content/core-content";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, downloadCsv, errorText, fmt, fromLocalInput, must, rpc, sb, toLocalInput, today, type StaffRow } from "./core";
+import {
+  can,
+  isFull,
+  downloadCsv,
+  errorText,
+  fmt,
+  fromLocalInput,
+  must,
+  rpc,
+  sb,
+  toLocalInput,
+  today,
+  type StaffRow,
+} from "./core";
 import { useApplyConfig } from "./staff-apply-form";
 import { PersonCard } from "./person-card";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { sendByEmail } from "./email-handoff";
-import { PinResults, type PinItem } from "./staff-students";
+import { inviteToApp, PinResults, type PinItem } from "./staff-students";
 import { WaitlistCard } from "./staff-inbox";
-import { Badge, Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, SearchBox, Section, Sheet, Textarea, Toggle, TopBar, confirmDialog, copyText, go, toast, useAsync } from "./ui";
+import {
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Empty,
+  ErrorBox,
+  Field,
+  Icon,
+  Input,
+  List,
+  Loading,
+  Row,
+  SearchBox,
+  Section,
+  Sheet,
+  Textarea,
+  Toggle,
+  TopBar,
+  confirmDialog,
+  copyText,
+  go,
+  toast,
+  useAsync,
+} from "./ui";
 
 type Status = (typeof STATUSES)[number]["key"];
 export type Application = {
@@ -69,7 +106,8 @@ const birthOf = (nid: string | null) => {
   return r ? `مواليد ${fmt.full(r.birth.toISOString())} · ${r.governorate.ar}` : "";
 };
 const statusAr = (s: string) => STATUSES.find((x) => x.key === s)?.ar ?? s;
-export const trackAr = (slug: string | null | undefined) => (slug ? (coreTracks.find((t) => t.slug === slug)?.nameAr ?? slug) : "");
+export const trackAr = (slug: string | null | undefined) =>
+  slug ? (coreTracks.find((t) => t.slug === slug)?.nameAr ?? slug) : "";
 
 /** Count of applications nobody has looked at yet (home dashboard). */
 export async function newApplicationsCount(): Promise<number> {
@@ -78,7 +116,16 @@ export async function newApplicationsCount(): Promise<number> {
 }
 
 export function ApplicationsScreen({ me }: { me: StaffRow }) {
-  const { data, error, loading, reload } = useAsync(async () => (await sb().from("applications").select("*").order("created_at", { ascending: false }).limit(1000).then(must)) as Application[], []);
+  const { data, error, loading, reload } = useAsync(
+    async () =>
+      (await sb()
+        .from("applications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1000)
+        .then(must)) as Application[],
+    [],
+  );
   const [status, setStatus] = useState<Status | "all">("all");
   const [track, setTrack] = useState("");
   const [q, setQ] = useState("");
@@ -96,7 +143,8 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
       (a) =>
         (status === "all" || a.status === status) &&
         (!track || a.track_first === track || a.track_second === track) &&
-        (!needle || [a.full_name, a.phone, a.email, a.ref, a.faculty].some((v) => v?.toLowerCase().includes(needle))),
+        (!needle ||
+          [a.full_name, a.phone, a.email, a.ref, a.faculty].some((v) => v?.toLowerCase().includes(needle))),
     );
   }, [data, status, track, q]);
 
@@ -105,7 +153,37 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
     const extra = new Map<string, string>();
     for (const a of list) for (const x of a.answers ?? []) if (!extra.has(x.id)) extra.set(x.id, x.q);
     downloadCsv(`buildx-applications-${today()}.csv`, [
-      ["الرقم", "التاريخ", "الحالة", "الاسم", "الموبايل", "الإيميل", "الرقم القومي", "تاريخ الميلاد", "المحافظة", "العنوان", "الكلية", "السنة", "الرقم الجامعي", "المسار الأول", "المسار التاني", "المستوى", "المهارات", "الخبرة", "لينك", "الدافع", "الأهداف", "ساعات/أسبوع", "الأيام", "أدوار تنظيمية", "عرف منين", ...extra.values(), "قدّم تاني", "ملاحظات الفريق", "رسالة للمتقدم"],
+      [
+        "الرقم",
+        "التاريخ",
+        "الحالة",
+        "الاسم",
+        "الموبايل",
+        "الإيميل",
+        "الرقم القومي",
+        "تاريخ الميلاد",
+        "المحافظة",
+        "العنوان",
+        "الكلية",
+        "السنة",
+        "الرقم الجامعي",
+        "المسار الأول",
+        "المسار التاني",
+        "المستوى",
+        "المهارات",
+        "الخبرة",
+        "لينك",
+        "الدافع",
+        "الأهداف",
+        "ساعات/أسبوع",
+        "الأيام",
+        "أدوار تنظيمية",
+        "عرف منين",
+        ...extra.values(),
+        "قدّم تاني",
+        "ملاحظات الفريق",
+        "رسالة للمتقدم",
+      ],
       ...list.map((a) => [
         a.ref,
         fmt.dateTime(a.created_at),
@@ -147,24 +225,53 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
         sub={data ? `${data.length} طلب · ${counts.new ?? 0} جديد` : undefined}
         actions={
           <>
-          {can(me, "whatsapp") && (
-            <Button size="sm" icon="chat" disabled={!list.length} onClick={() => sendOnWhatsApp(list.map((a) => ({ phone: a.phone, name: a.full_name })), { label: `طلبات الانضمام الظاهرة (${list.length})`, context: "applications" })}>
-              واتساب
+            {can(me, "whatsapp") && (
+              <Button
+                size="sm"
+                icon="chat"
+                disabled={!list.length}
+                onClick={() =>
+                  sendOnWhatsApp(
+                    list.map((a) => ({ phone: a.phone, name: a.full_name })),
+                    { label: `طلبات الانضمام الظاهرة (${list.length})`, context: "applications" },
+                  )
+                }
+              >
+                واتساب
+              </Button>
+            )}
+            {can(me, "email") && (
+              <Button
+                size="sm"
+                icon="mail"
+                disabled={!list.some((a) => a.email)}
+                onClick={() =>
+                  sendByEmail(
+                    list.map((a) => ({ email: a.email, name: a.full_name })),
+                    {
+                      label: `طلبات الانضمام الظاهرة، اللي ليهم إيميل (${list.filter((a) => a.email).length})`,
+                      context: "applications",
+                    },
+                  )
+                }
+                data-testid="applications-email"
+              >
+                إيميل
+              </Button>
+            )}
+            <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
+              Excel
             </Button>
-          )}
-          {can(me, "email") && (
-            <Button size="sm" icon="mail" disabled={!list.some((a) => a.email)} onClick={() => sendByEmail(list.map((a) => ({ email: a.email, name: a.full_name })), { label: `طلبات الانضمام الظاهرة، اللي ليهم إيميل (${list.filter((a) => a.email).length})`, context: "applications" })} data-testid="applications-email">
-              إيميل
-            </Button>
-          )}
-          <Button size="sm" icon="download" onClick={exportCsv} disabled={!list.length}>
-            Excel
-          </Button>
-          {can(me, "applications") && (
-            <Button size="sm" icon="edit" onClick={() => go("/staff/applications/form")} data-testid="apply-form-edit">
-              تعديل الفورم
-            </Button>
-          )}
+            {can(me, "applications") && (
+              <Button
+                size="sm"
+                icon="edit"
+                onClick={() => go("/staff/applications/form")}
+                data-testid="apply-form-edit"
+              >
+                تعديل الفورم
+              </Button>
+            )}
           </>
         }
       />
@@ -175,7 +282,11 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !data?.length ? (
-        <Empty icon="users" title="مفيش طلبات لسه" body="أول ما طالب يقدّم من صفحة «انضم» على الموقع، طلبه هيظهر هنا." />
+        <Empty
+          icon="users"
+          title="مفيش طلبات لسه"
+          body="أول ما طالب يقدّم من صفحة «انضم» على الموقع، طلبه هيظهر هنا."
+        />
       ) : (
         <>
           <SearchBox value={q} onChange={setQ} placeholder="اسم، موبايل، إيميل أو رقم الطلب…" />
@@ -184,7 +295,12 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
               الكل
             </Chip>
             {STATUSES.map((s) => (
-              <Chip key={s.key} active={status === s.key} onClick={() => setStatus(s.key)} count={counts[s.key] ?? 0}>
+              <Chip
+                key={s.key}
+                active={status === s.key}
+                onClick={() => setStatus(s.key)}
+                count={counts[s.key] ?? 0}
+              >
                 {s.ar}
               </Chip>
             ))}
@@ -211,7 +327,9 @@ export function ApplicationsScreen({ me }: { me: StaffRow }) {
                         {a.full_name}
                       </p>
                       <p className="truncate text-xs text-fog">
-                        {[trackAr(a.track_first), a.faculty, fmt.rel(a.created_at)].filter(Boolean).join(" · ")}
+                        {[trackAr(a.track_first), a.faculty, fmt.rel(a.created_at)]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     </div>
                     {!!a.repeats && <Badge tone="warn">قدّم تاني</Badge>}
@@ -242,7 +360,16 @@ function Item({ k, v, ltr }: { k: string; v: React.ReactNode; ltr?: boolean }) {
 }
 
 export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
-  const { data: a, error, loading, reload, set } = useAsync(async () => (await sb().from("applications").select("*").eq("id", id).single().then(must)) as Application, [id]);
+  const {
+    data: a,
+    error,
+    loading,
+    reload,
+    set,
+  } = useAsync(
+    async () => (await sb().from("applications").select("*").eq("id", id).single().then(must)) as Application,
+    [id],
+  );
   const [notes, setNotes] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [interview, setInterview] = useState<string | null>(null);
@@ -254,10 +381,19 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
   if (loading && !a) return <Loading />;
   if (error || !a) return <ErrorBox error={error ?? "الطلب مش موجود"} retry={reload} />;
 
-  const save = async (patch: Partial<Pick<Application, "status" | "staff_notes" | "public_note" | "interview_at">>, okText: string) => {
+  const save = async (
+    patch: Partial<Pick<Application, "status" | "staff_notes" | "public_note" | "interview_at">>,
+    okText: string,
+  ) => {
     setBusy(true);
     try {
-      const row = (await sb().from("applications").update(patch).eq("id", a.id).select("*").single().then(must)) as Application;
+      const row = (await sb()
+        .from("applications")
+        .update(patch)
+        .eq("id", a.id)
+        .select("*")
+        .single()
+        .then(must)) as Application;
       set(row);
       toast(okText);
     } catch (e) {
@@ -267,7 +403,15 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
     }
   };
   const remove = async () => {
-    if (!(await confirmDialog({ title: `حذف طلب ${a.full_name}؟`, body: "الطلب هيتمسح نهائياً. لو مش مناسب، الأفضل تخلي حالته «مرفوض».", ok: "حذف نهائي", danger: true }))) return;
+    if (
+      !(await confirmDialog({
+        title: `حذف طلب ${a.full_name}؟`,
+        body: "الطلب هيتمسح نهائياً. لو مش مناسب، الأفضل تخلي حالته «مرفوض».",
+        ok: "حذف نهائي",
+        danger: true,
+      }))
+    )
+      return;
     try {
       await sb().from("applications").delete().eq("id", a.id).then(must);
       toast("اتمسح الطلب");
@@ -279,28 +423,46 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
 
   const first = a.full_name.split(/\s+/)[0];
   const statusUrl = `https://buildxhue.com${a.locale === "en" ? "" : "/ar"}/join/status/?ref=${a.ref}`;
-  const wa = whatsappLink(a.phone, `أهلاً ${first}، معاك فريق BuildX HUE بخصوص طلب الانضمام رقم ${a.ref}.\nتقدر تتابع حالة طلبك هنا: ${statusUrl}`);
+  const wa = whatsappLink(
+    a.phone,
+    `أهلاً ${first}، معاك فريق BuildX HUE بخصوص طلب الانضمام رقم ${a.ref}.\nتقدر تتابع حالة طلبك هنا: ${statusUrl}`,
+  );
   const noteValue = notes ?? a.staff_notes;
   const publicValue = note ?? a.public_note ?? "";
 
   return (
     <>
-      <TopBar title={a.full_name} sub={`${a.ref} · ${fmt.dateTime(a.created_at)}`} back="/staff/applications" />
+      <TopBar
+        title={a.full_name}
+        sub={`${a.ref} · ${fmt.dateTime(a.created_at)}`}
+        back="/staff/applications"
+      />
       <div className="mb-3">
         <PersonCard student={a.student_id} phone={a.phone} hide="application" />
       </div>
 
       <div className="flex flex-wrap gap-2">
         {wa && (
-          <a href={wa} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#1fa855] px-4 font-semibold text-white">
+          <a
+            href={wa}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#1fa855] px-4 font-semibold text-white"
+          >
             <Icon name="mail" size={18} />
             واتساب
           </a>
         )}
-        <a href={`tel:${a.phone}`} className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk">
+        <a
+          href={`tel:${a.phone}`}
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk"
+        >
           اتصال
         </a>
-        <a href={`mailto:${a.email}`} className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk">
+        <a
+          href={`mailto:${a.email}`}
+          className="inline-flex h-11 items-center gap-2 rounded-xl border border-[var(--line-2)] px-4 font-semibold text-chalk"
+        >
           إيميل
         </a>
         <Button size="sm" variant="ghost" onClick={() => copyText(a.phone)}>
@@ -323,19 +485,28 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
       )}
 
       {!!a.repeats && (
-        <Card className="mt-4 border-warn/30 bg-warn/[0.06] text-sm text-mist" data-testid="application-repeats">
+        <Card
+          className="mt-4 border-warn/30 bg-warn/[0.06] text-sm text-mist"
+          data-testid="application-repeats"
+        >
           <p className="font-semibold text-chalk">
             {a.repeats === 1 ? "قدّم تاني مرة" : `قدّم تاني ${a.repeats} مرات`}
             {a.last_repeat_at ? ` · آخر مرة ${fmt.rel(a.last_repeat_at)}` : ""}
           </p>
-          <p className="mt-1 text-xs">لو قدّم تاني خلال أسبوع من أول طلب، مابيتعملّوش طلب جديد؛ بيتحسب هنا على طلبه الأول.</p>
+          <p className="mt-1 text-xs">
+            لو قدّم تاني خلال أسبوع من أول طلب، مابيتعملّوش طلب جديد؛ بيتحسب هنا على طلبه الأول.
+          </p>
         </Card>
       )}
 
       <Section title="الحالة">
         <div className="flex flex-wrap gap-2">
           {STATUSES.map((s) => (
-            <Chip key={s.key} active={a.status === s.key} onClick={() => !busy && a.status !== s.key && save({ status: s.key }, `الحالة: ${s.ar}`)}>
+            <Chip
+              key={s.key}
+              active={a.status === s.key}
+              onClick={() => !busy && a.status !== s.key && save({ status: s.key }, `الحالة: ${s.ar}`)}
+            >
               {s.ar}
             </Chip>
           ))}
@@ -345,14 +516,29 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
 
       <Section title="ميعاد المقابلة">
         <div className="flex flex-wrap items-center gap-2" data-testid="interview">
-          <Input type="datetime-local" value={interview ?? toLocalInput(a.interview_at)} onChange={(e) => setInterview(e.target.value)} aria-label="ميعاد المقابلة" dir="ltr" className="max-w-60" />
+          <Input
+            type="datetime-local"
+            value={interview ?? toLocalInput(a.interview_at)}
+            onChange={(e) => setInterview(e.target.value)}
+            aria-label="ميعاد المقابلة"
+            dir="ltr"
+            className="max-w-60"
+          />
           <Button
             size="sm"
             loading={busy}
-            disabled={!interview || fromLocalInput(interview) === (a.interview_at ? new Date(a.interview_at).toISOString() : null)}
+            disabled={
+              !interview ||
+              fromLocalInput(interview) === (a.interview_at ? new Date(a.interview_at).toISOString() : null)
+            }
             onClick={() =>
               void save(
-                { interview_at: fromLocalInput(interview!), ...(a.status === "new" || a.status === "contacted" ? { status: "interview" as Status } : {}) },
+                {
+                  interview_at: fromLocalInput(interview!),
+                  ...(a.status === "new" || a.status === "contacted"
+                    ? { status: "interview" as Status }
+                    : {}),
+                },
                 a.interview_at ? "اتغيّر ميعاد المقابلة" : "اتحدد ميعاد المقابلة",
               ).then(() => setInterview(null))
             }
@@ -360,21 +546,42 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
             {a.interview_at ? "غيّر الميعاد" : "حدد الميعاد"}
           </Button>
           {a.interview_at && (
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => void save({ interview_at: null }, "اتشال ميعاد المقابلة").then(() => setInterview(null))}>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() =>
+                void save({ interview_at: null }, "اتشال ميعاد المقابلة").then(() => setInterview(null))
+              }
+            >
               شيل الميعاد
             </Button>
           )}
         </div>
         <p className="mt-2 text-xs leading-relaxed text-fog">
-          {a.interview_at ? `المقابلة ${fmt.dateTime(a.interview_at)}. ` : ""}لو رسايل الواتساب الأوتوماتيك شغّالة، بيوصله الميعاد على واتساب، وأي تغيير، وتذكير قبلها بيوم.
+          {a.interview_at ? `المقابلة ${fmt.dateTime(a.interview_at)}. ` : ""}لو رسايل الواتساب الأوتوماتيك
+          شغّالة، بيوصله الميعاد على واتساب، وأي تغيير، وتذكير قبلها بيوم.
         </p>
       </Section>
 
       <Section title="رسالة للمتقدم">
-        <p className="mb-2 text-xs text-fog">بتظهر له هو بس في صفحة «تابع طلبك» على الموقع (برقم الطلب + موبايله). مثلاً ميعاد ومكان المقابلة.</p>
-        <Textarea value={publicValue} onChange={(e) => setNote(e.target.value)} maxLength={600} placeholder="المقابلة يوم الأحد الساعة 2 في معمل الروبوتات (مبنى B)" className="min-h-20" />
+        <p className="mb-2 text-xs text-fog">
+          بتظهر له هو بس في صفحة «تابع طلبك» على الموقع (برقم الطلب + موبايله). مثلاً ميعاد ومكان المقابلة.
+        </p>
+        <Textarea
+          value={publicValue}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={600}
+          placeholder="المقابلة يوم الأحد الساعة 2 في معمل الروبوتات (مبنى B)"
+          className="min-h-20"
+        />
         <div className="mt-2 flex flex-wrap gap-2">
-          <Button size="sm" loading={busy} disabled={publicValue === (a.public_note ?? "")} onClick={() => save({ public_note: publicValue.trim() }, "اتحفظت الرسالة — بتظهر له على طول")}>
+          <Button
+            size="sm"
+            loading={busy}
+            disabled={publicValue === (a.public_note ?? "")}
+            onClick={() => save({ public_note: publicValue.trim() }, "اتحفظت الرسالة — بتظهر له على طول")}
+          >
             حفظ الرسالة
           </Button>
           <Button size="sm" variant="ghost" onClick={() => copyText(statusUrl)}>
@@ -384,8 +591,20 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
       </Section>
 
       <Section title="ملاحظات الفريق (داخلية)">
-        <Textarea value={noteValue} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="مثلاً: كلمناه يوم الأحد، ميعاد المقابلة…" className="min-h-24" />
-        <Button size="sm" className="mt-2" loading={busy} disabled={noteValue === a.staff_notes} onClick={() => save({ staff_notes: noteValue }, "اتحفظت الملاحظات")}>
+        <Textarea
+          value={noteValue}
+          onChange={(e) => setNotes(e.target.value)}
+          maxLength={4000}
+          placeholder="مثلاً: كلمناه يوم الأحد، ميعاد المقابلة…"
+          className="min-h-24"
+        />
+        <Button
+          size="sm"
+          className="mt-2"
+          loading={busy}
+          disabled={noteValue === a.staff_notes}
+          onClick={() => save({ staff_notes: noteValue }, "اتحفظت الملاحظات")}
+        >
           حفظ الملاحظات
         </Button>
       </Section>
@@ -403,7 +622,11 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
                     {a.national_id}
                   </span>
                   <span className="text-xs text-fog">{birthOf(a.national_id)}</span>
-                  {!nationalIdCheckOk(a.national_id) && <span className="text-xs text-warn">آخر رقم مش متطابق مع باقي الرقم — غالباً فيه رقم متكتب غلط، اتأكد منه.</span>}
+                  {!nationalIdCheckOk(a.national_id) && (
+                    <span className="text-xs text-warn">
+                      آخر رقم مش متطابق مع باقي الرقم — غالباً فيه رقم متكتب غلط، اتأكد منه.
+                    </span>
+                  )}
                 </span>
               )
             }
@@ -428,7 +651,12 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
             k="لينك شغله"
             v={
               a.portfolio_url && /^https?:\/\//.test(a.portfolio_url) ? (
-                <a href={a.portfolio_url} target="_blank" rel="noopener noreferrer nofollow" className="text-cyan underline">
+                <a
+                  href={a.portfolio_url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="text-cyan underline"
+                >
                   {a.portfolio_url}
                 </a>
               ) : (
@@ -437,7 +665,10 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
             }
             ltr
           />
-          <Item k="أدوار تنظيمية مهتم بيها" v={a.team_roles.map((r) => choiceLabel(cfg, "team_roles", r)).join("، ")} />
+          <Item
+            k="أدوار تنظيمية مهتم بيها"
+            v={a.team_roles.map((r) => choiceLabel(cfg, "team_roles", r)).join("، ")}
+          />
         </Card>
       </Section>
 
@@ -483,7 +714,15 @@ export function ApplicationDetail({ id, me }: { id: string; me: StaffRow }) {
 }
 
 /** Accept: create the student account from the application and issue an app PIN. */
-function AcceptSheet({ app, onClose, onDone }: { app: Application; onClose: () => void; onDone: (row: Application, pins: PinItem[]) => void }) {
+function AcceptSheet({
+  app,
+  onClose,
+  onDone,
+}: {
+  app: Application;
+  onClose: () => void;
+  onDone: (row: Application, pins: PinItem[]) => void;
+}) {
   const [code, setCode] = useState(app.student_number || app.ref);
   const [group, setGroup] = useState(trackAr(app.track_first));
   const [busy, setBusy] = useState(false);
@@ -491,14 +730,29 @@ function AcceptSheet({ app, onClose, onDone }: { app: Application; onClose: () =
     if (!code.trim()) return toast("اكتب كود الطالب", "error");
     setBusy(true);
     try {
-      const studentId = await rpc<string>("accept_application", { p_id: app.id, p_code: code.trim(), p_group: group.trim() });
-      const issued = await rpc<PinItem[]>("staff_set_pins", { p_ids: [studentId], p_only_missing: false });
-      const row = (await sb().from("applications").select("*").eq("id", app.id).single().then(must)) as Application;
+      const studentId = await rpc<string>("accept_application", {
+        p_id: app.id,
+        p_code: code.trim(),
+        p_group: group.trim(),
+      });
+      // Adds them to the app and sends their email + password (email, and a WhatsApp note).
+      const issued = [await inviteToApp(studentId, app.email)];
+      const row = (await sb()
+        .from("applications")
+        .select("*")
+        .eq("id", app.id)
+        .single()
+        .then(must)) as Application;
       toast("اتقبل واتضاف للتطبيق");
       onDone(row, issued);
     } catch (e) {
       const msg = errorText(e);
-      toast(/code_taken|duplicate|unique|students_code_key/i.test(msg) ? "الكود ده مستخدم لطالب تاني — اختار كود تاني" : msg, "error");
+      toast(
+        /code_taken|duplicate|unique|students_code_key/i.test(msg)
+          ? "الكود ده مستخدم لطالب تاني — اختار كود تاني"
+          : msg,
+        "error",
+      );
     } finally {
       setBusy(false);
     }
@@ -506,8 +760,13 @@ function AcceptSheet({ app, onClose, onDone }: { app: Application; onClose: () =
   return (
     <Sheet open onClose={onClose} title={`قبول ${app.full_name}`}>
       <div className="grid gap-4">
-        <p className="text-sm text-mist">هيتعمل له حساب طالب في التطبيق برمز دخول، وحالة الطلب هتبقى «مقبول».</p>
-        {app.national_id && app.governorate && app.address && <p className="text-sm text-mist">ولأن بياناته كاملة، هيتضاف لكشف الأسرة للسنة دي.</p>}
+        <p className="text-sm text-mist">
+          هيتعمل له حساب طالب في التطبيق، وتتبعتله على إيميله بيانات الدخول (الإيميل وكلمة السر)، وحالة الطلب
+          هتبقى «مقبول».
+        </p>
+        {app.national_id && app.governorate && app.address && (
+          <p className="text-sm text-mist">ولأن بياناته كاملة، هيتضاف لكشف الأسرة للسنة دي.</p>
+        )}
         <Field label="كود الطالب" hint="الرقم الجامعي لو موجود، أو أي كود تختاره. ده اللي بيدخل بيه التطبيق.">
           <Input value={code} dir="ltr" maxLength={40} onChange={(e) => setCode(e.target.value)} />
         </Field>
@@ -527,7 +786,12 @@ type Intake = { open: boolean; message_ar: string; message_en: string };
 /** Owners/admins open or close the intake; the website reads the same setting. */
 function IntakeCard() {
   const { data, set } = useAsync(async () => {
-    const r = (await sb().from("site_settings").select("value").eq("key", "applications").maybeSingle().then(must)) as { value: Intake } | null;
+    const r = (await sb()
+      .from("site_settings")
+      .select("value")
+      .eq("key", "applications")
+      .maybeSingle()
+      .then(must)) as { value: Intake } | null;
     return { open: true, message_ar: "", message_en: "", ...(r?.value ?? {}) } as Intake;
   }, []);
   const [busy, setBusy] = useState(false);
@@ -546,14 +810,29 @@ function IntakeCard() {
   };
   return (
     <Card className={`mb-4 grid gap-3 ${data.open ? "border-ok/30" : "border-warn/30"}`}>
-      <Toggle checked={data.open} disabled={busy} onChange={(v) => save({ ...data, open: v })} label={data.open ? "التقديم مفتوح" : "التقديم مقفول"} hint="بيتغيّر على الموقع على طول." />
+      <Toggle
+        checked={data.open}
+        disabled={busy}
+        onChange={(v) => save({ ...data, open: v })}
+        label={data.open ? "التقديم مفتوح" : "التقديم مقفول"}
+        hint="بيتغيّر على الموقع على طول."
+      />
       {!data.open && (
         <>
           <Field label="رسالة للطلاب (عربي)" hint="مثلاً: التقديم هيفتح تاني في فبراير">
-            <Input value={data.message_ar} maxLength={200} onChange={(e) => set({ ...data, message_ar: e.target.value })} />
+            <Input
+              value={data.message_ar}
+              maxLength={200}
+              onChange={(e) => set({ ...data, message_ar: e.target.value })}
+            />
           </Field>
           <Field label="Message (English)">
-            <Input value={data.message_en} dir="ltr" maxLength={200} onChange={(e) => set({ ...data, message_en: e.target.value })} />
+            <Input
+              value={data.message_en}
+              dir="ltr"
+              maxLength={200}
+              onChange={(e) => set({ ...data, message_en: e.target.value })}
+            />
           </Field>
           <Button size="sm" loading={busy} onClick={() => save(data)}>
             حفظ الرسالة
@@ -598,7 +877,9 @@ function Stats({ list, cfg }: { list: Application[]; cfg: ApplyConfig }) {
                   <div key={st.key} className="rounded-xl border border-[var(--line)] p-2">
                     <p className="font-mono text-xl text-chalk">{n}</p>
                     <p className="text-xs text-fog">{st.ar}</p>
-                    <p className="text-[11px] text-mist">{list.length ? Math.round((n / list.length) * 100) : 0}%</p>
+                    <p className="text-[11px] text-mist">
+                      {list.length ? Math.round((n / list.length) * 100) : 0}%
+                    </p>
                   </div>
                 );
               })}
@@ -611,7 +892,10 @@ function Stats({ list, cfg }: { list: Application[]; cfg: ApplyConfig }) {
                 {rows.slice(0, 8).map(([k, n]) => (
                   <li key={k} className="flex items-center gap-2 text-sm">
                     <span className="min-w-0 flex-1 truncate text-mist">{k}</span>
-                    <span className="h-1.5 rounded-full bg-cyan/70" style={{ width: `${Math.max(6, (n / list.length) * 120)}px` }} />
+                    <span
+                      className="h-1.5 rounded-full bg-cyan/70"
+                      style={{ width: `${Math.max(6, (n / list.length) * 120)}px` }}
+                    />
                     <span className="w-8 text-end font-mono text-chalk">{n}</span>
                   </li>
                 ))}
@@ -647,7 +931,11 @@ function PerDay({ list }: { list: Application[] }) {
           {cur ? `${fmt.day(`${cur.day}T12:00:00`)}: ${cur.n} طلب` : `${total} طلب في آخر ${days} يوم`}
         </p>
       </div>
-      <div className="flex h-28 items-end gap-[2px] border-b border-[var(--line)]" dir="ltr" onPointerLeave={() => setHover(null)}>
+      <div
+        className="flex h-28 items-end gap-[2px] border-b border-[var(--line)]"
+        dir="ltr"
+        onPointerLeave={() => setHover(null)}
+      >
         {series.map((d, i) => (
           <button
             key={d.day}
@@ -658,7 +946,10 @@ function PerDay({ list }: { list: Application[] }) {
             onBlur={() => setHover(null)}
             className="flex h-full min-w-0 flex-1 items-end"
           >
-            <span className={`w-full rounded-t-[4px] ${hover === i ? "bg-cyan" : "bg-cyan/60"}`} style={{ height: d.n ? `${Math.max(4, (d.n / max) * 100)}%` : "2px", opacity: d.n ? 1 : 0.35 }} />
+            <span
+              className={`w-full rounded-t-[4px] ${hover === i ? "bg-cyan" : "bg-cyan/60"}`}
+              style={{ height: d.n ? `${Math.max(4, (d.n / max) * 100)}%` : "2px", opacity: d.n ? 1 : 0.35 }}
+            />
           </button>
         ))}
       </div>
