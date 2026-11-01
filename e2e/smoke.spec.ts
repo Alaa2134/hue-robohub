@@ -6,6 +6,7 @@ async function mockSupabase(page: Page, opts: { submit?: (body: unknown) => void
     opts.submit?.(route.request().postDataJSON());
     await route.fulfill({ json: { ok: true, ref: "BX-TEST01" } });
   });
+  await page.route("**/rest/v1/rpc/join_started", (route) => route.fulfill({ status: 204, body: "" }));
   await page.route("**/rest/v1/site_settings**", (route) => route.fulfill({ json: [{ value: { open: true } }] }));
   await page.route("**/rest/v1/team_profiles**", (route) =>
     route.fulfill({
@@ -58,7 +59,11 @@ test("application form validates and submits", async ({ page }) => {
   // The university ID is required too.
   await expect(page.locator("#ap-student_number-error")).toBeVisible();
   await page.fill("#ap-student_number", "8240001");
+  await expect(page.getByTestId("resume-note")).toContainText("هنفكّرك مرة واحدة بس");
+  const started = page.waitForRequest("**/rest/v1/rpc/join_started");
   await page.getByRole("button", { name: "التالي" }).click();
+  // Past the first step the form tells the database the phone, for one reminder if they stop.
+  expect((await started).postDataJSON()).toMatchObject({ p_phone: "01012345678", p_email: "test@example.com", p_locale: "ar" });
   await page.getByRole("radio").first().click();
   await page.getByRole("radio", { name: /مبتدئ/ }).click();
   await page.getByRole("button", { name: "التالي" }).click();

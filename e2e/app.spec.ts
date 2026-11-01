@@ -9605,6 +9605,10 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
     courses: [],
     projects: [],
     numbers: { sessions: 9, quizzes: 3, tasks: 2 },
+    badges: [
+      { key: "attend", tier: 1, th: [1, 10, 25, 50] },
+      { key: "course", tier: 1, th: [100] },
+    ],
   };
   let pass = { slug, visible: false, full_name: false, show_group: false, headline: "", preview: data };
   const saved: Record<string, unknown>[] = [];
@@ -9656,6 +9660,15 @@ test("a student turns on their Skill Passport, sees the link, and the public pag
     "/verify/?c=BXC-1A2B3C4D",
   );
   await expect(page.getByTestId("passport-page")).not.toContainText("S1");
+  // The badges and the LinkedIn share.
+  await expect(page.getByTestId("passport-badges")).toContainText("Attendance");
+  await expect(page.getByTestId("passport-badges")).toContainText("Bronze");
+  await expect(page.getByTestId("passport-badges")).toContainText("Course finisher");
+  await expect(page.getByTestId("passport-badges")).toContainText("Gold");
+  await expect(page.getByTestId("passport-linkedin")).toHaveAttribute(
+    "href",
+    /linkedin\.com\/sharing\/share-offsite\/\?url=.*passport/,
+  );
   // Turned off: the page says so.
   pass = { ...pass, visible: false };
   await page.goto(`/ar/passport/?id=${slug}`);

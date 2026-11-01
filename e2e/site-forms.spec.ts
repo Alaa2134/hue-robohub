@@ -183,7 +183,9 @@ test("Forms built in the app: listed when open, filled in, checked, sent", async
   });
 });
 
-test("a form opened from a link doesn't push the page around while it loads (status box and footer stay put)", async ({ page }) => {
+test("a form opened from a link doesn't push the page around while it loads (status box and footer stay put)", async ({
+  page,
+}) => {
   await mockSupabase(page, { rpc: { public_forms: () => [] } });
   // Slow, like a phone on mobile data: the form arrives well after the page is drawn.
   await page.route(/\/rest\/v1\/rpc\/public_form$/, async (route) => {
@@ -194,7 +196,8 @@ test("a form opened from a link doesn't push the page around while it loads (sta
     const w = window as unknown as { __cls: number };
     w.__cls = 0;
     new PerformanceObserver((list) => {
-      for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[]) if (!e.hadRecentInput) w.__cls += e.value;
+      for (const e of list.getEntries() as (PerformanceEntry & { value: number; hadRecentInput: boolean })[])
+        if (!e.hadRecentInput) w.__cls += e.value;
     }).observe({ type: "layout-shift", buffered: true });
   });
   await page.goto("/ar/form/?f=sumo-tryouts");
@@ -204,7 +207,9 @@ test("a form opened from a link doesn't push the page around while it loads (sta
   expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBeLessThan(0.1);
 });
 
-test("coming with a friend: type their number in Arabic digits or their code, see their name, confirm it, and it goes with the answers", async ({ page }) => {
+test("coming with a friend: type their number in Arabic digits or their code, see their name, confirm it, and it goes with the answers", async ({
+  page,
+}) => {
   const form = {
     ...TRYOUT,
     slug: "mena-trip",
@@ -242,7 +247,10 @@ test("coming with a friend: type their number in Arabic digits or their code, se
   // Their number in Arabic digits finds them on its own; "not them" starts over.
   await friend.fill("٠١٠١٢٣٤٥٦٧٨");
   await expect(page.getByTestId("friend-hit-ff-w")).toContainText("صاحبك منى عادل؟");
-  expect(calls.filter((c) => c.fn === "form_friend").at(-1)!.body).toMatchObject({ p_slug: "mena-trip", p_query: "01012345678" });
+  expect(calls.filter((c) => c.fn === "form_friend").at(-1)!.body).toMatchObject({
+    p_slug: "mena-trip",
+    p_query: "01012345678",
+  });
   await page.getByRole("button", { name: "لأ، مش هو" }).click();
   await expect(friend).toHaveValue("");
 
@@ -252,7 +260,9 @@ test("coming with a friend: type their number in Arabic digits or their code, se
   await expect(page.getByTestId("friend-ok-ff-w")).toContainText("هتيجي مع منى عادل");
   await page.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByTestId("form-ref")).toHaveText("F-99887766");
-  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({ p_answers: { n: "يوسف خالد", p: "01112223334", w: "F-1A2B3C4D" } });
+  expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({
+    p_answers: { n: "يوسف خالد", p: "01112223334", w: "F-1A2B3C4D" },
+  });
 });
 
 test("a form with QR attendance: after sending, a QR to save on the phone; its link and the status show the sessions attended", async ({
@@ -284,7 +294,8 @@ test("a form with QR attendance: after sending, a QR to save on the phone; its l
     rpc: {
       public_form: () => COURSE,
       submit_form: () => ({ ok: true, ref: "F-1A2B3C4D", pass: PASS }),
-      form_pass: (b) => (String(b.p_token).toUpperCase() === PASS ? passOut : { ok: false, error: "not_found" }),
+      form_pass: (b) =>
+        String(b.p_token).toUpperCase() === PASS ? passOut : { ok: false, error: "not_found" },
       form_status: () => ({ ok: true, status: "new", title_ar: "كورس ROS", attend_pass: PASS }),
     },
   });
@@ -315,7 +326,9 @@ test("a form with QR attendance: after sending, a QR to save on the phone; its l
   await expect(page.locator("#status").getByTestId("attend-pass")).toBeVisible();
 });
 
-test("after a session: the QR page asks to rate the sessions they came to (stars and a few words), sends it, and shows it after", async ({ page }) => {
+test("after a session: the QR page asks to rate the sessions they came to (stars and a few words), sends it, and shows it after", async ({
+  page,
+}) => {
   const calls = await mockSupabase(page, {
     rpc: {
       form_pass: () => ({
@@ -325,8 +338,24 @@ test("after a session: the QR page asks to rate the sessions they came to (stars
         name: "منى عادل",
         title_ar: "ورشة Embedded",
         sessions: [
-          { id: "s1", name: "اليوم الأول", at: null, here: true, here_at: inHours(-3), rating: null, comment: null },
-          { id: "s2", name: "اليوم التاني", at: null, here: true, here_at: inHours(-30), rating: 4, comment: "حلوة" },
+          {
+            id: "s1",
+            name: "اليوم الأول",
+            at: null,
+            here: true,
+            here_at: inHours(-3),
+            rating: null,
+            comment: null,
+          },
+          {
+            id: "s2",
+            name: "اليوم التاني",
+            at: null,
+            here: true,
+            here_at: inHours(-30),
+            rating: 4,
+            comment: "حلوة",
+          },
           { id: "s3", name: "اليوم التالت", at: inHours(24), here: false, here_at: null },
         ],
       }),
@@ -354,12 +383,15 @@ test("after a session: the QR page asks to rate the sessions they came to (stars
   await expect(page.getByTestId("rate-jump")).toHaveCount(0);
 });
 
-test("no-shows: someone with a warning is told when they register, and someone blocked can't register and is told why", async ({ page }) => {
+test("no-shows: someone with a warning is told when they register, and someone blocked can't register and is told why", async ({
+  page,
+}) => {
   let blocked = false;
   await mockSupabase(page, {
     rpc: {
       public_form: () => TRYOUT,
-      submit_form: () => (blocked ? { ok: false, error: "banned" } : { ok: true, ref: "F-1A2B3C4D", warned: true }),
+      submit_form: () =>
+        blocked ? { ok: false, error: "banned" } : { ok: true, ref: "F-1A2B3C4D", warned: true },
     },
   });
   const fill = async () => {
@@ -380,7 +412,9 @@ test("no-shows: someone with a warning is told when they register, and someone b
   await expect(page.getByText("عليك حظر من التسجيل في فعاليات BuildX HUE")).toBeVisible();
 });
 
-test("a paid form: the fee and how to pay sit above the receipt upload, and the status says whether it's paid", async ({ page }) => {
+test("a paid form: the fee and how to pay sit above the receipt upload, and the status says whether it's paid", async ({
+  page,
+}) => {
   const PAID = {
     slug: "drone-course",
     title_ar: "كورس الدرون",
@@ -389,7 +423,14 @@ test("a paid form: the fee and how to pay sit above the receipt upload, and the 
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "r", type: "file", accept: "image", receipt: true, label_ar: "صورة إيصال الدفع", required: false },
+      {
+        id: "r",
+        type: "file",
+        accept: "image",
+        receipt: true,
+        label_ar: "صورة إيصال الدفع",
+        required: false,
+      },
     ],
   };
   let paid = false;
@@ -397,7 +438,12 @@ test("a paid form: the fee and how to pay sit above the receipt upload, and the 
     rpc: {
       public_form: () => PAID,
       submit_form: () => ({ ok: true, ref: "F-0A0B0C0D" }),
-      form_status: () => ({ ok: true, status: "new", title_ar: "كورس الدرون", payment: { ...PAID.payment, paid } }),
+      form_status: () => ({
+        ok: true,
+        status: "new",
+        title_ar: "كورس الدرون",
+        payment: { ...PAID.payment, paid },
+      }),
     },
   });
   await page.goto("/ar/form/?f=drone-course");
@@ -406,7 +452,9 @@ test("a paid form: the fee and how to pay sit above the receipt upload, and the 
   await expect(fee).toContainText("150");
   await expect(fee).toContainText("فودافون كاش على 01000000000");
   // The fee box is inside the receipt question, not repeated in the header.
-  await expect(page.locator("label", { hasText: "صورة إيصال الدفع" }).locator("..").getByTestId("form-fee")).toHaveCount(1);
+  await expect(
+    page.locator("label", { hasText: "صورة إيصال الدفع" }).locator("..").getByTestId("form-fee"),
+  ).toHaveCount(1);
   await page.getByLabel("الاسم بالكامل").fill("منى عادل");
   await page.getByLabel("رقم الموبايل", { exact: true }).fill("01112223334");
   await page.getByRole("button", { name: "ابعت" }).click();
@@ -516,7 +564,10 @@ test("an event that registers through a form shows the form on its page; a full 
   await bus.getByRole("radio", { name: /جاي لوحدي/ }).click();
   await form.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByTestId("form-ref")).toHaveText("F-0A0B0C0D");
-  expect(calls.filter((c) => c.fn === "submit_form").at(-1)!.body).toMatchObject({ p_slug: "mena-bus", p_answers: { n: "يوسف خالد", p: "01112223334", b: "جاي لوحدي" } });
+  expect(calls.filter((c) => c.fn === "submit_form").at(-1)!.body).toMatchObject({
+    p_slug: "mena-bus",
+    p_answers: { n: "يوسف خالد", p: "01112223334", b: "جاي لوحدي" },
+  });
   expect(calls.some((c) => c.fn === "register_event")).toBe(false);
 });
 
@@ -736,7 +787,10 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
     rpc: {
       public_form: () => EXPO_FORM,
       submit_form: () => ({ ok: true, ref: "F-1A2B3C4D" }),
-      form_status: (b) => (b.p_ref === "F-1A2B3C4D" ? { ok: true, status: "new", title_ar: EXPO_FORM.title_ar } : { ok: false, error: "not_found" }),
+      form_status: (b) =>
+        b.p_ref === "F-1A2B3C4D"
+          ? { ok: true, status: "new", title_ar: EXPO_FORM.title_ar }
+          : { ok: false, error: "not_found" },
     },
   });
   await page.goto("/ar/robotex/");
@@ -778,7 +832,9 @@ test("Robotex expo visit page: apply, get a reference code, then check the statu
   expect(errors).toEqual([]);
 });
 
-test("«تابع طلبك» works with the code alone or the number alone (in Arabic digits too), and says when a join code was typed", async ({ page }) => {
+test("«تابع طلبك» works with the code alone or the number alone (in Arabic digits too), and says when a join code was typed", async ({
+  page,
+}) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const calls = await mockSupabase(page, {
@@ -787,7 +843,12 @@ test("«تابع طلبك» works with the code alone or the number alone (in Ar
         String(b.p_ref).startsWith("BX")
           ? { ok: false, error: "join_code" }
           : !b.p_ref && b.p_phone === "01012345678"
-            ? { ok: true, list: [{ title_ar: "كورس ROS", title_en: null, status: "accepted", at: "2026-10-18T10:00:00Z" }] }
+            ? {
+                ok: true,
+                list: [
+                  { title_ar: "كورس ROS", title_en: null, status: "accepted", at: "2026-10-18T10:00:00Z" },
+                ],
+              }
             : String(b.p_ref).endsWith("1A2B3C4D")
               ? { ok: true, status: "new", title_ar: "كورس ROS" }
               : { ok: false, error: "not_found" },
@@ -811,14 +872,20 @@ test("«تابع طلبك» works with the code alone or the number alone (in Ar
   await expect(page.getByTestId("status-item")).toContainText("اتقبلت 🎉");
   await expect(page.getByTestId("status-item")).toContainText("كورس ROS");
   await expect(page.getByText("علشان تشوف الـ QR وتفاصيل طلبك اكتب كود الطلب")).toBeVisible();
-  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "", p_phone: "01012345678" });
+  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({
+    p_ref: "",
+    p_phone: "01012345678",
+  });
   // The code alone, without «F-».
   await phone.fill("");
   await code.fill("1a2b3c4d");
   await expect(code).toHaveValue("1A2B3C4D");
   await check.click();
   await expect(page.getByText("طلبك وصل وبيتراجع")).toBeVisible();
-  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({ p_ref: "1A2B3C4D", p_phone: null });
+  expect(calls.filter((c) => c.fn === "form_status").at(-1)!.body).toEqual({
+    p_ref: "1A2B3C4D",
+    p_phone: null,
+  });
   expect(errors).toEqual([]);
 });
 
@@ -1408,7 +1475,9 @@ test("unsubscribe: a cut or changed link says so, and nothing is sent without a 
   await expect(page.getByTestId("unsub-ask").getByRole("alert")).toContainText("اللينك ده ناقص أو قديم");
 });
 
-test("A file question: a big photo is compressed in the browser, uploaded to its ticket path, and the form shows the form's own background", async ({ page }) => {
+test("A file question: a big photo is compressed in the browser, uploaded to its ticket path, and the form shows the form's own background", async ({
+  page,
+}) => {
   const FILE_FORM = {
     ...TRYOUT,
     background_path: "b/11111111-1111-1111-1111-111111111111/bg.jpg",
@@ -1421,17 +1490,33 @@ test("A file question: a big photo is compressed in the browser, uploaded to its
   const calls = await mockSupabase(page, {
     rpc: {
       public_form: () => FILE_FORM,
-      form_upload_ticket: () => ({ ok: true, path: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg" }),
+      form_upload_ticket: () => ({
+        ok: true,
+        path: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg",
+      }),
       submit_form: () => ({ ok: true }),
     },
   });
   const uploads: { url: string; type: string | undefined; size: number }[] = [];
   await page.route(/supabase\.co\/storage\/v1\/object\/form-files\//, async (route) => {
     const req = route.request();
-    uploads.push({ url: req.url(), type: req.headers()["content-type"], size: req.postDataBuffer()?.length ?? 0 });
+    uploads.push({
+      url: req.url(),
+      type: req.headers()["content-type"],
+      size: req.postDataBuffer()?.length ?? 0,
+    });
     return route.fulfill({ json: { Key: "ok" } });
   });
-  await page.route(/supabase\.co\/storage\/v1\/object\/public\/form-media\//, (route) => route.fulfill({ status: 200, contentType: "image/png", body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHZ7FWQAAAABJRU5ErkJggg==", "base64") }));
+  await page.route(/supabase\.co\/storage\/v1\/object\/public\/form-media\//, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGD4DwABBAEAHZ7FWQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    }),
+  );
   await page.goto("/ar/form/?f=sumo-tryouts");
   await expect(page.getByTestId("form-stage")).toBeVisible();
   // A 2400×2400 bitmap (about 17 MB) stands in for a phone photo.
@@ -1451,7 +1536,9 @@ test("A file question: a big photo is compressed in the browser, uploaded to its
     bmp[i + 2] = (i >> 5) & 255;
   }
   await page.getByLabel("الاسم بالكامل").fill("يوسف خالد");
-  await page.getByTestId("file-cv").setInputFiles({ name: "project.bmp", mimeType: "image/bmp", buffer: bmp });
+  await page
+    .getByTestId("file-cv")
+    .setInputFiles({ name: "project.bmp", mimeType: "image/bmp", buffer: bmp });
   await expect(page.getByTestId("file-status-cv")).toContainText("✓");
   expect(uploads).toHaveLength(1);
   expect(uploads[0].type).toBe("image/jpeg");
@@ -1463,13 +1550,23 @@ test("A file question: a big photo is compressed in the browser, uploaded to its
   await page.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByText("وصلنا ردك")).toBeVisible();
   expect(calls.find((c) => c.fn === "submit_form")!.body).toMatchObject({
-    p_answers: { n: "يوسف خالد", cv: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg" },
+    p_answers: {
+      n: "يوسف خالد",
+      cv: "f/22222222-2222-2222-2222-222222222222/33333333-3333-3333-3333-333333333333.jpg",
+    },
   });
 });
 
-test("A file question is required, and a file of the wrong kind is refused before anything is uploaded", async ({ page }) => {
-  const FILE_FORM = { ...TRYOUT, fields: [{ id: "cv", type: "file", label_ar: "ملف PDF", required: true, accept: "pdf" }] };
-  const calls = await mockSupabase(page, { rpc: { public_form: () => FILE_FORM, submit_form: () => ({ ok: true }) } });
+test("A file question is required, and a file of the wrong kind is refused before anything is uploaded", async ({
+  page,
+}) => {
+  const FILE_FORM = {
+    ...TRYOUT,
+    fields: [{ id: "cv", type: "file", label_ar: "ملف PDF", required: true, accept: "pdf" }],
+  };
+  const calls = await mockSupabase(page, {
+    rpc: { public_form: () => FILE_FORM, submit_form: () => ({ ok: true }) },
+  });
   let uploaded = 0;
   await page.route(/supabase\.co\/storage\//, (route) => {
     uploaded++;
@@ -1478,13 +1575,17 @@ test("A file question is required, and a file of the wrong kind is refused befor
   await page.goto("/ar/form/?f=sumo-tryouts");
   await page.getByRole("button", { name: "ابعت" }).click();
   await expect(page.getByText("الخانة دي مطلوبة.")).toBeVisible();
-  await page.getByTestId("file-cv").setInputFiles({ name: "a.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgo=", "base64") });
+  await page
+    .getByTestId("file-cv")
+    .setInputFiles({ name: "a.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgo=", "base64") });
   await expect(page.getByTestId("file-status-cv")).toContainText("مش مقبول");
   expect(uploaded).toBe(0);
   expect(calls.some((c) => c.fn === "form_upload_ticket")).toBe(false);
 });
 
-test("forms on a phone: one-tap choices, a checked national ID, progress, typed answers kept after a reload, and closed forms point to open ones", async ({ page }) => {
+test("forms on a phone: one-tap choices, a checked national ID, progress, typed answers kept after a reload, and closed forms point to open ones", async ({
+  page,
+}) => {
   const FORM = {
     slug: "summit",
     title_ar: "رحلة القمة",
@@ -1493,11 +1594,24 @@ test("forms on a phone: one-tap choices, a checked national ID, progress, typed 
     fields: [
       { id: "n", type: "name", label_ar: "الاسم بالكامل", required: true },
       { id: "p", type: "phone", label_ar: "رقم الموبايل", required: true },
-      { id: "y", type: "select", label_ar: "السنة", required: true, options: [{ ar: "أولى" }, { ar: "تانية" }, { ar: "تالتة" }] },
+      {
+        id: "y",
+        type: "select",
+        label_ar: "السنة",
+        required: true,
+        options: [{ ar: "أولى" }, { ar: "تانية" }, { ar: "تالتة" }],
+      },
       { id: "id", type: "nid", label_ar: "الرقم القومي", required: true },
     ],
   };
-  const OLD = { slug: "old-trip", title_ar: "رحلة قديمة", open: false, opens_at: inHours(-200), closes_at: inHours(-100), fields: [] };
+  const OLD = {
+    slug: "old-trip",
+    title_ar: "رحلة قديمة",
+    open: false,
+    opens_at: inHours(-200),
+    closes_at: inHours(-100),
+    fields: [],
+  };
   const calls = await mockSupabase(page, {
     rpc: {
       public_forms: () => [{ ...FORM, questions: 4 }],
@@ -1508,7 +1622,10 @@ test("forms on a phone: one-tap choices, a checked national ID, progress, typed 
   await page.goto("/ar/form/?f=summit");
   // A long intro opens on tap, and its link is clickable.
   await expect(page.getByRole("button", { name: "اقرا التفاصيل كلها" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "example.org/summit" })).toHaveAttribute("href", "https://example.org/summit");
+  await expect(page.getByRole("link", { name: "example.org/summit" })).toHaveAttribute(
+    "href",
+    "https://example.org/summit",
+  );
   await expect(page.getByTestId("form-progress")).toContainText("جاوبت 0 من 4 سؤال مطلوب");
   await page.getByLabel("الاسم بالكامل").fill("منى عادل");
   await page.getByLabel("رقم الموبايل", { exact: true }).fill("٠١٠١٢٣٤٥٦٧٨");
@@ -1546,10 +1663,15 @@ test("forms on a phone: one-tap choices, a checked national ID, progress, typed 
   await expect(page.getByText("4 أسئلة · حوالي دقيقة")).toBeVisible();
   await page.goto("/ar/form/");
   await expect(page.getByRole("heading", { level: 1, name: "اختار الفورم اللي عايز تملاه" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "املأ الفورم" })).toHaveAttribute("href", /\/ar\/form\/\?f=summit$/);
+  await expect(page.getByRole("link", { name: "املأ الفورم" })).toHaveAttribute(
+    "href",
+    /\/ar\/form\/\?f=summit$/,
+  );
 });
 
-test("a verified impact report shows its numbers with how each is counted, and a partner's page lists their reports", async ({ page }) => {
+test("a verified impact report shows its numbers with how each is counted, and a partner's page lists their reports", async ({
+  page,
+}) => {
   const data = {
     from: "2026-09-01",
     to: "2026-09-30",
@@ -1564,16 +1686,62 @@ test("a verified impact report shows its numbers with how each is counted, and a
     rpc: {
       verify_impact_report: (b) =>
         String(b.p_code).toUpperCase() === "BXR-1A2B3C4D5E"
-          ? { ok: true, found: true, code: "BXR-1A2B3C4D5E", from: "2026-09-01", to: "2026-09-30", issued_at: "2026-10-02T09:00:00Z", partner: "Acme Robotics", revoked_at: null, revoked_reason: null, data, digest: "ab".repeat(32), intact: true }
+          ? {
+              ok: true,
+              found: true,
+              code: "BXR-1A2B3C4D5E",
+              from: "2026-09-01",
+              to: "2026-09-30",
+              issued_at: "2026-10-02T09:00:00Z",
+              partner: "Acme Robotics",
+              revoked_at: null,
+              revoked_reason: null,
+              data,
+              digest: "ab".repeat(32),
+              intact: true,
+            }
           : { ok: true, found: false },
       partner_portal: (b) =>
         b.p_token === "c".repeat(48)
-          ? { ok: true, found: true, name: "Acme Robotics", reports: [{ code: "BXR-1A2B3C4D5E", from: "2026-09-01", to: "2026-09-30", issued_at: "2026-10-02T09:00:00Z", revoked: false }] }
+          ? {
+              ok: true,
+              found: true,
+              name: "Acme Robotics",
+              reports: [
+                {
+                  code: "BXR-1A2B3C4D5E",
+                  from: "2026-09-01",
+                  to: "2026-09-30",
+                  issued_at: "2026-10-02T09:00:00Z",
+                  revoked: false,
+                },
+              ],
+              events: [
+                {
+                  title: "قمة الروبوتات",
+                  title_en: "Robotics Summit",
+                  at: "2026-10-30T03:00:00Z",
+                  registered: 84,
+                  came: 45,
+                  rating: 4.8,
+                  ratings: 33,
+                  post: "robotics-summit",
+                },
+              ],
+            }
           : { ok: true, found: false },
     },
   });
   await page.goto(`/partner/?t=${"c".repeat(48)}`);
   await expect(page.getByTestId("partner-portal")).toContainText("Acme Robotics");
+  // Each event's recap, made by itself from the scans and the ratings.
+  await expect(page.getByTestId("partner-recaps")).toContainText("Robotics Summit");
+  await expect(page.getByTestId("partner-recaps")).toContainText(
+    "84 registered · 45 attended · ★ 4.8 rating (33)",
+  );
+  await expect(
+    page.getByTestId("partner-recaps").getByRole("link", { name: "Read the news" }),
+  ).toHaveAttribute("href", "/news/robotics-summit/");
   await page.getByRole("link", { name: /BXR-1A2B3C4D5E/ }).click();
   const report = page.getByTestId("impact-report");
   await expect(report).toContainText("exactly as issued");
@@ -1587,14 +1755,37 @@ test("a verified impact report shows its numbers with how each is counted, and a
   expect(calls.filter((c) => c.fn === "verify_impact_report").length).toBe(1);
 });
 
-test("competition coach: the rules that match come with their numbers, and the AI answer cites only them", async ({ page }) => {
+test("competition coach: the rules that match come with their numbers, and the AI answer cites only them", async ({
+  page,
+}) => {
   const sections = [
-    { ref: "1.2", heading: "Weight", body: "The maximum weight of the robot is 1.5 kg.", snippet: "The «maximum» «weight» of the robot is 1.5 kg." },
-    { ref: "1.1", heading: "Size", body: "The robot must fit inside a 250 mm × 250 mm × 250 mm box before the start.", snippet: "The robot must fit inside a 250 mm box" },
+    {
+      ref: "1.2",
+      heading: "Weight",
+      body: "The maximum weight of the robot is 1.5 kg.",
+      snippet: "The «maximum» «weight» of the robot is 1.5 kg.",
+    },
+    {
+      ref: "1.1",
+      heading: "Size",
+      body: "The robot must fit inside a 250 mm × 250 mm × 250 mm box before the start.",
+      snippet: "The robot must fit inside a 250 mm box",
+    },
   ];
   const calls = await mockSupabase(page, {
     rpc: {
-      rulebooks_public: () => [{ slug: "wro-2026", title: "قواعد WRO", title_en: "WRO rules", competition: "WRO", edition: "2026", source_url: "https://example.org/wro.pdf", sections: 40, ai: true }],
+      rulebooks_public: () => [
+        {
+          slug: "wro-2026",
+          title: "قواعد WRO",
+          title_en: "WRO rules",
+          competition: "WRO",
+          edition: "2026",
+          source_url: "https://example.org/wro.pdf",
+          sections: 40,
+          ai: true,
+        },
+      ],
       coach_search: () => ({ ok: true, sections }),
     },
   });
@@ -1611,7 +1802,10 @@ test("competition coach: the rules that match come with their numbers, and the A
   await expect(results.locator("mark").first()).toHaveText("maximum");
   await page.getByRole("button", { name: "Ask the coach (AI)" }).click();
   await expect(page.getByTestId("coach-answer")).toHaveText("The robot may weigh at most 1.5 kg [1.2].");
-  await expect(page.getByTestId("coach-ai").getByRole("link", { name: "1.2" })).toHaveAttribute("href", "#rule-1.2");
+  await expect(page.getByTestId("coach-ai").getByRole("link", { name: "1.2" })).toHaveAttribute(
+    "href",
+    "#rule-1.2",
+  );
   expect(asked).toEqual({ book: "wro-2026", question: "max weight" });
   expect(calls.find((c) => c.fn === "coach_search")?.body).toEqual({ p_book: "wro-2026", p_q: "max weight" });
 });

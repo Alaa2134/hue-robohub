@@ -52,3 +52,24 @@ test("the events page offers the calendar feed for Google, Apple and Outlook", a
   const google = await card.getByTestId("cal-google").getAttribute("href");
   expect(decodeURIComponent(google!)).toContain("cid=webcal://");
 });
+
+test("start here: the visitor says who they are and gets their pages, remembered next time", async ({
+  page,
+}) => {
+  await page.route(/supabase\.co/, (route) => route.fulfill({ json: [] }));
+  await page.goto("/ar/");
+  const box = page.getByTestId("start-here");
+  await expect(box.getByTestId("start-links")).toHaveCount(0);
+  await box.getByTestId("who-sponsor").click();
+  await expect(box.getByRole("link", { name: "الرعاية وملف الميديا" })).toHaveAttribute(
+    "href",
+    "/ar/sponsors/",
+  );
+  await page.reload();
+  await expect(page.getByTestId("who-sponsor")).toHaveAttribute("aria-checked", "true");
+  await page.getByTestId("who-member").click();
+  await expect(page.getByTestId("start-links").getByRole("link", { name: "افتح التطبيق" })).toHaveAttribute(
+    "href",
+    "/app/",
+  );
+});
