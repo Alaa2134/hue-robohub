@@ -1,4 +1,5 @@
 "use client";
+import { fuzzyScore } from "@/lib/fuzzy";
 import { STATIC_SITE } from "@/lib/deploy";
 import { searchLive } from "@/lib/site-content";
 import { useRouter } from "next/navigation";
@@ -24,12 +25,16 @@ const TYPE_ICON: Record<string, IconName> = {
   achievement: "trophy",
 };
 
-function norm(s: string) {
-  return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 /** ⌘K command palette: instant local matches (pages, tracks, teams) + debounced full-text search. */
-export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictionary["search"] & { close: string }; seeds: SearchSeed[] }) {
+export function SearchDialog({
+  locale,
+  t,
+  seeds,
+}: {
+  locale: Locale;
+  t: Dictionary["search"] & { close: string };
+  seeds: SearchSeed[];
+}) {
   const { search: open } = useUi();
   const router = useRouter();
   const [q, setQ] = useState("");
@@ -59,18 +64,21 @@ export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictiona
     const ctl = new AbortController();
     let alive = true;
     setLoading(true);
-    const id = setTimeout(() => {
-      // The static site searches the content published from the BuildX App straight from Supabase.
-      const load: Promise<Hit[]> = STATIC_SITE
-        ? searchLive(term, locale)
-        : fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: ctl.signal })
-            .then((r) => (r.ok ? r.json() : { results: [] }))
-            .then((d: { results?: Hit[] }) => d.results ?? []);
-      load
-        .then((r) => alive && setRemote(r))
-        .catch(() => {})
-        .finally(() => alive && setLoading(false));
-    }, STATIC_SITE ? 250 : 160);
+    const id = setTimeout(
+      () => {
+        // The static site searches the content published from the BuildX App straight from Supabase.
+        const load: Promise<Hit[]> = STATIC_SITE
+          ? searchLive(term, locale)
+          : fetch(`/api/search?q=${encodeURIComponent(term)}`, { signal: ctl.signal })
+              .then((r) => (r.ok ? r.json() : { results: [] }))
+              .then((d: { results?: Hit[] }) => d.results ?? []);
+        load
+          .then((r) => alive && setRemote(r))
+          .catch(() => {})
+          .finally(() => alive && setLoading(false));
+      },
+      STATIC_SITE ? 250 : 160,
+    );
     return () => {
       alive = false;
       clearTimeout(id);
@@ -79,14 +87,26 @@ export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictiona
   }, [q, locale]);
 
   const local = useMemo(() => {
-    const term = norm(q.trim());
+    const term = q.trim();
     if (!term) return seeds.filter((s) => s.kind === "page").slice(0, 8);
-    return seeds.filter((s) => norm(`${s.title} ${s.subtitle}`).includes(term)).slice(0, 8);
+    // Forgiving: «روبت» finds «روبوت», «embeded» finds «Embedded», «workshop» finds «ورشة».
+    return seeds
+      .map((s) => ({ s, score: fuzzyScore(term, `${s.title} ${s.subtitle}`) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.s)
+      .slice(0, 8);
   }, [q, seeds]);
 
   const items = useMemo(
     () => [
-      ...local.map((s) => ({ type: s.kind, title: s.title, subtitle: s.subtitle, href: s.href, external: false })),
+      ...local.map((s) => ({
+        type: s.kind,
+        title: s.title,
+        subtitle: s.subtitle,
+        href: s.href,
+        external: false,
+      })),
       ...remote.map((h) => ({ ...h, external: /^https?:/.test(h.href) })),
     ],
     [local, remote],
@@ -127,10 +147,22 @@ export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictiona
       aria-label={t.title}
       aria-hidden={!open}
       inert={!open}
-      className={cn("fixed inset-0 z-[60] flex items-start justify-center px-3 pt-[max(4.5rem,env(safe-area-inset-top))] transition-[visibility] duration-300 sm:px-6 sm:pt-[12vh]", open ? "visible" : "invisible")}
+      className={cn(
+        "fixed inset-0 z-[60] flex items-start justify-center px-3 pt-[max(4.5rem,env(safe-area-inset-top))] transition-[visibility] duration-300 sm:px-6 sm:pt-[12vh]",
+        open ? "visible" : "invisible",
+      )}
       onKeyDown={onKey}
     >
-      <button type="button" tabIndex={-1} aria-label={t.close} onClick={() => ui.set({ search: false })} className={cn("absolute inset-0 bg-void/75 backdrop-blur-md transition-opacity duration-300", open ? "opacity-100" : "opacity-0")} />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={t.close}
+        onClick={() => ui.set({ search: false })}
+        className={cn(
+          "absolute inset-0 bg-void/75 backdrop-blur-md transition-opacity duration-300",
+          open ? "opacity-100" : "opacity-0",
+        )}
+      />
       <div
         className={cn(
           "frame relative w-full max-w-2xl overflow-hidden transition-[opacity,transform] duration-500 ease-[var(--ease-out-expo)]",
@@ -156,26 +188,51 @@ export function SearchDialog({ locale, t, seeds }: { locale: Locale; t: Dictiona
             className="h-14 w-full bg-transparent text-base text-chalk placeholder:text-fog focus:outline-none sm:h-16 sm:text-lg"
           />
           {loading && <span aria-hidden className="size-1.5 animate-pulse-dot rounded-full bg-cyan" />}
-          <kbd className="hidden rounded border border-[var(--line-2)] px-1.5 py-0.5 font-mono text-[0.6rem] text-fog sm:block">ESC</kbd>
+          <kbd className="hidden rounded border border-[var(--line-2)] px-1.5 py-0.5 font-mono text-[0.6rem] text-fog sm:block">
+            ESC
+          </kbd>
         </div>
-        <ul ref={list} id="search-results" role="listbox" className="max-h-[min(60vh,28rem)] overflow-y-auto p-2">
-          {items.length === 0 && q.trim().length >= 2 && !loading && <li className="px-4 py-10 text-center text-sm text-fog">{t.empty}</li>}
+        <ul
+          ref={list}
+          id="search-results"
+          role="listbox"
+          className="max-h-[min(60vh,28rem)] overflow-y-auto p-2"
+        >
+          {items.length === 0 && q.trim().length >= 2 && !loading && (
+            <li className="px-4 py-10 text-center text-sm text-fog">{t.empty}</li>
+          )}
           {items.map((it, i) => (
-            <li key={`${it.type}:${it.href}:${i}`} id={`sr-${i}`} role="option" aria-selected={sel === i} data-i={i}>
+            <li
+              key={`${it.type}:${it.href}:${i}`}
+              id={`sr-${i}`}
+              role="option"
+              aria-selected={sel === i}
+              data-i={i}
+            >
               <button
                 type="button"
                 onPointerMove={() => setSel(i)}
                 onClick={() => go(i)}
-                className={cn("flex w-full items-center gap-3.5 rounded-lg px-3 py-2.5 text-start transition-colors", sel === i ? "bg-panel-2" : "hover:bg-panel")}
+                className={cn(
+                  "flex w-full items-center gap-3.5 rounded-lg px-3 py-2.5 text-start transition-colors",
+                  sel === i ? "bg-panel-2" : "hover:bg-panel",
+                )}
               >
-                <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-md border", sel === i ? "border-volt/60 text-cyan" : "border-[var(--line)] text-fog")}>
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-md border",
+                    sel === i ? "border-volt/60 text-cyan" : "border-[var(--line)] text-fog",
+                  )}
+                >
                   <Icon name={TYPE_ICON[it.type] ?? "grid"} size={17} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[0.95rem] text-chalk">{it.title}</span>
                   {it.subtitle && <span className="block truncate text-xs text-fog">{it.subtitle}</span>}
                 </span>
-                <span className="t-eyebrow hidden shrink-0 text-[0.58rem] text-fog sm:block">{t.types[it.type as keyof typeof t.types] ?? it.type}</span>
+                <span className="t-eyebrow hidden shrink-0 text-[0.58rem] text-fog sm:block">
+                  {t.types[it.type as keyof typeof t.types] ?? it.type}
+                </span>
               </button>
             </li>
           ))}

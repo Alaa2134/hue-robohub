@@ -2,7 +2,21 @@
 /** Student side: home, content library, quizzes (timed, autosaved, graded on the server) and attendance. */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
-import { BASE_PATH, SITE_ORIGIN, STATUS_LABEL, asciiDigits, errorText, fileUrl, fmt, isNative, studentRpc, studentRpcOffline, studentStore, type AttStatus, type StudentSession } from "./core";
+import {
+  BASE_PATH,
+  SITE_ORIGIN,
+  STATUS_LABEL,
+  asciiDigits,
+  errorText,
+  fileUrl,
+  fmt,
+  isNative,
+  studentRpc,
+  studentRpcOffline,
+  studentStore,
+  type AttStatus,
+  type StudentSession,
+} from "./core";
 import { StudentBaqloz } from "./baqloz";
 import { StudentLoansCard } from "./inventory";
 import { StudentEquipment } from "./equipment";
@@ -12,6 +26,8 @@ import { StudentPrint } from "./print";
 import { MemberCardScreen, MemberCardTile } from "./member-card";
 import { CERT_KINDS, CertificatePrint, type Certificate } from "./certificate";
 import { MyPoints, PointsCard, WeeklyContestCard } from "./points";
+import { AchievementsStrip } from "./achievements";
+import { FirstRunGuide, GuideRow } from "./guides";
 import { PushCard } from "./push";
 import { goodMoment } from "./review";
 import { DeleteAccountCard } from "./account-deletion";
@@ -47,7 +63,20 @@ import {
 } from "./ui";
 import { LanguageCard } from "./language";
 
-type HomeMaterial = { id: string; title: string; description: string; kind: "file" | "link"; path: string | null; url: string | null; fileName: string | null; mime: string | null; size: number | null; points?: number; pinned: boolean; at: string };
+type HomeMaterial = {
+  id: string;
+  title: string;
+  description: string;
+  kind: "file" | "link";
+  path: string | null;
+  url: string | null;
+  fileName: string | null;
+  mime: string | null;
+  size: number | null;
+  points?: number;
+  pinned: boolean;
+  at: string;
+};
 type HomeQuiz = {
   id: string;
   title: string;
@@ -115,11 +144,22 @@ function useHome() {
   return { data, error, loading, reload };
 }
 
-export function StudentApp({ session, path, query }: { session: StudentSession; path: string[]; query: URLSearchParams }) {
+export function StudentApp({
+  session,
+  path,
+  query,
+}: {
+  session: StudentSession;
+  path: string[];
+  query: URLSearchParams;
+}) {
   const home = useHome();
   const [section, id] = path;
   if (section === "certificate" && id) return <MyCertificatePrint id={id} />;
-  if (section === "quiz" && id) return <TakeQuiz key={id} id={id} info={home.data?.quizzes.find((q) => q.id === id)} onDone={home.reload} />;
+  if (section === "quiz" && id)
+    return (
+      <TakeQuiz key={id} id={id} info={home.data?.quizzes.find((q) => q.id === id)} onDone={home.reload} />
+    );
 
   let screen: React.ReactNode;
   if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
@@ -130,10 +170,14 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
   else if (section === "passport") screen = <StudentPassport />;
   else if (section === "teams") screen = <StudentTeams />;
   else if (section === "print") screen = <StudentPrint />;
-  else if (!home.data) screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
-  else if (section === "content") screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
-  else if (section === "quizzes") screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
-  else if (section === "attendance") screen = <Attendance data={home.data} reload={home.reload} loading={home.loading} />;
+  else if (!home.data)
+    screen = home.error ? <ErrorBox error={home.error} retry={home.reload} /> : <Loading />;
+  else if (section === "content")
+    screen = <Materials data={home.data} reload={home.reload} loading={home.loading} />;
+  else if (section === "quizzes")
+    screen = <Quizzes data={home.data} reload={home.reload} loading={home.loading} />;
+  else if (section === "attendance")
+    screen = <Attendance data={home.data} reload={home.reload} loading={home.loading} />;
   else if (section === "account") screen = <Account session={session} />;
   else if (section === "points") screen = <MyPoints />;
   else if (section === "card") screen = <MemberCardScreen />;
@@ -148,6 +192,7 @@ export function StudentApp({ session, path, query }: { session: StudentSession; 
         </div>
       ) : null}
       {screen}
+      <FirstRunGuide kind="student" />
     </AppShell>
   );
 }
@@ -170,7 +215,12 @@ function Home({ data, reload, loading }: ScreenProps) {
         <BrandLine />
         <div className="flex">
           <SiteButton />
-          <IconButton icon="refresh" label="تحديث" onClick={reload} className={cn(loading && "animate-spin")} />
+          <IconButton
+            icon="refresh"
+            label="تحديث"
+            onClick={reload}
+            className={cn(loading && "animate-spin")}
+          />
           <IconButton icon="user" label="حسابي" onClick={() => go("/me/account")} />
         </div>
       </header>
@@ -193,7 +243,10 @@ function Home({ data, reload, loading }: ScreenProps) {
       <NextUpCard />
       <TasksCard />
       <StudentLoansCard />
-      <a href="#/me/attendance" className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5">
+      <a
+        href="#/me/attendance"
+        className="mt-3 flex items-center gap-4 rounded-3xl border border-[var(--line-2)] bg-panel/70 p-5"
+      >
         <Ring value={stats.rate} size={72} />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-chalk">نسبة حضورك</p>
@@ -205,9 +258,17 @@ function Home({ data, reload, loading }: ScreenProps) {
       </a>
       <WeeklyContestCard />
       <PointsCard />
+      <AchievementsStrip />
       <PushCard kind="student" />
 
-      <Section title="كويزات متاحة" action={<a href="#/me/quizzes" className="text-sm text-cyan">الكل</a>}>
+      <Section
+        title="كويزات متاحة"
+        action={
+          <a href="#/me/quizzes" className="text-sm text-cyan">
+            الكل
+          </a>
+        }
+      >
         {openQuizzes.length ? (
           <div className="grid gap-2">
             {openQuizzes.slice(0, 3).map((q) => (
@@ -219,7 +280,14 @@ function Home({ data, reload, loading }: ScreenProps) {
         )}
       </Section>
 
-      <Section title="أحدث المحتوى" action={<a href="#/me/content" className="text-sm text-cyan">الكل</a>}>
+      <Section
+        title="أحدث المحتوى"
+        action={
+          <a href="#/me/content" className="text-sm text-cyan">
+            الكل
+          </a>
+        }
+      >
         {data.materials.length ? (
           <List>
             {data.materials.slice(0, 4).map((m) => (
@@ -264,12 +332,18 @@ function MyCertificates() {
     <Section title="شهاداتي">
       <List>
         {list.map((c) => (
-          <a key={c.id} href={`#/me/certificate/${c.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
+          <a
+            key={c.id}
+            href={`#/me/certificate/${c.id}`}
+            className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]"
+          >
             <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold">
               <Icon name="award" size={22} />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold text-chalk">{c.title_ar || c.title}</span>
+              <span className="block truncate text-[15px] font-semibold text-chalk">
+                {c.title_ar || c.title}
+              </span>
               <span className="block truncate text-xs text-fog">
                 {CERT_KINDS.find((k) => k.key === c.kind)?.ar} · {fmt.short(`${c.issued_on}T12:00:00`)}
               </span>
@@ -301,7 +375,8 @@ type Progress = {
 const useProgress = () => useAsync(() => studentRpcOffline<Progress>("student_progress"), []);
 
 /** Opening a lecture or file counts towards the course progress (once). */
-const markSeen = (id: string) => studentRpc("student_material_seen", { p_material: id }).catch(() => undefined);
+const markSeen = (id: string) =>
+  studentRpc("student_material_seen", { p_material: id }).catch(() => undefined);
 
 /** Student home: how far they are through their group's track. */
 function ProgressCard() {
@@ -337,7 +412,13 @@ function ProgressCard() {
 function MaterialRow({ m, seen }: { m: HomeMaterial; seen?: boolean }) {
   const href = m.kind === "link" ? m.url! : fileUrl(m.path!);
   return (
-    <a href={href} target="_blank" rel="noreferrer" onClick={() => markSeen(m.id)} className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={() => markSeen(m.id)}
+      className="flex items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]"
+    >
       <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-volt/15 text-[#8fb5ff]">
         <Icon name={kindIcon(m)} size={22} />
       </span>
@@ -367,7 +448,8 @@ function MaterialRow({ m, seen }: { m: HomeMaterial; seen?: boolean }) {
             window.open(fileUrl(m.path!, m.fileName ?? undefined), "_blank", "noopener");
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") window.open(fileUrl(m.path!, m.fileName ?? undefined), "_blank", "noopener");
+            if (e.key === "Enter")
+              window.open(fileUrl(m.path!, m.fileName ?? undefined), "_blank", "noopener");
           }}
           className="flex size-10 items-center justify-center rounded-xl text-mist hover:bg-white/[0.07]"
         >
@@ -381,11 +463,32 @@ function MaterialRow({ m, seen }: { m: HomeMaterial; seen?: boolean }) {
 function Materials({ data, reload, loading }: ScreenProps) {
   const [q, setQ] = useState("");
   const seen = new Set(useProgress().data?.seenIds ?? []);
-  const shown = data.materials.filter((m) => !q.trim() || m.title.includes(q.trim()) || m.description.includes(q.trim()));
+  const shown = data.materials.filter(
+    (m) => !q.trim() || m.title.includes(q.trim()) || m.description.includes(q.trim()),
+  );
   return (
     <>
-      <TopBar title="المحتوى" sub={`${data.materials.length} ملف ورابط`} actions={<IconButton icon="refresh" label="تحديث" onClick={reload} className={cn(loading && "animate-spin")} />} />
-      {data.materials.length > 6 && <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="بحث…" className="mb-3" />}
+      <TopBar
+        title="المحتوى"
+        sub={`${data.materials.length} ملف ورابط`}
+        actions={
+          <IconButton
+            icon="refresh"
+            label="تحديث"
+            onClick={reload}
+            className={cn(loading && "animate-spin")}
+          />
+        }
+      />
+      {data.materials.length > 6 && (
+        <Input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="بحث…"
+          className="mb-3"
+        />
+      )}
       {shown.length ? (
         <List>
           {shown.map((m) => (
@@ -393,7 +496,11 @@ function Materials({ data, reload, loading }: ScreenProps) {
           ))}
         </List>
       ) : (
-        <Empty icon="book" title={data.materials.length ? "لا نتائج" : "لا يوجد محتوى بعد"} body={data.materials.length ? undefined : "المحاضرات والملفات اللي يرفعها المدرّب هتظهر هنا."} />
+        <Empty
+          icon="book"
+          title={data.materials.length ? "لا نتائج" : "لا يوجد محتوى بعد"}
+          body={data.materials.length ? undefined : "المحاضرات والملفات اللي يرفعها المدرّب هتظهر هنا."}
+        />
       )}
     </>
   );
@@ -409,8 +516,16 @@ const QUIZ_STATE: Record<HomeQuiz["state"], { label: string; tone: "ok" | "info"
 function QuizCard({ q }: { q: HomeQuiz }) {
   const st = QUIZ_STATE[q.state];
   return (
-    <a href={`#/me/quiz/${q.id}`} className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-panel/70 p-4 transition hover:border-cyan/40">
-      <span className={cn("flex size-11 shrink-0 items-center justify-center rounded-xl", q.state === "open" ? "bg-ok/15 text-ok" : "bg-white/[0.05] text-fog")}>
+    <a
+      href={`#/me/quiz/${q.id}`}
+      className="flex items-center gap-3 rounded-2xl border border-[var(--line)] bg-panel/70 p-4 transition hover:border-cyan/40"
+    >
+      <span
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-xl",
+          q.state === "open" ? "bg-ok/15 text-ok" : "bg-white/[0.05] text-fog",
+        )}
+      >
         <Icon name="quiz" size={22} />
       </span>
       <div className="min-w-0 flex-1">
@@ -419,7 +534,11 @@ function QuizCard({ q }: { q: HomeQuiz }) {
           {q.questions} سؤال
           {q.points ? ` · حتى ${q.points} نقطة` : ""}
           {q.timeLimit ? ` · ${q.timeLimit} دقيقة` : ""}
-          {q.state === "upcoming" && q.opensAt ? ` · يفتح ${fmt.dateTime(q.opensAt)}` : q.closesAt && q.state === "open" ? ` · حتى ${fmt.dateTime(q.closesAt)}` : ""}
+          {q.state === "upcoming" && q.opensAt
+            ? ` · يفتح ${fmt.dateTime(q.opensAt)}`
+            : q.closesAt && q.state === "open"
+              ? ` · حتى ${fmt.dateTime(q.closesAt)}`
+              : ""}
         </p>
       </div>
       {q.best != null ? (
@@ -438,7 +557,17 @@ function QuizCard({ q }: { q: HomeQuiz }) {
 function Quizzes({ data, reload, loading }: ScreenProps) {
   return (
     <>
-      <TopBar title="الكويزات" actions={<IconButton icon="refresh" label="تحديث" onClick={reload} className={cn(loading && "animate-spin")} />} />
+      <TopBar
+        title="الكويزات"
+        actions={
+          <IconButton
+            icon="refresh"
+            label="تحديث"
+            onClick={reload}
+            className={cn(loading && "animate-spin")}
+          />
+        }
+      />
       {data.quizzes.length ? (
         <div className="grid gap-2">
           {data.quizzes.map((q) => (
@@ -456,7 +585,17 @@ function Attendance({ data, reload, loading }: ScreenProps) {
   const stats = attendanceStats(data.attendance);
   return (
     <>
-      <TopBar title="حضوري" actions={<IconButton icon="refresh" label="تحديث" onClick={reload} className={cn(loading && "animate-spin")} />} />
+      <TopBar
+        title="حضوري"
+        actions={
+          <IconButton
+            icon="refresh"
+            label="تحديث"
+            onClick={reload}
+            className={cn(loading && "animate-spin")}
+          />
+        }
+      />
       <Card className="flex items-center gap-5">
         <Ring value={stats.rate} size={84} stroke={8} />
         <div className="grid flex-1 grid-cols-2 gap-x-4 gap-y-1 text-sm">
@@ -501,11 +640,22 @@ function Account({ session }: { session: StudentSession }) {
     if (next !== asciiDigits(form.b)) return toast("الرمزان غير متطابقين.", "error");
     setBusy(true);
     try {
-      const r = await studentRpc<{ ok: boolean; error?: string }>("student_change_pin", { p_old: asciiDigits(form.old), p_new: next });
+      const r = await studentRpc<{ ok: boolean; error?: string }>("student_change_pin", {
+        p_old: asciiDigits(form.old),
+        p_new: next,
+      });
       if (r.ok) {
         setForm({ old: "", a: "", b: "" });
         toast("تم تغيير رمز الدخول");
-      } else toast(r.error === "weak" ? "اختر رمزًا أصعب (ليس 123456 أو أرقامًا مكررة)." : r.error === "rate_limited" ? "محاولات كتير. استنى ربع ساعة وجرّب تاني." : "الرمز الحالي غير صحيح.", "error");
+      } else
+        toast(
+          r.error === "weak"
+            ? "اختر رمزًا أصعب (ليس 123456 أو أرقامًا مكررة)."
+            : r.error === "rate_limited"
+              ? "محاولات كتير. استنى ربع ساعة وجرّب تاني."
+              : "الرمز الحالي غير صحيح.",
+          "error",
+        );
     } catch (e2) {
       toast.error(e2);
     } finally {
@@ -540,6 +690,8 @@ function Account({ session }: { session: StudentSession }) {
   return (
     <>
       <TopBar title="حسابي" back="/me" />
+      <GuideRow kind="student" />
+      <div className="mt-3" />
       <Card className="grid gap-1">
         <p className="text-lg font-bold text-chalk">{session.name}</p>
         <p className="text-sm text-fog">
@@ -560,23 +712,38 @@ function Account({ session }: { session: StudentSession }) {
           </Button>
         </form>
       </Card>
-      <a href="#/me/print" data-testid="print-entry" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+      <a
+        href="#/me/print"
+        data-testid="print-entry"
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40"
+      >
         <Icon name="box" size={20} className="shrink-0 text-cyan" />
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-chalk">طباعة 3D</span>
-          <span className="block text-xs text-fog">ابعت موديل STL والفريق يطبعهولك بعد ما توافق على السعر</span>
+          <span className="block text-xs text-fog">
+            ابعت موديل STL والفريق يطبعهولك بعد ما توافق على السعر
+          </span>
         </span>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
-      <a href="#/me/passport" data-testid="passport-entry" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+      <a
+        href="#/me/passport"
+        data-testid="passport-entry"
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40"
+      >
         <Icon name="award" size={20} className="shrink-0 text-cyan" />
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-chalk">جواز المهارات</span>
-          <span className="block text-xs text-fog">صفحة بإنجازاتك الحقيقية تبعتها لشركة أو تحطها في الـCV</span>
+          <span className="block text-xs text-fog">
+            صفحة بإنجازاتك الحقيقية تبعتها لشركة أو تحطها في الـCV
+          </span>
         </span>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
-      <a href="#/me/projects" className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+      <a
+        href="#/me/projects"
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40"
+      >
         <Icon name="star" size={20} className="shrink-0 text-gold" />
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-chalk">مشاريعي وفرق المسابقات</span>
@@ -584,11 +751,16 @@ function Account({ session }: { session: StudentSession }) {
         </span>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
-      <a href={isNative() ? `${SITE_ORIGIN}/lab/` : `${BASE_PATH}/lab/`} className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40">
+      <a
+        href={isNative() ? `${SITE_ORIGIN}/lab/` : `${BASE_PATH}/lab/`}
+        className="mt-4 flex items-center gap-3 rounded-2xl border border-[var(--line-2)] bg-panel/70 px-4 py-3.5 transition hover:border-cyan/40"
+      >
         <Icon name="circuit" size={20} className="shrink-0 text-cyan" />
         <span className="min-w-0 flex-1">
           <span className="block font-semibold text-chalk">معمل BuildX</span>
-          <span className="block text-xs text-fog">صمّم دواير واكتب كود أردوينو وشغّله محاكاة — بنفس حسابك</span>
+          <span className="block text-xs text-fog">
+            صمّم دواير واكتب كود أردوينو وشغّله محاكاة — بنفس حسابك
+          </span>
         </span>
         <Icon name="chevron" size={18} className="rotate-180 text-fog" />
       </a>
@@ -604,7 +776,14 @@ function Account({ session }: { session: StudentSession }) {
 
 /* ─── Taking a quiz ────────────────────────────────────────────────────── */
 
-type QQ = { id: string; kind: "single" | "multi" | "truefalse" | "short"; prompt: string; image: string | null; points: number; options: { id: string; text: string }[] };
+type QQ = {
+  id: string;
+  kind: "single" | "multi" | "truefalse" | "short";
+  prompt: string;
+  image: string | null;
+  points: number;
+  options: { id: string; text: string }[];
+};
 type StartResult = {
   ok: boolean;
   error?: string;
@@ -615,8 +794,22 @@ type StartResult = {
   quiz?: { id: string; title: string; description: string };
   questions?: QQ[];
 };
-type ReviewItem = QQ & { correct: string[]; explanation: string; given: string | string[] | null; ok: boolean };
-type Result = { ok: boolean; error?: string; score: number; max: number; late: boolean; attemptsLeft: number; quiz: { id: string; title: string }; review: ReviewItem[] | null };
+type ReviewItem = QQ & {
+  correct: string[];
+  explanation: string;
+  given: string | string[] | null;
+  ok: boolean;
+};
+type Result = {
+  ok: boolean;
+  error?: string;
+  score: number;
+  max: number;
+  late: boolean;
+  attemptsLeft: number;
+  quiz: { id: string; title: string };
+  review: ReviewItem[] | null;
+};
 
 const START_ERRORS: Record<string, string> = {
   not_found: "الكويز غير متاح.",
@@ -626,7 +819,13 @@ const START_ERRORS: Record<string, string> = {
 };
 
 function TakeQuiz({ id, info, onDone }: { id: string; info?: HomeQuiz; onDone: () => void }) {
-  const [phase, setPhase] = useState<"intro" | "loading" | "taking" | "result" | "error">(info && (info.state === "done" || info.state === "closed") && info.used > 0 ? "loading" : info?.inProgress ? "loading" : "intro");
+  const [phase, setPhase] = useState<"intro" | "loading" | "taking" | "result" | "error">(
+    info && (info.state === "done" || info.state === "closed") && info.used > 0
+      ? "loading"
+      : info?.inProgress
+        ? "loading"
+        : "intro",
+  );
   const [attempt, setAttempt] = useState<StartResult | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -685,7 +884,9 @@ function TakeQuiz({ id, info, onDone }: { id: string; info?: HomeQuiz; onDone: (
       <>
         <TopBar title={info?.title ?? "كويز"} back="/me/quizzes" />
         <Card className="grid gap-3">
-          {info?.description && <p className="whitespace-pre-line text-[15px] leading-relaxed text-mist">{info.description}</p>}
+          {info?.description && (
+            <p className="whitespace-pre-line text-[15px] leading-relaxed text-mist">{info.description}</p>
+          )}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-white/[0.04] p-3">
               <p className="font-mono text-xl font-bold text-chalk">{info?.questions ?? "—"}</p>
@@ -696,11 +897,17 @@ function TakeQuiz({ id, info, onDone }: { id: string; info?: HomeQuiz; onDone: (
               <p className="text-xs text-fog">دقيقة</p>
             </div>
             <div className="rounded-xl bg-white/[0.04] p-3">
-              <p className="font-mono text-xl font-bold text-chalk">{info ? info.maxAttempts - info.used : "—"}</p>
+              <p className="font-mono text-xl font-bold text-chalk">
+                {info ? info.maxAttempts - info.used : "—"}
+              </p>
               <p className="text-xs text-fog">محاولة متبقية</p>
             </div>
           </div>
-          {info?.timeLimit ? <p className="text-sm text-[#ffd08a]">الوقت يبدأ أول ما تضغط «ابدأ»، والإجابات بتتسلّم تلقائيًا لما الوقت يخلص.</p> : null}
+          {info?.timeLimit ? (
+            <p className="text-sm text-[#ffd08a]">
+              الوقت يبدأ أول ما تضغط «ابدأ»، والإجابات بتتسلّم تلقائيًا لما الوقت يخلص.
+            </p>
+          ) : null}
           <Button variant="primary" size="lg" icon="play" onClick={start} block>
             ابدأ الكويز
           </Button>
@@ -717,7 +924,11 @@ function TakeQuiz({ id, info, onDone }: { id: string; info?: HomeQuiz; onDone: (
     return frame(
       <>
         <TopBar title={info?.title ?? "كويز"} back="/me/quizzes" />
-        <Empty icon="info" title={message ?? "تعذّر فتح الكويز."} action={<Button onClick={() => go("/me/quizzes")}>رجوع</Button>} />
+        <Empty
+          icon="info"
+          title={message ?? "تعذّر فتح الكويز."}
+          action={<Button onClick={() => go("/me/quizzes")}>رجوع</Button>}
+        />
       </>,
     );
   if (phase === "result" && result)
@@ -778,13 +989,23 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
       if (submitted.current) return;
       if (!auto) {
         const missing = questions.filter((q) => !answered(q.id)).length;
-        if (!(await confirmDialog({ title: "تسليم الإجابات؟", body: missing ? `في ${missing} سؤال بدون إجابة.` : "مش هتقدر تعدّل بعد التسليم.", ok: "تسليم" }))) return;
+        if (
+          !(await confirmDialog({
+            title: "تسليم الإجابات؟",
+            body: missing ? `في ${missing} سؤال بدون إجابة.` : "مش هتقدر تعدّل بعد التسليم.",
+            ok: "تسليم",
+          }))
+        )
+          return;
       }
       submitted.current = true;
       setSubmitting(true);
       for (let tryNo = 0; tryNo < 4; tryNo++) {
         try {
-          const r = await studentRpc<Result>("student_quiz_submit", { p_attempt: start.attempt, p_answers: answers });
+          const r = await studentRpc<Result>("student_quiz_submit", {
+            p_attempt: start.attempt,
+            p_answers: answers,
+          });
           try {
             localStorage.removeItem(storeKey);
           } catch {
@@ -831,7 +1052,9 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
     }
     if (!dirty.current) return;
     const t = setTimeout(() => {
-      studentRpc("student_quiz_save", { p_attempt: start.attempt, p_answers: answers }).catch(() => undefined);
+      studentRpc("student_quiz_save", { p_attempt: start.attempt, p_answers: answers }).catch(
+        () => undefined,
+      );
       dirty.current = false;
     }, 3000);
     return () => clearTimeout(t);
@@ -854,7 +1077,12 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
         <div className="flex items-center gap-3">
           <p className="min-w-0 flex-1 truncate font-semibold text-chalk">{start.quiz?.title}</p>
           {left != null && (
-            <span className={cn("flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-sm font-semibold", left < 60_000 ? "animate-pulse bg-danger/20 text-[#ff9aa5]" : "bg-white/[0.06] text-chalk")}>
+            <span
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-sm font-semibold",
+                left < 60_000 ? "animate-pulse bg-danger/20 text-[#ff9aa5]" : "bg-white/[0.06] text-chalk",
+              )}
+            >
               <Icon name="timer" size={16} />
               {String(mm).padStart(2, "0")}:{String(ss).padStart(2, "0")}
             </span>
@@ -869,7 +1097,13 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
         سؤال {i + 1} من {questions.length} · {fmt.num(q.points)} درجة
       </p>
       <h2 className="mt-2 whitespace-pre-line text-xl font-bold leading-relaxed text-chalk">{q.prompt}</h2>
-      {q.image && <img src={fileUrl(q.image)} alt="" className="mt-3 max-h-72 w-full rounded-2xl border border-[var(--line)] bg-white object-contain" />}
+      {q.image && (
+        <img
+          src={fileUrl(q.image)}
+          alt=""
+          className="mt-3 max-h-72 w-full rounded-2xl border border-[var(--line)] bg-white object-contain"
+        />
+      )}
 
       <div className="mt-5 grid gap-2.5">
         {(q.kind === "single" || q.kind === "multi") &&
@@ -880,14 +1114,27 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
               <button
                 key={o.id}
                 type="button"
-                onClick={() => setAnswer(q.id, q.kind === "single" ? [o.id] : on ? list.filter((x) => x !== o.id) : [...list, o.id])}
+                onClick={() =>
+                  setAnswer(
+                    q.id,
+                    q.kind === "single" ? [o.id] : on ? list.filter((x) => x !== o.id) : [...list, o.id],
+                  )
+                }
                 aria-pressed={on}
                 className={cn(
                   "flex min-h-14 items-center gap-3 rounded-2xl border-2 px-4 py-3 text-start text-[16px] transition",
-                  on ? "border-cyan bg-cyan/10 text-chalk" : "border-[var(--line-2)] bg-panel/60 text-mist hover:border-cyan/40",
+                  on
+                    ? "border-cyan bg-cyan/10 text-chalk"
+                    : "border-[var(--line-2)] bg-panel/60 text-mist hover:border-cyan/40",
                 )}
               >
-                <span className={cn("flex size-6 shrink-0 items-center justify-center border-2", q.kind === "single" ? "rounded-full" : "rounded-md", on ? "border-cyan bg-cyan text-abyss" : "border-fog")}>
+                <span
+                  className={cn(
+                    "flex size-6 shrink-0 items-center justify-center border-2",
+                    q.kind === "single" ? "rounded-full" : "rounded-md",
+                    on ? "border-cyan bg-cyan text-abyss" : "border-fog",
+                  )}
+                >
                   {on && <Icon name="check" size={14} />}
                 </span>
                 {o.text}
@@ -907,7 +1154,10 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
                   type="button"
                   onClick={() => setAnswer(q.id, [v!])}
                   aria-pressed={on}
-                  className={cn("flex h-24 flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-bold transition", on ? "border-cyan bg-cyan/10 text-chalk" : "border-[var(--line-2)] bg-panel/60 text-mist")}
+                  className={cn(
+                    "flex h-24 flex-col items-center justify-center gap-2 rounded-2xl border-2 text-lg font-bold transition",
+                    on ? "border-cyan bg-cyan/10 text-chalk" : "border-[var(--line-2)] bg-panel/60 text-mist",
+                  )}
                 >
                   <Icon name={ic as "check"} size={26} />
                   {l}
@@ -916,7 +1166,16 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
             })}
           </div>
         )}
-        {q.kind === "short" && <Input value={typeof val === "string" ? val : ""} onChange={(e) => setAnswer(q.id, e.target.value)} placeholder="اكتب إجابتك" maxLength={500} dir="auto" className="h-14 text-lg" />}
+        {q.kind === "short" && (
+          <Input
+            value={typeof val === "string" ? val : ""}
+            onChange={(e) => setAnswer(q.id, e.target.value)}
+            placeholder="اكتب إجابتك"
+            maxLength={500}
+            dir="auto"
+            className="h-14 text-lg"
+          />
+        )}
       </div>
 
       <div className="mt-6 flex flex-wrap justify-center gap-1.5" aria-label="الأسئلة">
@@ -926,7 +1185,14 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
             type="button"
             onClick={() => setI(n)}
             aria-label={`سؤال ${n + 1}`}
-            className={cn("size-9 rounded-lg font-mono text-sm transition", n === i ? "bg-cyan text-abyss" : answered(x.id) ? "bg-volt/30 text-chalk" : "bg-white/[0.06] text-fog")}
+            className={cn(
+              "size-9 rounded-lg font-mono text-sm transition",
+              n === i
+                ? "bg-cyan text-abyss"
+                : answered(x.id)
+                  ? "bg-volt/30 text-chalk"
+                  : "bg-white/[0.06] text-fog",
+            )}
           >
             {n + 1}
           </button>
@@ -942,7 +1208,13 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
             التالي
           </Button>
         ) : (
-          <Button variant="ok" icon="check" loading={submitting} onClick={() => submit(false)} className="flex-1">
+          <Button
+            variant="ok"
+            icon="check"
+            loading={submitting}
+            onClick={() => submit(false)}
+            className="flex-1"
+          >
             تسليم
           </Button>
         )}
@@ -958,16 +1230,30 @@ function Runner({ start, onSubmitted }: { start: StartResult; onSubmitted: (r: R
 
 function ResultView({ r, onAgain }: { r: Result; onAgain?: () => void }) {
   const pct = r.max ? (Number(r.score) / Number(r.max)) * 100 : 0;
-  const label = (q: ReviewItem, v: string) => (q.kind === "truefalse" ? (v === "t" ? "صح" : "خطأ") : (q.options.find((o) => o.id === v)?.text ?? v));
+  const label = (q: ReviewItem, v: string) =>
+    q.kind === "truefalse" ? (v === "t" ? "صح" : "خطأ") : (q.options.find((o) => o.id === v)?.text ?? v);
   return (
     <>
       <TopBar title={r.quiz.title} back="/me/quizzes" />
       <Card className="flex flex-col items-center gap-3 py-8 text-center">
-        <Ring value={pct} size={120} stroke={10} label={<span className="text-2xl">{Math.round(pct)}%</span>} />
+        <Ring
+          value={pct}
+          size={120}
+          stroke={10}
+          label={<span className="text-2xl">{Math.round(pct)}%</span>}
+        />
         <p className="font-mono text-2xl font-bold text-chalk" dir="ltr">
           {fmt.num(r.score)} / {fmt.num(r.max)}
         </p>
-        <p className="text-[15px] text-mist">{pct >= 85 ? "ممتاز! 🎉" : pct >= 65 ? "شغل حلو 👏" : pct >= 50 ? "كويس، راجع الأخطاء" : "راجع المحتوى وحاول تاني"}</p>
+        <p className="text-[15px] text-mist">
+          {pct >= 85
+            ? "ممتاز! 🎉"
+            : pct >= 65
+              ? "شغل حلو 👏"
+              : pct >= 50
+                ? "كويس، راجع الأخطاء"
+                : "راجع المحتوى وحاول تاني"}
+        </p>
         {r.late && <Badge tone="warn">سُلِّم بعد انتهاء الوقت</Badge>}
         <div className="flex flex-wrap justify-center gap-2">
           {onAgain && (
@@ -986,22 +1272,48 @@ function ResultView({ r, onAgain }: { r: Result; onAgain?: () => void }) {
               return (
                 <Card key={q.id} className={cn("grid gap-2", q.ok ? "border-ok/30" : "border-danger/30")}>
                   <div className="flex items-start gap-2">
-                    <Icon name={q.ok ? "checkCircle" : "xCircle"} size={20} className={cn("mt-0.5 shrink-0", q.ok ? "text-ok" : "text-[#ff8794]")} />
+                    <Icon
+                      name={q.ok ? "checkCircle" : "xCircle"}
+                      size={20}
+                      className={cn("mt-0.5 shrink-0", q.ok ? "text-ok" : "text-[#ff8794]")}
+                    />
                     <p className="flex-1 whitespace-pre-line text-[15px] font-medium text-chalk">
                       {n + 1}. {q.prompt}
                     </p>
                   </div>
-                  {q.image && <img src={fileUrl(q.image)} alt="" className="max-h-48 rounded-xl bg-white object-contain" />}
-                  <p className="text-sm text-fog">إجابتك: {given.length ? given.map((v) => (q.kind === "short" ? v : label(q, v))).join("، ") : "—"}</p>
-                  {!q.ok && <p className="text-sm text-ok">الصحيح: {q.correct.map((v) => (q.kind === "short" ? v : label(q, v))).join(q.kind === "short" ? " / " : "، ")}</p>}
-                  {q.explanation && <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-sm leading-relaxed text-mist">{q.explanation}</p>}
+                  {q.image && (
+                    <img
+                      src={fileUrl(q.image)}
+                      alt=""
+                      className="max-h-48 rounded-xl bg-white object-contain"
+                    />
+                  )}
+                  <p className="text-sm text-fog">
+                    إجابتك:{" "}
+                    {given.length ? given.map((v) => (q.kind === "short" ? v : label(q, v))).join("، ") : "—"}
+                  </p>
+                  {!q.ok && (
+                    <p className="text-sm text-ok">
+                      الصحيح:{" "}
+                      {q.correct
+                        .map((v) => (q.kind === "short" ? v : label(q, v)))
+                        .join(q.kind === "short" ? " / " : "، ")}
+                    </p>
+                  )}
+                  {q.explanation && (
+                    <p className="rounded-xl bg-white/[0.04] px-3 py-2 text-sm leading-relaxed text-mist">
+                      {q.explanation}
+                    </p>
+                  )}
                 </Card>
               );
             })}
           </div>
         </Section>
       ) : (
-        <p className="mt-4 text-center text-xs text-fog">الإجابات الصحيحة بتظهر بعد آخر محاولة ليك أو بعد قفل الكويز.</p>
+        <p className="mt-4 text-center text-xs text-fog">
+          الإجابات الصحيحة بتظهر بعد آخر محاولة ليك أو بعد قفل الكويز.
+        </p>
       )}
     </>
   );

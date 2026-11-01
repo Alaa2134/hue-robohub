@@ -4,12 +4,29 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { whatsappLink } from "@/lib/contact";
-import { can, isFull, APP_PATH, isNative, publicOrigin, today, codeKey, downloadCsv, errorText, fmt, must, rpc, sb, type StaffRow, type Student } from "./core";
+import {
+  can,
+  isFull,
+  APP_PATH,
+  isNative,
+  publicOrigin,
+  today,
+  codeKey,
+  downloadCsv,
+  errorText,
+  fmt,
+  must,
+  rpc,
+  sb,
+  type StaffRow,
+  type Student,
+} from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
 import { imagesReady } from "./certificate";
 import { saveNodesAsPdf } from "./pdf";
 import { ReportSheet } from "./report";
 import { PersonCard } from "./person-card";
+import { StaffAchievements } from "./achievements";
 import { Scanner } from "./scanner";
 import { GroupSelect, groupsOf, patchStudents, refreshStudents, useStudents } from "./staff-data";
 import {
@@ -37,9 +54,37 @@ import {
   toast,
 } from "./ui";
 
-export type PinItem = { id: string; code: string; name: string; group: string; pin: string };
+export type PinItem = {
+  id: string;
+  code: string;
+  name: string;
+  group: string;
+  pin: string;
+  email?: string | null;
+  sent?: { email: string; whatsapp: string };
+};
 
-const loginUrl = (code?: string) => `${publicOrigin()}${APP_PATH}#/login${code ? `?c=${encodeURIComponent(code)}` : ""}`;
+/**
+ * «Add to the app»: a fresh password (login code) for the student, sent to them with their email (or
+ * student number) — by email, plus a WhatsApp note that the account is ready. The server does the
+ * sending; the password comes back once so the trainer can also hand it over or send it on WhatsApp.
+ * A taken or bad email doesn't block it: it goes out without the email.
+ */
+export async function inviteToApp(id: string, email?: string | null): Promise<PinItem> {
+  const clean = email?.trim() || null;
+  try {
+    return await rpc<PinItem>("staff_student_app_invite", { p_id: id, p_email: clean });
+  } catch (e) {
+    if (clean && /email_taken|invalid_email|students_email/i.test(errorText(e))) {
+      toast("الإيميل ده مستخدم لطالب تاني أو مش صحيح، فاتبعتت البيانات من غيره.", "info");
+      return await rpc<PinItem>("staff_student_app_invite", { p_id: id, p_email: null });
+    }
+    throw e;
+  }
+}
+
+const loginUrl = (code?: string) =>
+  `${publicOrigin()}${APP_PATH}#/login${code ? `?c=${encodeURIComponent(code)}` : ""}`;
 
 export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchParams }) {
   const { list, error, loading, reload } = useStudents();
@@ -59,7 +104,9 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
       if (group !== null && s.group !== group) return false;
       if (noPin && s.hasPin) return false;
       if (!q.trim()) return true;
-      return s.name.includes(q.trim()) || (key && (s.codeKey.includes(key) || (s.barcodeKey ?? "").includes(key)));
+      return (
+        s.name.includes(q.trim()) || (key && (s.codeKey.includes(key) || (s.barcodeKey ?? "").includes(key)))
+      );
     });
   }, [list, q, group, noPin]);
   const missing = (list ?? []).filter((s) => s.active && !s.hasPin).length;
@@ -72,9 +119,23 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
         actions={
           <>
             {can(me, "whatsapp") && (
-              <IconButton icon="chat" label="واتساب للي ظاهرين" onClick={() => sendOnWhatsApp(shown.filter((s) => s.active), { label: `الطلاب الظاهرين${group ? ` (${group})` : ""}`, context: group ? `group:${group}` : "students" })} />
+              <IconButton
+                icon="chat"
+                label="واتساب للي ظاهرين"
+                onClick={() =>
+                  sendOnWhatsApp(
+                    shown.filter((s) => s.active),
+                    {
+                      label: `الطلاب الظاهرين${group ? ` (${group})` : ""}`,
+                      context: group ? `group:${group}` : "students",
+                    },
+                  )
+                }
+              />
             )}
-            {can(me, "roster") && <IconButton icon="calendar" label="مدّ العضوية للي ظاهرين" onClick={() => setRenew(true)} />}
+            {can(me, "roster") && (
+              <IconButton icon="calendar" label="مدّ العضوية للي ظاهرين" onClick={() => setRenew(true)} />
+            )}
             <IconButton icon="key" label="رموز الدخول" onClick={() => setPinsOpen(true)} />
             <IconButton icon="list" label="إضافة مجموعة طلاب" onClick={() => setBulk(true)} />
             <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing("new")}>
@@ -99,7 +160,12 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
             الكل
           </Chip>
           {groups.map((g) => (
-            <Chip key={g} active={group === g} onClick={() => setGroup(g)} count={list?.filter((s) => s.group === g).length}>
+            <Chip
+              key={g}
+              active={group === g}
+              onClick={() => setGroup(g)}
+              count={list?.filter((s) => s.group === g).length}
+            >
               {g}
             </Chip>
           ))}
@@ -143,7 +209,14 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
                 <div className="flex items-center gap-3">
                   <Avatar name={s.name} />
                   <div className="min-w-0 flex-1">
-                    <p className={cn("truncate text-[15px] font-semibold", s.active ? "text-chalk" : "text-fog line-through")}>{s.name}</p>
+                    <p
+                      className={cn(
+                        "truncate text-[15px] font-semibold",
+                        s.active ? "text-chalk" : "text-fog line-through",
+                      )}
+                    >
+                      {s.name}
+                    </p>
                     <p className="truncate text-xs text-fog">
                       <span dir="ltr" className="font-mono">
                         {s.code}
@@ -151,7 +224,13 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
                       {s.group ? ` · ${s.group}` : ""}
                     </p>
                   </div>
-                  {!s.active ? <Badge>موقوف</Badge> : s.locked ? <Badge tone="danger">مقفول</Badge> : !s.hasPin ? <Badge tone="warn">بدون رمز</Badge> : null}
+                  {!s.active ? (
+                    <Badge>موقوف</Badge>
+                  ) : s.locked ? (
+                    <Badge tone="danger">مقفول</Badge>
+                  ) : !s.hasPin ? (
+                    <Badge tone="warn">مش في التطبيق</Badge>
+                  ) : null}
                 </div>
               </Row>
             ))}
@@ -159,11 +238,36 @@ export function StudentsScreen({ me, query }: { me: StaffRow; query: URLSearchPa
         )}
       </div>
 
-      <StudentSheet student={editing} me={me} groups={groups} existing={list ?? []} onClose={() => setEditing(null)} onPins={setPins} />
-      <BulkSheet open={bulk} onClose={() => setBulk(false)} groups={groups} existing={list ?? []} onPins={setPins} />
-      <PinsSheet open={pinsOpen} onClose={() => setPinsOpen(false)} groups={groups} students={list ?? []} onPins={setPins} />
+      <StudentSheet
+        student={editing}
+        me={me}
+        groups={groups}
+        existing={list ?? []}
+        onClose={() => setEditing(null)}
+        onPins={setPins}
+      />
+      <BulkSheet
+        open={bulk}
+        onClose={() => setBulk(false)}
+        groups={groups}
+        existing={list ?? []}
+        onPins={setPins}
+      />
+      <PinsSheet
+        open={pinsOpen}
+        onClose={() => setPinsOpen(false)}
+        groups={groups}
+        students={list ?? []}
+        onPins={setPins}
+      />
       <PinResults items={pins} onClose={() => setPins(null)} />
-      {renew && <MembershipSheet students={shown.filter((x) => x.active)} label={group ?? "كل الطلاب الظاهرين"} onClose={() => setRenew(false)} />}
+      {renew && (
+        <MembershipSheet
+          students={shown.filter((x) => x.active)}
+          label={group ?? "كل الطلاب الظاهرين"}
+          onClose={() => setRenew(false)}
+        />
+      )}
     </>
   );
 }
@@ -176,10 +280,35 @@ const sameName = (a: string, b: string) => a.replace(/\s+/g, " ").trim() === b.r
  * Only the name is needed: no code → the database makes one (BX1001…). «أضِف وكمّل» keeps the sheet
  * open for the next student (same group), and the login codes of everyone added show together at the end.
  */
-function StudentSheet({ student, me, groups, existing, onClose, onPins }: { student: Student | "new" | null; me: StaffRow; groups: string[]; existing: Student[]; onClose: () => void; onPins: (p: PinItem[]) => void }) {
+function StudentSheet({
+  student,
+  me,
+  groups,
+  existing,
+  onClose,
+  onPins,
+}: {
+  student: Student | "new" | null;
+  me: StaffRow;
+  groups: string[];
+  existing: Student[];
+  onClose: () => void;
+  onPins: (p: PinItem[]) => void;
+}) {
   const isNew = student === "new";
   const s = student && student !== "new" ? student : null;
-  const [form, setForm] = useState({ code: "", name: "", group: "", phone: "", notes: "", barcode: "", active: true, withPin: true, memberUntil: "" });
+  const [form, setForm] = useState({
+    code: "",
+    name: "",
+    group: "",
+    phone: "",
+    email: "",
+    notes: "",
+    barcode: "",
+    active: true,
+    withPin: true,
+    memberUntil: "",
+  });
   const [busy, setBusy] = useState<false | "one" | "next">(false);
   const [scanning, setScanning] = useState<null | "code" | "barcode">(null);
   const [reporting, setReporting] = useState(false);
@@ -187,7 +316,9 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
   const [added, setAdded] = useState<{ name: string; code: string }[]>([]);
   const pinsSoFar = useRef<PinItem[]>([]);
   const nameRef = useRef<HTMLInputElement>(null);
-  const twin = form.name.trim() ? existing.find((x) => x.id !== s?.id && sameName(x.name, form.name)) : undefined;
+  const twin = form.name.trim()
+    ? existing.find((x) => x.id !== s?.id && sameName(x.name, form.name))
+    : undefined;
 
   const close = () => {
     if (pinsSoFar.current.length) onPins(pinsSoFar.current);
@@ -204,28 +335,64 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
     pinsSoFar.current = [];
     setForm(
       s
-        ? { code: s.code, name: s.name, group: s.group, phone: s.phone ?? "", notes: s.notes ?? "", barcode: s.barcode ?? "", active: s.active, withPin: false, memberUntil: s.memberUntil ?? "" }
-        : { code: "", name: "", group: groups.length === 1 ? groups[0]! : "", phone: "", notes: "", barcode: "", active: true, withPin: true, memberUntil: "" },
+        ? {
+            code: s.code,
+            name: s.name,
+            group: s.group,
+            phone: s.phone ?? "",
+            email: s.email ?? "",
+            notes: s.notes ?? "",
+            barcode: s.barcode ?? "",
+            active: s.active,
+            withPin: false,
+            memberUntil: s.memberUntil ?? "",
+          }
+        : {
+            code: "",
+            name: "",
+            group: groups.length === 1 ? groups[0]! : "",
+            phone: "",
+            email: "",
+            notes: "",
+            barcode: "",
+            active: true,
+            withPin: true,
+            memberUntil: "",
+          },
     );
   }, [student]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async (e: Pick<FormEvent, "preventDefault">, next = false) => {
     e.preventDefault();
-    if (form.code.trim() && !codeKey(form.code)) return toast("رقم الطالب يجب أن يحتوي على حروف أو أرقام.", "error");
+    if (form.code.trim() && !codeKey(form.code))
+      return toast("رقم الطالب يجب أن يحتوي على حروف أو أرقام.", "error");
     if (s && !form.code.trim()) return toast("اكتب رقم الطالب.", "error");
     setBusy(next ? "next" : "one");
     try {
-      const row = { code: form.code.trim(), full_name: form.name.trim(), group_name: form.group, phone: form.phone.trim() || null, notes: form.notes.trim() || null, barcode: form.barcode.trim() || null, active: form.active, member_until: form.memberUntil || null };
+      const row = {
+        code: form.code.trim(),
+        full_name: form.name.trim(),
+        group_name: form.group,
+        phone: form.phone.trim() || null,
+        email: form.email.trim().toLowerCase() || null,
+        notes: form.notes.trim() || null,
+        barcode: form.barcode.trim() || null,
+        active: form.active,
+        member_until: form.memberUntil || null,
+      };
       if (s) {
         must(await sb().from("students").update(row).eq("id", s.id).select());
         toast("تم الحفظ");
       } else {
-        const created = must(await sb().from("students").insert(row).select("id,code").single()) as { id: string; code: string };
+        const created = must(await sb().from("students").insert(row).select("id,code").single()) as {
+          id: string;
+          code: string;
+        };
         toast(`اتضاف ${row.full_name} · ${created.code}`);
-        if (form.withPin) pinsSoFar.current = [...pinsSoFar.current, ...(await rpc<PinItem[]>("staff_set_pins", { p_ids: [created.id], p_only_missing: false }))];
+        if (form.withPin) pinsSoFar.current = [...pinsSoFar.current, await inviteToApp(created.id)];
         if (next) {
           setAdded((a) => [...a, { name: row.full_name, code: created.code }]);
-          setForm((f) => ({ ...f, code: "", name: "", phone: "", notes: "", barcode: "" }));
+          setForm((f) => ({ ...f, code: "", name: "", phone: "", email: "", notes: "", barcode: "" }));
           refreshStudents().catch(() => undefined);
           nameRef.current?.focus();
           return;
@@ -235,26 +402,54 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
       close();
     } catch (e2) {
       const msg = errorText(e2);
-      toast(/code_taken|barcode_taken|duplicate|unique|code_key/i.test(msg) ? "رقم الطالب ده مستخدم لطالب تاني. غيّره أو سيبه فاضي ويتعمل لوحده." : msg, "error");
+      toast(
+        /email_taken|students_email/i.test(msg)
+          ? "الإيميل ده متسجّل لطالب تاني."
+          : /code_taken|barcode_taken|duplicate|unique|code_key/i.test(msg)
+            ? "رقم الطالب ده مستخدم لطالب تاني. غيّره أو سيبه فاضي ويتعمل لوحده."
+            : msg,
+        "error",
+      );
     } finally {
       setBusy(false);
     }
   };
 
-  const newPin = async () => {
+  const [inviting, setInviting] = useState(false);
+  const invite = async () => {
     if (!s) return;
-    if (s.hasPin && !(await confirmDialog({ title: "رمز دخول جديد؟", body: "الرمز القديم سيتوقف، وسيخرج الطالب من التطبيق على كل الأجهزة.", ok: "إنشاء رمز جديد" }))) return;
+    if (!s.active) return toast("الطالب موقوف. فعّله الأول.", "error");
+    if (
+      s.hasPin &&
+      !(await confirmDialog({
+        title: "نبعتله بيانات دخول جديدة؟",
+        body: "كلمة السر القديمة هتتوقف، وهيخرج من التطبيق على كل الأجهزة لحد ما يدخل بالجديدة.",
+        ok: "ابعت بيانات جديدة",
+      }))
+    )
+      return;
+    setInviting(true);
     try {
-      onPins(await rpc<PinItem[]>("staff_set_pins", { p_ids: [s.id], p_only_missing: false }));
+      onPins([await inviteToApp(s.id, form.email)]);
       refreshStudents().catch(() => undefined);
     } catch (e) {
       toast.error(e);
+    } finally {
+      setInviting(false);
     }
   };
 
   const remove = async () => {
     if (!s) return;
-    if (!(await confirmDialog({ title: `حذف ${s.name}؟`, body: "سيُحذف سجل حضوره ونتائج الكويزات نهائيًا. لو الطالب ترك فقط، الأفضل إيقافه بدل الحذف.", ok: "حذف نهائي", danger: true }))) return;
+    if (
+      !(await confirmDialog({
+        title: `حذف ${s.name}؟`,
+        body: "سيُحذف سجل حضوره ونتائج الكويزات نهائيًا. لو الطالب ترك فقط، الأفضل إيقافه بدل الحذف.",
+        ok: "حذف نهائي",
+        danger: true,
+      }))
+    )
+      return;
     try {
       const gone = must(await sb().from("students").delete().eq("id", s.id).select("id")) as { id: string }[];
       if (!gone.length) throw new Error("forbidden");
@@ -266,27 +461,68 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
     }
   };
 
-  const set = (k: "code" | "name" | "phone" | "notes" | "barcode") => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set =
+    (k: "code" | "name" | "phone" | "email" | "notes" | "barcode") => (e: { target: { value: string } }) =>
+      setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <Sheet open={!!student} onClose={close} title={isNew ? "إضافة طالب" : (s?.name ?? "")}>
       <form onSubmit={save} className="grid gap-4" data-testid="student-form">
         {added.length > 0 && (
-          <div className="rounded-xl border border-ok/30 bg-ok/[0.07] px-3 py-2.5 text-sm text-mist" data-testid="added-list">
-            <p className="font-semibold text-chalk">اتضاف {added.length === 1 ? "طالب" : `${added.length} طلاب`}، كمّل اللي بعده</p>
-            <p className="mt-1 truncate text-xs text-fog">{added.map((a) => `${a.name} (${a.code})`).join(" · ")}</p>
+          <div
+            className="rounded-xl border border-ok/30 bg-ok/[0.07] px-3 py-2.5 text-sm text-mist"
+            data-testid="added-list"
+          >
+            <p className="font-semibold text-chalk">
+              اتضاف {added.length === 1 ? "طالب" : `${added.length} طلاب`}، كمّل اللي بعده
+            </p>
+            <p className="mt-1 truncate text-xs text-fog">
+              {added.map((a) => `${a.name} (${a.code})`).join(" · ")}
+            </p>
           </div>
         )}
         {isNew && (
           <Field label="الاسم">
-            <Input ref={nameRef} value={form.name} onChange={set("name")} required maxLength={120} autoComplete="off" autoFocus />
-            {twin && <p className="mt-1.5 text-xs text-warn">فيه طالب بنفس الاسم: {twin.name} ({twin.code}){twin.group ? ` · ${twin.group}` : ""}</p>}
+            <Input
+              ref={nameRef}
+              value={form.name}
+              onChange={set("name")}
+              required
+              maxLength={120}
+              autoComplete="off"
+              autoFocus
+            />
+            {twin && (
+              <p className="mt-1.5 text-xs text-warn">
+                فيه طالب بنفس الاسم: {twin.name} ({twin.code}){twin.group ? ` · ${twin.group}` : ""}
+              </p>
+            )}
           </Field>
         )}
-        <Field label={isNew ? "رقم الطالب (اختياري)" : "رقم الطالب (رقم الكارنيه)"} hint={isNew ? "رقم الكارنيه لو معاك، أو امسحه بالكاميرا. لو سبته فاضي هيتعمل له رقم لوحده (BX1001…)." : undefined}>
+        <Field
+          label={isNew ? "رقم الطالب (اختياري)" : "رقم الطالب (رقم الكارنيه)"}
+          hint={
+            isNew
+              ? "رقم الكارنيه لو معاك، أو امسحه بالكاميرا. لو سبته فاضي هيتعمل له رقم لوحده (BX1001…)."
+              : undefined
+          }
+        >
           <div className="flex gap-2">
-            <Input value={form.code} onChange={set("code")} dir="ltr" className="font-mono" required={!isNew} maxLength={40} autoComplete="off" />
-            <IconButton icon="camera" label="مسح من الكارنيه" onClick={() => setScanning(scanning === "code" ? null : "code")} className="size-12 border border-[var(--line-2)]" />
+            <Input
+              value={form.code}
+              onChange={set("code")}
+              dir="ltr"
+              className="font-mono"
+              required={!isNew}
+              maxLength={40}
+              autoComplete="off"
+            />
+            <IconButton
+              icon="camera"
+              label="مسح من الكارنيه"
+              onClick={() => setScanning(scanning === "code" ? null : "code")}
+              className="size-12 border border-[var(--line-2)]"
+            />
           </div>
         </Field>
         {scanning && (
@@ -305,21 +541,64 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
           </Field>
         )}
         <Field label="المجموعة">
-          <GroupSelect value={form.group} onChange={(group) => setForm((f) => ({ ...f, group }))} groups={groups} allLabel="بدون مجموعة" allowNew />
+          <GroupSelect
+            value={form.group}
+            onChange={(group) => setForm((f) => ({ ...f, group }))}
+            groups={groups}
+            allLabel="بدون مجموعة"
+            allowNew
+          />
         </Field>
         <Field label="موبايل (اختياري)" hint="خاص بفريق التدريب فقط.">
-          <Input value={form.phone} onChange={set("phone")} type="tel" inputMode="tel" dir="ltr" maxLength={30} />
+          <Input
+            value={form.phone}
+            onChange={set("phone")}
+            type="tel"
+            inputMode="tel"
+            dir="ltr"
+            maxLength={30}
+          />
+        </Field>
+        <Field
+          label="إيميل (اختياري)"
+          hint="بيدخل بيه التطبيق بدل رقم الطالب، وبيوصله عليه الإيميل وكلمة السر."
+        >
+          <Input
+            value={form.email}
+            onChange={set("email")}
+            type="email"
+            inputMode="email"
+            dir="ltr"
+            maxLength={254}
+            autoComplete="off"
+            data-testid="student-email"
+          />
         </Field>
         {!isNew && (
           <Field label="باركود الكارنيه المرتبط (اختياري)" hint="لو باركود الكارنيه مختلف عن رقم الطالب.">
             <div className="flex gap-2">
-              <Input value={form.barcode} onChange={set("barcode")} dir="ltr" className="font-mono" maxLength={80} />
-              <IconButton icon="camera" label="مسح الباركود" onClick={() => setScanning(scanning === "barcode" ? null : "barcode")} className="size-12 border border-[var(--line-2)]" />
+              <Input
+                value={form.barcode}
+                onChange={set("barcode")}
+                dir="ltr"
+                className="font-mono"
+                maxLength={80}
+              />
+              <IconButton
+                icon="camera"
+                label="مسح الباركود"
+                onClick={() => setScanning(scanning === "barcode" ? null : "barcode")}
+                className="size-12 border border-[var(--line-2)]"
+              />
             </div>
           </Field>
         )}
         {isNew && !more ? (
-          <button type="button" onClick={() => setMore(true)} className="flex items-center gap-1 justify-self-start text-sm text-cyan hover:underline">
+          <button
+            type="button"
+            onClick={() => setMore(true)}
+            className="flex items-center gap-1 justify-self-start text-sm text-cyan hover:underline"
+          >
             <Icon name="plus" size={14} />
             تفاصيل أكتر (ملاحظات، العضوية، رمز الدخول)
           </button>
@@ -328,22 +607,55 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
             <Field label="ملاحظات (اختياري)">
               <Textarea value={form.notes} onChange={set("notes")} rows={2} maxLength={2000} />
             </Field>
-            <Field label="العضوية سارية لحد (اختياري)" hint="فاضي يعني عضوية مفتوحة. قبلها بأسبوعين بيوصله تذكير يجدّد.">
-              <Input type="date" dir="ltr" value={form.memberUntil} onChange={(e) => setForm((f) => ({ ...f, memberUntil: e.target.value }))} />
+            <Field
+              label="العضوية سارية لحد (اختياري)"
+              hint="فاضي يعني عضوية مفتوحة. قبلها بأسبوعين بيوصله تذكير يجدّد."
+            >
+              <Input
+                type="date"
+                dir="ltr"
+                value={form.memberUntil}
+                onChange={(e) => setForm((f) => ({ ...f, memberUntil: e.target.value }))}
+              />
             </Field>
             {isNew ? (
-              <Toggle checked={form.withPin} onChange={(withPin) => setForm((f) => ({ ...f, withPin }))} label="إنشاء رمز دخول للتطبيق الآن" />
+              <Toggle
+                checked={form.withPin}
+                onChange={(withPin) => setForm((f) => ({ ...f, withPin }))}
+                label="ضيفه للتطبيق وابعتله بيانات الدخول"
+                hint="كلمة سر جديدة، وتتبعتله على الإيميل مع إيميله (ورسالة واتساب إن حسابه جاهز)."
+              />
             ) : (
-              <Toggle checked={form.active} onChange={(active) => setForm((f) => ({ ...f, active }))} label="طالب نشط" hint="الطالب الموقوف لا يُسجَّل حضوره ولا يدخل التطبيق." />
+              <Toggle
+                checked={form.active}
+                onChange={(active) => setForm((f) => ({ ...f, active }))}
+                label="طالب نشط"
+                hint="الطالب الموقوف لا يُسجَّل حضوره ولا يدخل التطبيق."
+              />
             )}
           </>
         )}
         {isNew ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button type="button" size="lg" loading={busy === "next"} disabled={!!busy} icon="plus" onClick={(e) => void save(e, true)} data-testid="add-next">
+            <Button
+              type="button"
+              size="lg"
+              loading={busy === "next"}
+              disabled={!!busy}
+              icon="plus"
+              onClick={(e) => void save(e, true)}
+              data-testid="add-next"
+            >
               أضِف وكمّل
             </Button>
-            <Button type="submit" variant="primary" size="lg" loading={busy === "one"} disabled={!!busy} icon="check">
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={busy === "one"}
+              disabled={!!busy}
+              icon="check"
+            >
               {added.length ? "أضِف وخلّصت" : "أضِف"}
             </Button>
           </div>
@@ -355,11 +667,22 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
         {s && (
           <div className="grid gap-2 border-t border-[var(--line)] pt-4">
             <p className="text-xs text-fog">
-              {s.hasPin ? (s.lastLogin ? `آخر دخول للتطبيق ${fmt.rel(s.lastLogin)}` : "لديه رمز دخول، لم يدخل بعد.") : "لا يوجد رمز دخول بعد."}
+              {s.hasPin
+                ? s.lastLogin
+                  ? `آخر دخول للتطبيق ${fmt.rel(s.lastLogin)}`
+                  : "لديه رمز دخول، لم يدخل بعد."
+                : "لا يوجد رمز دخول بعد."}
               {s.locked ? " · الدخول مقفول مؤقتًا بسبب محاولات خاطئة." : ""}
             </p>
-            <Button icon="key" onClick={newPin} block>
-              {s.hasPin ? "رمز دخول جديد" : "إنشاء رمز دخول"}
+            <Button
+              icon="key"
+              variant={s.hasPin ? undefined : "primary"}
+              onClick={invite}
+              loading={inviting}
+              block
+              data-testid="app-invite"
+            >
+              {s.hasPin ? "ابعت بيانات دخول جديدة" : "إضافة للتطبيق وإرسال الإيميل وكلمة السر"}
             </Button>
             <Button icon="file" onClick={() => setReporting(true)} block>
               تقرير شهري PDF
@@ -375,9 +698,12 @@ function StudentSheet({ student, me, groups, existing, onClose, onPins }: { stud
       {!isNew && s && (
         <div className="mt-4">
           <PersonCard student={s.id} hide="student" />
+          <StaffAchievements id={s.id} />
         </div>
       )}
-      {reporting && s && <ReportSheet student={{ id: s.id, name: s.name, code: s.code }} onClose={() => setReporting(false)} />}
+      {reporting && s && (
+        <ReportSheet student={{ id: s.id, name: s.name, code: s.code }} onClose={() => setReporting(false)} />
+      )}
     </Sheet>
   );
 }
@@ -392,11 +718,16 @@ function parseBulk(text: string, defaultGroup: string, existing: Set<string>) {
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) continue;
-    let cells = line.includes("\t") ? line.split("\t") : /[,،;]/.test(line) ? line.split(/[,،;]/) : (line.match(/^(\S+)\s+(.+)$/)?.slice(1) ?? [line]);
+    let cells = line.includes("\t")
+      ? line.split("\t")
+      : /[,،;]/.test(line)
+        ? line.split(/[,،;]/)
+        : (line.match(/^(\S+)\s+(.+)$/)?.slice(1) ?? [line]);
     cells = cells.map((c) => c.trim()).filter(Boolean);
     // Accept "name, code" as well as "code, name": the code is the cell with the most digits.
     const digits = (c: string) => codeKey(c).replace(/\D/g, "").length;
-    if (cells.length >= 2 && digits(cells[1]!) > digits(cells[0]!)) [cells[0], cells[1]] = [cells[1]!, cells[0]!];
+    if (cells.length >= 2 && digits(cells[1]!) > digits(cells[0]!))
+      [cells[0], cells[1]] = [cells[1]!, cells[0]!];
     if (cells.length === 1) {
       const m = line.match(/^(.+?)\s+(\S*\d\S*)$/);
       if (m) cells = [m[2]!, m[1]!];
@@ -417,12 +748,27 @@ function parseBulk(text: string, defaultGroup: string, existing: Set<string>) {
   return rows;
 }
 
-function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean; onClose: () => void; groups: string[]; existing: Student[]; onPins: (p: PinItem[]) => void }) {
+function BulkSheet({
+  open,
+  onClose,
+  groups,
+  existing,
+  onPins,
+}: {
+  open: boolean;
+  onClose: () => void;
+  groups: string[];
+  existing: Student[];
+  onPins: (p: PinItem[]) => void;
+}) {
   const [text, setText] = useState("");
   const [group, setGroup] = useState("");
   const [withPins, setWithPins] = useState(true);
   const [busy, setBusy] = useState(false);
-  const keys = useMemo(() => new Set(existing.flatMap((s) => [s.codeKey, s.barcodeKey ?? ""]).filter(Boolean)), [existing]);
+  const keys = useMemo(
+    () => new Set(existing.flatMap((s) => [s.codeKey, s.barcodeKey ?? ""]).filter(Boolean)),
+    [existing],
+  );
   const rows = useMemo(() => parseBulk(text, group, keys), [text, group, keys]);
   const good = rows.filter((r) => !r.note);
 
@@ -431,12 +777,20 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
     try {
       const ids: string[] = [];
       for (let i = 0; i < good.length; i += 400) {
-        const chunk = good.slice(i, i + 400).map((r) => ({ code: r.code, full_name: r.name, group_name: r.group }));
-        const created = must(await sb().from("students").upsert(chunk, { onConflict: "code_key", ignoreDuplicates: true }).select("id")) as { id: string }[];
+        const chunk = good
+          .slice(i, i + 400)
+          .map((r) => ({ code: r.code, full_name: r.name, group_name: r.group }));
+        const created = must(
+          await sb()
+            .from("students")
+            .upsert(chunk, { onConflict: "code_key", ignoreDuplicates: true })
+            .select("id"),
+        ) as { id: string }[];
         ids.push(...created.map((c) => c.id));
       }
       toast(`تمت إضافة ${ids.length} طالب`);
-      if (withPins && ids.length) onPins(await rpc<PinItem[]>("staff_set_pins", { p_ids: ids, p_only_missing: true }));
+      if (withPins && ids.length)
+        onPins(await rpc<PinItem[]>("staff_set_pins", { p_ids: ids, p_only_missing: true }));
       await refreshStudents();
       setText("");
       onClose();
@@ -450,8 +804,18 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
   return (
     <Sheet open={open} onClose={onClose} title="إضافة مجموعة طلاب" wide>
       <div className="grid gap-4">
-        <Field label="الطلاب (سطر لكل طالب)" hint="رقم الطالب ثم الاسم، مفصولين بفاصلة أو مسافة أو Tab. ينفع تنسخ عمودين من Excel مباشرة. عمود ثالث اختياري للمجموعة. ولو معندكش أرقام، اكتب الأسماء بس (اسم في كل سطر) وكل واحد هيتعمل له رقم.">
-          <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={8} dir="auto" placeholder={"20210345, أحمد علي\n20210346, منى سامي"} className="font-mono text-sm" />
+        <Field
+          label="الطلاب (سطر لكل طالب)"
+          hint="رقم الطالب ثم الاسم، مفصولين بفاصلة أو مسافة أو Tab. ينفع تنسخ عمودين من Excel مباشرة. عمود ثالث اختياري للمجموعة. ولو معندكش أرقام، اكتب الأسماء بس (اسم في كل سطر) وكل واحد هيتعمل له رقم."
+        >
+          <Textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={8}
+            dir="auto"
+            placeholder={"20210345, أحمد علي\n20210346, منى سامي"}
+            className="font-mono text-sm"
+          />
         </Field>
         <Field label="المجموعة">
           <GroupSelect value={group} onChange={setGroup} groups={groups} allLabel="بدون مجموعة" allowNew />
@@ -468,14 +832,28 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
                     </td>
                     <td className="px-3 py-2">{r.name}</td>
                     <td className="px-3 py-2 text-xs text-fog">{r.group}</td>
-                    <td className="px-3 py-2 text-end">{r.note ? <Badge tone={r.note === "مسجّل بالفعل" ? "muted" : "danger"}>{r.note}</Badge> : <Icon name="check" size={16} className="text-ok" />}</td>
+                    <td className="px-3 py-2 text-end">
+                      {r.note ? (
+                        <Badge tone={r.note === "مسجّل بالفعل" ? "muted" : "danger"}>{r.note}</Badge>
+                      ) : (
+                        <Icon name="check" size={16} className="text-ok" />
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
-        <Button variant="primary" size="lg" icon="plus" loading={busy} disabled={!good.length} onClick={save} block>
+        <Button
+          variant="primary"
+          size="lg"
+          icon="plus"
+          loading={busy}
+          disabled={!good.length}
+          onClick={save}
+          block
+        >
           {good.length ? `إضافة ${good.length} طالب` : "إضافة"}
         </Button>
       </div>
@@ -485,7 +863,19 @@ function BulkSheet({ open, onClose, groups, existing, onPins }: { open: boolean;
 
 /* ─── PIN codes ────────────────────────────────────────────────────────── */
 
-function PinsSheet({ open, onClose, groups, students, onPins }: { open: boolean; onClose: () => void; groups: string[]; students: Student[]; onPins: (p: PinItem[]) => void }) {
+function PinsSheet({
+  open,
+  onClose,
+  groups,
+  students,
+  onPins,
+}: {
+  open: boolean;
+  onClose: () => void;
+  groups: string[];
+  students: Student[];
+  onPins: (p: PinItem[]) => void;
+}) {
   const [group, setGroup] = useState("");
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -493,10 +883,21 @@ function PinsSheet({ open, onClose, groups, students, onPins }: { open: boolean;
   const target = all ? scope : scope.filter((s) => !s.hasPin);
 
   const run = async () => {
-    if (all && !(await confirmDialog({ title: "إعادة إنشاء كل الرموز؟", body: "الرموز القديمة لهذه الطلاب ستتوقف، وسيخرجون من التطبيق.", ok: "إعادة الإنشاء", danger: true }))) return;
+    if (
+      all &&
+      !(await confirmDialog({
+        title: "إعادة إنشاء كل الرموز؟",
+        body: "الرموز القديمة لهذه الطلاب ستتوقف، وسيخرجون من التطبيق.",
+        ok: "إعادة الإنشاء",
+        danger: true,
+      }))
+    )
+      return;
     setBusy(true);
     try {
-      onPins(await rpc<PinItem[]>("staff_set_pins", { p_ids: target.map((s) => s.id), p_only_missing: !all }));
+      onPins(
+        await rpc<PinItem[]>("staff_set_pins", { p_ids: target.map((s) => s.id), p_only_missing: !all }),
+      );
       refreshStudents().catch(() => undefined);
       onClose();
     } catch (e) {
@@ -509,16 +910,81 @@ function PinsSheet({ open, onClose, groups, students, onPins }: { open: boolean;
   return (
     <Sheet open={open} onClose={onClose} title="رموز الدخول للطلاب">
       <div className="grid gap-4">
-        <p className="text-sm leading-relaxed text-mist">كل طالب يدخل التطبيق برقمه + رمز من 6 أرقام. الرمز يظهر مرة واحدة فقط بعد الإنشاء، فاطبعه أو انسخه وسلّمه للطالب.</p>
+        <p className="text-sm leading-relaxed text-mist">
+          كل طالب يدخل التطبيق برقمه + رمز من 6 أرقام. الرمز يظهر مرة واحدة فقط بعد الإنشاء، فاطبعه أو انسخه
+          وسلّمه للطالب.
+        </p>
         <Field label="المجموعة">
           <GroupSelect value={group} onChange={setGroup} groups={groups} />
         </Field>
-        <Toggle checked={all} onChange={setAll} label="إعادة إنشاء رموز للكل" hint="بدلًا من الطلاب اللي ملهمش رمز فقط." />
-        <Button variant="primary" size="lg" icon="key" loading={busy} disabled={!target.length} onClick={run} block>
+        <Toggle
+          checked={all}
+          onChange={setAll}
+          label="إعادة إنشاء رموز للكل"
+          hint="بدلًا من الطلاب اللي ملهمش رمز فقط."
+        />
+        <Button
+          variant="primary"
+          size="lg"
+          icon="key"
+          loading={busy}
+          disabled={!target.length}
+          onClick={run}
+          block
+        >
           {target.length ? `إنشاء ${target.length} رمز` : "كل الطلاب لديهم رموز"}
         </Button>
       </div>
     </Sheet>
+  );
+}
+
+const MAIL_SENT: Record<string, [ok: boolean, text: string]> = {
+  sent: [true, "اتبعتله إيميل فيه الإيميل وكلمة السر ولينك الدخول."],
+  no_email: [false, "مفيش إيميل للطالب، فمااتبعتش إيميل. ضيف إيميله أو ابعت البيانات واتساب من الزرار تحت."],
+  not_connected: [
+    false,
+    "الإيميل مش متوصّل من الإعدادات، فمااتبعتش إيميل. ابعت البيانات واتساب من الزرار تحت.",
+  ],
+  unsubscribed: [false, "الطالب ده لغى استقبال الإيميلات. ابعت البيانات واتساب من الزرار تحت."],
+  daily_limit: [false, "وصلنا لحد الإيميلات النهارده. ابعت البيانات واتساب من الزرار تحت."],
+  failed: [false, "الإيميل مااتبعتش. ابعت البيانات واتساب من الزرار تحت."],
+};
+const WA_SENT: Record<string, [ok: boolean, text: string] | null> = {
+  sent: [true, "واتساب: اتبعتتله رسالة إن حسابه جاهز (من غير كلمة السر)."],
+  template_pending: [
+    false,
+    "رسالة الواتساب الأوتوماتيك مستنية موافقة Meta على القالب. لحد ما يتوافق، ابعت البيانات من زرار الواتساب تحت.",
+  ],
+  not_connected: [false, "واتساب الأوتوماتيك مش متوصّل. ابعت البيانات من زرار الواتساب تحت."],
+  failed: [false, "رسالة الواتساب الأوتوماتيك مااتبعتتش. ابعت البيانات من زرار الواتساب تحت."],
+  no_phone: null,
+};
+
+/** What the server sent for an «add to the app» (email with the password; WhatsApp note without it). */
+function SentReport({ item }: { item: PinItem }) {
+  const lines = [MAIL_SENT[item.sent!.email] ?? MAIL_SENT.failed!, WA_SENT[item.sent!.whatsapp]].filter(
+    (x): x is [boolean, string] => !!x,
+  );
+  return (
+    <div className="grid gap-1.5" data-testid="invite-sent">
+      {lines.map(([ok, text]) => (
+        <p
+          key={text}
+          className={cn(
+            "flex items-start gap-2 rounded-xl border px-3 py-2 text-sm",
+            ok ? "border-ok/30 bg-ok/[0.07] text-chalk" : "border-[var(--line-2)] text-mist",
+          )}
+        >
+          <Icon
+            name={ok ? "check" : "info"}
+            size={16}
+            className={cn("mt-0.5 shrink-0", ok ? "text-ok" : "text-fog")}
+          />
+          {text}
+        </p>
+      ))}
+    </div>
   );
 }
 
@@ -527,19 +993,28 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
   if (!items) return null;
   const text = items.map((p) => `${p.name} — ${p.code} — رمز الدخول: ${p.pin}`).join("\n");
   const one = items.length === 1 ? items[0]! : null;
-  const msg = one ? `أهلاً ${one.name}\nبيانات دخولك على تطبيق BuildX HUE:\nرقم الطالب: ${one.code}\nرمز الدخول: ${one.pin}\n${loginUrl(one.code)}` : "";
+  const msg = one
+    ? `أهلاً ${one.name}\nبيانات دخولك على تطبيق BuildX HUE:\n${one.email ? `الإيميل: ${one.email}\n` : ""}رقم الطالب: ${one.code}\nكلمة السر: ${one.pin}\n${loginUrl(one.code)}\nغيّر كلمة السر من جوه التطبيق بعد ما تدخل.`
+    : "";
   return (
     <>
-      <Sheet open onClose={onClose} title={items.length === 1 ? "رمز الدخول" : `${items.length} رمز دخول`} wide>
+      <Sheet
+        open
+        onClose={onClose}
+        title={items.length === 1 ? "رمز الدخول" : `${items.length} رمز دخول`}
+        wide
+      >
         <div className="grid gap-4">
           <p className="flex items-start gap-2 rounded-xl border border-warn/30 bg-warn/[0.07] px-3 py-2.5 text-sm text-[#ffd08a]">
             <Icon name="alert" size={18} className="mt-0.5 shrink-0" />
             احفظ الرموز دلوقتي: لن تظهر مرة أخرى (يمكن إنشاء رمز جديد في أي وقت).
           </p>
+          {one?.sent && <SentReport item={one} />}
           {one ? (
             <Card className="text-center">
               <p className="text-lg font-bold text-chalk">{one.name}</p>
               <p className="font-mono text-sm text-fog" dir="ltr">
+                {one.email ? `${one.email} · ` : ""}
                 {one.code}
               </p>
               <p className="mt-3 font-mono text-4xl font-bold tracking-[0.3em] text-cyan" dir="ltr">
@@ -556,7 +1031,10 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
                       <td className="px-3 py-2 font-mono text-fog" dir="ltr">
                         {p.code}
                       </td>
-                      <td className="px-3 py-2 text-end font-mono text-base font-bold tracking-widest text-cyan" dir="ltr">
+                      <td
+                        className="px-3 py-2 text-end font-mono text-base font-bold tracking-widest text-cyan"
+                        dir="ltr"
+                      >
                         {p.pin}
                       </td>
                     </tr>
@@ -586,7 +1064,12 @@ export function PinResults({ items, onClose }: { items: PinItem[] | null; onClos
               <Button
                 icon="download"
                 className="col-span-2"
-                onClick={() => downloadCsv(`robohub-pins-${new Date().toISOString().slice(0, 10)}.csv`, [["الاسم", "رقم الطالب", "المجموعة", "رمز الدخول"], ...items.map((p) => [p.name, p.code, p.group, p.pin])])}
+                onClick={() =>
+                  downloadCsv(`robohub-pins-${new Date().toISOString().slice(0, 10)}.csv`, [
+                    ["الاسم", "رقم الطالب", "المجموعة", "رمز الدخول"],
+                    ...items.map((p) => [p.name, p.code, p.group, p.pin]),
+                  ])
+                }
               >
                 تنزيل Excel/CSV
               </Button>
@@ -612,7 +1095,12 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
     (async () => {
       const QRCode = (await import("qrcode")).default;
       const out: Record<string, string> = {};
-      for (const it of items) out[it.id] = await QRCode.toDataURL(loginUrl(it.code), { margin: 1, width: 240, errorCorrectionLevel: "M" });
+      for (const it of items)
+        out[it.id] = await QRCode.toDataURL(loginUrl(it.code), {
+          margin: 1,
+          width: 240,
+          errorCorrectionLevel: "M",
+        });
       if (alive) setQr(out);
     })();
     return () => {
@@ -648,14 +1136,43 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
   }, [qr, onDone, pdf]);
   const host = `${publicOrigin().replace(/^https?:\/\//, "")}${APP_PATH}`;
   const card = (p: PinItem) => (
-    <div key={p.id} style={{ border: "1px solid #999", borderRadius: "4mm", padding: "4mm", display: "flex", gap: "4mm", alignItems: "center", breakInside: "avoid", fontFamily: "system-ui, Tahoma, sans-serif", color: "#000", background: "#fff" }}>
+    <div
+      key={p.id}
+      style={{
+        border: "1px solid #999",
+        borderRadius: "4mm",
+        padding: "4mm",
+        display: "flex",
+        gap: "4mm",
+        alignItems: "center",
+        breakInside: "avoid",
+        fontFamily: "system-ui, Tahoma, sans-serif",
+        color: "#000",
+        background: "#fff",
+      }}
+    >
       {qr?.[p.id] && <img src={qr[p.id]} alt="" style={{ width: "30mm", height: "30mm" }} />}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: "8pt", color: "#555" }}>BuildX HUE · تطبيق BuildX HUE</div>
         <div style={{ fontSize: "12pt", fontWeight: 700, marginTop: "1mm" }}>{p.name}</div>
         <div style={{ fontSize: "9pt", direction: "ltr", textAlign: "right" }}>رقم الطالب: {p.code}</div>
-        <div style={{ fontSize: "16pt", fontWeight: 800, letterSpacing: "2pt", direction: "ltr", textAlign: "right", marginTop: "1mm" }}>PIN {p.pin}</div>
-        <div style={{ fontSize: "7pt", color: "#555", marginTop: "1mm", direction: "ltr", textAlign: "right" }}>{host}</div>
+        <div
+          style={{
+            fontSize: "16pt",
+            fontWeight: 800,
+            letterSpacing: "2pt",
+            direction: "ltr",
+            textAlign: "right",
+            marginTop: "1mm",
+          }}
+        >
+          PIN {p.pin}
+        </div>
+        <div
+          style={{ fontSize: "7pt", color: "#555", marginTop: "1mm", direction: "ltr", textAlign: "right" }}
+        >
+          {host}
+        </div>
       </div>
     </div>
   );
@@ -664,9 +1181,27 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
     const pages: PinItem[][] = [];
     for (let i = 0; i < items.length; i += 10) pages.push(items.slice(i, i + 10));
     return createPortal(
-      <div ref={pagesRef} dir="rtl" aria-hidden style={{ position: "fixed", top: 0, left: "-10000px", width: "794px" }}>
+      <div
+        ref={pagesRef}
+        dir="rtl"
+        aria-hidden
+        style={{ position: "fixed", top: 0, left: "-10000px", width: "794px" }}
+      >
         {pages.map((page, i) => (
-          <div key={i} style={{ width: "794px", height: "1123px", padding: "34px", boxSizing: "border-box", background: "#fff", display: "grid", gridTemplateColumns: "1fr 1fr", gridAutoRows: "min-content", gap: "22px" }}>
+          <div
+            key={i}
+            style={{
+              width: "794px",
+              height: "1123px",
+              padding: "34px",
+              boxSizing: "border-box",
+              background: "#fff",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gridAutoRows: "min-content",
+              gap: "22px",
+            }}
+          >
             {page.map(card)}
           </div>
         ))}
@@ -685,13 +1220,26 @@ function PrintCards({ items, onDone }: { items: PinItem[]; onDone: () => void })
 
 /* ─── Membership: one end date for many members ─────────────────────────── */
 
-function MembershipSheet({ students, label, onClose }: { students: Student[]; label: string; onClose: () => void }) {
-  const [until, setUntil] = useState(() => `${new Date().getFullYear() + (new Date().getMonth() >= 8 ? 1 : 0)}-06-30`);
+function MembershipSheet({
+  students,
+  label,
+  onClose,
+}: {
+  students: Student[];
+  label: string;
+  onClose: () => void;
+}) {
+  const [until, setUntil] = useState(
+    () => `${new Date().getFullYear() + (new Date().getMonth() >= 8 ? 1 : 0)}-06-30`,
+  );
   const [busy, setBusy] = useState(false);
   const apply = async (value: string | null) => {
     setBusy(true);
     try {
-      const n = await rpc<number>("staff_set_member_until", { p_ids: students.map((s) => s.id), p_until: value });
+      const n = await rpc<number>("staff_set_member_until", {
+        p_ids: students.map((s) => s.id),
+        p_until: value,
+      });
       const ids = new Set(students.map((s) => s.id));
       patchStudents((list) => list.map((s) => (ids.has(s.id) ? { ...s, memberUntil: value } : s)));
       toast(value ? `${n} عضوية بقت سارية لحد ${fmt.day(value)}` : `${n} عضوية بقت مفتوحة`);
@@ -711,7 +1259,12 @@ function MembershipSheet({ students, label, onClose }: { students: Student[]; la
         <Field label="سارية لحد">
           <Input type="date" dir="ltr" value={until} onChange={(e) => setUntil(e.target.value)} />
         </Field>
-        <Button variant="primary" loading={busy} disabled={!students.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)} onClick={() => void apply(until)}>
+        <Button
+          variant="primary"
+          loading={busy}
+          disabled={!students.length || !/^\d{4}-\d{2}-\d{2}$/.test(until)}
+          onClick={() => void apply(until)}
+        >
           مدّ العضوية
         </Button>
         <Button variant="ghost" disabled={busy || !students.length} onClick={() => void apply(null)}>

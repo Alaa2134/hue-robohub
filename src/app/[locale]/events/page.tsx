@@ -5,6 +5,7 @@ import { RoadmapSection } from "@/components/home/buildx";
 import { Band } from "@/components/pages/section";
 import { EventRow } from "@/components/pages/event-row";
 import { PageHero } from "@/components/site/page-hero";
+import { CalendarSubscribe } from "@/components/site/calendar-subscribe";
 import { SectionHead } from "@/components/ui/section-head";
 import { art } from "@/lib/media-library";
 import { resolvePage, type Params } from "@/lib/page";
@@ -15,7 +16,13 @@ export const revalidate = 900;
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { locale, t } = await resolvePage(params);
-  return pageMeta({ locale, path: "/events", title: t.events.title, description: t.events.body, image: art("arena", "hero")?.og });
+  return pageMeta({
+    locale,
+    path: "/events",
+    title: t.events.title,
+    description: t.events.body,
+    image: art("arena", "hero")?.og,
+  });
 }
 
 export default async function Events({ params }: Params) {
@@ -23,12 +30,22 @@ export default async function Events({ params }: Params) {
   const { upcoming, past } = await getEvents();
   return (
     <>
-      <PageHero eyebrow={t.events.eyebrow} title={t.events.title} body={t.events.body} image={art("arena", "team_env", "hero")} crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.events }]} size="md" />
+      <PageHero
+        eyebrow={t.events.eyebrow}
+        title={t.events.title}
+        body={t.events.body}
+        image={art("arena", "team_env", "hero")}
+        crumbs={[{ label: t.nav.home, href: href("/") }, { label: t.nav.events }]}
+        size="md"
+      />
       {STATIC_SITE && (
         <Band tight>
           <LiveEvents locale={locale} href={`${href("/events")}/`} />
         </Band>
       )}
+      <Band tight>
+        <CalendarSubscribe locale={locale} />
+      </Band>
       {upcoming.length > 0 && (
         <Band tight>
           <SectionHead index="01" eyebrow={p.events.upcoming} title={t.home.eventsTitle} size="md" />

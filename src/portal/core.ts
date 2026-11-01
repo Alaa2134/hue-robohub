@@ -23,8 +23,17 @@ export const isNative = () => typeof window !== "undefined" && Capacitor.isNativ
 export const SITE_ORIGIN = "https://buildxhue.com";
 export const publicOrigin = () => (isNative() ? SITE_ORIGIN : window.location.origin);
 
-type FsPlugin = { writeFile(o: { path: string; data: string; directory: string; recursive?: boolean }): Promise<{ uri: string }> };
-type SharePlugin = { share(o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }): Promise<unknown> };
+type FsPlugin = {
+  writeFile(o: {
+    path: string;
+    data: string;
+    directory: string;
+    recursive?: boolean;
+  }): Promise<{ uri: string }>;
+};
+type SharePlugin = {
+  share(o: { title?: string; text?: string; files?: string[]; dialogTitle?: string }): Promise<unknown>;
+};
 const Filesystem = registerPlugin<FsPlugin>("Filesystem");
 const Share = registerPlugin<SharePlugin>("Share");
 
@@ -36,7 +45,12 @@ async function shareFile(blob: Blob, name: string) {
     r.onerror = () => reject(r.error);
     r.readAsDataURL(blob);
   });
-  const { uri } = await Filesystem.writeFile({ path: `exports/${name}`, data, directory: "CACHE", recursive: true });
+  const { uri } = await Filesystem.writeFile({
+    path: `exports/${name}`,
+    data,
+    directory: "CACHE",
+    recursive: true,
+  });
   await Share.share({ title: name, files: [uri], dialogTitle: name });
 }
 
@@ -54,7 +68,10 @@ export async function sharePhotos(files: File[], text = ""): Promise<ShareResult
       r.onerror = () => reject(r.error);
       r.readAsDataURL(f);
     });
-    uris.push((await Filesystem.writeFile({ path: `share/${f.name}`, data, directory: "CACHE", recursive: true })).uri);
+    uris.push(
+      (await Filesystem.writeFile({ path: `share/${f.name}`, data, directory: "CACHE", recursive: true }))
+        .uri,
+    );
   }
   try {
     await Share.share({ files: uris, ...(text ? { text } : {}), dialogTitle: "شارك" });
@@ -96,7 +113,12 @@ const guardedFetch: typeof fetch = (input, init) => {
     const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
     const table = path.match(/\/rest\/v1\/(?!rpc\/)([a-z_]+)/)?.[1];
     if ((table && viewOnlyTables.has(table)) || (viewOnlyFiles && /\/storage\/v1\/object\//.test(path)))
-      return Promise.resolve(new Response(JSON.stringify({ message: "view_only", code: "42501" }), { status: 403, headers: { "Content-Type": "application/json" } }));
+      return Promise.resolve(
+        new Response(JSON.stringify({ message: "view_only", code: "42501" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
   }
   return fetch(input, init);
 };
@@ -104,7 +126,12 @@ const guardedFetch: typeof fetch = (input, init) => {
 let client: SupabaseClient | null = null;
 export function sb(): SupabaseClient {
   client ??= createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "rh-app-staff" },
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: false,
+      storageKey: "rh-app-staff",
+    },
     global: { fetch: guardedFetch },
   });
   return client;
@@ -113,7 +140,16 @@ export function sb(): SupabaseClient {
 /* ─── Types ─────────────────────────────────────────────────────────────── */
 
 export type Role = "owner" | "admin" | "lead";
-export type StaffRow = { user_id: string; email: string; full_name: string; role: Role; active: boolean; created_at: string; title?: string | null; permissions?: string[] | null };
+export type StaffRow = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  active: boolean;
+  created_at: string;
+  title?: string | null;
+  permissions?: string[] | null;
+};
 
 /**
  * What a team member may work in. The owner has everything and sets a list for anyone else; an admin
@@ -122,77 +158,311 @@ export type StaffRow = { user_id: string; email: string; full_name: string; role
  * nothing). The database enforces the same areas and levels (private.member_can, private.member_can_read).
  */
 export type Area =
-  | "roster" | "attendance" | "quizzes" | "tasks" | "materials" | "announcements" | "points"
-  | "site" | "pages" | "publish" | "forms" | "expo" | "portfolios" | "settings" | "voice"
-  | "applications" | "events" | "inbox" | "certificates" | "notify" | "whatsapp" | "email" | "security" | "sectors" | "inventory" | "ai3d" | "print";
+  | "roster"
+  | "attendance"
+  | "quizzes"
+  | "tasks"
+  | "materials"
+  | "announcements"
+  | "points"
+  | "site"
+  | "pages"
+  | "publish"
+  | "forms"
+  | "expo"
+  | "portfolios"
+  | "settings"
+  | "voice"
+  | "applications"
+  | "events"
+  | "inbox"
+  | "certificates"
+  | "notify"
+  | "whatsapp"
+  | "email"
+  | "security"
+  | "sectors"
+  | "inventory"
+  | "ai3d"
+  | "print";
 export type Level = "none" | "view" | "full";
 /** `view`: what "view only" lets them see (absent = the area has no view-only level). */
 export const AREAS: { key: Area; group: string; label: string; hint: string; view?: string }[] = [
-  { key: "roster", group: "الطلاب والتدريب", label: "بيانات الطلاب", hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة", view: "يشوف الطلاب وبياناتهم والمحتاجين متابعة" },
-  { key: "attendance", group: "الطلاب والتدريب", label: "الحضور", hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور", view: "يشوف الجلسات والحضور والتقارير" },
-  { key: "quizzes", group: "الطلاب والتدريب", label: "الكويزات", hint: "عمل الكويزات ونتايجها ومسابقة الأسبوع", view: "يشوف الكويزات والنتايج" },
-  { key: "tasks", group: "الطلاب والتدريب", label: "التاسكات", hint: "التاسكات وتسليمات الطلاب وتصحيحها", view: "يشوف التاسكات والتسليمات" },
-  { key: "materials", group: "الطلاب والتدريب", label: "المحاضرات والملفات", hint: "رفع ونشر وجدولة المحاضرات والملفات والروابط", view: "يفتح المحاضرات والملفات" },
-  { key: "announcements", group: "الطلاب والتدريب", label: "إعلانات الطلاب", hint: "الإعلانات اللي بتظهر في تطبيق الطالب", view: "يشوف الإعلانات" },
-  { key: "points", group: "الطلاب والتدريب", label: "النقاط والأوسمة", hint: "ترتيب الطلاب وإضافة نقاط إضافية", view: "يشوف الترتيب والنقاط" },
-  { key: "site", group: "الموقع", label: "محتوى الموقع", hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، ومشاريع الطلاب", view: "يشوف المحتوى والمسودات" },
-  { key: "pages", group: "الموقع", label: "منشئ الصفحات", hint: "يبني صفحات الموقع بالسحب والإفلات ويعدّلها (صفحة روبوتكس وأي صفحة جديدة)", view: "يفتح الصفحات ويشوفها من غير تعديل" },
-  { key: "publish", group: "الموقع", label: "النشر على الموقع", hint: "نشر وإخفاء وتثبيت المحتوى والصفحات، وتعديل وحذف المنشور" },
-  { key: "forms", group: "الموقع", label: "الفورمات", hint: "كل الفورمات (اختبارات الفرق، متطوعين…) وردودها", view: "يشوف الفورمات والردود" },
-  { key: "expo", group: "الموقع", label: "وفود المعارض", hint: "فورم المعرض بس: قبول ورفض، أرقام الوفد، الدخول بالـ QR، اللي محضروش والحظر", view: "يشوف الوفد والمقبولين والحضور" },
-  { key: "portfolios", group: "الموقع", label: "صفحات الفريق", hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق" },
-  { key: "settings", group: "الموقع", label: "إعدادات الموقع", hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات", view: "يشوف الإعدادات" },
-  { key: "voice", group: "الموقع", label: "صوت بقلظ", hint: "يسجّل كلام بقلظ بصوته أو يرفع ملفات صوت، والموقع يشغّلها بدل الصوت الآلي", view: "يسمع التسجيلات" },
-  { key: "applications", group: "تاني", label: "طلبات الانضمام", hint: "مراجعة الطلبات (قبول ورفض) وقائمة الانتظار", view: "يقرا الطلبات من غير قبول أو رفض" },
-  { key: "events", group: "تاني", label: "الفعاليات", hint: "التسجيل، الدخول بالـ QR والتقييمات", view: "يشوف المسجلين والتقييمات" },
-  { key: "inbox", group: "تاني", label: "رسائل الموقع", hint: "رسائل التواصل وطلبات الرعاية", view: "يقرا الرسائل" },
-  { key: "certificates", group: "تاني", label: "الشهادات", hint: "إصدار وطباعة الشهادات", view: "يشوف الشهادات اللي اتعملت" },
+  {
+    key: "roster",
+    group: "الطلاب والتدريب",
+    label: "بيانات الطلاب",
+    hint: "إضافة وتعديل الطلاب، رموز الدخول، طلبات «نسيت الرمز» والطلاب المحتاجين متابعة",
+    view: "يشوف الطلاب وبياناتهم والمحتاجين متابعة",
+  },
+  {
+    key: "attendance",
+    group: "الطلاب والتدريب",
+    label: "الحضور",
+    hint: "فتح جلسات وتسجيل الحضور بالباركود والـ QR، وتقارير الحضور",
+    view: "يشوف الجلسات والحضور والتقارير",
+  },
+  {
+    key: "quizzes",
+    group: "الطلاب والتدريب",
+    label: "الكويزات",
+    hint: "عمل الكويزات ونتايجها ومسابقة الأسبوع",
+    view: "يشوف الكويزات والنتايج",
+  },
+  {
+    key: "tasks",
+    group: "الطلاب والتدريب",
+    label: "التاسكات",
+    hint: "التاسكات وتسليمات الطلاب وتصحيحها",
+    view: "يشوف التاسكات والتسليمات",
+  },
+  {
+    key: "materials",
+    group: "الطلاب والتدريب",
+    label: "المحاضرات والملفات",
+    hint: "رفع ونشر وجدولة المحاضرات والملفات والروابط",
+    view: "يفتح المحاضرات والملفات",
+  },
+  {
+    key: "announcements",
+    group: "الطلاب والتدريب",
+    label: "إعلانات الطلاب",
+    hint: "الإعلانات اللي بتظهر في تطبيق الطالب",
+    view: "يشوف الإعلانات",
+  },
+  {
+    key: "points",
+    group: "الطلاب والتدريب",
+    label: "النقاط والأوسمة",
+    hint: "ترتيب الطلاب وإضافة نقاط إضافية",
+    view: "يشوف الترتيب والنقاط",
+  },
+  {
+    key: "site",
+    group: "الموقع",
+    label: "محتوى الموقع",
+    hint: "كتابة الأخبار والفعاليات والجاليري (مسودات)، ومشاريع الطلاب",
+    view: "يشوف المحتوى والمسودات",
+  },
+  {
+    key: "pages",
+    group: "الموقع",
+    label: "منشئ الصفحات",
+    hint: "يبني صفحات الموقع بالسحب والإفلات ويعدّلها (صفحة روبوتكس وأي صفحة جديدة)",
+    view: "يفتح الصفحات ويشوفها من غير تعديل",
+  },
+  {
+    key: "publish",
+    group: "الموقع",
+    label: "النشر على الموقع",
+    hint: "نشر وإخفاء وتثبيت المحتوى والصفحات، وتعديل وحذف المنشور",
+  },
+  {
+    key: "forms",
+    group: "الموقع",
+    label: "الفورمات",
+    hint: "كل الفورمات (اختبارات الفرق، متطوعين…) وردودها",
+    view: "يشوف الفورمات والردود",
+  },
+  {
+    key: "expo",
+    group: "الموقع",
+    label: "وفود المعارض",
+    hint: "فورم المعرض بس: قبول ورفض، أرقام الوفد، الدخول بالـ QR، اللي محضروش والحظر",
+    view: "يشوف الوفد والمقبولين والحضور",
+  },
+  {
+    key: "portfolios",
+    group: "الموقع",
+    label: "صفحات الفريق",
+    hint: "تعديل بورتفوليو أي عضو وإضافة أعضاء وترتيب صفحة الفريق",
+  },
+  {
+    key: "settings",
+    group: "الموقع",
+    label: "إعدادات الموقع",
+    hint: "التواصل، الواجهة، الإعلان، الأهداف، ملف الرعاية ونسخ التطبيقات",
+    view: "يشوف الإعدادات",
+  },
+  {
+    key: "voice",
+    group: "الموقع",
+    label: "صوت بقلظ",
+    hint: "يسجّل كلام بقلظ بصوته أو يرفع ملفات صوت، والموقع يشغّلها بدل الصوت الآلي",
+    view: "يسمع التسجيلات",
+  },
+  {
+    key: "applications",
+    group: "تاني",
+    label: "طلبات الانضمام",
+    hint: "مراجعة الطلبات (قبول ورفض) وقائمة الانتظار",
+    view: "يقرا الطلبات من غير قبول أو رفض",
+  },
+  {
+    key: "events",
+    group: "تاني",
+    label: "الفعاليات",
+    hint: "التسجيل، الدخول بالـ QR والتقييمات",
+    view: "يشوف المسجلين والتقييمات",
+  },
+  {
+    key: "inbox",
+    group: "تاني",
+    label: "رسائل الموقع",
+    hint: "رسائل التواصل وطلبات الرعاية",
+    view: "يقرا الرسائل",
+  },
+  {
+    key: "certificates",
+    group: "تاني",
+    label: "الشهادات",
+    hint: "إصدار وطباعة الشهادات",
+    view: "يشوف الشهادات اللي اتعملت",
+  },
   { key: "notify", group: "تاني", label: "الإشعارات", hint: "إرسال إشعارات للطلاب أو الفريق" },
-  { key: "whatsapp", group: "تاني", label: "واتساب", hint: "يبعت رسايل واتساب من التطبيق (للوفد، المقبولين، الطلاب) ويشوف سجل الرسايل. ربط الحساب نفسه للمالك بس", view: "يشوف سجل الرسايل وحالتها" },
-  { key: "email", group: "تاني", label: "الإيميل", hint: "يبعت إيميلات للمتقدمين والأسرة وأي حد، ويعدّل الإيميلات التلقائية (طلب وصل، اتقبلت، تذكرة فعالية…). ربط الحساب نفسه للمالك بس", view: "يشوف سجل الإيميلات والإيميلات التلقائية" },
-  { key: "security", group: "تاني", label: "الأمان والمتابعة", hint: "الأمان والهجمات وحظر الـ IP، زيارات الموقع وأخطاؤه، واستهلاك الباقة", view: "يشوف الهجمات والزيارات والأخطاء من غير حظر" },
-  { key: "sectors", group: "تاني", label: "متابعة كل السيكتورات", hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)" },
-  { key: "ai3d", group: "تاني", label: "BuildX 3D AI", hint: "مراجعة إيصالات الشحن وإضافة الكريدت، المحافظ، الموديلات ومعرض الموقع، والأسعار وطريقة الدفع (مفتاح Meshy للمالك بس)", view: "يشوف الشحن والموديلات والمحافظ" },
-  { key: "print", group: "تاني", label: "طباعة 3D", hint: "طلبات الطباعة من الطلبة: تنزيل الملف، السعر من الـSlicer، المتابعة والدفع، وأسعار الخامات وساعة الطابعة", view: "يشوف الطلبات والأسعار" },
-  { key: "inventory", group: "تاني", label: "المخزن (القطع والأدوات)", hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)" },
+  {
+    key: "whatsapp",
+    group: "تاني",
+    label: "واتساب",
+    hint: "يبعت رسايل واتساب من التطبيق (للوفد، المقبولين، الطلاب) ويشوف سجل الرسايل. ربط الحساب نفسه للمالك بس",
+    view: "يشوف سجل الرسايل وحالتها",
+  },
+  {
+    key: "email",
+    group: "تاني",
+    label: "الإيميل",
+    hint: "يبعت إيميلات للمتقدمين والأسرة وأي حد، ويعدّل الإيميلات التلقائية (طلب وصل، اتقبلت، تذكرة فعالية…). ربط الحساب نفسه للمالك بس",
+    view: "يشوف سجل الإيميلات والإيميلات التلقائية",
+  },
+  {
+    key: "security",
+    group: "تاني",
+    label: "الأمان والمتابعة",
+    hint: "الأمان والهجمات وحظر الـ IP، زيارات الموقع وأخطاؤه، واستهلاك الباقة",
+    view: "يشوف الهجمات والزيارات والأخطاء من غير حظر",
+  },
+  {
+    key: "sectors",
+    group: "تاني",
+    label: "متابعة كل السيكتورات",
+    hint: "يعمل السيكتورات ويحدد الهيدز والأعضاء، يشوف كل التاسكات والإنذارات ويلغي الإنذارات (الهيد مش محتاجها لسيكتوره)",
+  },
+  {
+    key: "ai3d",
+    group: "تاني",
+    label: "BuildX 3D AI",
+    hint: "مراجعة إيصالات الشحن وإضافة الكريدت، المحافظ، الموديلات ومعرض الموقع، والأسعار وطريقة الدفع (مفتاح Meshy للمالك بس)",
+    view: "يشوف الشحن والموديلات والمحافظ",
+  },
+  {
+    key: "print",
+    group: "تاني",
+    label: "طباعة 3D",
+    hint: "طلبات الطباعة من الطلبة: تنزيل الملف، السعر من الـSlicer، المتابعة والدفع، وأسعار الخامات وساعة الطابعة",
+    view: "يشوف الطلبات والأسعار",
+  },
+  {
+    key: "inventory",
+    group: "تاني",
+    label: "المخزن (القطع والأدوات)",
+    hint: "إضافة القطع، تسليف وصرف وترجيع، والموافقة على طلبات الاستعارة (أي حد في الفريق يقدر يشوف المخزن ويطلب)",
+  },
 ];
-export const TRAINING: Area[] = ["roster", "attendance", "quizzes", "tasks", "materials", "announcements", "points"];
+export const TRAINING: Area[] = [
+  "roster",
+  "attendance",
+  "quizzes",
+  "tasks",
+  "materials",
+  "announcements",
+  "points",
+];
 /** Older lists name the two big areas ("students", "content"); they still mean every part of them. */
 const OLD: Record<string, Area[]> = { students: TRAINING, content: ["site", "forms", "pages", "expo"] };
 /** A trainer with no list keeps the areas trainers always had; the newer ones are given by name. */
 const BASIC = ["applications", "students", "events", "content", "inbox", "certificates"];
 /** The owner, or an admin the owner hasn't limited: every area plus the admin tools (team, deleting, security…). */
-export const isFull = (me: Pick<StaffRow, "role" | "permissions">) => me.role === "owner" || (me.role === "admin" && !me.permissions);
-const granted = (me: Pick<StaffRow, "role" | "permissions">) => (me.permissions ?? BASIC).flatMap((a) => OLD[a] ?? [a as Area]);
-const viewed = (me: Pick<StaffRow, "role" | "permissions">) => (me.permissions ?? []).filter((a) => a.endsWith(":view")).map((a) => a.slice(0, -5) as Area);
+export const isFull = (me: Pick<StaffRow, "role" | "permissions">) =>
+  me.role === "owner" || (me.role === "admin" && !me.permissions);
+const granted = (me: Pick<StaffRow, "role" | "permissions">) =>
+  (me.permissions ?? BASIC).flatMap((a) => OLD[a] ?? [a as Area]);
+const viewed = (me: Pick<StaffRow, "role" | "permissions">) =>
+  (me.permissions ?? []).filter((a) => a.endsWith(":view")).map((a) => a.slice(0, -5) as Area);
 /** Full access: sees and changes ("training" = any of the student and training areas). */
 export const can = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "training") =>
-  isFull(me) || (area === "training" ? TRAINING.some((a) => granted(me).includes(a)) : granted(me).includes(area));
+  isFull(me) ||
+  (area === "training" ? TRAINING.some((a) => granted(me).includes(a)) : granted(me).includes(area));
 /** Sees the area: full access, or view only. */
 export const canSee = (me: Pick<StaffRow, "role" | "permissions">, area: Area | "training") =>
-  can(me, area) || (area === "training" ? TRAINING.some((a) => viewed(me).includes(a)) : viewed(me).includes(area));
-export const levelOf = (me: Pick<StaffRow, "role" | "permissions">, area: Area): Level => (can(me, area) ? "full" : canSee(me, area) ? "view" : "none");
+  can(me, area) ||
+  (area === "training" ? TRAINING.some((a) => viewed(me).includes(a)) : viewed(me).includes(area));
+export const levelOf = (me: Pick<StaffRow, "role" | "permissions">, area: Area): Level =>
+  can(me, area) ? "full" : canSee(me, area) ? "view" : "none";
 /** The saved list for a set of levels (an admin with every area in full = no list = a full admin). */
 export function permissionsFor(role: Role, levels: Partial<Record<Area, Level>>): string[] | null {
   if (role === "admin" && AREAS.every((a) => levels[a.key] === "full")) return null;
-  return AREAS.flatMap((a) => (levels[a.key] === "full" ? [a.key] : levels[a.key] === "view" && a.view ? [`${a.key}:view`] : []));
+  return AREAS.flatMap((a) =>
+    levels[a.key] === "full" ? [a.key] : levels[a.key] === "view" && a.view ? [`${a.key}:view`] : [],
+  );
 }
 
 /** Ready-made roles: what each kind of work needs, in full or to look at. */
 export const ROLE_PRESETS: { name: string; about: string; full: Area[]; view: Area[] }[] = [
   { name: "مدرّب", about: "بيدرّس ويتابع طلابه", full: TRAINING, view: ["events"] },
-  { name: "مشرف محتوى", about: "الموقع والصفحات والنشر", full: ["site", "pages", "publish", "portfolios", "voice"], view: ["inbox", "settings"] },
-  { name: "منظّم معارض", about: "وفود المعارض والفعاليات", full: ["expo", "events", "whatsapp"], view: ["forms", "applications", "roster"] },
-  { name: "مسؤول عضوية", about: "الطلبات والطلاب والحضور", full: ["applications", "roster", "whatsapp", "email"], view: ["attendance", "expo"] },
-  { name: "مسؤول تواصل", about: "الرسائل والواتساب والإيميل والإشعارات", full: ["inbox", "whatsapp", "email", "notify"], view: ["applications", "expo", "events"] },
-  { name: "متابع (مشاهدة بس)", about: "يشوف كل حاجة ومايعدّلش", full: [], view: AREAS.filter((a) => a.view).map((a) => a.key) },
+  {
+    name: "مشرف محتوى",
+    about: "الموقع والصفحات والنشر",
+    full: ["site", "pages", "publish", "portfolios", "voice"],
+    view: ["inbox", "settings"],
+  },
+  {
+    name: "منظّم معارض",
+    about: "وفود المعارض والفعاليات",
+    full: ["expo", "events", "whatsapp"],
+    view: ["forms", "applications", "roster"],
+  },
+  {
+    name: "مسؤول عضوية",
+    about: "الطلبات والطلاب والحضور",
+    full: ["applications", "roster", "whatsapp", "email"],
+    view: ["attendance", "expo"],
+  },
+  {
+    name: "مسؤول تواصل",
+    about: "الرسائل والواتساب والإيميل والإشعارات",
+    full: ["inbox", "whatsapp", "email", "notify"],
+    view: ["applications", "expo", "events"],
+  },
+  {
+    name: "متابع (مشاهدة بس)",
+    about: "يشوف كل حاجة ومايعدّلش",
+    full: [],
+    view: AREAS.filter((a) => a.view).map((a) => a.key),
+  },
   { name: "أمين المخزن", about: "القطع والأدوات", full: ["inventory"], view: [] },
 ];
 
 /** Positions (from the BuildX HUE structure) with the areas that usually go with them. */
 export const POSITIONS: { title: string; areas: Area[]; view?: Area[] }[] = [
   { title: "نائب القائد", areas: AREAS.map((a) => a.key) },
-  { title: "إداري الموقع", areas: ["site", "pages", "publish", "forms", "expo", "portfolios", "settings", "notify", "inbox", "security", "voice", "whatsapp", "email"] },
+  {
+    title: "إداري الموقع",
+    areas: [
+      "site",
+      "pages",
+      "publish",
+      "forms",
+      "expo",
+      "portfolios",
+      "settings",
+      "notify",
+      "inbox",
+      "security",
+      "voice",
+      "whatsapp",
+      "email",
+    ],
+  },
   { title: "هيد الميديا", areas: ["site", "pages", "publish", "portfolios", "notify", "voice"] },
   { title: "المدير التقني", areas: [...TRAINING, "events", "certificates"] },
   { title: "مسؤول الروبوتكس", areas: TRAINING },
@@ -201,7 +471,11 @@ export const POSITIONS: { title: string; areas: Area[]; view?: Area[] }[] = [
   { title: "مسؤول البرمجة", areas: TRAINING },
   { title: "مسؤول الطباعة والتصميم ثلاثي الأبعاد", areas: TRAINING },
   { title: "مسؤول التنظيم والعمليات", areas: ["events", "attendance", "expo"] },
-  { title: "مسؤول العضوية والموارد البشرية", areas: ["applications", "roster", "attendance"], view: ["expo"] },
+  {
+    title: "مسؤول العضوية والموارد البشرية",
+    areas: ["applications", "roster", "attendance"],
+    view: ["expo"],
+  },
   { title: "مسؤول الإعلام والتصميم", areas: ["site", "pages"] },
   { title: "مسؤول العلاقات العامة والرعاية", areas: ["inbox", "site", "whatsapp", "email"] },
   { title: "أمين المخزن", areas: ["inventory"] },
@@ -219,6 +493,7 @@ export type Student = {
   name: string;
   group: string;
   phone: string | null;
+  email?: string | null;
   notes: string | null;
   active: boolean;
   createdAt: string;
@@ -238,7 +513,13 @@ export type Session = {
   created_by: string | null;
   created_at: string;
 };
-export type AttRow = { session_id: string; student_id: string; status: AttStatus; method: "scan" | "manual"; marked_at: string };
+export type AttRow = {
+  session_id: string;
+  student_id: string;
+  status: AttStatus;
+  method: "scan" | "manual";
+  marked_at: string;
+};
 export type Material = {
   id: string;
   title: string;
@@ -325,23 +606,37 @@ export function errorText(e: unknown): string {
   const err = e as ErrLike;
   const msg = err?.message ?? String(e ?? "");
   const code = err?.code ?? "";
-  if (/Failed to fetch|NetworkError|Load failed|network|ERR_INTERNET/i.test(msg)) return "لا يوجد اتصال بالإنترنت. حاول مرة أخرى.";
+  if (/Failed to fetch|NetworkError|Load failed|network|ERR_INTERNET/i.test(msg))
+    return "لا يوجد اتصال بالإنترنت. حاول مرة أخرى.";
   if (msg === "session_invalid") return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
   if (msg === "invalid_code") return "رقم الطالب يجب أن يحتوي على حروف أو أرقام.";
   if (msg === "last_owner") return "يجب أن يبقى مالك واحد على الأقل.";
-  if (code === "23505" || /duplicate key|code_taken|barcode_taken/.test(msg)) return "هذا الرقم مسجَّل لطالب آخر.";
-  if (msg === "view_only" || ((code === "42501" || msg === "forbidden") && (viewOnlyTables.size || viewOnlyFiles)))
+  if (code === "23505" || /duplicate key|code_taken|barcode_taken/.test(msg))
+    return "هذا الرقم مسجَّل لطالب آخر.";
+  if (
+    msg === "view_only" ||
+    ((code === "42501" || msg === "forbidden") && (viewOnlyTables.size || viewOnlyFiles))
+  )
     return "صلاحيتك هنا مشاهدة بس، من غير تعديل. لو محتاج تعدّل اطلب من المالك صلاحية كاملة.";
-  if (code === "42501" || msg === "forbidden" || /permission denied|row-level security|violates row-level/i.test(msg)) return "ليست لديك صلاحية لهذا الإجراء.";
+  if (
+    code === "42501" ||
+    msg === "forbidden" ||
+    /permission denied|row-level security|violates row-level/i.test(msg)
+  )
+    return "ليست لديك صلاحية لهذا الإجراء.";
   if (/JWT expired|invalid JWT|refresh token/i.test(msg)) return "انتهت جلسة الدخول. سجّل الدخول من جديد.";
-  if (msg === "image_unreadable") return "المتصفح مقدرش يفتح الصورة دي. جرّب صورة تانية، أو خد لها سكرين شوت وارفعها.";
+  if (msg === "image_unreadable")
+    return "المتصفح مقدرش يفتح الصورة دي. جرّب صورة تانية، أو خد لها سكرين شوت وارفعها.";
   if (msg === "image_encode") return "مقدرناش نصغّر الصورة دي. جرّب صورة تانية.";
-  if (/mime type .* is not supported|invalid_mime_type/i.test(msg)) return "نوع الملف ده مش مسموح. ارفع صورة JPG أو PNG.";
-  if (/exceeded the maximum allowed size|Payload too large|413/i.test(msg)) return "الملف أكبر من الحد المسموح (50 ميجابايت).";
+  if (/mime type .* is not supported|invalid_mime_type/i.test(msg))
+    return "نوع الملف ده مش مسموح. ارفع صورة JPG أو PNG.";
+  if (/exceeded the maximum allowed size|Payload too large|413/i.test(msg))
+    return "الملف أكبر من الحد المسموح (50 ميجابايت).";
   return "حدث خطأ غير متوقع. حاول مرة أخرى.";
 }
 
-export const isNetworkError = (e: unknown) => /Failed to fetch|NetworkError|Load failed|network/i.test((e as ErrLike)?.message ?? "");
+export const isNetworkError = (e: unknown) =>
+  /Failed to fetch|NetworkError|Load failed|network/i.test((e as ErrLike)?.message ?? "");
 
 export async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
   const { data, error } = await sb().rpc(fn, args);
@@ -405,7 +700,9 @@ export async function studentRpcOffline<T>(fn: string, args: Record<string, unkn
     }
     return data;
   } catch (e) {
-    const offline = typeof navigator !== "undefined" && (!navigator.onLine || /fetch|network|load failed/i.test(String((e as Error)?.message)));
+    const offline =
+      typeof navigator !== "undefined" &&
+      (!navigator.onLine || /fetch|network|load failed/i.test(String((e as Error)?.message)));
     if (offline) {
       try {
         const v = localStorage.getItem(key);
@@ -438,7 +735,10 @@ export { asciiDigits } from "@/lib/format";
 
 export function tempPassword(length = 12) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-  return Array.from(crypto.getRandomValues(new Uint32Array(length)), (x) => alphabet[x % alphabet.length]).join("");
+  return Array.from(
+    crypto.getRandomValues(new Uint32Array(length)),
+    (x) => alphabet[x % alphabet.length],
+  ).join("");
 }
 
 /** A random v4 UUID. crypto.randomUUID only exists on https (secure contexts); visitors who open the
@@ -484,7 +784,8 @@ export const fmt = {
     return fmt.short(d);
   },
   pct: (n: number) => `${Math.round(n)}%`,
-  num: (n: number | null | undefined) => (n == null ? "—" : Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(1)),
+  num: (n: number | null | undefined) =>
+    n == null ? "—" : Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(1),
 };
 
 /** Value for <input type="datetime-local"> in the device time zone. */
@@ -505,7 +806,14 @@ export const fileUrl = (path: string, downloadName?: string) =>
 /** Storage-safe file name (the original name is kept in the database for display). */
 export function safeName(name: string) {
   const dot = name.lastIndexOf(".");
-  const ext = dot > 0 ? name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) : "";
+  const ext =
+    dot > 0
+      ? name
+          .slice(dot + 1)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, "")
+          .slice(0, 10)
+      : "";
   const base =
     (dot > 0 ? name.slice(0, dot) : name)
       .normalize("NFKD")
@@ -516,13 +824,22 @@ export function safeName(name: string) {
 }
 
 /** Upload straight to Storage with progress (supabase-js has no progress events). */
-export async function uploadObject(path: string, body: Blob, contentType: string, onProgress?: (p: number) => void, bucket = "materials"): Promise<void> {
+export async function uploadObject(
+  path: string,
+  body: Blob,
+  contentType: string,
+  onProgress?: (p: number) => void,
+  bucket = "materials",
+): Promise<void> {
   const { data } = await sb().auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("session_invalid");
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", `${SUPABASE_URL}/storage/v1/object/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`);
+    xhr.open(
+      "POST",
+      `${SUPABASE_URL}/storage/v1/object/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`,
+    );
     xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.setRequestHeader("apikey", SUPABASE_KEY);
     xhr.setRequestHeader("x-upsert", "false");
@@ -550,7 +867,9 @@ export async function uploadObject(path: string, body: Blob, contentType: string
 
 export async function removeObjects(paths: string[], bucket = "materials") {
   // Photos uploaded through uploadImage have a thumbnail beside them: remove it too.
-  const list = [...new Set(paths.filter(Boolean).flatMap((p) => (thumbPath(p) !== p ? [p, thumbPath(p)] : [p])))];
+  const list = [
+    ...new Set(paths.filter(Boolean).flatMap((p) => (thumbPath(p) !== p ? [p, thumbPath(p)] : [p]))),
+  ];
   if (!list.length) return;
   const { error } = await sb().storage.from(bucket).remove(list);
   if (error) throw error;
@@ -569,7 +888,13 @@ async function loadImage(file: Blob): Promise<Decoded> {
       i.onerror = () => reject(new Error("image_unreadable"));
       i.src = url;
     });
-    if (img.naturalWidth && img.naturalHeight) return { src: img, width: img.naturalWidth, height: img.naturalHeight, done: () => URL.revokeObjectURL(url) };
+    if (img.naturalWidth && img.naturalHeight)
+      return {
+        src: img,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        done: () => URL.revokeObjectURL(url),
+      };
   } catch {
     /* try the bitmap decoder below */
   }
@@ -586,7 +911,13 @@ async function loadImage(file: Blob): Promise<Decoded> {
 }
 
 /** Draws the image no larger than `maxEdge` (browsers apply the EXIF rotation; the metadata itself is dropped). */
-async function encode(img: Decoded, maxEdge: number, type: string, quality: number, flatten: boolean): Promise<Blob> {
+async function encode(
+  img: Decoded,
+  maxEdge: number,
+  type: string,
+  quality: number,
+  flatten: boolean,
+): Promise<Blob> {
   const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(img.width * scale));
@@ -614,13 +945,18 @@ export async function toJpeg(file: Blob, maxEdge = 1600, quality = 0.86): Promis
   }
 }
 
-
 /**
  * Squeezes a picture until it is light: the quality steps down, and if that isn't enough the size
  * shrinks a little, until it fits `bytes` (or reaches the floor: quality 0.5, ¾ of the size, so a
  * photo never turns to mush). Returns the encoded file and the long edge it ended at.
  */
-async function squeeze(img: Decoded, maxEdge: number, type: string, bytes: number, flatten: boolean): Promise<{ blob: Blob; edge: number }> {
+async function squeeze(
+  img: Decoded,
+  maxEdge: number,
+  type: string,
+  bytes: number,
+  flatten: boolean,
+): Promise<{ blob: Blob; edge: number }> {
   let out: Blob | null = null;
   let edge = maxEdge;
   for (const scale of [1, 0.87, 0.75]) {
@@ -636,14 +972,26 @@ async function squeeze(img: Decoded, maxEdge: number, type: string, bytes: numbe
 /** About `kb` for a `ref`-pixel edge, scaled by area for other sizes. */
 const budget = (edge: number, kb: number, ref = 1600) => Math.round(kb * 1024 * (edge / ref) ** 2);
 
-export type PreparedImage = { main: Blob; thumb: Blob; ext: "webp" | "jpg"; type: string; before: number; after: number; width: number; height: number };
+export type PreparedImage = {
+  main: Blob;
+  thumb: Blob;
+  ext: "webp" | "jpg";
+  type: string;
+  before: number;
+  after: number;
+  width: number;
+  height: number;
+};
 
 /**
  * The upload pipeline for every photo: resized (main ≤ maxEdge, thumbnail ≤ thumbEdge), squeezed
  * until light (a 1600px photo ≈ 140 KB, its thumbnail ≈ 28 KB), as WebP (JPEG where the browser
  * can't write WebP, as on iPhones) and stripped of metadata such as GPS location.
  */
-export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640 } = {}): Promise<PreparedImage> {
+export async function prepareImage(
+  file: Blob,
+  { maxEdge = 1600, thumbEdge = 640 } = {},
+): Promise<PreparedImage> {
   const img = await loadImage(file);
   try {
     const probe = await encode(img, 16, "image/webp", 0.8, false);
@@ -653,7 +1001,16 @@ export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640
     const main = await squeeze(img, maxEdge, type, budget(maxEdge, webp ? 140 : 170), !webp);
     const thumb = await squeeze(img, thumbEdge, type, budget(thumbEdge, webp ? 28 : 34, 640), !webp);
     const scale = Math.min(1, main.edge / Math.max(img.width, img.height));
-    return { main: main.blob, thumb: thumb.blob, ext: webp ? "webp" : "jpg", type, before: file.size, after: main.blob.size, width: Math.round(img.width * scale), height: Math.round(img.height * scale) };
+    return {
+      main: main.blob,
+      thumb: thumb.blob,
+      ext: webp ? "webp" : "jpg",
+      type,
+      before: file.size,
+      after: main.blob.size,
+      width: Math.round(img.width * scale),
+      height: Math.round(img.height * scale),
+    };
   } finally {
     img.done();
   }
@@ -663,7 +1020,12 @@ export async function prepareImage(file: Blob, { maxEdge = 1600, thumbEdge = 640
 export const thumbPath = (path: string) => path.replace(/\.w\.(webp|jpg)$/, ".t.$1");
 
 /** Compresses and uploads a photo plus its thumbnail; returns the main object's path. */
-export async function uploadImage(bucket: string, dir: string, file: Blob, opts?: { maxEdge?: number; thumbEdge?: number; onProgress?: (p: number) => void }) {
+export async function uploadImage(
+  bucket: string,
+  dir: string,
+  file: Blob,
+  opts?: { maxEdge?: number; thumbEdge?: number; onProgress?: (p: number) => void },
+) {
   try {
     const img = await prepareImage(file, { maxEdge: opts?.maxEdge, thumbEdge: opts?.thumbEdge });
     const path = `${dir}/${uid()}.w.${img.ext}`;
@@ -674,7 +1036,13 @@ export async function uploadImage(bucket: string, dir: string, file: Blob, opts?
     // Record why (file type and size included) so a failed upload shows up under "أخطاء الموقع".
     const f = file as Partial<File>;
     const message = `upload ${bucket}: ${(e as Error)?.message ?? e} [${f.type || "no-type"} ${Math.round(file.size / 1024)}KB ${(f.name ?? "").split(".").pop()}]`;
-    rpc("log_client_error", { p: { message: message.slice(0, 500), source: "uploadImage", path: `${location.pathname}${location.hash.split("?")[0]}` } }).catch(() => undefined);
+    rpc("log_client_error", {
+      p: {
+        message: message.slice(0, 500),
+        source: "uploadImage",
+        path: `${location.pathname}${location.hash.split("?")[0]}`,
+      },
+    }).catch(() => undefined);
     throw e;
   }
 }
@@ -707,7 +1075,10 @@ export function downloadCsv(name: string, rows: (string | number | boolean | nul
     if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  download(new Blob([`﻿${rows.map((r) => r.map(cell).join(",")).join("\r\n")}`], { type: "text/csv;charset=utf-8" }), name);
+  download(
+    new Blob([`﻿${rows.map((r) => r.map(cell).join(",")).join("\r\n")}`], { type: "text/csv;charset=utf-8" }),
+    name,
+  );
 }
 
 export const today = () => new Date().toISOString().slice(0, 10);

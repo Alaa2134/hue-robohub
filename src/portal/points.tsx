@@ -4,7 +4,28 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { errorText, fmt, must, rpc, sb, studentRpc, studentRpcOffline } from "./core";
 import { groupsOf, useStudents } from "./staff-data";
-import { Button, Card, Chip, Empty, ErrorBox, Field, Icon, Input, List, Loading, Row, Section, Sheet, Stat, Toggle, TopBar, toast, useAsync, type IconKey } from "./ui";
+import { MyAchievements } from "./achievements";
+import {
+  Button,
+  Card,
+  Chip,
+  Empty,
+  ErrorBox,
+  Field,
+  Icon,
+  Input,
+  List,
+  Loading,
+  Row,
+  Section,
+  Sheet,
+  Stat,
+  Toggle,
+  TopBar,
+  toast,
+  useAsync,
+  type IconKey,
+} from "./ui";
 
 export const BADGES: Record<string, { ar: string; hint: string; icon: IconKey; color: string }> = {
   first_step: { ar: "أول خطوة", hint: "حضرت أول جلسة", icon: "check", color: "#38dcff" },
@@ -19,21 +40,8 @@ export const BADGES: Record<string, { ar: string; hint: string; icon: IconKey; c
   on_fire: { ar: "نار 🔥", hint: "حضرت 5 سيشنات ورا بعض", icon: "calendar", color: "#ff7a45" },
 };
 
-export const POINT_RULES = "الحضور 10 (متأخر 6) · كل كويز لحد 20 · كل تاسك لحد 20 · الشهادة 30 · الفعالية 15 · ونقاط تقدير من الفريق";
-
-function Badge_({ k, dim }: { k: string; dim?: boolean }) {
-  const b = BADGES[k];
-  if (!b) return null;
-  return (
-    <div className={cn("flex flex-col items-center gap-1.5 rounded-2xl border border-[var(--line)] p-3 text-center", dim && "opacity-35 grayscale")}>
-      <span className="flex size-11 items-center justify-center rounded-full" style={{ background: `${b.color}22`, color: b.color }}>
-        <Icon name={b.icon} size={22} />
-      </span>
-      <span className="text-[13px] font-semibold text-chalk">{b.ar}</span>
-      <span className="text-[11px] leading-snug text-fog">{b.hint}</span>
-    </div>
-  );
-}
+export const POINT_RULES =
+  "الحضور 10 (متأخر 6) · كل كويز لحد 20 · كل تاسك لحد 20 · الشهادة 30 · الفعالية 15 · ونقاط تقدير من الفريق";
 
 type Mine = {
   points: number;
@@ -55,7 +63,10 @@ export function PointsCard() {
   const { data } = useMyPoints();
   if (!data) return null;
   return (
-    <a href="#/me/points" className="mt-3 flex items-center gap-4 rounded-3xl border border-gold/30 bg-gradient-to-l from-gold/10 to-transparent p-5">
+    <a
+      href="#/me/points"
+      className="mt-3 flex items-center gap-4 rounded-3xl border border-gold/30 bg-gradient-to-l from-gold/10 to-transparent p-5"
+    >
       <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gold/15 text-gold">
         <Icon name="star" size={28} />
       </span>
@@ -64,7 +75,7 @@ export function PointsCard() {
           <span className="font-mono text-2xl">{data.points}</span> نقطة
         </p>
         <p className="mt-0.5 text-xs text-fog">
-          {data.rank ? `ترتيبك ${data.rank} من ${data.of} في مجموعتك · ${data.badges.length} وسام` : "احضر وحل كويزات عشان تجمع نقاط"}
+          {data.rank ? `ترتيبك ${data.rank} من ${data.of} في مجموعتك` : "احضر وحل كويزات عشان تجمع نقاط"}
           {(data.streak?.current ?? 0) >= 2 && ` · 🔥 ${data.streak!.current} سيشن ورا بعض`}
         </p>
       </div>
@@ -81,14 +92,16 @@ export function MyPoints() {
   const b = data.breakdown ?? {};
   return (
     <>
-      <TopBar title="نقاطي وأوسمتي" back="/me" />
+      <TopBar title="نقاطي وشاراتي" back="/me" />
       <Card className="flex items-center gap-4 border-gold/30">
         <span className="flex size-16 items-center justify-center rounded-2xl bg-gold/15 text-gold">
           <Icon name="star" size={32} />
         </span>
         <div>
           <p className="font-mono text-4xl font-bold text-chalk">{data.points}</p>
-          <p className="text-sm text-fog">{data.rank ? `الترتيب ${data.rank} من ${data.of}${data.group ? ` · ${data.group}` : ""}` : "نقطة"}</p>
+          <p className="text-sm text-fog">
+            {data.rank ? `الترتيب ${data.rank} من ${data.of}${data.group ? ` · ${data.group}` : ""}` : "نقطة"}
+          </p>
         </div>
       </Card>
       <div className="mt-3 grid grid-cols-4 gap-2">
@@ -105,22 +118,21 @@ export function MyPoints() {
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-chalk">
-              {data.streak.current ? `${data.streak.current} سيشن ورا بعض` : "ابدأ سلسلة حضور من السيشن الجاية"}
+              {data.streak.current
+                ? `${data.streak.current} سيشن ورا بعض`
+                : "ابدأ سلسلة حضور من السيشن الجاية"}
             </p>
             <p className="text-xs text-fog">
-              أطول سلسلة ليك: {data.streak.best} · {data.streak.best >= 5 ? "خدت وسام «نار» 🔥" : `فاضلك ${5 - data.streak.best} عشان وسام «نار»`}
+              أطول سلسلة ليك: {data.streak.best} ·{" "}
+              {data.streak.best >= 3
+                ? "سلسلة الحضور بتديك شارة كمان"
+                : `فاضلك ${3 - data.streak.best} عشان أول شارة سلسلة`}
             </p>
           </div>
         </Card>
       )}
 
-      <Section title={`الأوسمة (${data.badges.length} من ${Object.keys(BADGES).length})`}>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-          {Object.keys(BADGES).map((k) => (
-            <Badge_ key={k} k={k} dim={!data.badges.includes(k)} />
-          ))}
-        </div>
-      </Section>
+      <MyAchievements />
 
       {data.top.length > 1 && (
         <Section title="أعلى 10 في مجموعتك">
@@ -128,7 +140,11 @@ export function MyPoints() {
             {data.top.map((t, i) => (
               <Row key={`${t.name}-${i}`} chevron={false} className={cn(t.me && "bg-volt/10")}>
                 <div className="flex items-center gap-3">
-                  <span className={cn("w-7 text-center font-mono font-bold", i < 3 ? "text-gold" : "text-fog")}>{i + 1}</span>
+                  <span
+                    className={cn("w-7 text-center font-mono font-bold", i < 3 ? "text-gold" : "text-fog")}
+                  >
+                    {i + 1}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-chalk">
                     <bdi>{t.name}</bdi>
                     {t.me && " (انت)"}
@@ -144,14 +160,29 @@ export function MyPoints() {
   );
 }
 
-type Line = { id: string; name: string; group: string; points: number; attended: number; quizzes: number; perfect: number; certs: number; events: number; bonus: number; badges: string[] };
+type Line = {
+  id: string;
+  name: string;
+  group: string;
+  points: number;
+  attended: number;
+  quizzes: number;
+  perfect: number;
+  certs: number;
+  events: number;
+  bonus: number;
+  badges: string[];
+};
 
 /** /staff/leaderboard */
 export function LeaderboardScreen() {
   const students = useStudents();
   const groups = useMemo(() => groupsOf(students.list), [students.list]);
   const [group, setGroup] = useState("");
-  const { data, error, loading, reload } = useAsync(() => rpc<Line[]>("staff_leaderboard", { p_group: group || null }), [group]);
+  const { data, error, loading, reload } = useAsync(
+    () => rpc<Line[]>("staff_leaderboard", { p_group: group || null }),
+    [group],
+  );
   const [giving, setGiving] = useState<Line | null>(null);
 
   return (
@@ -175,13 +206,19 @@ export function LeaderboardScreen() {
       ) : error ? (
         <ErrorBox error={error} retry={reload} />
       ) : !data?.length ? (
-        <Empty icon="star" title="لسه مفيش طلاب" body="النقاط بتتحسب لوحدها من الحضور والكويزات والشهادات والفعاليات." />
+        <Empty
+          icon="star"
+          title="لسه مفيش طلاب"
+          body="النقاط بتتحسب لوحدها من الحضور والكويزات والشهادات والفعاليات."
+        />
       ) : (
         <List className="mt-3">
           {data.map((l, i) => (
             <Row key={l.id} onClick={() => setGiving(l)}>
               <div className="flex items-center gap-3">
-                <span className={cn("w-7 text-center font-mono font-bold", i < 3 ? "text-gold" : "text-fog")}>{i + 1}</span>
+                <span className={cn("w-7 text-center font-mono font-bold", i < 3 ? "text-gold" : "text-fog")}>
+                  {i + 1}
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold text-chalk">
                     <bdi>{l.name}</bdi>
@@ -193,7 +230,12 @@ export function LeaderboardScreen() {
                   {l.badges.length > 0 && (
                     <p className="mt-1 flex flex-wrap gap-1">
                       {l.badges.map((b) => (
-                        <span key={b} title={BADGES[b]?.ar} className="flex size-5 items-center justify-center rounded-full" style={{ background: `${BADGES[b]?.color}22`, color: BADGES[b]?.color }}>
+                        <span
+                          key={b}
+                          title={BADGES[b]?.ar}
+                          className="flex size-5 items-center justify-center rounded-full"
+                          style={{ background: `${BADGES[b]?.color}22`, color: BADGES[b]?.color }}
+                        >
                           <Icon name={BADGES[b]?.icon ?? "star"} size={12} />
                         </span>
                       ))}
@@ -228,7 +270,10 @@ function BonusSheet({ line, onClose, onDone }: { line: Line; onClose: () => void
     if (reason.trim().length < 2) return toast("اكتب السبب (بيظهر في سجل الحركات)", "error");
     setBusy(true);
     try {
-      await sb().from("student_bonus").insert({ student_id: line.id, points, reason: reason.trim() }).then(must);
+      await sb()
+        .from("student_bonus")
+        .insert({ student_id: line.id, points, reason: reason.trim() })
+        .then(must);
       toast(`${points > 0 ? "+" : ""}${points} لـ ${line.name}`);
       onDone();
     } catch (e) {
@@ -258,12 +303,21 @@ function BonusSheet({ line, onClose, onDone }: { line: Line; onClose: () => void
   );
 }
 
-type Hof = { show: boolean; count: number; star: { student_id: string; reason_ar: string; reason_en: string; month: string } | null };
+type Hof = {
+  show: boolean;
+  count: number;
+  star: { student_id: string; reason_ar: string; reason_en: string; month: string } | null;
+};
 
 /** The website's hall of fame: show the top students, and pick a member of the month. */
 function HallOfFameCard({ lines }: { lines: Line[] }) {
   const { data, set } = useAsync(async () => {
-    const r = (await sb().from("site_settings").select("value").eq("key", "hall_of_fame").maybeSingle().then(must)) as { value: Partial<Hof> } | null;
+    const r = (await sb()
+      .from("site_settings")
+      .select("value")
+      .eq("key", "hall_of_fame")
+      .maybeSingle()
+      .then(must)) as { value: Partial<Hof> } | null;
     return { show: false, count: 10, star: null, ...(r?.value ?? {}) } as Hof;
   }, []);
   const [busy, setBusy] = useState(false);
@@ -292,20 +346,49 @@ function HallOfFameCard({ lines }: { lines: Line[] }) {
         </Button>
       </div>
       <p className="text-sm text-mist">
-        {data.show ? `الموقع بيعرض أعلى ${data.count} (الاسم الأول + أول حرف من التاني بس)` : "الترتيب مش ظاهر على الموقع"}
+        {data.show
+          ? `الموقع بيعرض أعلى ${data.count} (الاسم الأول + أول حرف من التاني بس)`
+          : "الترتيب مش ظاهر على الموقع"}
         {star ? ` · نجم الشهر: ${starName}` : ""}
       </p>
       {open && (
         <>
-          <Toggle checked={data.show} disabled={busy} onChange={(v) => save({ ...data, show: v }, v ? "الترتيب ظاهر على الموقع" : "الترتيب اتخفى")} label="اعرض أعلى الطلاب على الموقع" hint="الأسماء بتظهر مختصرة، ومن غير أرقام أو بيانات تانية." />
+          <Toggle
+            checked={data.show}
+            disabled={busy}
+            onChange={(v) => save({ ...data, show: v }, v ? "الترتيب ظاهر على الموقع" : "الترتيب اتخفى")}
+            label="اعرض أعلى الطلاب على الموقع"
+            hint="الأسماء بتظهر مختصرة، ومن غير أرقام أو بيانات تانية."
+          />
           <Field label="العدد">
-            <Input type="number" min={3} max={20} value={data.count} onChange={(e) => set({ ...data, count: Math.min(20, Math.max(3, Number(e.target.value) || 10)) })} onBlur={() => save(data)} />
+            <Input
+              type="number"
+              min={3}
+              max={20}
+              value={data.count}
+              onChange={(e) =>
+                set({ ...data, count: Math.min(20, Math.max(3, Number(e.target.value) || 10)) })
+              }
+              onBlur={() => save(data)}
+            />
           </Field>
           <Field label="نجم الشهر" hint="بيظهر في كارت لوحده على الصفحة الرئيسية، باسمه الأول والتاني.">
             <select
               className="h-11 w-full rounded-xl border border-[var(--line-2)] bg-void/60 px-3 text-chalk"
               value={star?.student_id ?? ""}
-              onChange={(e) => set({ ...data, star: e.target.value ? { student_id: e.target.value, reason_ar: star?.reason_ar ?? "", reason_en: star?.reason_en ?? "", month: star?.month ?? new Date().toISOString().slice(0, 7) } : null })}
+              onChange={(e) =>
+                set({
+                  ...data,
+                  star: e.target.value
+                    ? {
+                        student_id: e.target.value,
+                        reason_ar: star?.reason_ar ?? "",
+                        reason_en: star?.reason_en ?? "",
+                        month: star?.month ?? new Date().toISOString().slice(0, 7),
+                      }
+                    : null,
+                })
+              }
             >
               <option value="">— مفيش —</option>
               {lines.map((l) => (
@@ -318,13 +401,27 @@ function HallOfFameCard({ lines }: { lines: Line[] }) {
           {star && (
             <>
               <Field label="ليه؟ (عربي)">
-                <Input maxLength={200} value={star.reason_ar} placeholder="مثلاً: حضر كل الجلسات وقاد فريق السومو في التحدي" onChange={(e) => set({ ...data, star: { ...star, reason_ar: e.target.value } })} />
+                <Input
+                  maxLength={200}
+                  value={star.reason_ar}
+                  placeholder="مثلاً: حضر كل الجلسات وقاد فريق السومو في التحدي"
+                  onChange={(e) => set({ ...data, star: { ...star, reason_ar: e.target.value } })}
+                />
               </Field>
               <Field label="Why? (English)">
-                <Input dir="ltr" maxLength={200} value={star.reason_en} onChange={(e) => set({ ...data, star: { ...star, reason_en: e.target.value } })} />
+                <Input
+                  dir="ltr"
+                  maxLength={200}
+                  value={star.reason_en}
+                  onChange={(e) => set({ ...data, star: { ...star, reason_en: e.target.value } })}
+                />
               </Field>
               <Field label="الشهر">
-                <Input type="month" value={star.month} onChange={(e) => set({ ...data, star: { ...star, month: e.target.value } })} />
+                <Input
+                  type="month"
+                  value={star.month}
+                  onChange={(e) => set({ ...data, star: { ...star, month: e.target.value } })}
+                />
               </Field>
             </>
           )}
@@ -337,9 +434,14 @@ function HallOfFameCard({ lines }: { lines: Line[] }) {
   );
 }
 
-
 type Weekly = {
-  quiz: { id: string; title: string; opensAt: string | null; endsAt: string; state: "upcoming" | "open" | "done" };
+  quiz: {
+    id: string;
+    title: string;
+    opensAt: string | null;
+    endsAt: string;
+    state: "upcoming" | "open" | "done";
+  };
   top: { rank: number; name: string; score: number; max: number; seconds: number; me: boolean }[];
   me: { rank: number; score: number; max: number } | null;
   players: number;
@@ -360,11 +462,18 @@ export function WeeklyContestCard() {
           <p className="text-xs font-semibold text-gold">مسابقة الأسبوع</p>
           <p className="truncate font-bold text-chalk">{quiz.title}</p>
           <p className="text-xs text-fog">
-            {quiz.state === "upcoming" && quiz.opensAt ? `تبدأ ${fmt.dateTime(quiz.opensAt)}` : quiz.state === "open" ? `لحد ${fmt.dateTime(quiz.endsAt)} · ${players} مشترك` : `خلصت · ${players} مشترك`}
+            {quiz.state === "upcoming" && quiz.opensAt
+              ? `تبدأ ${fmt.dateTime(quiz.opensAt)}`
+              : quiz.state === "open"
+                ? `لحد ${fmt.dateTime(quiz.endsAt)} · ${players} مشترك`
+                : `خلصت · ${players} مشترك`}
           </p>
         </div>
         {quiz.state === "open" && !me && (
-          <a href={`#/me/quiz/${quiz.id}`} className="rounded-xl bg-gold px-3 py-2 text-sm font-bold text-abyss">
+          <a
+            href={`#/me/quiz/${quiz.id}`}
+            className="rounded-xl bg-gold px-3 py-2 text-sm font-bold text-abyss"
+          >
             ادخل
           </a>
         )}
@@ -372,7 +481,13 @@ export function WeeklyContestCard() {
       {!!top.length && (
         <ol className="mt-3 grid gap-1">
           {top.slice(0, 3).map((t) => (
-            <li key={t.rank} className={cn("flex items-center gap-2 rounded-lg px-2 py-1 text-sm", t.me && "bg-white/[0.06]")}>
+            <li
+              key={t.rank}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-2 py-1 text-sm",
+                t.me && "bg-white/[0.06]",
+              )}
+            >
               <span aria-hidden>{["🥇", "🥈", "🥉"][t.rank - 1]}</span>
               <span className="min-w-0 flex-1 truncate text-chalk">{t.name}</span>
               <span className="font-mono text-xs text-fog" dir="ltr">
@@ -382,8 +497,14 @@ export function WeeklyContestCard() {
           ))}
         </ol>
       )}
-      {me && me.rank > 3 && <p className="mt-2 text-xs text-mist">ترتيبك: {me.rank} من {players}</p>}
-      <p className="mt-2 text-[11px] text-fog">أول محاولة بس بتتحسب: الأعلى درجة ثم الأسرع. الأوائل: 30 و20 و10 نقطة.</p>
+      {me && me.rank > 3 && (
+        <p className="mt-2 text-xs text-mist">
+          ترتيبك: {me.rank} من {players}
+        </p>
+      )}
+      <p className="mt-2 text-[11px] text-fog">
+        أول محاولة بس بتتحسب: الأعلى درجة ثم الأسرع. الأوائل: 30 و20 و10 نقطة.
+      </p>
     </Card>
   );
 }
