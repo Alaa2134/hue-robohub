@@ -73,3 +73,39 @@ test("start here: the visitor says who they are and gets their pages, remembered
     "/app/",
   );
 });
+
+test("achievements in numbers from the records, and a map pin for every known place", async ({ page }) => {
+  await page.route(/supabase\.co/, (route) =>
+    route.request().url().includes("/rpc/achievements_stats")
+      ? route.fulfill({
+          json: {
+            achievements: 10,
+            podiums: 10,
+            events: 2,
+            attendees: 66,
+            members: 14,
+            projects: 0,
+            certificates: 0,
+            places: [
+              { name: "جامعة حورس", name_en: "Horus University", n: 2 },
+              {
+                name: "جامعة القاهرة الجديدة التكنولوجية",
+                name_en: "New Cairo Technological University",
+                n: 1,
+              },
+              { name: "مكان مش معروف", name_en: null, n: 1 },
+            ],
+          },
+        })
+      : route.fulfill({ json: [] }),
+  );
+  await page.goto("/ar/achievements/");
+  const box = page.getByTestId("achievements-impact");
+  await expect(box).toContainText("حضروا فعالياتنا");
+  await expect(box).toContainText("٦٦");
+  // Zero counts are left out rather than shown as nothing.
+  await expect(box).not.toContainText("شهادة اتصدرت");
+  await expect(box.getByTestId("map-pin")).toHaveCount(2);
+  await expect(box.getByTestId("places-map")).toContainText("دمياط الجديدة");
+  await expect(box.getByTestId("places-list")).toContainText("مكان مش معروف");
+});
