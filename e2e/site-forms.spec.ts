@@ -1029,6 +1029,61 @@ test("the expo form takes members only: a wrong membership number is refused, no
   await expect(page.getByText("عليك حظر من التسجيل في فعاليات BuildX HUE")).toBeVisible();
 });
 
+test("a member who forgot their membership number gets it from their registered mobile, filled in for them", async ({
+  page,
+}) => {
+  const form = {
+    ...EXPO_FORM,
+    fields: [
+      EXPO_FORM.fields[0],
+      EXPO_FORM.fields[2],
+      { id: "code", type: "member", label_ar: "رقم عضويتك في كميونيتي BuildX HUE", required: true },
+    ],
+  };
+  const calls = await mockSupabase(page, {
+    rpc: {
+      public_form: () => form,
+      form_member: (b) =>
+        b.p_phone === "01011112222"
+          ? { ok: true, found: true, state: "ok", name: "منى عادل", code: "2024007" }
+          : b.p_phone === "01099998888"
+            ? { ok: true, found: true, state: "expired", name: "كريم سامي", until: "2026-09-30" }
+            : { ok: true, found: false },
+      submit_form: () => ({ ok: true, ref: "F-1A2B3C4D" }),
+    },
+  });
+  await page.goto("/ar/robotex/");
+  const box = page.getByLabel("رقم عضويتك في كميونيتي BuildX HUE");
+  await expect(box).toHaveAttribute("placeholder", "رقم عضويتك أو موبايلك المسجّل");
+  await page.getByRole("button", { name: "مش فاكر رقم عضويتك؟" }).click();
+  const phone = page.getByRole("textbox", { name: "مش فاكر رقم عضويتك؟" });
+  // Not a member's number: says so and what to do.
+  await phone.fill("01000000000");
+  await page.getByRole("button", { name: "هات رقمي" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "مش لاقيين عضو بالموبايل ده" })).toBeVisible();
+  // An expired membership: no number, renew first.
+  await phone.fill("01099998888");
+  await page.getByRole("button", { name: "هات رقمي" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "عضويتك خلصت يوم 30/09/2026" })).toBeVisible();
+  await expect(box).toHaveValue("");
+  // Found: the number is shown and filled in.
+  await phone.fill("٠١٠١١١١٢٢٢٢");
+  await page.getByRole("button", { name: "هات رقمي" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "رقم عضويتك 2024007" })).toBeVisible();
+  await expect(box).toHaveValue("2024007");
+  expect(calls.filter((c) => c.fn === "form_member").at(-1)!.body).toMatchObject({
+    p_slug: form.slug,
+    p_phone: "01011112222",
+  });
+
+  await page.getByLabel("الاسم بالكامل (بالعربي)").fill("منى عادل");
+  await page.getByLabel("رقم الموبايل (واتساب)").fill("01011112222");
+  await page.getByRole("button", { name: "ابعت" }).click();
+  await expect
+    .poll(() => calls.find((c) => c.fn === "submit_form")?.body)
+    .toMatchObject({ p_answers: { code: "2024007" } });
+});
+
 test("a page built in the app: /p/<slug> opens it, with its parts in the team's order", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
