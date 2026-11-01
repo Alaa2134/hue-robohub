@@ -8897,6 +8897,31 @@ test("photos in the frame: wide ones fill it, tall and square ones sit whole; a 
   expect(look).toMatchObject({ w: 1672, h: 941 });
   expect(look.b).toBeGreaterThan(180);
   expect(look.r).toBeLessThan(80);
+
+  // The second frame (HUE × Horus University): picked once, redrawn, and remembered on this device.
+  await expect(page.getByTestId("frame-classic")).toHaveAttribute("aria-checked", "true");
+  const before = await previews.nth(0).locator("img").getAttribute("src");
+  await page.getByTestId("frame-hue").click();
+  await expect(page.getByTestId("frame-hue")).toHaveAttribute("aria-checked", "true");
+  await expect(previews.nth(0).locator("img")).not.toHaveAttribute("src", before ?? "");
+  const hue = await previews
+    .nth(0)
+    .locator("img")
+    .evaluate(async (img: HTMLImageElement) => {
+      await img.decode();
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const x = c.getContext("2d")!;
+      x.drawImage(img, 0, 0);
+      const [r, g, b] = x.getImageData(1435, 50, 1, 1).data;
+      return { w: img.naturalWidth, h: img.naturalHeight, r, g, b };
+    });
+  expect(hue).toMatchObject({ w: 1672, h: 941 });
+  // The white «Horus University» lettering at the top right (the classic frame is blue there).
+  expect(hue.r).toBeGreaterThan(200);
+  expect(hue.g).toBeGreaterThan(200);
+  expect(await page.evaluate(() => localStorage.getItem("bx-photo-frame"))).toBe("hue");
   if (process.env.FRAME_SHOT)
     for (let i = 0; i < 3; i++)
       await previews

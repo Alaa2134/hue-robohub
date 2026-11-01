@@ -5,8 +5,21 @@
  * sharpness). Pure functions on RGBA pixels, so they run the same in the browser and in tests.
  */
 
-/** The frame image (public/brand/photo-frame.webp) and the window inside it where the photo shows. */
-export const FRAME = { w: 1672, h: 941, hole: { x: 32, y: 57, w: 1608, h: 837 } } as const;
+type FrameRect = { x: number; y: number; w: number; h: number };
+export type FrameSpec = { key: string; src: string; w: number; h: number; hole: FrameRect; safe: FrameRect };
+
+/**
+ * The frames to pick from: the image (transparent where the photo shows), the window the photo fills,
+ * and the safe part of it nothing covers (a whole photo sits there, clear of logos and bars).
+ */
+export const FRAMES: Record<"classic" | "hue", FrameSpec> = {
+  classic: { key: "classic", src: "/brand/photo-frame.webp", w: 1672, h: 941, hole: { x: 32, y: 57, w: 1608, h: 837 }, safe: { x: 32, y: 57, w: 1608, h: 837 } },
+  // public/brand/photo-frame-hue.webp: BuildX HUE × Horus University, logos at the top, links at the bottom.
+  hue: { key: "hue", src: "/brand/photo-frame-hue.webp", w: 1672, h: 941, hole: { x: 30, y: 19, w: 1611, h: 870 }, safe: { x: 48, y: 128, w: 1576, h: 712 } },
+};
+export type FrameKey = keyof typeof FRAMES;
+/** The first frame (kept for older callers). */
+export const FRAME = FRAMES.classic;
 
 export type Rect = { x: number; y: number; w: number; h: number };
 
