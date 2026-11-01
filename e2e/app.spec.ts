@@ -122,8 +122,14 @@ test("home warns the owner about an attack and the security screen blocks an add
   await signInAsOwner(page, calls);
   await page.goto("/app/#/staff");
   await expect(page.getByText("هجوم محتمل دلوقتي")).toBeVisible();
+  RPC.staff_uptime_times = { median: 900, p90: 5200, slow: 4, checks: 140 };
   await page.goto("/app/#/staff/security");
   await expect(page.getByText("203.0.113.9").first()).toBeVisible();
+  // How fast the site answered (timed every 10 minutes).
+  await expect(page.getByTestId("speed-card")).toContainText(
+    "عادةً 0.9 ث، وأبطأ مرات 5.2 ث · 4 فحص بطيء من 140",
+  );
+  delete RPC.staff_uptime_times;
   await page.getByRole("button", { name: "احظر" }).first().click();
   await page.locator('[role="dialog"] button', { hasText: "احظر" }).last().click();
   await expect
