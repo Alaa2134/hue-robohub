@@ -20,7 +20,9 @@ const PORT = 4179;
 const BASE = `http://localhost:${PORT}`;
 const OUT = path.join(root, "public/guides");
 const VIEW = { width: 390, height: 844 };
-const SIZE = { width: 720, height: 1558 };
+// Recorded at the screen's own size (a bigger recording size doesn't zoom the page: it sits in the
+// corner on a grey canvas), then scaled up to 720 wide.
+const SIZE = VIEW;
 const at = (min) => new Date(Date.now() - min * 60_000).toISOString();
 const soon = (h) => new Date(Date.now() + h * 3600_000).toISOString();
 
@@ -301,7 +303,7 @@ try {
     await context.close();
     const webm = path.join(dir, readdirSync(dir).find((f) => f.endsWith(".webm")));
     const mp4 = path.join(OUT, `${name}.mp4`);
-    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", webm, "-vf", "scale=720:-2,fps=24", "-c:v", "libx264", "-preset", "slow", "-crf", "28", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", `${mp4}.tmp.mp4`]);
+    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", webm, "-vf", "scale=720:-2:flags=lanczos,fps=24", "-c:v", "libx264", "-preset", "slow", "-crf", "24", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", `${mp4}.tmp.mp4`]);
     renameSync(`${mp4}.tmp.mp4`, mp4);
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-ss", String(chapters[name][2]?.t ?? 3), "-i", mp4, "-frames:v", "1", "-q:v", "5", path.join(OUT, `${name}.jpg`)]);
     console.log(`[guides] ${name}: ${mp4}`);
