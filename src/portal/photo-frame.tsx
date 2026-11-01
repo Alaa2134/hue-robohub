@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { BASE_PATH } from "@/lib/deploy";
-import { FRAME, applyTone, bestCrop, fitMode, look, measureTone, pickBest, saliency, sharpen, type Look, type Verdict } from "@/lib/photo-frame";
+import { FRAMES, applyTone, bestCrop, fitMode, look, measureTone, pickBest, saliency, sharpen, type FrameKey, type Look, type Verdict } from "@/lib/photo-frame";
 import { batches } from "@/lib/share-files";
 import { zipStore } from "@/lib/zip-store";
 import { publicImageUrl } from "@/lib/site-content";
@@ -22,25 +22,29 @@ import { Button, Card, Chip, Field, Icon, Input, Textarea, Toggle, TopBar, toast
 const MAX = 500;
 const PARALLEL = 2;
 type Mode = "auto" | "fill" | "fit";
-type Opts = { mode: Mode; enhance: boolean };
+type Opts = { mode: Mode; enhance: boolean; frame: FrameKey };
 
-let frameImg: Promise<HTMLImageElement> | null = null;
-const loadFrame = () =>
-  (frameImg ??= new Promise((ok, fail) => {
+const frameImgs: Partial<Record<FrameKey, Promise<HTMLImageElement>>> = {};
+const loadFrame = (key: FrameKey) =>
+  (frameImgs[key] ??= new Promise((ok, fail) => {
     const img = new Image();
     img.onload = () => ok(img);
     img.onerror = () => {
-      frameImg = null;
+      delete frameImgs[key];
       fail(new Error("frame"));
     };
-    img.src = `${BASE_PATH}/brand/photo-frame.webp`;
+    img.src = `${BASE_PATH}${FRAMES[key].src}`;
   }));
+
+/** The frames' names (here so the app's English list keeps them). */
+const FRAME_NAMES: Record<FrameKey, string> = { classic: "إطار BuildX", hue: "إطار HUE × جامعة حورس" };
 
 const blobOf = (c: HTMLCanvasElement, type: string, q: number) => new Promise<Blob | null>((ok) => c.toBlob(ok, type, q));
 
 /** One photo in the frame: a canvas the size of the frame, ready to encode. */
 export async function frameCanvas(file: Blob, o: Opts): Promise<{ canvas: HTMLCanvasElement; mode: "fill" | "fit" }> {
-  const [frame, bmp] = await Promise.all([loadFrame(), createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => createImageBitmap(file))]);
+  const FRAME = FRAMES[o.frame] ?? FRAMES.classic;
+  const [frame, bmp] = await Promise.all([loadFrame(FRAME.key as FrameKey), createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => createImageBitmap(file))]);
   try {
     const W = bmp.width,
       H = bmp.height;
@@ -78,8 +82,10 @@ export async function frameCanvas(file: Blob, o: Opts): Promise<{ canvas: HTMLCa
       ctx.drawImage(tiny, h.x, h.y, h.w, h.h);
       ctx.fillStyle = "rgba(5, 11, 29, 0.45)";
       ctx.fillRect(h.x, h.y, h.w, h.h);
-      const k = Math.min((FRAME.hole.w * 0.96) / W, (FRAME.hole.h * 0.94) / H);
-      ctx.drawImage(bmp, FRAME.hole.x + (FRAME.hole.w - W * k) / 2, FRAME.hole.y + (FRAME.hole.h - H * k) / 2, W * k, H * k);
+      // The whole photo sits in the part of the window nothing covers (clear of logos and bars).
+      const S = FRAME.safe;
+      const k = Math.min((S.w * 0.96) / W, (S.h * 0.94) / H);
+      ctx.drawImage(bmp, S.x + (S.w - W * k) / 2, S.y + (S.h - H * k) / 2, W * k, H * k);
     }
     if (o.enhance) {
       const img = ctx.getImageData(h.x, h.y, h.w, h.h);
@@ -124,7 +130,24 @@ const baseName = (f: File) => f.name.replace(/\.[^.]+$/, "").replace(/[\\/:*?"<>
 export function PhotoFrameScreen({ me }: { me: StaffRow }) {
   const admin = can(me, "publish");
   const [files, setFiles] = useState<File[]>([]);
-  const [opts, setOpts] = useState<Opts>({ mode: "auto", enhance: true });
+  const [opts, setOpts] = useState<Opts>(() => {
+    let frame: FrameKey = "classic";
+    try {
+      const v = localStorage.getItem("bx-photo-frame");
+      if (v && v in FRAMES) frame = v as FrameKey;
+    } catch {
+      /* the first frame */
+    }
+    return { mode: "auto", enhance: true, frame };
+  });
+  const pickFrame = (frame: FrameKey) => {
+    setOpts((o) => ({ ...o, frame }));
+    try {
+      localStorage.setItem("bx-photo-frame", frame);
+    } catch {
+      /* not remembered */
+    }
+  };
   const [previews, setPreviews] = useState<{ url: string; mode: string }[]>([]);
   const [album, setAlbum] = useState("");
   const [publish, setPublish] = useState(admin);
@@ -240,7 +263,7 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
       const r = await run("upload", async (_f, i, canvas) => {
         const b = await blobOf(canvas, "image/jpeg", 0.92);
         if (!b) throw new Error("encode");
-        const up = await uploadImage("site", me.user_id, b, { maxEdge: FRAME.w });
+        const up = await uploadImage("site", me.user_id, b, { maxEdge: FRAMES[opts.frame].w });
         uploaded.push({ path: up.path, i });
         await flush();
         return up.after;
@@ -331,6 +354,22 @@ export function PhotoFrameScreen({ me }: { me: StaffRow }) {
         </label>
 
         <Card className="grid gap-3">
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="الإطار" data-testid="frame-choice">
+            {(Object.keys(FRAMES) as FrameKey[]).map((k) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={opts.frame === k}
+                onClick={() => pickFrame(k)}
+                data-testid={`frame-${k}`}
+                className={`grid gap-1.5 rounded-xl border p-2 text-start transition ${opts.frame === k ? "border-volt bg-volt/10 ring-1 ring-volt/60" : "border-[var(--line)] hover:border-[var(--line-2)]"}`}
+              >
+                <img src={`${BASE_PATH}${FRAMES[k].src}`} alt="" className="aspect-[1672/941] w-full rounded-md bg-[#121a30] object-contain" />
+                <span className="text-xs font-semibold text-chalk">{FRAME_NAMES[k]}</span>
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-2">
             {(
               [
