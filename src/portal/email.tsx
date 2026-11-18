@@ -81,6 +81,16 @@ const emailError = (e: unknown) => ERRORS[(e as { message?: string })?.message ?
 
 /** What each automatic email is, and the {…} it can use. */
 export const AUTO: Record<string, { label: string; when: string; vars: string }> = {
+  form_received: { label: "طلب فورم وصل", when: "عند إرسال الفورم", vars: "{name} {event} {ref} {status_url}" },
+  form_accepted: { label: "تم قبول الفورم", when: "عند تغيير حالة الطلب", vars: "{name} {event} {ref} {date} {status_url} {pass_url}" },
+  form_waitlist: { label: "الانتظار في الفورم", when: "عند تغيير حالة الطلب", vars: "{name} {event} {status_url}" },
+  form_rejected: { label: "تم رفض الفورم", when: "عند تغيير حالة الطلب", vars: "{name} {event} {status_url}" },
+  event_reminder: { label: "تذكير بالفعالية", when: "قبل الموعد بيوم تقريبًا", vars: "{name} {event} {date} {ticket_url}" },
+  form_session_reminder: { label: "تذكير بالسيشن", when: "قبل الموعد بيوم تقريبًا", vars: "{name} {event} {date} {pass_url}" },
+  form_unpaid: { label: "تذكير بالدفع", when: "بعد قبول الطلب", vars: "{name} {event} {amount} {how} {ref} {status_url}" },
+  application_interview_reminder: { label: "تذكير بالمقابلة", when: "قبل الموعد بيوم تقريبًا", vars: "{name} {date} {status_url}" },
+  application_next_steps: { label: "الخطوات القادمة", when: "بعد قبول الطلب", vars: "{name} {status_url}" },
+  membership_expiring: { label: "تذكير بتجديد العضوية", when: "قبل انتهاء العضوية بأسبوع", vars: "{name} {date}" },
   application_received: {
     label: "طلب انضمام وصل",
     when: "أول ما حد يقدّم على الموقع",
@@ -642,7 +652,10 @@ export function EmailPreview({
       </div>
       <div className="overflow-hidden rounded-2xl bg-white text-[#14213d]">
         <div className="bg-[#081634] px-5 py-3 text-lg font-bold text-white" dir="ltr">
-          <div className="flex items-center gap-3"><img src="/brand/logo-badge-160.png" width={52} height={52} alt="BuildX HUE" /><span>BuildX <span className="text-[#38dcff]">HUE</span><span className="block text-xs font-normal text-[#b6c9e5]">Horus University · Robotics, Embedded Systems &amp; AI</span></span></div>
+          <div className="flex items-center gap-3">{/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-badge-160.png" width={52} height={52} alt="BuildX HUE" /><span>BuildX <span className="text-[#38dcff]">HUE</span><span className="block text-xs font-normal text-[#b6c9e5]">Horus University · Robotics, Embedded Systems &amp; AI</span></span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/hue-logo.png" width={48} height={48} className="ml-auto rounded bg-white object-contain p-1" alt="Horus University" /></div>
         </div>
         <div className="whitespace-pre-wrap break-words px-5 py-5 text-[15px] leading-loose" dir="rtl">
           {parts.map((p, i) =>
@@ -681,6 +694,9 @@ const SAMPLE: Record<string, string> = {
   event: "ورشة الأردوينو",
   date: "2026-11-02 18:00",
   place: "جامعة حورس، مبنى الهندسة",
+  amount: "100",
+  how: "Bank transfer",
+  pass_url: "https://buildxhue.com/ar/form/?pass=example",
   ticket: "BXT-1A2B3C4D",
   ticket_url: "https://buildxhue.com/ar/ticket/?t=BXT-1A2B3C4D",
 };
