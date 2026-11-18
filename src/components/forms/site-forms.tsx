@@ -45,8 +45,17 @@ const C = {
     badNumber: "اكتب رقم.",
     badDate: "اختار تاريخ.",
     badOption: "اختار من الاختيارات.",
-    badMember: "رقم العضوية ده مش موجود أو العضوية مش مفعّلة. اتأكد من الرقم اللي على كارنيه BuildX.",
-    memberPh: "مثلاً 2024001",
+    badMember: "رقم العضوية ده مش موجود أو العضوية مش مفعّلة. لو مش فاكره، دوس «مش فاكر رقم عضويتك؟» تحت الخانة.",
+    memberPh: "رقم عضويتك أو موبايلك المسجّل",
+    memberForgot: "مش فاكر رقم عضويتك؟",
+    memberHow: "اكتب رقم الموبايل اللي سجّلت بيه في BuildX، وهنجيبلك رقمك. (وتلاقيه كمان في تطبيق BuildX في «حسابي».)",
+    memberPhonePh: "01xxxxxxxxx",
+    memberFind: "هات رقمي",
+    memberHit: (n: string, c: string) => `لقيناك يا ${n} 👋 رقم عضويتك ${c}، كتبناه لك في الخانة. احفظه للمرة الجاية.`,
+    memberExpired: (n: string, d: string) => `لقيناك يا ${n}، بس عضويتك خلصت${d ? ` يوم ${d}` : ""}. كلّم الفريق يجددوها وبعدين قدّم.`,
+    memberStopped: (n: string) => `لقيناك يا ${n}، بس عضويتك متوقفة دلوقتي. كلّم الفريق.`,
+    memberNone: "مش لاقيين عضو بالموبايل ده. جرّب الرقم التاني لو عندك، أو كلّم الفريق يقولولك رقمك.",
+    memberBusy: "جرّبت كتير، استنى شوية وجرّب تاني.",
     notMember: "مش عضو في الكميونيتي؟",
     askInterview: "اطلب انترفيو مع منظم الموقع",
     tooLong: "الكلام طويل زيادة.",
@@ -188,8 +197,17 @@ const C = {
     badNumber: "Enter a number.",
     badDate: "Pick a date.",
     badOption: "Pick one of the options.",
-    badMember: "That membership number doesn't exist or isn't active. Check the number on your BuildX card.",
-    memberPh: "e.g. 2024001",
+    badMember: "That membership number doesn't exist or isn't active. Don't remember it? Tap «Forgot your membership number?» under the box.",
+    memberPh: "Your membership number or registered mobile",
+    memberForgot: "Forgot your membership number?",
+    memberHow: "Type the mobile number you registered with at BuildX and we'll get your number. (It's also in the BuildX app under «Account».)",
+    memberPhonePh: "01xxxxxxxxx",
+    memberFind: "Get my number",
+    memberHit: (n: string, c: string) => `Found you, ${n} 👋 Your membership number is ${c}; we filled it in. Keep it for next time.`,
+    memberExpired: (n: string, d: string) => `Found you, ${n}, but your membership ended${d ? ` on ${d}` : ""}. Ask the team to renew it, then apply.`,
+    memberStopped: (n: string) => `Found you, ${n}, but your membership is paused right now. Contact the team.`,
+    memberNone: "No member with that mobile. Try your other number if you have one, or ask the team for your number.",
+    memberBusy: "Too many tries. Wait a bit and try again.",
     notMember: "Not a community member?",
     askInterview: "Ask the organiser for an interview",
     tooLong: "That's too long.",
@@ -815,6 +833,82 @@ function Intro({ text, l }: { text: string; l: Locale }) {
 }
 
 type FriendHit = { ref: string; name: string };
+
+/**
+ * "Forgot your membership number?": the member types the mobile they registered with, the site finds
+ * them and fills their number in (shown so they can keep it). Expired or paused memberships get no
+ * number back, only what to do.
+ */
+function MemberHelp({ id, slug, locale, onFound }: { id: string; slug: string; locale: Locale; onFound: (code: string) => void }) {
+  const t = C[locale];
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const find = async () => {
+    const v = asciiDigits(q).trim();
+    if (v.replace(/\D/g, "").length < 10 || busy) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const out = await rpc<{ ok: boolean; found?: boolean; state?: string; name?: string; code?: string; until?: string; error?: string }>("form_member", { p_slug: slug, p_phone: v });
+      if (!out.ok) setMsg({ ok: false, text: out.error === "rate_limited" ? t.memberBusy : t.memberNone });
+      else if (!out.found) setMsg({ ok: false, text: t.memberNone });
+      else if (out.state === "ok" && out.code) {
+        onFound(out.code);
+        setMsg({ ok: true, text: t.memberHit(out.name ?? "", out.code) });
+      } else if (out.state === "expired") setMsg({ ok: false, text: t.memberExpired(out.name ?? "", out.until ? out.until.split("-").reverse().join("/") : "") });
+      else setMsg({ ok: false, text: t.memberStopped(out.name ?? "") });
+    } catch {
+      setMsg({ ok: false, text: t.memberNone });
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!open)
+    return (
+      <button type="button" className="justify-self-start text-sm font-semibold text-cyan underline-offset-4 hover:underline" onClick={() => setOpen(true)} data-testid={`member-forgot-${id}`}>
+        {t.memberForgot}
+      </button>
+    );
+  return (
+    <div className="grid gap-2 rounded-xl border border-[var(--line)] bg-volt/5 p-3" data-testid={`member-help-${id}`}>
+      <p className="text-sm text-mist">{t.memberHow}</p>
+      <div className="flex gap-2">
+        <input
+          className={cn(inputCls, "min-w-0 flex-1")}
+          aria-label={t.memberForgot}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          dir="ltr"
+          maxLength={20}
+          value={q}
+          placeholder={t.memberPhonePh}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setMsg(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void find();
+            }
+          }}
+          data-testid={`member-phone-${id}`}
+        />
+        <button type="button" className="btn btn-sm shrink-0" disabled={busy || asciiDigits(q).replace(/\D/g, "").length < 10} onClick={() => void find()} data-testid={`member-find-${id}`}>
+          {busy ? "…" : t.memberFind}
+        </button>
+      </div>
+      {msg && (
+        <p role="status" className={cn("text-sm font-semibold", msg.ok ? "text-ok" : "text-warn")} data-testid={`member-result-${id}`}>
+          {msg.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /**
  * "Coming with a friend": type their mobile or request code, see their name, confirm. The answer is
@@ -1468,6 +1562,15 @@ export function FormFiller({ locale, listHref, slug: fixed, statusHref }: { loca
                 <Row id={id} label={label} optional={opt} error={err} hint={helpOf(x, l)}>
                   <input {...aria(id, err)} className={inputCls} maxLength={40} value={s} onChange={(e) => set(x.id, e.target.value)} dir="ltr" inputMode="text" autoComplete="off" placeholder={t.memberPh} />
                 </Row>
+                <MemberHelp
+                  id={id}
+                  slug={slug}
+                  locale={l}
+                  onFound={(code) => {
+                    set(x.id, code);
+                    setErrors((e) => (e[x.id] ? { ...e, [x.id]: "" } : e));
+                  }}
+                />
                 {slug !== INTERVIEW_FORM && (
                   <p className="text-sm text-mist" data-testid="ask-interview">
                     {t.notMember}{" "}
