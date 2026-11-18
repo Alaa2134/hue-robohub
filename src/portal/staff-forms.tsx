@@ -1583,7 +1583,7 @@ export function FormResponses({ id, me, openTrip }: { id: string; me?: StaffRow;
           {me && can(me, "email") && (
             <Button size="sm" variant="primary" icon="mail" disabled={!pick.size || !data.responses.some((r) => pick.has(r.id) && r.email)}
               onClick={() => sendByEmail(data.responses.filter((r) => pick.has(r.id)), { label: `المختارين من «${data.form.title_ar}» (${pick.size})`, context: `form:${id}` })}>
-              إيميل للمختارين ({pick.size})
+              {`إيميل للمختارين (${pick.size})`}
             </Button>
           )}
           {me && can(me, "whatsapp") && (
