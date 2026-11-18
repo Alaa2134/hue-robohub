@@ -642,7 +642,7 @@ export function EmailPreview({
       </div>
       <div className="overflow-hidden rounded-2xl bg-white text-[#14213d]">
         <div className="bg-[#081634] px-5 py-3 text-lg font-bold text-white" dir="ltr">
-          BuildX <span className="text-[#38dcff]">HUE</span>
+          <div className="flex items-center gap-3"><img src="/brand/logo-badge-160.png" width={52} height={52} alt="BuildX HUE" /><span>BuildX <span className="text-[#38dcff]">HUE</span><span className="block text-xs font-normal text-[#b6c9e5]">Horus University · Robotics, Embedded Systems &amp; AI</span></span></div>
         </div>
         <div className="whitespace-pre-wrap break-words px-5 py-5 text-[15px] leading-loose" dir="rtl">
           {parts.map((p, i) =>

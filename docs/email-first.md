@@ -1,0 +1,3 @@
+# Email-first cutover
+
+Draft only. Review SQL and verify Resend sender/domain and successful test delivery before applying. Disables paid WhatsApp account/rules on activation, keeps credentials and history, no fallback. Existing application/family/contact/event emails are unchanged. Adds nine form and reminder templates, logo-based HTML and deduplication. Remaining membership, loan, feedback, schedule-change reminders and manual WhatsApp buttons need migration before full parity. Existing recipients with no email cannot receive email. No historical blanket send. Already queued provider requests cannot be recalled. No access to production database from this session; do not deploy until SQL and delivery tested.
