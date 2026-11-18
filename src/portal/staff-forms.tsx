@@ -12,6 +12,7 @@ import { SUPABASE_URL } from "@/lib/supabase-public";
 import { whatsappLink } from "@/lib/contact";
 import { can, isFull, fmt, must, removeObjects, rpc, safeName, sb, today, uid, uploadObject, type StaffRow } from "./core";
 import { sendOnWhatsApp } from "./wa-handoff";
+import { sendByEmail } from "./email-handoff";
 import { downloadXlsx } from "./xlsx";
 import { DelegationCard, DelegationSettings, ExpoRegister, MessageQueue, memberId, type Delegation } from "./expo-delegation";
 import { AttendanceSettings, PassLinkRow, attendanceProblem, passLink, statusLink, type Attendance } from "./form-attendance";
@@ -1579,6 +1580,12 @@ export function FormResponses({ id, me, openTrip }: { id: string; me?: StaffRow;
               </Button>
             </div>
           )}
+          {me && can(me, "email") && (
+            <Button size="sm" variant="primary" icon="mail" disabled={!pick.size || !data.responses.some((r) => pick.has(r.id) && r.email)}
+              onClick={() => sendByEmail(data.responses.filter((r) => pick.has(r.id)), { label: `المختارين من «${data.form.title_ar}» (${pick.size})`, context: `form:${id}` })}>
+              {`إيميل للمختارين (${pick.size})`}
+            </Button>
+          )}
           {me && can(me, "whatsapp") && (
             <Button
               size="sm"
@@ -1777,6 +1784,12 @@ export function FormResponses({ id, me, openTrip }: { id: string; me?: StaffRow;
                 </Button>
               )}
             </div>
+            {me && can(me, "email") && open.email && (
+              <Button variant="primary" icon="mail" onClick={() => sendByEmail([open], {
+                label: form.title_ar, context: `form:${open.id}`, subject: form.title_ar,
+                text: open.status === "accepted" ? acceptMessage(open) : undefined,
+              })}>{open.status === "accepted" ? "ابعت إيميل القبول" : "ابعت إيميل"}</Button>
+            )}
             {whatsappLink(open.phone) &&
               (open.status === "accepted" ? (
                 <a href={whatsappLink(open.phone, acceptMessage(open))!} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center rounded-xl bg-[#1fa855] font-semibold text-white">
