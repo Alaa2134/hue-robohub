@@ -1,0 +1,8 @@
+# Confidential complaints
+
+Public routes: /ar/complaints/ and /complaints/. Owner-only portal: /app/#/staff/complaints.
+The static site calls narrow Supabase RPCs. The table has RLS and no grants to browser roles; a random 128-bit private tracking code is stored only as a hash. Lookup returns status and public reply only. Staff list/update require active owner and existing MFA policy. Owner inbox notification is generic.
+No local drafts, public uploads, phone lookup or exports. Infrastructure security logs may still exist. Establish a neutral escalation path for reports about an owner. Decide a retention/deletion policy and review backups before launch. Attachments and independent reviewer assignment are intentionally disabled until a private-storage/reviewer policy is agreed.
+Before launch: apply the migration in the linked BuildX Supabase project (zrtfupdnfxxnguznphis), verify anonymous submission, status lookup, denied direct SELECT and rejected non-owner staff calls, plus MFA owner access. Test with synthetic data only. Run typecheck, lint and Playwright; verify deployed routes. Do not merge until migration and access tests have passed.
+
+Only the single dedicated reviewer UUID configured privately in production may read/update reports, with an active owner role and AAL2. Other owners are denied and do not receive notifications. Bind the reviewer via an authorized database operator after migration; no personal email is embedded in public source. Anonymous reports are not correlated with IP or analytics. Use the tracking code for follow-up and voluntary contact. Infrastructure rate limiting remains separate.

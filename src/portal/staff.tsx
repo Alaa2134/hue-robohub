@@ -53,6 +53,7 @@ import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
+import { ComplaintsScreen } from "./staff-complaints";
 import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
 import { FamilyScreen } from "./staff-family";
@@ -96,6 +97,7 @@ import {
   Stat,
   TopBar,
   go,
+  Loading,
   useAsync,
   type IconKey,
 } from "./ui";
@@ -244,8 +246,10 @@ export function StaffApp({
   const areas = areasOf(section);
   const tabs = TABS.filter((t) => sees(me, t.href.split("/")[2]));
   if (tabs.length < TABS.length) tabs.push(MORE_TAB);
+  const { data: mayReviewComplaints, loading: checkingComplaints } = useAsync(() => section === "complaints" && me.role === "owner" ? rpc<boolean>("staff_can_review_complaints") : Promise.resolve(false), [section, me.user_id, me.role]);
+  if (section === "complaints" && checkingComplaints) return <AppShell tabs={tabs} path={path}><Loading /></AppShell>;
   const viewOnly = areas.length > 0 && !areas.some((a) => can(me, a));
-  if (!sees(me, section))
+  if (!sees(me, section) || (section === "complaints" && !mayReviewComplaints))
     return (
       <AppShell tabs={tabs} path={path}>
         <NotAllowed />
@@ -390,6 +394,9 @@ export function StaffApp({
       break;
     case "deletions":
       screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
+      break;
+    case "complaints":
+      screen = <ComplaintsScreen />;
       break;
     case "inbox":
       screen = <InboxScreen me={me} />;
@@ -868,6 +875,7 @@ function Shortcut({ icon, label, to }: { icon: IconKey; label: string; to: strin
 }
 
 function MoreScreen({ me }: { me: StaffRow }) {
+  const { data: mayReviewComplaints } = useAsync(() => me.role === "owner" ? rpc<boolean>("staff_can_review_complaints") : Promise.resolve(false), [me.user_id, me.role]);
   const allowed = (to: string) => sees(me, to.split("/")[2]);
   const items: { icon: IconKey; label: string; to: string; show?: boolean }[] = [
     { icon: "bell", label: "الإشعارات", to: "/staff/notifications" },
@@ -956,6 +964,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
+    { icon: "lock", label: "الشكاوى السرية", to: "/staff/complaints", show: mayReviewComplaints === true },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",

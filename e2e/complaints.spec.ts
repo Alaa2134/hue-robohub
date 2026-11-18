@@ -1,0 +1,30 @@
+import { test, expect } from "@playwright/test";
+test("anonymous reports omit identity and track with the secret code",async({page})=>{
+ const code="BX-CMP-0123456789abcdef0123456789abcdef";
+ let sent:Record<string,unknown>|undefined;
+ await page.route("**/rest/v1/rpc/submit_confidential_complaint",async route=>{sent=route.request().postDataJSON().p;await route.fulfill({json:{ok:true,code}});});
+ await page.route("**/rest/v1/rpc/confidential_complaint_status",async route=>{expect(route.request().postDataJSON()).toEqual({p_code:code});await route.fulfill({json:{ok:true,status:"review",reply:"We are reviewing this."}});});
+ await page.goto("/ar/complaints/");
+ await page.getByLabel("باسمي",{exact:true}).check();
+ await page.getByLabel("الاسم",{exact:true}).fill("Test identity");
+ await page.getByLabel("بدون ذكر هويتي").check();
+ await expect(page.getByLabel("الاسم",{exact:true})).toHaveCount(0);
+ await page.getByLabel("عنوان البلاغ").fill("مشكلة في التنظيم");
+ await page.getByLabel("تفاصيل البلاغ").fill("تفاصيل تجريبية لا تحتوي على معلومات شخصية.");
+ await page.getByRole("form",{name:"تقديم شكوى"}).getByRole("checkbox").check();
+ await page.getByRole("button",{name:"إرسال البلاغ"}).click();
+ await expect(page.getByTestId("complaint-code")).toHaveText(code);
+ expect(sent).toMatchObject({anonymous:true,name:"",contact:"",consent:true});
+ await page.getByRole("button",{name:"عرض الحالة"}).click();
+ await expect(page.getByText("قيد المراجعة")).toBeVisible();
+});
+test("a failed submission never shows a receipt",async({page})=>{
+ await page.route("**/rest/v1/rpc/submit_confidential_complaint",r=>r.fulfill({status:503,body:"Unavailable"}));
+ await page.goto("/complaints/");
+ await page.getByLabel("Subject",{exact:true}).fill("Test complaint");
+ await page.getByLabel("Report details").fill("This is a synthetic report for testing.");
+ await page.getByRole("form",{name:"Submit a complaint"}).getByRole("checkbox").check();
+ await page.getByRole("button",{name:"Submit report"}).click();
+ await expect(page.getByRole("alert").filter({hasText:"Not submitted"})).toBeVisible();
+ await expect(page.getByTestId("complaint-code")).toHaveCount(0);
+});
