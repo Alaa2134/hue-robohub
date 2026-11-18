@@ -925,6 +925,8 @@ test("accepted with a next step on another site: open it, then «I've registered
 test("Robotex: accepted means registered — the delegation pass with the number, the live count, the day plan and the album", async ({
   page,
 }) => {
+  // Freeze the browser date before the expo; this fixture is an upcoming-event scenario.
+  await page.clock.setFixedTime(new Date("2026-11-10T09:00:00+02:00"));
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await mockSupabase(page, {
