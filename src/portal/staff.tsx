@@ -98,6 +98,7 @@ import {
   TopBar,
   go,
   Loading,
+  ErrorBox,
   useAsync,
   type IconKey,
 } from "./ui";
@@ -246,8 +247,9 @@ export function StaffApp({
   const areas = areasOf(section);
   const tabs = TABS.filter((t) => sees(me, t.href.split("/")[2]));
   if (tabs.length < TABS.length) tabs.push(MORE_TAB);
-  const { data: mayReviewComplaints, loading: checkingComplaints } = useAsync(() => section === "complaints" && me.role === "owner" ? rpc<boolean>("staff_can_review_complaints") : Promise.resolve(false), [section, me.user_id, me.role]);
+  const { data: mayReviewComplaints, loading: checkingComplaints, error: complaintsAccessError, reload: retryComplaintsAccess } = useAsync(() => section === "complaints" && me.role === "owner" ? rpc<boolean>("staff_can_review_complaints") : Promise.resolve(false), [section, me.user_id, me.role]);
   if (section === "complaints" && checkingComplaints) return <AppShell tabs={tabs} path={path}><Loading /></AppShell>;
+  if (section === "complaints" && complaintsAccessError) return <AppShell tabs={tabs} path={path}><ErrorBox error={complaintsAccessError} retry={retryComplaintsAccess} /></AppShell>;
   const viewOnly = areas.length > 0 && !areas.some((a) => can(me, a));
   if (!sees(me, section) || (section === "complaints" && !mayReviewComplaints))
     return (

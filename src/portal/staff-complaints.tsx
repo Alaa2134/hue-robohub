@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { sb, must, fmt } from "./core";
-import { TopBar, Card, Button, Loading, ErrorBox, useAsync, toast } from "./ui";
+import { TopBar, Card, Button, Loading, ErrorBox, Sheet, useAsync, toast } from "./ui";
 
 type Report={id:string;created_at:string;anonymous:boolean;name:string|null;contact:string|null;kind:string;department:string;priority:string;subject:string;details:string;solution:string|null;status:string;reply:string|null;internal_note:string|null};
 const states:Record<string,string>={received:"تم الاستلام",review:"قيد المراجعة",progress:"جارٍ الحل",resolved:"تم الحل",closed:"مغلقة"};
@@ -12,6 +12,7 @@ export function ComplaintsScreen(){
   const [search,setSearch]=useState("");
   const [selected,setSelected]=useState<Report|null>(null);
   const [busy,setBusy]=useState(false);
+  const closePreview=useCallback(()=>{if(!busy)setSelected(null);},[busy]);
   const list=(data??[]).filter(x=>(filter==="all"||x.status===filter)&&[x.subject,x.department,x.kind,labels[x.department]??""].some(v=>v.toLowerCase().includes(search.toLowerCase())));
   async function save(){
     if(!selected||busy)return;setBusy(true);
@@ -31,7 +32,8 @@ export function ComplaintsScreen(){
     <div className="grid gap-2 sm:grid-cols-2"><input aria-label="بحث" className="rounded-lg bg-panel p-3 text-chalk" placeholder="بحث بالعنوان أو القسم" value={search} onChange={e=>setSearch(e.target.value)}/>
       <select aria-label="فلتر الحالة" className="rounded-lg bg-panel p-3 text-chalk" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">كل الحالات</option>{Object.entries(states).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div>
     {loading?<Loading/>:error?<ErrorBox error={error} retry={reload}/>:<div className="mt-4 grid gap-3">{!list.length&&<p className="text-fog">لا توجد بلاغات مطابقة</p>}{list.map(x=><Card key={x.id} className="grid gap-2"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="break-words text-chalk">{x.subject}</strong><span className="text-xs text-cyan">{states[x.status]}</span></div><p className="text-xs text-fog">{fmt.dateTime(x.created_at)} · {labels[x.priority]} · {labels[x.department]} · {x.anonymous?"بدون اسم":"باسم"}</p><Button onClick={()=>setSelected({...x})}>عرض البلاغ</Button></Card>)}</div>}
-    {selected&&<Card className="mt-4 grid gap-4">
+    <Sheet open={selected!==null} onClose={closePreview} title="عرض البلاغ" wide>
+    {selected&&<div className="grid gap-4">
       <h2 className="text-lg font-semibold text-chalk">{selected.subject}</h2>
       <p className="text-sm text-fog">{selected.anonymous?"بدون اسم":[selected.name,selected.contact].filter(Boolean).join(" · ")} · {labels[selected.kind]}</p>
       <p className="whitespace-pre-wrap break-words text-chalk">{selected.details}</p>
@@ -39,7 +41,8 @@ export function ComplaintsScreen(){
       <label className="grid gap-1 text-sm">الحالة<select className="rounded-lg bg-panel p-3" value={selected.status} onChange={e=>setSelected({...selected,status:e.target.value})}>{Object.entries(states).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
       <label className="grid gap-1 text-sm">رد يظهر لصاحب كود المتابعة فقط (بدون بيانات شخصية)<textarea className="rounded-lg bg-panel p-3" rows={4} maxLength={2000} value={selected.reply??""} onChange={e=>setSelected({...selected,reply:e.target.value})}/></label>
       <label className="grid gap-1 text-sm">ملاحظة داخلية لا تظهر لصاحب البلاغ<textarea className="rounded-lg bg-panel p-3" rows={4} maxLength={4000} value={selected.internal_note??""} onChange={e=>setSelected({...selected,internal_note:e.target.value})}/></label>
-      <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={()=>void save()}>حفظ</Button><Button disabled={busy} onClick={()=>setSelected(null)}>إغلاق</Button></div>
-    </Card>}
+      <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={()=>void save()}>حفظ</Button><Button disabled={busy} onClick={closePreview}>إغلاق</Button></div>
+    </div>}
+    </Sheet>
   </>;
 }
