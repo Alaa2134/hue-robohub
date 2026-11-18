@@ -53,6 +53,7 @@ import { AppsSettingsScreen } from "./app-update";
 import { TaskSubmissions, TasksScreen } from "./tasks";
 import { AnnouncementsScreen } from "./schedule";
 import { InboxScreen, newMessagesCount } from "./staff-inbox";
+import { ComplaintsScreen } from "./staff-complaints";
 import { DirectoryScreen } from "./staff-directory";
 import { SponsorReportScreen } from "./sponsor-report";
 import { FamilyScreen } from "./staff-family";
@@ -245,7 +246,7 @@ export function StaffApp({
   const tabs = TABS.filter((t) => sees(me, t.href.split("/")[2]));
   if (tabs.length < TABS.length) tabs.push(MORE_TAB);
   const viewOnly = areas.length > 0 && !areas.some((a) => can(me, a));
-  if (!sees(me, section))
+  if (!sees(me, section) || (section === "complaints" && me.role !== "owner"))
     return (
       <AppShell tabs={tabs} path={path}>
         <NotAllowed />
@@ -390,6 +391,9 @@ export function StaffApp({
       break;
     case "deletions":
       screen = me.role === "owner" ? <DeletionsScreen /> : <StaffHome me={me} />;
+      break;
+    case "complaints":
+      screen = <ComplaintsScreen />;
       break;
     case "inbox":
       screen = <InboxScreen me={me} />;
@@ -956,6 +960,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     },
     { icon: "download", label: "النسخ الاحتياطية", to: "/staff/backups", show: me.role === "owner" },
     { icon: "key", label: "طلبات الدخول (نسيوا الرمز أو كلمة المرور)", to: "/staff/access" },
+    { icon: "lock", label: "الشكاوى السرية", to: "/staff/complaints", show: me.role === "owner" },
     { icon: "trash", label: "طلبات حذف الحسابات", to: "/staff/deletions", show: me.role === "owner" },
     {
       icon: "install",

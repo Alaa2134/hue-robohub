@@ -50,6 +50,7 @@ export default async function Contact({ params }: Params) {
           </div>
           <aside className="flex flex-col gap-4 lg:col-span-5">
             <p className="t-eyebrow text-fog">{p.contact.channels}</p>
+            <a href={href("/complaints/")} className="frame block p-5 text-cyan hover:bg-panel/60">{locale === "ar" ? "تقديم شكوى أو متابعة بلاغ سري" : "Submit or track a confidential complaint"}</a>
             {c.email && (
               <a href={`mailto:${c.email}`} className="frame flex items-center gap-4 p-5 transition-colors hover:bg-panel/60">
                 <Icon name="mail" size={20} className="text-cyan" />

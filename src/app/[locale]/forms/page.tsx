@@ -24,6 +24,7 @@ export default async function Forms({ params }: Params) {
     <>
       <PageHero eyebrow={c.eyebrow} title={c.title} body={c.lead} crumbs={[{ label: t.nav.home, href: href("/") }, { label: c.title }]} size="md" />
       <Band tight>
+        <a className="frame mb-6 block p-5 text-cyan hover:bg-panel/60" href={href("/complaints/")}>{locale === "ar" ? "الشكاوى والمشكلات والاقتراحات — تقديم ومتابعة بلاغ" : "Complaints, concerns & suggestions — submit or track a report"}</a>
         <OpenForms locale={locale} base={href("/form/")} />
       </Band>
     </>
