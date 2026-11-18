@@ -148,7 +148,7 @@ begin
  for x in select id,email,full_name,member_until from public.students where active and email is not null and member_until between private.cairo_today() and private.cairo_today()+7 loop
  perform private.email_once('membership_expiring',x.email,x.full_name,jsonb_build_object('date',x.member_until),'member:'||x.id||':'||x.member_until);
  end loop;
-end $;
+end $$;
 revoke all on function private.email_first_tick() from public,anon,authenticated;
 -- Stop paid sends, preserving credentials and logs. Do not auto-reconnect.
 update private.wa_auto_rules set enabled=false where enabled;
