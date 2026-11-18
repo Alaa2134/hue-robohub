@@ -708,6 +708,23 @@ export function BansScreen() {
     [],
   );
   const [tab, setTab] = useState<"banned" | "warned" | "lifted">("banned");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const addBan = async () => {
+    const digits = phone.replace(/\D/g, "").replace(/^0020/, "0").replace(/^20/, "0");
+    if (!name.trim() || !/^01[0125]\d{8}$/.test(digits) || !reason.trim()) {
+      toast("اكتب الاسم ورقم موبايل مصري صحيح والسبب", "error"); return;
+    }
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (!await confirmDialog({ title: "تأكيد الحظر اليدوي", body: name.trim() + " · " + digits, ok: "حظر" })) return;
+      await rpc("staff_manual_community_ban", { p_name: name.trim(), p_phone: digits, p_reason: reason.trim() });
+      setName(""); setPhone(""); setReason(""); setTab("banned"); reload(); toast("تم الحظر");
+    } catch (e) { toast(errorText(e), "error"); } finally { setBusy(false); }
+  };
   const showLifted = tab === "lifted";
   const liftStrike = async (x: Strike) => {
     const ok = await confirmDialog({ title: `تشيل الإنذار عن ${x.name ?? x.phone ?? ""}؟`, body: "لو سجّل بعد كده ومجاش هياخد إنذار جديد بدل الحظر.", ok: "شيل الإنذار" });
@@ -735,6 +752,13 @@ export function BansScreen() {
   return (
     <>
       <TopBar title="الحظر من الكميونيتي" sub="اللي سجّلوا ومجوش: إنذار أول مرة، وحظر التانية" back="/staff/more" />
+      <Card className="mt-3 grid gap-3">
+        <h2 className="font-semibold text-chalk">حظر شخص يدويًا</h2>
+        <label className="grid gap-1">الاسم<input className="rounded-xl border border-current bg-transparent p-2" value={name} onChange={e => setName(e.target.value)} maxLength={150} /></label>
+        <label className="grid gap-1">رقم الهاتف<input className="rounded-xl border border-current bg-transparent p-2" dir="ltr" type="tel" value={phone} onChange={e => setPhone(e.target.value)} maxLength={25} /></label>
+        <label className="grid gap-1">سبب الحظر<textarea className="rounded-xl border border-current bg-transparent p-2" value={reason} onChange={e => setReason(e.target.value)} maxLength={500} /></label>
+        <Button disabled={busy || !name.trim() || !phone.trim() || !reason.trim()} onClick={() => void addBan()}>{busy ? "جارٍ التنفيذ..." : "حظر شخص جديد"}</Button>
+      </Card>
       <div className="flex flex-wrap gap-2">
         <Chip active={tab === "banned"} onClick={() => setTab("banned")}>
           محظورين دلوقتي
