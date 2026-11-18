@@ -182,7 +182,8 @@ export function planRender(input: RenderInput): RenderPlan {
     n++;
   }
 
-  graph.push(`[${last}]format=yuv420p[vout]`);
+  // Convert full-range JPEG layers to limited-range video before H.264 encoding.
+  graph.push(`[${last}]scale=iw:ih:out_range=tv,format=yuv420p[vout]`);
 
   // Sound.
   const sounds: string[] = [];
@@ -247,6 +248,8 @@ export function planRender(input: RenderInput): RenderPlan {
     "high",
     "-pix_fmt",
     "yuv420p",
+    "-color_range",
+    "tv",
     "-r",
     String(FPS),
     "-g",
