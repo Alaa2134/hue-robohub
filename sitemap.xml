@@ -563,6 +563,22 @@
 <priority>0.6</priority>
 </url>
 <url>
+<loc>https://buildxhue.com/news/news-24687aa3/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/news-24687aa3/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/news-24687aa3/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/news-24687aa3/" />
+<lastmod>2026-11-01T14:27:17.979Z</lastmod>
+<priority>0.6</priority>
+</url>
+<url>
+<loc>https://buildxhue.com/ar/news/news-24687aa3/</loc>
+<xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/news/news-24687aa3/" />
+<xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/news/news-24687aa3/" />
+<xhtml:link rel="alternate" hreflang="x-default" href="https://buildxhue.com/news/news-24687aa3/" />
+<lastmod>2026-11-01T14:27:17.979Z</lastmod>
+<priority>0.6</priority>
+</url>
+<url>
 <loc>https://buildxhue.com/events/embedded-systems-workshop-01/</loc>
 <xhtml:link rel="alternate" hreflang="en" href="https://buildxhue.com/events/embedded-systems-workshop-01/" />
 <xhtml:link rel="alternate" hreflang="ar" href="https://buildxhue.com/ar/events/embedded-systems-workshop-01/" />
