@@ -953,6 +953,8 @@ test("Robotex: accepted means registered — the delegation pass with the number
       }),
     },
   });
+  // The expo dates are historical now. Make this pre-event scenario independent of CI calendar time.
+  await page.clock.setFixedTime(new Date("2026-11-10T12:00:00Z"));
   await page.goto("/ar/robotex/?ref=F-1A2B3C4D");
   // Live: how many are going, and the places left.
   const counter = page.getByTestId("delegation-counter");
