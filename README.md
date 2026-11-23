@@ -49,3 +49,7 @@ Everything else needs a staff account.
 - **Backups:** `pg_cron` job `buildx-nightly-backup` writes a snapshot into one of seven weekday slots in `private.backups` (overwritten, never deleted).
 - **Push:** the `send-push` Edge Function (`supabase/functions/send-push`) sends with the VAPID key stored in `private.app_secrets` (not in git).
 - **Retention:** `supabase/migrations/20261007110000_retention.sql` schedules the daily clean-up; it deletes rows, so it is applied only with the owner's approval.
+
+## Latest news
+
+- **23 November 2026:** [BuildX HUE's participation at ROBOTEX Expo 2026](https://buildxhue.com/ar/news/buildx-hue-robotex-expo-2026/) — Horus University's student robotics and AI projects at EIEC, New Cairo (14–16 November 2026).
