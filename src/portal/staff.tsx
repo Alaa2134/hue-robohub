@@ -1,4 +1,5 @@
 "use client";
+import { BmsScreen } from "./bms";
 /** Staff side of the BuildX App: tabs, home dashboard and the "more" menu. */
 import { FirstRunGuide, GuideRow } from "./guides";
 import { AutoShrink } from "./auto-shrink";
@@ -432,6 +433,9 @@ export function StaffApp({
       ) : (
         <FormsScreen />
       );
+      break;
+    case "bms":
+      screen = <BmsScreen student={false} />;
       break;
     case "mytasks":
       screen = <MyTasksScreen key={query.get("t") ?? ""} openId={query.get("t")} />;
@@ -886,6 +890,7 @@ function MoreScreen({ me }: { me: StaffRow }) {
     { icon: "star", label: "نقطي ومستواي (ترتيب الفريق والأوسمة)", to: "/staff/xp" },
     { icon: "calendar", label: "الاجتماعات", to: "/staff/meetings" },
     { icon: "users", label: "السيكتورات وتاسكات الفريق", to: "/staff/sectors" },
+    { icon: "users", label: "BuildX Management", to: "/staff/bms" },
     { icon: "box", label: "المخزن (القطع والأدوات، السلف والطلبات)", to: "/staff/inventory" },
     { icon: "box", label: "طباعة 3D (طلبات الطلبة والأسعار)", to: "/staff/print" },
     { icon: "book", label: "قواعد المسابقات (مدرب المسابقات على الموقع)", to: "/staff/rules" },

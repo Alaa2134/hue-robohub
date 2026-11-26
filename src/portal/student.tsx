@@ -1,4 +1,5 @@
 "use client";
+import { BmsScreen } from "./bms";
 /** Student side: home, content library, quizzes (timed, autosaved, graded on the server) and attendance. */
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { cn } from "@/lib/cn";
@@ -164,6 +165,7 @@ export function StudentApp({
   let screen: React.ReactNode;
   if (section === "checkin") screen = <StudentCheckin query={query} onMarked={home.reload} />;
   else if (section === "tasks") screen = <StudentTasks id={id} />;
+  else if (section === "bms") screen = <BmsScreen student />;
   else if (section === "schedule") screen = <StudentSchedule />;
   else if (section === "projects") screen = <StudentProjects />;
   else if (section === "equipment") screen = <StudentEquipment />;
@@ -242,6 +244,7 @@ function Home({ data, reload, loading }: ScreenProps) {
       <CheckinCard />
       <NextUpCard />
       <TasksCard />
+      <a href="#/me/bms" className="mt-3 block rounded-2xl border border-[var(--line)] bg-panel p-4 font-semibold text-chalk">BuildX Management · Teams & Competitions</a>
       <StudentLoansCard />
       <a
         href="#/me/attendance"

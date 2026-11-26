@@ -27,6 +27,7 @@ jobs:
       # (every example project is built with GCC and run on the simulated ATmega328P).
       - run: node scripts/lab-toolchain.mjs
       - run: npx vitest run --project unit
+      - run: node --test scripts/competition-radar.test.mjs
       # Chromium first: the build draws the share images with it, then the smoke tests use it.
       - run: npx playwright install --with-deps chromium
       - name: Build
