@@ -24,3 +24,31 @@ jobs:
       - name: Audit production dependencies (studio)
         if: always()
         run: npm audit --prefix studio --omit=dev --audit-level=high
+
+  repair:
+    # One-time, explicitly scoped repair branch only; never runs for forks or main.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/security-hardening-2026-11-27'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/security-hardening-2026-11-27
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - name: Resolve patched dependency versions without running package scripts
+        run: |
+          npm audit fix --package-lock-only --ignore-scripts --no-fund
+          npm audit --omit=dev --audit-level=high
+      - name: Commit verified manifest and lockfile to repair branch only
+        run: |
+          git diff --stat
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Resolve vulnerable npm dependencies"
+          git push origin HEAD:fix/security-hardening-2026-11-27
