@@ -627,60 +627,40 @@ function SendCard({
   );
 }
 
-/** Close to what lands in the inbox (the database builds the real one the same way). */
-export function EmailPreview({
-  subject,
-  text,
-  from,
-  unsub,
-}: {
-  subject: string;
-  text: string;
-  from: string;
-  unsub?: boolean;
+/** Branded preview mirrors the server's presentation; all content remains React-escaped. */
+export function EmailPreview({subject,text,from,unsub,template}:{
+  subject:string;text:string;from:string;unsub?:boolean;template?:string;
 }) {
-  const parts = text.split(/(https?:\/\/[^\s<]+)/g);
-  return (
-    <div className="grid gap-2" data-testid="email-preview">
-      <div className="text-xs text-fog">
-        <p dir="ltr" className="truncate">
-          {from}
-        </p>
-        <p className="font-semibold text-chalk" dir="auto">
-          {subject || "—"}
-        </p>
+  const ar=/[\u0600-\u06ff]/.test(subject+text);
+  const parts=text.split(/(https?:\/\/[^\s<>"']+)/g);
+  const confirmed=["application_accepted","form_accepted","event_registered","family_joined"].includes(template??"");
+  const reminder=["event_reminder","form_session_reminder","form_unpaid","application_interview_reminder","membership_expiring"].includes(template??"");
+  const rejected=["application_rejected","form_rejected"].includes(template??"");
+  const registration=["form_waitlist","join_open_waitlist","join_open_waitlist_en"].includes(template??"");
+  const followup=["application_received","form_received","contact_received","application_next_steps"].includes(template??"");
+  const label=confirmed?(ar?"تأكيد وتسجيل":"CONFIRMED · REGISTRATION"):reminder?(ar?"تذكير مهم":"IMPORTANT REMINDER"):rejected?(ar?"تحديث الطلب":"APPLICATION UPDATE"):registration?(ar?"تحديث التسجيل":"REGISTRATION UPDATE"):followup?(ar?"متابعة الطلب":"APPLICATION & FOLLOW-UP"):(ar?"رسالة من فريق BuildX":"BUILDX HUE · TEAM MESSAGE");
+  const cta=parts.find(p=>/^https:\/\/buildxhue\.com\/(ar\/|en\/|app\/)/.test(p)&&!/^https:\/\/buildxhue\.com\/(ar|en)\/unsubscribe\//.test(p))??"https://buildxhue.com/app/";
+  const ctaLabel=cta.includes("/ticket/")?(ar?"عرض التذكرة":"View ticket"):/[?&]pass=/.test(cta)?(ar?"عرض تصريح الحضور":"View attendance pass"):/\/status\/|[?&]ref=/.test(cta)?(ar?"متابعة الطلب":"Track application"):cta.includes("/join/")?(ar?"الانضمام إلى BuildX":"Join BuildX"):cta==="https://buildxhue.com/app/"?(ar?"فتح تطبيق BuildX":"Open BuildX App"):(ar?"عرض التفاصيل":"View details");
+  return <div className="grid gap-2" data-testid="email-preview">
+    <div className="text-xs text-fog"><p dir="ltr" className="truncate">{from}</p><p className="font-semibold text-chalk" dir="auto">{subject||"—"}</p></div>
+    <div className="rounded-2xl bg-[#edf2f7] p-2 sm:p-4">
+    <div className="mx-auto max-w-[600px] overflow-hidden rounded-2xl border border-[#dbe3ed] bg-white text-[#26374d]">
+      <div className="flex items-center gap-3 border-b-4 border-[#38cfe7] bg-[#0b1730] px-4 py-5 text-white sm:px-6" dir="ltr">
+        <img src="/brand/logo-badge-160.png" width={54} height={54} alt="BuildX HUE"/>
+        <div className="min-w-0 flex-1"><strong className="text-xl">BuildX <span className="text-[#42d5ef]">HUE</span></strong><span className="block text-xs text-[#c3d1e4]">Horus University · Egypt</span></div>
+        <img src="/brand/hue-logo.png" width={49} height={49} className="rounded-lg bg-white p-1" alt="Horus University"/>
       </div>
-      <div className="overflow-hidden rounded-2xl bg-white text-[#14213d]">
-        <div className="bg-[#081634] px-5 py-3 text-lg font-bold text-white" dir="ltr">
-          <div className="flex items-center gap-3">
-          <img src="/brand/logo-badge-160.png" width={52} height={52} alt="BuildX HUE" /><span>BuildX <span className="text-[#38dcff]">HUE</span><span className="block text-xs font-normal text-[#b6c9e5]">Horus University · Robotics, Embedded Systems &amp; AI</span></span>
-          
-          <img src="/brand/hue-logo.png" width={48} height={48} className="ml-auto rounded bg-white object-contain p-1" alt="Horus University" /></div>
-        </div>
-        <div className="whitespace-pre-wrap break-words px-5 py-5 text-[15px] leading-loose" dir="rtl">
-          {parts.map((p, i) =>
-            /^https?:\/\//.test(p) ? (
-              <a
-                key={i}
-                href={p}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="break-all text-[#2b6dff] underline"
-              >
-                {p}
-              </a>
-            ) : (
-              <span key={i}>{p}</span>
-            ),
-          )}
-        </div>
-        <div className="bg-[#f6f8fc] px-5 py-3 text-xs leading-relaxed text-[#6b7690]" dir="rtl">
-          BuildX HUE · مجتمع الروبوتكس والابتكار بجامعة حورس · buildxhue.com
-          {unsub && <span className="block underline">إلغاء الاشتراك في رسايلنا</span>}
-        </div>
+      <div dir={ar?"rtl":"ltr"} className="px-5 pb-6 pt-6 sm:px-6">
+        <span className={"inline-block rounded-md px-3 py-1.5 text-xs font-bold "+(confirmed?"bg-[#edf8ef] text-[#166534]":reminder?"bg-[#fff7e6] text-[#92400e]":rejected?"bg-[#f1f5f9] text-[#475569]":"bg-[#eaf7fb] text-[#087c98]")}>{label}</span>
+        <h2 dir="auto" className="mt-4 break-words text-2xl font-bold leading-snug text-[#101e36]">{subject||"BuildX HUE"}</h2>
+        <div className="mt-5 whitespace-pre-wrap break-words text-[15px] leading-loose">{parts.map((part,i)=>/^https?:\/\//.test(part)?<span key={i} dir="ltr" className="break-all text-[#075e89] underline">{part}</span>:<span key={i}>{part}</span>)}</div>
+        <div className="mt-7 text-center"><span className="inline-block rounded-lg bg-[#123d65] px-6 py-3.5 text-sm font-bold text-white">{ctaLabel}</span></div>
       </div>
-    </div>
-  );
+      <div dir={ar?"rtl":"ltr"} className="border-t border-[#e1e8f0] bg-[#f5f8fc] px-5 py-5 text-xs leading-relaxed text-[#475569]">
+        <strong className="text-sm text-[#15243b]">BuildX HUE</strong><p>{ar?"مجتمع طلابي للروبوتكس والأنظمة المدمجة والذكاء الاصطناعي · جامعة حورس":"Student community for Robotics, Embedded Systems & AI · Horus University"}</p><p className="text-[#075e89] underline">buildxhue.com · Instagram</p>{unsub&&<p className="underline">{ar?"إلغاء الاشتراك في الرسائل":"Unsubscribe"}</p>}
+      </div>
+    </div></div>
+  </div>;
 }
 
 const SAMPLE: Record<string, string> = {
@@ -806,7 +786,7 @@ function TemplateSheet({
             dir="auto"
           />
         </Field>
-        <EmailPreview subject={fillSample(v.subject)} text={fillSample(v.body)} from="BuildX HUE" />
+        <EmailPreview subject={fillSample(v.subject)} text={fillSample(v.body)} from="BuildX HUE" template={t.key} unsub />
         {canEdit && (
           <Button variant="primary" size="lg" icon="check" loading={busy} onClick={save} block>
             حفظ
