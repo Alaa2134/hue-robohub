@@ -1,20 +1,11 @@
-# BuildX Management System — initial implementation
-Route: /command/bms, using the existing Command Center login and member records.
+# BuildX Management — live application integration
 
-- Independent appointments in nested units, including competition-only students.
-- Owner/admin grant or end appointments; multiple positions per student; optional expiry.
-- Scoped team managers assign tasks to an individual or all active members of the selected unit. Watchers are read-only, reviewers can review but not self-review. Scoped appointments do not grant global Lead access.
-- Competition application intake, decisions, and optional linkage to an existing competition.
-- Per-member delivery, text/link submissions, review, feedback, scores, in-app notifications, audit history.
-- Private PostgreSQL namespace (not a Data API); RLS enabled with no browser policies. The server database connection must own the tables or have the appropriate privileged server role. Existing tables and public site are unchanged.
+The deployed site is static GitHub Pages, not the server-rendered /command route. This revision supersedes the earlier experimental V1 with the actual /app/ integration. Uses existing public.students, public.staff and private.session_student / private.is_staff / private.is_owner. No duplicate logins, no copied student records. Staff access: /app/#/staff/bms; student access: /app/#/me/bms.
 
-Migration 0005_bms is hand-written and intentionally isolated from the public Drizzle schema; don't run a destructive schema push. Root units are seeded, not actual members or appointments. Deploy to staging with a copy of the current database first. The production migration has not been applied.
+Implemented: nested units, explicit multi-role/competition-only appointments, temporary grants and revocation, automatic splitting of explicitly selected students, scoped student/staff supervisors and reviewers, individual/all-group tasks, submissions via text/links, review, applications, expenses, group attendance, leave requests, performance summaries and audit history.
 
-## Verification before merge
-1. Run npm ci, typecheck, lint and build with the repository's pinned Node version.
-2. Apply drizzle migrations to disposable PostgreSQL; verify the namespace isn't accessible from anonymous/authenticated browser roles and verify server queries work.
-3. Test owner, supervisor of A, supervisor of B, reviewer, watcher, competition-only member, and unlinked account. Try forged cross-unit IDs, revoked and expired grants, self-review, accepting own application, and submitting another member's task.
-4. Confirm legacy applications, complaints, competitions, public pages, attendance and existing task board still work. Existing task-board global permissions are not altered by this patch; BMS is a distinct workflow.
-5. Confirm notification delivery, migration and deployment rollback/backup.
+Not yet complete: direct private file upload for BMS, external notifications (WhatsApp/email/push), scheduled weekly reports, certificates, configurable role capability editor, promotion recommendation engine, attendance sync with old sessions, multilingual translation and mobile acceptance tests. Existing staff sectors/tasks and academy remain separate. Never use production student data for test fixtures. The database migration is not deployed by the GitHub Pages workflow; apply only after SQL verification and CI pass.
 
-Not included yet: automatic distribution, file upload, attendance/evaluation integration, custom permission editor, full reporting, WhatsApp delivery, bulk member import, role definition editor, budgets, certificates, mobile/native UI, archived units or editing existing unit names. Existing member records are not automatically assigned to avoid inventing appointments; confirm member identity migration before rollout.
+Backup: original code backup/pre-bms-2026-11-26; earlier prototype backup/bms-v1-2026-11-26. Owner snapshot slot 7 was taken before changes. It is an application-data snapshot, not full PostgreSQL or object-storage backup.
+
+Test: verify owner vs supervisor in unrelated units, watcher cannot mutate, expired/revoked roles, forged student identifiers, anonymous invalid tokens, own task review prohibited, application decisions, archived teams, group splitting, duplicate assignments, task review and attendance. Verify old complaints, registration and public site. Check migration in a disposable database before deploying.
