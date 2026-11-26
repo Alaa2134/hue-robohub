@@ -16,7 +16,7 @@ const CSP = [
   `img-src 'self' data: blob: ${SUPABASE}`,
   `media-src 'self' blob: ${SUPABASE}`,
   "font-src 'self'",
-  `connect-src 'self' ${SUPABASE} ${SUPABASE.replace(/^http/, "ws")}${dev ? " ws: wss:" : ""}`,
+  `connect-src 'self' ${SUPABASE} ${SUPABASE.replace(/^http/, "ws")} https://raw.githubusercontent.com/Alaa2134/hue-robohub/competition-radar-data/competition-radar.json${dev ? " ws: wss:" : ""}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "frame-src 'none'",

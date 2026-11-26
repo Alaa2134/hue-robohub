@@ -10,7 +10,7 @@ create table private.bms_units (
 create table private.bms_grants (
  id uuid primary key default gen_random_uuid(), unit_id uuid not null references private.bms_units(id),
  student_id uuid references public.students(id) on delete cascade, staff_id uuid references public.staff(user_id) on delete cascade,
- role text not null check(role in ('member','chair','co_chair','chair','co_chair','head','co_head','leader','supervisor','captain','coordinator','reviewer','watcher','instructor')),
+ role text not null check(role in ('member','chair','co_chair','head','co_head','leader','supervisor','captain','coordinator','reviewer','watcher','instructor')),
  reason text not null default '', starts_at timestamptz not null default now(), ends_at timestamptz, revoked_at timestamptz,
  check(num_nonnulls(student_id,staff_id)=1), check(ends_at is null or ends_at>starts_at)
 );
