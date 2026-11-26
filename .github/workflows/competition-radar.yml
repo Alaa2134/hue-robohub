@@ -1,0 +1,36 @@
+name: Competition Radar
+on:
+  schedule:
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: competition-radar
+  cancel-in-progress: false
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+      - run: node --test scripts/competition-radar.test.mjs
+      - run: node scripts/competition-radar.mjs /tmp/competition-radar.json
+      - name: Publish public candidate feed only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch=competition-radar-data
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" >/dev/null 2>&1; then
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/heads/$branch" -f sha="$GITHUB_SHA" >/dev/null
+          fi
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/contents/competition-radar.json?ref=$branch" --jq .sha 2>/dev/null || true)
+          args=()
+          if [ -n "$sha" ]; then args+=(-f "sha=$sha"); fi
+          gh api --method PUT "repos/$GITHUB_REPOSITORY/contents/competition-radar.json" -f branch="$branch" -f message="Update competition candidate feed" -f content="$(base64 -w0 /tmp/competition-radar.json)" "${args[@]}" >/dev/null
