@@ -41,7 +41,7 @@ jobs:
           node-version: 22
       - name: Resolve patched dependency versions without running package scripts
         run: |
-          npm audit fix --package-lock-only --ignore-scripts --no-fund
+          npm audit fix --package-lock-only --ignore-scripts --no-fund --audit-level=high
           npm audit --omit=dev --audit-level=high
       - name: Commit verified manifest and lockfile to repair branch only
         run: |
