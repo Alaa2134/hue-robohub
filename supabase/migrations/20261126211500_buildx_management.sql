@@ -216,27 +216,7 @@ begin
  elsif p_op='radar_share' then
   if not v_radar then raise exception 'not allowed'; end if;
   v_title:=left(trim(p_payload->>'title'),200); v_url:=left(trim(p_payload->>'link'),2000);
-  if coalesce(length(v_title),0)<2 or v_url is null or v_url !~ '^https://[^[:space:]]+
-  insert into private.bms_expenses(unit_id,title,amount) values(v_unit,trim(p_payload->>'title'),(p_payload->>'amount')::numeric);
- elsif p_op='attendance' then
-  v_member:=(p_payload->>'student_id')::uuid;
-  if not exists(select 1 from private.bms_grants g where g.unit_id=v_unit and g.student_id=v_member and g.revoked_at is null and (g.ends_at is null or g.ends_at>now())) then raise exception 'not allowed'; end if;
-  insert into private.bms_attendance(unit_id,student_id,day,status) values(v_unit,v_member,(p_payload->>'day')::date,p_payload->>'state') on conflict(unit_id,student_id,day) do update set status=excluded.status;
- elsif p_op='leave' then
-  if v_student is null or not v_self then raise exception 'not allowed'; end if;
-  insert into private.bms_leave(unit_id,student_id,starts,ends,reason) values(v_unit,v_student,(p_payload->>'starts')::date,(p_payload->>'ends')::date,left(trim(p_payload->>'reason'),2000));
- elsif p_op='leave_decide' then
-  v_state:=p_payload->>'state'; if v_state not in ('accepted','rejected') then raise exception 'invalid state'; end if;
-  update private.bms_leave set state=v_state where unit_id=v_unit and id=(p_payload->>'id')::uuid and student_id is distinct from v_student and state='pending'; if not found then raise exception 'not allowed'; end if;
- else raise exception 'unknown operation';
- end if;
- -- No student session tokens or private submission content in the audit.
- insert into private.bms_audit(unit_id,student_actor,staff_actor,action,detail) values(v_unit,v_student,v_staff,p_op,jsonb_build_object('target',p_payload->>'student_id','role',p_payload->>'role','record',p_payload->>'id'));
- return jsonb_build_object('ok',true,'unit',v_unit);
-end $$;
-revoke all on function public.buildx_management(text,jsonb,text) from public,anon,authenticated;
-grant execute on function public.buildx_management(text,jsonb,text) to anon,authenticated;
- then raise exception 'invalid opportunity'; end if;
+  if coalesce(length(v_title),0)<2 or v_url is null or v_url !~ '^https://[^[:space:]]+$' then raise exception 'invalid opportunity'; end if;
   insert into private.bms_radar_referrals(unit_id,title,link,source,note) select id,v_title,v_url,left(coalesce(p_payload->>'source',''),160),left(coalesce(p_payload->>'note',''),1000) from private.bms_units where id=v_unit and not archived on conflict do nothing returning id into v_id;
   if v_id is null then raise exception 'already referred or invalid team'; end if;
   select array_agg(distinct g.student_id) filter(where g.student_id is not null and s.active),array_agg(distinct g.staff_id) filter(where g.staff_id is not null and st.active)
