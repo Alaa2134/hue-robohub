@@ -80,7 +80,7 @@ revoke all on function private.bms_scope(uuid,uuid,uuid,text) from public,anon,a
 create function public.buildx_management(p_op text,p_payload jsonb default '{}',p_token text default null) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare
- v_student uuid; v_staff uuid; v_owner boolean:=false; v_unit uuid; v_id uuid; v_member uuid; v_staff_target uuid;
+ v_student uuid; v_staff uuid; v_owner boolean:=false; v_unit uuid; v_id uuid; v_member uuid; v_staff_target uuid; v_ids uuid[];
  v_role text; v_manage boolean; v_review boolean; v_view boolean; v_self boolean;
  v_state text; v_title text; v_group uuid; v_n int; v_i int:=0; v_chunk int; v_rec record; v_result jsonb;
 begin
@@ -113,18 +113,23 @@ begin
  if p_op in ('create','grant','revoke','split','edit') and not v_owner then raise exception 'not allowed' using errcode='42501'; end if;
  if p_op in ('task','decide','applications','expense','attendance','leave_decide') and not v_manage then raise exception 'not allowed' using errcode='42501'; end if;
  if p_op='create' then
-  insert into private.bms_units(name,kind,parent_id,applications_open,deadline,budget) values(trim(p_payload->>'name'),p_payload->>'kind',v_unit,coalesce((p_payload->>'open')::boolean,false),nullif(p_payload->>'deadline','')::date,coalesce((p_payload->>'budget')::numeric,0)) returning id into v_unit;
+  insert into private.bms_units(name,kind,parent_id,applications_open,deadline,budget) values(trim(p_payload->>'name'),p_payload->>'kind',v_unit,coalesce((p_payload->>'open')::boolean,false),nullif(p_payload->>'deadline','')::date,coalesce(nullif(p_payload->>'budget','')::numeric,0)) returning id into v_unit;
  elsif p_op='edit' then
-  update private.bms_units set name=trim(p_payload->>'name'),deadline=nullif(p_payload->>'deadline','')::date,budget=coalesce((p_payload->>'budget')::numeric,0),archived=coalesce((p_payload->>'archived')::boolean,false) where id=v_unit;
+  update private.bms_units set name=trim(p_payload->>'name'),deadline=nullif(p_payload->>'deadline','')::date,budget=coalesce(nullif(p_payload->>'budget','')::numeric,0),archived=coalesce((p_payload->>'archived')::boolean,false) where id=v_unit;
  elsif p_op='grant' then
   v_member:=nullif(p_payload->>'student_id','')::uuid; v_staff_target:=nullif(p_payload->>'staff_id','')::uuid; v_role:=p_payload->>'role';
   if v_member is not null and not exists(select 1 from public.students where id=v_member and active) then raise exception 'invalid student'; end if;
   if v_staff_target is not null and not exists(select 1 from public.staff where user_id=v_staff_target and active) then raise exception 'invalid staff'; end if;
   if not exists(select 1 from private.bms_grants g where unit_id=v_unit and student_id is not distinct from v_member and staff_id is not distinct from v_staff_target and role=v_role and revoked_at is null and (ends_at is null or ends_at>now())) then
    insert into private.bms_grants(unit_id,student_id,staff_id,role,reason,ends_at) values(v_unit,v_member,v_staff_target,v_role,left(coalesce(p_payload->>'reason',''),500),(nullif(p_payload->>'ends','')::date+interval '1 day') at time zone 'Africa/Cairo');
+   if v_member is not null then perform private.notify_student_ids(array[v_member], 'BuildX appointment', v_role, '/app/#/me/bms'); end if;
+   if v_staff_target is not null then perform private.notify_staff_users(array[v_staff_target], 'BuildX appointment', v_role, '/app/#/staff/bms'); end if;
   end if;
  elsif p_op='revoke' then
-  update private.bms_grants set revoked_at=now() where unit_id=v_unit and id=(p_payload->>'id')::uuid and revoked_at is null;
+  update private.bms_grants set revoked_at=now() where unit_id=v_unit and id=(p_payload->>'id')::uuid and revoked_at is null returning student_id,staff_id into v_member,v_staff_target;
+  if not found then raise exception 'not allowed'; end if;
+  if v_member is not null then perform private.notify_student_ids(array[v_member],'BuildX appointment ended','Your appointment has ended.','/app/#/me/bms'); end if;
+  if v_staff_target is not null then perform private.notify_staff_users(array[v_staff_target],'BuildX appointment ended','Your appointment has ended.','/app/#/staff/bms'); end if;
  elsif p_op='split' then
   v_chunk:=(p_payload->>'size')::int; if v_chunk not between 2 and 100 then raise exception 'invalid group size'; end if;
   -- Distribute only explicitly selected active members; no invented appointments.
@@ -140,6 +145,8 @@ begin
   insert into private.bms_tasks(unit_id,title,description,priority,due_date) values(v_unit,v_title,left(coalesce(p_payload->>'description',''),10000),coalesce(p_payload->>'priority','normal'),nullif(p_payload->>'due','')::date) returning id into v_id;
   insert into private.bms_deliveries(task_id,student_id) select distinct v_id,g.student_id from private.bms_grants g join public.students s on s.id=g.student_id and s.active where g.unit_id=v_unit and g.revoked_at is null and (g.ends_at is null or g.ends_at>now()) and (v_member is null or g.student_id=v_member);
   get diagnostics v_n=row_count; if v_n=0 then raise exception 'no active recipients'; end if;
+  select array_agg(student_id) into v_ids from private.bms_deliveries where task_id=v_id;
+  perform private.notify_student_ids(v_ids,'New BuildX task',v_title,'/app/#/me/bms');
  elsif p_op='submit' then
   if v_student is null then raise exception 'not allowed'; end if;
   v_state:=p_payload->>'state'; if v_state not in ('doing','review') or (v_state='review' and length(trim(coalesce(p_payload->>'submission','')))=0) then raise exception 'invalid submission'; end if;
@@ -151,14 +158,17 @@ begin
   if v_member=v_student or v_state not in ('done','changes') or length(trim(coalesce(p_payload->>'feedback','')))=0 then raise exception 'not allowed'; end if;
   update private.bms_deliveries d set state=v_state,feedback=left(p_payload->>'feedback',3000),score=nullif(p_payload->>'score','')::integer,updated_at=now() from private.bms_tasks t where t.id=d.task_id and t.unit_id=v_unit and d.task_id=(p_payload->>'id')::uuid and d.student_id=v_member and d.state='review';
   if not found then raise exception 'not allowed'; end if;
+  perform private.notify_student_ids(array[v_member],'BuildX task reviewed',v_state,'/app/#/me/bms');
  elsif p_op='apply' then
   if v_student is null or not exists(select 1 from private.bms_units where id=v_unit and kind='competition' and applications_open and not archived) then raise exception 'not allowed'; end if;
+  if length(trim(coalesce(p_payload->>'motivation','')))=0 then raise exception 'motivation required'; end if;
   insert into private.bms_applications(unit_id,student_id,motivation) values(v_unit,v_student,left(trim(p_payload->>'motivation'),2000));
  elsif p_op='decide' then
   v_member:=(p_payload->>'student_id')::uuid; v_state:=p_payload->>'state';
-  if v_member=v_student or v_state not in ('accepted','rejected') then raise exception 'not allowed'; end if;
+  if v_member=v_student or v_state not in ('accepted','rejected') or not exists(select 1 from public.students where id=v_member and active) then raise exception 'not allowed'; end if;
   update private.bms_applications set state=v_state where unit_id=v_unit and student_id=v_member and state='pending'; if not found then raise exception 'not allowed'; end if;
   if v_state='accepted' and not exists(select 1 from private.bms_grants where unit_id=v_unit and student_id=v_member and role='member' and revoked_at is null and (ends_at is null or ends_at>now())) then insert into private.bms_grants(unit_id,student_id,role,reason) values(v_unit,v_member,'member','Competition application'); end if;
+  perform private.notify_student_ids(array[v_member],'Competition application',v_state,'/app/#/me/bms');
  elsif p_op='expense' then
   insert into private.bms_expenses(unit_id,title,amount) values(v_unit,trim(p_payload->>'title'),(p_payload->>'amount')::numeric);
  elsif p_op='attendance' then
