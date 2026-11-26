@@ -18,6 +18,7 @@ export const CMD_NAV: CmdNavGroup[] = [
   {
     label: "People",
     items: [
+      { href: "/command/bms", label: "BuildX Management", icon: "users", perm: "dashboard.view", keywords: "sectors groups supervisors promotions competitions tasks" },
       { href: "/command/members", label: "Members", icon: "users", perm: "members.view", keywords: "team people profiles add member" },
       { href: "/command/applications", label: "Applications", icon: "rocket", perm: "applications.view", keywords: "recruitment applicants interview trainee" },
       { href: "/command/teams", label: "Competition teams", icon: "flag", perm: "competitions.view", keywords: "line follower sumo sprint autonomous innovation" },
