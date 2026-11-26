@@ -653,8 +653,8 @@ export function EmailPreview({subject,text,from,unsub,template}:{
       <div dir={ar?"rtl":"ltr"} className="px-5 pb-6 pt-6 sm:px-6">
         <span className={"inline-block rounded-md px-3 py-1.5 text-xs font-bold "+(confirmed?"bg-[#edf8ef] text-[#166534]":reminder?"bg-[#fff7e6] text-[#92400e]":rejected?"bg-[#f1f5f9] text-[#475569]":"bg-[#eaf7fb] text-[#087c98]")}>{label}</span>
         <h2 dir="auto" className="mt-4 break-words text-2xl font-bold leading-snug text-[#101e36]">{subject||"BuildX HUE"}</h2>
-        <div className="mt-5 whitespace-pre-wrap break-words text-[15px] leading-loose">{parts.map((part,i)=>/^https?:\/\//.test(part)?<span key={i} dir="ltr" className="break-all text-[#075e89] underline">{part}</span>:<span key={i}>{part}</span>)}</div>
-        <div className="mt-7 text-center"><span className="inline-block rounded-lg bg-[#123d65] px-6 py-3.5 text-sm font-bold text-white">{ctaLabel}</span></div>
+        <div className="mt-5 whitespace-pre-wrap break-words text-[15px] leading-loose">{parts.map((part,i)=>/^https?:\/\//.test(part)?<a key={i} href={part} dir="ltr" target="_blank" rel="noopener noreferrer" className="break-all text-[#075e89] underline">{part}</a>:<span key={i}>{part}</span>)}</div>
+        <div className="mt-7 text-center"><a href={cta} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg bg-[#123d65] px-6 py-3.5 text-sm font-bold text-white">{ctaLabel}</a></div>
       </div>
       <div dir={ar?"rtl":"ltr"} className="border-t border-[#e1e8f0] bg-[#f5f8fc] px-5 py-5 text-xs leading-relaxed text-[#475569]">
         <strong className="text-sm text-[#15243b]">BuildX HUE</strong><p>{ar?"مجتمع طلابي للروبوتكس والأنظمة المدمجة والذكاء الاصطناعي · جامعة حورس":"Student community for Robotics, Embedded Systems & AI · Horus University"}</p><p className="text-[#075e89] underline">buildxhue.com · Instagram</p>{unsub&&<p className="underline">{ar?"إلغاء الاشتراك في الرسائل":"Unsubscribe"}</p>}
