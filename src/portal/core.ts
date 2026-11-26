@@ -665,6 +665,13 @@ export const studentStore = {
   },
   set(s: StudentSession | null) {
     try {
+      const previous = studentStore.get();
+      if (!s || (previous && previous.code !== s.code)) {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const key = localStorage.key(i);
+          if (key?.startsWith("rh-off:")) localStorage.removeItem(key);
+        }
+      }
       if (s) localStorage.setItem(STUDENT_KEY, JSON.stringify(s));
       else localStorage.removeItem(STUDENT_KEY);
     } catch {
@@ -690,11 +697,13 @@ export async function studentRpc<T>(fn: string, args: Record<string, unknown> = 
  * the network fails the last answer is returned instead, so the app opens on the bus too.
  */
 export async function studentRpcOffline<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
-  const key = `rh-off:${studentStore.get()?.code ?? ""}:${fn}`;
+  const session = studentStore.get();
+  if (!session) throw new Error("session_invalid");
+  const key = `rh-off:${session.code}:${fn}:${JSON.stringify(args)}`;
   try {
     const data = await studentRpc<T>(fn, args);
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      if (studentStore.get()?.token === session.token) localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
     } catch {
       /* the copy is optional */
     }
@@ -703,10 +712,10 @@ export async function studentRpcOffline<T>(fn: string, args: Record<string, unkn
     const offline =
       typeof navigator !== "undefined" &&
       (!navigator.onLine || /fetch|network|load failed/i.test(String((e as Error)?.message)));
-    if (offline) {
+    if (offline && studentStore.get()?.token === session.token) {
       try {
         const v = localStorage.getItem(key);
-        if (v) return JSON.parse(v) as T;
+        if (v) { const cached = JSON.parse(v) as {savedAt:number;data:T}; if (Date.now()-cached.savedAt < 24*60*60*1000) return cached.data; }
       } catch {
         /* fall through */
       }
