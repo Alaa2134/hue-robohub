@@ -645,7 +645,7 @@ export function EmailPreview({subject,text,from,unsub,template}:{
     <div className="text-xs text-fog"><p dir="ltr" className="truncate">{from}</p><p className="font-semibold text-chalk" dir="auto">{subject||"—"}</p></div>
     <div className="rounded-2xl bg-[#edf2f7] p-2 sm:p-4">
     <div className="mx-auto max-w-[600px] overflow-hidden rounded-2xl border border-[#dbe3ed] bg-white text-[#26374d]">
-      <div className="flex items-center gap-3 border-b-4 border-[#38cfe7] bg-[#0b1730] px-4 py-5 text-white sm:px-6" dir="ltr">
+      <div className="flex items-center gap-3 border-b-4 border-[#38cfe7] bg-[#0b1730] px-4 py-6 text-white sm:px-6" dir="ltr" style={{backgroundImage:"url(/brand/email-watermark.png)",backgroundRepeat:"no-repeat",backgroundPosition:"72% center",backgroundSize:"150px 150px"}}>
         <img src="/brand/logo-badge-160.png" width={54} height={54} alt="BuildX HUE"/>
         <div className="min-w-0 flex-1"><strong className="text-xl">BuildX <span className="text-[#42d5ef]">HUE</span></strong><span className="block text-xs text-[#c3d1e4]">Horus University · Egypt</span></div>
         <img src="/brand/hue-logo.png" width={49} height={49} className="rounded-lg bg-white p-1" alt="Horus University"/>
