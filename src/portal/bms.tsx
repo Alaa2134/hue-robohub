@@ -20,7 +20,7 @@ const panel="rounded-2xl border border-[var(--line)] bg-panel/70 p-4 space-y-3";
 const field="w-full rounded-lg border border-[var(--line)] bg-deep p-2 text-chalk";
 const btn="rounded-lg border border-[var(--line-2)] bg-deep px-3 py-2 text-sm font-semibold text-chalk disabled:opacity-50";
 function Select({name,items,empty}:{name:string;items:{id:string;name:string}[];empty?:string}){return <select name={name} aria-label={name} className={field}>{empty!==undefined&&<option value="">{empty}</option>}{items.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>;}
-function Input({name,placeholder,type="text",required=false,defaultValue}:{name:string;placeholder:string;type?:string;required?:boolean;defaultValue?:string}){return <input className={field} name={name} aria-label={placeholder} placeholder={placeholder} type={type} required={required} defaultValue={defaultValue}/>;}
+function Input({name,placeholder,type="text",required=false,defaultValue}:{name:string;placeholder:string;type?:string;required?:boolean;defaultValue?:string}){return <input className={field} name={name} aria-label={placeholder} placeholder={placeholder} type={type} step={type==="number"&&(name==="budget"||name==="amount")?"0.01":undefined} required={required} defaultValue={defaultValue}/>;}
 async function uploadBmsFiles(task:string,files:File[]){
  const session=studentStore.get();if(!session)throw new Error("Sign in again");
  const paths:string[]=[];
@@ -45,7 +45,7 @@ export function BmsScreen({student}:{student:boolean}){
  const [data,setData]=useState<Data|null>(null),[unit,setUnit]=useState(""),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[search,setSearch]=useState(""),[selected,setSelected]=useState<string[]>([]),[tab,setTab]=useState("Teams");
  const call=<T,>(op:string,payload:Record<string,unknown>={})=>student?studentRpc<T>("buildx_management",{p_op:op,p_payload:payload}):rpc<T>("buildx_management",{p_op:op,p_payload:payload});
  async function load(u:string){setData(await call<Data>("read",{unit:u}));}
- useEffect(()=>{let live=true;const req=student?studentRpc<Data>("buildx_management",{p_op:"read",p_payload:{unit}}):rpc<Data>("buildx_management",{p_op:"read",p_payload:{unit}});req.then(d=>{if(live)setData(d);}).catch(e=>{if(live)setMessage(errorText(e));});return()=>{live=false;};},[student,unit]);
+ useEffect(()=>{let live=true;const req=student?studentRpc<Data>("buildx_management",{p_op:"read",p_payload:{unit}}):rpc<Data>("buildx_management",{p_op:"read",p_payload:{unit}});req.then(d=>{if(live)setData(d);}).catch(e=>{if(live){setData(null);setMessage(errorText(e));}});return()=>{live=false;};},[student,unit]);
  const u=data?.units.find(x=>x.id===unit);
  const run=async(op:string,p:Record<string,unknown>)=>{setBusy(true);setMessage("");try{const r=await call<{unit:string|null}>(op,{unit,...p});if(op==="create"&&r.unit){setUnit(r.unit);await load(r.unit);}else await load(unit);setMessage("Saved");}catch(e){setMessage(errorText(e));}finally{setBusy(false);}};
  const form=(op:string,extra:Record<string,unknown>={})=>(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);const payload:Record<string,unknown>={...Object.fromEntries(f.entries()),...extra};if(op==="grant"&&typeof payload.person==="string"){const [type,id]=payload.person.split(":");payload[type+"_id"]=id;delete payload.person;}void run(op,payload);};
@@ -59,10 +59,10 @@ export function BmsScreen({student}:{student:boolean}){
  return <div className="mx-auto max-w-4xl space-y-4 text-chalk" aria-busy={busy}>
   <header><p className="text-xs text-fog">BUILDX HUE · COMMAND CENTER</p><h1 className="text-2xl font-bold">BuildX Management</h1><p className="text-sm text-fog">Teams, roles, competitions, tasks and performance</p></header>
   {message&&<p role="status" className={panel}>{message}</p>}
-  {!data&&<p className={panel}>Loading…</p>}
+  {!data&&<p className={panel}>{message?"Unable to load. Please refresh or sign in again.":"Loading…"}</p>}
   {data&&<>
    <div className="grid grid-cols-3 gap-2">{[["Teams",data.units.length],["Tasks",tasks.length],["Completed",completed.length]].map(([label,n])=><div className={panel} key={label}><small>{label}</small><p className="text-2xl font-bold">{n}</p></div>)}</div>
-   <select className={field} aria-label="Team" value={unit} onChange={e=>{setUnit(e.target.value);setSelected([]);setTab("Teams");}}><option value="">All teams / divisions</option>{choices.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+   <select className={field} aria-label="Team" value={unit} disabled={busy} onChange={e=>{setData(null);setUnit(e.target.value);setSelected([]);setTab("Teams");}}><option value="">All teams / divisions</option>{choices.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
    <nav className="flex flex-wrap gap-2">{["Teams","Tasks","Competitions","Attendance","Reports","Radar"].map(t=><button key={t} className={btn} aria-pressed={tab===t} onClick={()=>setTab(t)}>{t}</button>)}</nav>
    {tab==="Radar"&&<CompetitionRadar reviewer={data.radar_reviewer} units={data.radar_units} referrals={data.referrals} busy={busy} onAction={(op,p)=>run(op,p)}/>}
    {tab==="Teams"&&<>
