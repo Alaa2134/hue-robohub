@@ -5826,6 +5826,10 @@ test("expo delegation runs by itself: dates per visit day, waiting list, WhatsAp
   await page.goto("/app/#/staff/forms/f1");
   const auto = page.getByTestId("delegation-auto");
   await expect(auto).toBeVisible();
+  // No email question: messages go by email now, so the editor says so and adds one in a tap.
+  await expect(page.getByTestId("no-email-warning")).toBeVisible();
+  await page.getByTestId("add-email-question").click();
+  await expect(page.getByTestId("no-email-warning")).toHaveCount(0);
   // Reminders and bans need the dates first.
   await expect(auto.getByRole("switch", { name: /تذكير قبلها بيوم/ })).toBeDisabled();
   await auto.getByLabel("تاريخ السبت 14 نوفمبر").fill("2026-11-14");
@@ -5846,6 +5850,9 @@ test("expo delegation runs by itself: dates per visit day, waiting list, WhatsAp
       remind_template: "expo_reminder|ar",
       auto_no_show: true,
     });
+  expect((patches.at(-1) as { fields?: { type: string }[] }).fields?.some((q) => q.type === "email")).toBe(
+    true,
+  );
   expect(errors).toEqual([]);
 });
 
