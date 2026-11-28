@@ -178,7 +178,7 @@ const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: b
     fields: () => [
       f("name", "الاسم بالكامل", "Full name"),
       f("phone", "رقم الموبايل (واتساب)", "Mobile (WhatsApp)"),
-      f("email", "الإيميل", "Email", false),
+      f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)"),
       f("select", "السنة الدراسية", "Academic year", true, YEARS),
       f("multi", "تقدر تساعد في إيه؟", "What can you help with?", true, ["ميكانيكا وتصميم", "إلكترونيات", "برمجة", "تحكم وحساسات", "إدارة وتنظيم"]),
       f("textarea", "احكيلنا عن خبرتك أو مشروع عملته", "Tell us about your experience or a project", false),
@@ -191,14 +191,14 @@ const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: b
     ar: "تجديد عضوية",
     title: "تجديد العضوية",
     intro: "جدّد عضويتك في BuildX HUE للموسم الجديد.",
-    fields: () => [f("name", "الاسم بالكامل", "Full name"), f("phone", "رقم الموبايل", "Mobile"), f("text", "كود الطالب في التطبيق", "Student code", false), f("select", "التراك", "Track", true, ["روبوتكس", "ذكاء اصطناعي", "سوفتوير", "IoT", "تصميم 3D", "ميديا", "بيزنس"]), f("select", "السنة الدراسية", "Academic year", true, YEARS), f("checkbox", "مكمّل معاكم الموسم ده", "I'm staying for this season")],
+    fields: () => [f("name", "الاسم بالكامل", "Full name"), f("phone", "رقم الموبايل", "Mobile"), f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)"), f("text", "كود الطالب في التطبيق", "Student code", false), f("select", "التراك", "Track", true, ["روبوتكس", "ذكاء اصطناعي", "سوفتوير", "IoT", "تصميم 3D", "ميديا", "بيزنس"]), f("select", "السنة الدراسية", "Academic year", true, YEARS), f("checkbox", "مكمّل معاكم الموسم ده", "I'm staying for this season")],
   },
   {
     k: "volunteer",
     ar: "متطوعين لإيفنت",
     title: "متطوعين",
     intro: "محتاجين إيدين تساعدنا في الإيفنت الجاي 🙌",
-    fields: () => [f("name", "الاسم", "Name"), f("phone", "رقم الموبايل", "Mobile"), f("multi", "تحب تساعد في إيه؟", "Where would you like to help?", true, ["التنظيم والاستقبال", "التصوير والميديا", "الدعم التقني", "التسجيل والـ QR"]), f("multi", "الأيام المتاحة", "Available days", false, ["السبت", "الأحد", "الاتنين", "التلات", "الأربع", "الخميس"])],
+    fields: () => [f("name", "الاسم", "Name"), f("phone", "رقم الموبايل", "Mobile"), f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)"), f("multi", "تحب تساعد في إيه؟", "Where would you like to help?", true, ["التنظيم والاستقبال", "التصوير والميديا", "الدعم التقني", "التسجيل والـ QR"]), f("multi", "الأيام المتاحة", "Available days", false, ["السبت", "الأحد", "الاتنين", "التلات", "الأربع", "الخميس"])],
   },
   {
     k: "survey",
@@ -213,9 +213,9 @@ const TEMPLATES: { k: string; ar: string; title: string; intro: string; team?: b
     title: "التسجيل في الكورس",
     intro: "سجّل وهيطلعلك QR احفظه على موبايلك، وبيه بنسجّل حضورك كل محاضرة.",
     attendance: () => ({ on: true, sessions: [1, 2, 3].map((n) => ({ id: `s_${fid()}`, name: `محاضرة ${n}`, at: null, only: null })) }),
-    fields: () => [f("name", "الاسم بالكامل", "Full name"), f("phone", "رقم الموبايل (واتساب)", "Mobile (WhatsApp)"), f("select", "السنة الدراسية", "Academic year", true, YEARS)],
+    fields: () => [f("name", "الاسم بالكامل", "Full name"), f("phone", "رقم الموبايل (واتساب)", "Mobile (WhatsApp)"), f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)"), f("select", "السنة الدراسية", "Academic year", true, YEARS)],
   },
-  { k: "blank", ar: "فورم فاضي", title: "فورم جديد", intro: "", fields: () => [f("name", "الاسم", "Name"), f("phone", "رقم الموبايل", "Mobile")] },
+  { k: "blank", ar: "فورم فاضي", title: "فورم جديد", intro: "", fields: () => [f("name", "الاسم", "Name"), f("phone", "رقم الموبايل", "Mobile"), f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)")] },
 ];
 
 /** Is the form taking answers right now (same rule as the database)? */
@@ -517,6 +517,14 @@ export function FormEditor({ id, me }: { id: string; me: StaffRow }) {
 
       <div id="form-q" className="scroll-mt-20">
       <Section title={`الأسئلة (${fields.length})`}>
+        {!fields.some((q) => q.type === "email") && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-frost" data-testid="no-email-warning">
+            <span className="flex-1">الفورم ده مفيهوش سؤال إيميل. التأكيد والقبول والـ QR والتذكير بقوا بيتبعتوا على الإيميل بدل الواتساب، فاللي هيسجّل مش هيوصله حاجة.</span>
+            <Button size="sm" icon="plus" disabled={fields.length >= 40} onClick={() => edit({ fields: [...fields, f("email", "الإيميل (بنبعتلك عليه التأكيد والـ QR)", "Email (we send your confirmation and QR here)")] })} data-testid="add-email-question">
+              ضيف سؤال إيميل
+            </Button>
+          </div>
+        )}
         <div className="grid gap-3">
           {fields.map((fl, i) => (
             <Card key={fl.id} className="grid gap-3">
